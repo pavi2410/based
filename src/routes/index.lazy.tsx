@@ -45,7 +45,7 @@ function Index() {
     }
   })
 
-  const deleteProjectMutation = useMutation({
+  const removeProjectMutation = useMutation({
     mutationFn: removeProject,
     onSuccess: async () => {
       await projectsQuery.refetch();
@@ -73,8 +73,8 @@ function Index() {
               e.preventDefault()
               e.stopPropagation()
 
-              // @ts-ignore
-              const name = e.currentTarget.elements['name'].value;
+              const formData = new FormData(e.currentTarget);
+              const name = formData.get('name') as string;
               if (!name || name.trim() === '') return;
               newProjectMutation.mutate(name.trim())
             }}
@@ -84,7 +84,7 @@ function Index() {
                 <Label htmlFor="name" className="text-right text-nowrap">
                   Project Name
                 </Label>
-                <Input id="name" className="col-span-3"/>
+                <Input id="name" name="name" className="col-span-3"/>
               </div>
             </div>
           </form>
@@ -117,10 +117,10 @@ function Index() {
                 <ContextMenuContent>
                   <ContextMenuItem
                     className="!text-red-500"
-                    disabled={newProjectMutation.isPending || deleteProjectMutation.isPending}
-                    onClick={() => deleteProjectMutation.mutate(project.id)}
+                    disabled={newProjectMutation.isPending || removeProjectMutation.isPending}
+                    onClick={() => removeProjectMutation.mutate(project.id)}
                   >
-                    {deleteProjectMutation.isPending ? (
+                    {removeProjectMutation.isPending ? (
                       <Loader2Icon className="animate-spin"/>
                     ) : (
                       <Trash2Icon className="size-4"/>

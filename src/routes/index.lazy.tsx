@@ -1,11 +1,20 @@
-import {createLazyFileRoute} from '@tanstack/react-router'
+import {createLazyFileRoute, Link} from '@tanstack/react-router'
 import {Button} from "@/components/ui/button.tsx";
-import {open} from '@tauri-apps/plugin-dialog';
 import {toast} from "@/hooks/use-toast.ts";
-import {addProject, getProjects, Project, removeProject} from "@/stores.ts";
+import {addProject, getProjects, removeProject} from "@/stores.ts";
 import {useMutation, useQuery} from "@tanstack/react-query";
 import {Loader2Icon, Trash2Icon} from "lucide-react";
 import {ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger} from "@/components/ui/context-menu.tsx";
+import {
+  Dialog, DialogClose,
+  DialogContent,
+  DialogDescription, DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from "@/components/ui/dialog.tsx";
+import {Input} from "@/components/ui/input.tsx";
+import {Label} from "@/components/ui/label.tsx";
 
 export const Route = createLazyFileRoute('/')({
   component: Index,
@@ -21,39 +30,15 @@ function Index() {
   })
 
   const newProjectMutation = useMutation({
-    mutationFn: async () => {
-      const filePath = await open({
-        title: 'Select a SQLite DB file',
-        multiple: false,
-        directory: false,
-        filters: [
-          {
-            name: 'SQLite DB',
-            extensions: ['db', 'sqlite', 'sqlite3']
-          }
-        ]
-      });
-
-      if (!filePath) {
-        return {};
-      }
-
+    mutationFn: async (name: string) => {
       await addProject({
-        dbType: 'sqlite',
-        filePath,
+        name,
+        connections: [],
       })
-
-      return {filePath};
     },
-    onSuccess: async ({filePath}) => {
-      if (!filePath) {
-        toast({title: 'No file selected'});
-        return;
-      }
-
+    onSuccess: async () => {
       toast({
-        title: 'File selected',
-        description: filePath,
+        title: 'Project created',
       });
 
       await projectsQuery.refetch();
@@ -61,9 +46,7 @@ function Index() {
   })
 
   const deleteProjectMutation = useMutation({
-    mutationFn: async (project: Project) => {
-      await removeProject(project);
-    },
+    mutationFn: removeProject,
     onSuccess: async () => {
       await projectsQuery.refetch();
     }
@@ -73,13 +56,45 @@ function Index() {
     <div className="p-2">
       <h3>This is a based app!</h3>
 
-      <Button
-        disabled={newProjectMutation.isPending || deleteProjectMutation.isPending}
-        onClick={() => newProjectMutation.mutate()}
-      >
-        {newProjectMutation.isPending && <Loader2Icon className="animate-spin"/>}
-        Open a SQLite DB file
-      </Button>
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button>New Project</Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>New Project</DialogTitle>
+            <DialogDescription>
+              Create a new project to start working with databases.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            id="new-project-form"
+            onSubmit={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+
+              // @ts-ignore
+              const name = e.currentTarget.elements['name'].value;
+              if (!name || name.trim() === '') return;
+              newProjectMutation.mutate(name.trim())
+            }}
+          >
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="name" className="text-right text-nowrap">
+                  Project Name
+                </Label>
+                <Input id="name" className="col-span-3"/>
+              </div>
+            </div>
+          </form>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="submit" form="new-project-form">Create Project</Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {
         projectsQuery.isLoading && <p>Loading...</p>
@@ -89,31 +104,26 @@ function Index() {
         projectsQuery.data && (
           <ul className="flex flex-col gap-2">
             {projectsQuery.data.map((project) => (
-              <ContextMenu>
+              <ContextMenu key={project.name}>
                 <ContextMenuTrigger>
-                  <li
-                    key={project.filePath}
-                    className="p-4 rounded hover:bg-accent hover:text-accent-foreground"
-                    onClick={() => toast({title: 'opening project'})}
-                  >
-                    <span className="font-bold">{project.dbType}</span>
-                    <br />
-                    {project.filePath}
-                  </li>
+                  <Link to="/project/$id" params={{id: project.id}}>
+                    <li
+                      className="p-4 rounded hover:bg-accent hover:text-accent-foreground"
+                    >
+                      {project.name}
+                    </li>
+                  </Link>
                 </ContextMenuTrigger>
                 <ContextMenuContent>
                   <ContextMenuItem
                     className="!text-red-500"
                     disabled={newProjectMutation.isPending || deleteProjectMutation.isPending}
-                    onClick={() => deleteProjectMutation.mutate({
-                      dbType: project.dbType,
-                      filePath: project.filePath,
-                    })}
+                    onClick={() => deleteProjectMutation.mutate(project.id)}
                   >
                     {deleteProjectMutation.isPending ? (
                       <Loader2Icon className="animate-spin"/>
-                    ): (
-                      <Trash2Icon className="size-4" />
+                    ) : (
+                      <Trash2Icon className="size-4"/>
                     )}
                     &nbsp;
                     Remove

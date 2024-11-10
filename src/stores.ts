@@ -1,31 +1,35 @@
 import { LazyStore } from '@tauri-apps/plugin-store';
-
 const store = new LazyStore('settings.json');
 
-export type Project = {
-  dbType: 'sqlite';
-  filePath: string;
+export type ProjectMeta = {
+  id: string;
+  createdAt: number;
+  updatedAt: number;
+  name: string;
+  connections: Array<{
+    dbType: 'sqlite';
+    filePath: string;
+  }>,
 }
 
 export async function getProjects() {
-  return (await store.get<Project[]>('projects')) ?? [];
+  return (await store.get<ProjectMeta[]>('projects')) ?? [];
 }
 
-export async function addProject(project: Project) {
+export async function addProject(project: Omit<ProjectMeta, 'id' | 'createdAt' | 'updatedAt'>) {
+  const newProjectId = crypto.randomUUID();
   const projects = await getProjects();
-  if (projects.filter(p => p.dbType === project.dbType).some(p => p.filePath === project.filePath)) {
-    return;
-  }
-  projects.push(project);
+  projects.push({
+    ...project,
+    id: newProjectId,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  });
   await store.set('projects', projects);
+  return newProjectId;
 }
 
-export async function removeProject(project: Project) {
+export async function removeProject(projectId: string) {
   const projects = await getProjects();
-  const index = projects.findIndex(p => p.dbType === project.dbType && p.filePath === project.filePath);
-  if (index === -1) {
-    return;
-  }
-  projects.splice(index, 1);
-  await store.set('projects', projects);
+  await store.set('projects', projects.filter(project => project.id !== projectId));
 }

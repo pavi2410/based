@@ -20,6 +20,8 @@ import {InfoIcon, Loader2Icon, PlusIcon, Trash2Icon, XIcon} from "lucide-react";
 import {open} from "@tauri-apps/plugin-dialog";
 import {useState} from "react";
 import {ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger} from "@/components/ui/context-menu.tsx";
+import {load, query} from "@/commands.ts";
+import {Textarea} from "@/components/ui/textarea.tsx";
 
 export const Route = createLazyFileRoute('/project/$id')({
   component: RouteComponent,
@@ -38,8 +40,117 @@ function RouteComponent() {
         <div className="p-2">
           Hello /project/{id}
         </div>
+        <Test projectId={id}/>
       </ResizablePanel>
     </ResizablePanelGroup>
+  )
+}
+
+function Test({projectId}: { projectId: string }) {
+  const connectionQuery = useQuery({
+    queryKey: ['projects', projectId, 'connections', 'first'],
+    queryFn: async () => {
+      return (await getConnections(projectId))[0];
+    }
+  })
+  if (connectionQuery.status === 'pending') {
+    return (
+      <div className="p-2">
+        Loading...
+      </div>
+    )
+  }
+  if (connectionQuery.status === 'error') {
+    return (
+      <div className="p-2">
+        Error: {connectionQuery.error.message}
+      </div>
+    )
+  }
+  return (
+    <div className="p-2">
+      {connectionQuery.data.filePath}
+      <QueryTest dbPath={connectionQuery.data.filePath}/>
+    </div>
+  )
+}
+
+function QueryTest({dbPath}: { dbPath: string }) {
+  const [connected, setConnected] = useState(false)
+  const connectMutation = useMutation({
+    mutationFn: async () => {
+      const ret = await load(`sqlite:${dbPath}`)
+      console.log(ret);
+    },
+    onSuccess: () => {
+      setConnected(true)
+      toast({
+        title: 'Connected',
+      })
+    },
+    onError: (err) => {
+      setConnected(false)
+      toast({
+        title: 'Error',
+        description: err.message,
+      })
+      console.log(err)
+    }
+  })
+
+  if (!connected) {
+    return (
+      <div>
+        <Button
+          disabled={connectMutation.isPending}
+          onClick={() => connectMutation.mutate()}
+        >
+          {connectMutation.isPending && <Loader2Icon className="animate-spin"/>}
+          Connect
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      Connected!
+      <ConnectedTest dbPath={dbPath}/>
+    </div>
+  )
+}
+
+function ConnectedTest({dbPath}: { dbPath: string }) {
+  const [queryText, setQueryText] = useState('')
+
+  const queryMutation = useMutation({
+    mutationFn: async () => {
+      const ret = await query(`sqlite:${dbPath}`, queryText, [])
+      console.log(ret);
+      return ret;
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Executed',
+      })
+    },
+    onError: (err) => {
+      console.log('query', err)
+    }
+  })
+
+  return (
+    <div>
+      <Textarea value={queryText} onChange={e => setQueryText(e.target.value)}/>
+      <Button
+        disabled={queryMutation.isPending}
+        onClick={() => queryMutation.mutate()}
+      >
+        {queryMutation.isPending && <Loader2Icon className="animate-spin"/>}
+        Run Query
+      </Button>
+      <Textarea value={JSON.stringify(queryMutation.data, null, 2)} readOnly/>
+    </div>
   )
 }
 

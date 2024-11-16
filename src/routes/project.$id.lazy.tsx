@@ -1,6 +1,6 @@
 import {createLazyFileRoute, Link} from '@tanstack/react-router'
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
-import {addConnection, getConnection, getConnections, getProject, removeConnection} from "@/stores.ts";
+import {addConnection, DbConnectionMeta, getConnections, getProject, removeConnection} from "@/stores.ts";
 import {toast} from "@/hooks/use-toast.ts";
 import {
   Dialog,
@@ -122,7 +122,7 @@ function ProjectHeader({projectId}: { projectId: string }) {
     }
   })
   return (
-    <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+    <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
       <SidebarTrigger className="-ml-1"/>
       <Separator orientation="vertical" className="mr-2 h-4"/>
       <Breadcrumb>
@@ -369,14 +369,6 @@ function DatabaseTree({projectId}: { projectId: string }) {
       return await getConnections(projectId);
     }
   })
-  const removeConnectionMutation = useMutation({
-    mutationFn: async (connectionId: string) => {
-      await removeConnection(projectId, connectionId)
-    },
-    onSuccess: async () => {
-      await connectionsQuery.refetch()
-    }
-  })
   if (connectionsQuery.status === 'pending') {
     return (
       <div className="p-2">
@@ -394,90 +386,124 @@ function DatabaseTree({projectId}: { projectId: string }) {
   return (
     <SidebarGroupContent>
       <SidebarMenu>
-        {connectionsQuery.data.map(connection => (
-          <Dialog key={connection.id}>
-            <SidebarMenuItem>
-              <Collapsible
-                className="group/collapsible [&[data-state=open]>button>svg:first-child]:rotate-90"
-              >
-                <CollapsibleTrigger asChild>
-                  <SidebarMenuButton>
-                    <ChevronRightIcon className="transition-transform"/>
-                    <DatabaseIcon/>
-                    <span>{connection.filePath.replace(/^.+[\/\\]/, '')}</span>
-                    <small>{connection.dbType}</small>
-                  </SidebarMenuButton>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <SidebarMenuSub>
-                    <DbObjectMenu projectId={projectId} connectionId={connection.id} type="table" label="Tables"
-                                  icon={<TableIcon/>}/>
-                    <DbObjectMenu projectId={projectId} connectionId={connection.id} type="view" label="Views"
-                                  icon={<Table2Icon/>}/>
-                    <DbObjectMenu projectId={projectId} connectionId={connection.id} type="index" label="Indexes"
-                                  icon={<ListOrderedIcon/>}/>
-                    <DbObjectMenu projectId={projectId} connectionId={connection.id} type="trigger" label="Triggers"
-                                  icon={<RefreshCcwIcon/>}/>
-                  </SidebarMenuSub>
-                </CollapsibleContent>
-              </Collapsible>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <SidebarMenuAction>
-                    <MoreHorizontal/>
-                  </SidebarMenuAction>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent side="right" align="start">
-                  <DialogTrigger asChild>
-                    <DropdownMenuItem>
-                      <span>Edit</span>
-                    </DropdownMenuItem>
-                  </DialogTrigger>
-                  <DropdownMenuItem onClick={() => removeConnectionMutation.mutate(connection.id)}>
-                    <span>Remove</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </SidebarMenuItem>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Connection Info</DialogTitle>
-              </DialogHeader>
-              <div className="grid grid-cols-4 gap-y-2">
-                <div>Database</div>
-                <div className="col-span-3 font-bold">
-                  {connection.dbType}
-                </div>
-                <div>File Path</div>
-                <div className="col-span-3 font-bold">
-                  {connection.filePath}
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+        {connectionsQuery.data.map((connection) => (
+          <DatabaseTreeItem projectId={projectId} connection={connection} key={connection.id}/>
         ))}
       </SidebarMenu>
     </SidebarGroupContent>
   )
 }
 
-function DbObjectMenu({projectId, connectionId, type, label, icon}: {
+function DatabaseTreeItem({projectId, connection}: { projectId: string, connection: DbConnectionMeta }) {
+  const queryClient = useQueryClient()
+  const connectMutation = useMutation({
+    mutationFn: async () => {
+      const connString = `sqlite:${connection.filePath}`;
+      const ret = await load(connString)
+      console.log(ret);
+    },
+    onSuccess: () => {
+      toast({
+        title: `Connected to database: ${baseName(connection.filePath)}`,
+      })
+    },
+    onError: (err) => {
+      toast({
+        title: `Error connecting to database: ${baseName(connection.filePath)}`,
+        description: err.message,
+      })
+      console.log(err)
+    }
+  })
+  const removeConnectionMutation = useMutation({
+    mutationFn: async () => {
+      await removeConnection(projectId, connection.id)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({queryKey: ['projects', projectId, 'connections']})
+    }
+  })
+
+  return (
+    <Dialog>
+      <SidebarMenuItem>
+        <Collapsible
+          className="group/collapsible [&[data-state=open]>button>svg:first-child]:rotate-90"
+        >
+          <CollapsibleTrigger asChild>
+            <SidebarMenuButton>
+              <ChevronRightIcon className="transition-transform"/>
+              <DatabaseIcon/>
+              <span>{baseName(connection.filePath)}</span>
+              <small>{connection.dbType}</small>
+            </SidebarMenuButton>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <SidebarMenuSub>
+              <DbObjectMenu projectId={projectId} connection={connection} type="table" label="Tables"
+                            icon={<TableIcon/>}/>
+              <DbObjectMenu projectId={projectId} connection={connection} type="view" label="Views"
+                            icon={<Table2Icon/>}/>
+              <DbObjectMenu projectId={projectId} connection={connection} type="index" label="Indexes"
+                            icon={<ListOrderedIcon/>}/>
+              <DbObjectMenu projectId={projectId} connection={connection} type="trigger" label="Triggers"
+                            icon={<RefreshCcwIcon/>}/>
+            </SidebarMenuSub>
+          </CollapsibleContent>
+        </Collapsible>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <SidebarMenuAction>
+              <MoreHorizontal/>
+            </SidebarMenuAction>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="right" align="start">
+            <DropdownMenuItem onClick={() => connectMutation.mutate()}>
+              <span>Connect</span>
+            </DropdownMenuItem>
+            <DialogTrigger asChild>
+              <DropdownMenuItem>
+                <span>Edit</span>
+              </DropdownMenuItem>
+            </DialogTrigger>
+            <DropdownMenuItem onClick={() => removeConnectionMutation.mutate()}>
+              <span>Remove</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Connection Info</DialogTitle>
+        </DialogHeader>
+        <div className="grid grid-cols-4 gap-y-2">
+          <div>Database</div>
+          <div className="col-span-3 font-bold">
+            {connection.dbType}
+          </div>
+          <div>File Path</div>
+          <div className="col-span-3 font-bold">
+            {connection.filePath}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function DbObjectMenu({projectId, connection, type, label, icon}: {
   projectId: string,
-  connectionId: string,
+  connection: DbConnectionMeta,
   type: string,
   label: string,
   icon: ReactNode
 }) {
   const objectQuery = useQuery({
-    queryKey: ['projects', projectId, 'connections', connectionId, type],
+    queryKey: ['projects', projectId, 'connections', connection.id, type],
     queryFn: async () => {
-      const connection = await getConnection(projectId, connectionId);
-      if (!connection) return [];
-      let connString = `sqlite:${connection.filePath}`;
+      const connString = `sqlite:${connection.filePath}`;
       await load(connString);
-      return await query(connString, `SELECT name
-                                      FROM sqlite_schema
-                                      WHERE type = '${type}'`, []);
+      return await query(connString, `SELECT name FROM sqlite_schema WHERE type = '${type}'`, []);
     }
   })
   if (objectQuery.status === 'pending') {
@@ -543,4 +569,8 @@ function SidebarBranding() {
       </CardContent>
     </Card>
   )
+}
+
+function baseName(path: string) {
+  return path.replace(/^.+[\/\\]/, '');
 }

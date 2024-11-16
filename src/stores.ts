@@ -2,7 +2,7 @@ import { LazyStore } from '@tauri-apps/plugin-store';
 
 const store = new LazyStore('settings.json');
 
-type DbConnectionMeta = {
+export type DbConnectionMeta = {
   id: string;
   createdAt: number;
   updatedAt: number;

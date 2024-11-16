@@ -42,7 +42,7 @@ export async function removeProject(projectId: string) {
   await store.set('projects', projects.filter(project => project.id !== projectId));
 }
 
-async function getProject(projectId: string) {
+export async function getProject(projectId: string) {
   const projects = await getProjects();
   return projects.find(project => project.id === projectId);
 }

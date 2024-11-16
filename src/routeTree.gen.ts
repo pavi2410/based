@@ -8,37 +8,32 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { createFileRoute } from '@tanstack/react-router'
-
 // Import Routes
 
 import { Route as rootRoute } from './routes/__root'
-
-// Create Virtual Routes
-
-const AboutLazyImport = createFileRoute('/about')()
-const IndexLazyImport = createFileRoute('/')()
-const ProjectIdLazyImport = createFileRoute('/project/$id')()
+import { Route as AboutImport } from './routes/about'
+import { Route as IndexImport } from './routes/index'
+import { Route as ProjectIdImport } from './routes/project.$id'
 
 // Create/Update Routes
 
-const AboutLazyRoute = AboutLazyImport.update({
+const AboutRoute = AboutImport.update({
   id: '/about',
   path: '/about',
   getParentRoute: () => rootRoute,
-} as any).lazy(() => import('./routes/about.lazy').then((d) => d.Route))
+} as any)
 
-const IndexLazyRoute = IndexLazyImport.update({
+const IndexRoute = IndexImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRoute,
-} as any).lazy(() => import('./routes/index.lazy').then((d) => d.Route))
+} as any)
 
-const ProjectIdLazyRoute = ProjectIdLazyImport.update({
+const ProjectIdRoute = ProjectIdImport.update({
   id: '/project/$id',
   path: '/project/$id',
   getParentRoute: () => rootRoute,
-} as any).lazy(() => import('./routes/project.$id.lazy').then((d) => d.Route))
+} as any)
 
 // Populate the FileRoutesByPath interface
 
@@ -48,21 +43,21 @@ declare module '@tanstack/react-router' {
       id: '/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexLazyImport
+      preLoaderRoute: typeof IndexImport
       parentRoute: typeof rootRoute
     }
     '/about': {
       id: '/about'
       path: '/about'
       fullPath: '/about'
-      preLoaderRoute: typeof AboutLazyImport
+      preLoaderRoute: typeof AboutImport
       parentRoute: typeof rootRoute
     }
     '/project/$id': {
       id: '/project/$id'
       path: '/project/$id'
       fullPath: '/project/$id'
-      preLoaderRoute: typeof ProjectIdLazyImport
+      preLoaderRoute: typeof ProjectIdImport
       parentRoute: typeof rootRoute
     }
   }
@@ -71,22 +66,22 @@ declare module '@tanstack/react-router' {
 // Create and export the route tree
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexLazyRoute
-  '/about': typeof AboutLazyRoute
-  '/project/$id': typeof ProjectIdLazyRoute
+  '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/project/$id': typeof ProjectIdRoute
 }
 
 export interface FileRoutesByTo {
-  '/': typeof IndexLazyRoute
-  '/about': typeof AboutLazyRoute
-  '/project/$id': typeof ProjectIdLazyRoute
+  '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/project/$id': typeof ProjectIdRoute
 }
 
 export interface FileRoutesById {
   __root__: typeof rootRoute
-  '/': typeof IndexLazyRoute
-  '/about': typeof AboutLazyRoute
-  '/project/$id': typeof ProjectIdLazyRoute
+  '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/project/$id': typeof ProjectIdRoute
 }
 
 export interface FileRouteTypes {
@@ -99,15 +94,15 @@ export interface FileRouteTypes {
 }
 
 export interface RootRouteChildren {
-  IndexLazyRoute: typeof IndexLazyRoute
-  AboutLazyRoute: typeof AboutLazyRoute
-  ProjectIdLazyRoute: typeof ProjectIdLazyRoute
+  IndexRoute: typeof IndexRoute
+  AboutRoute: typeof AboutRoute
+  ProjectIdRoute: typeof ProjectIdRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexLazyRoute: IndexLazyRoute,
-  AboutLazyRoute: AboutLazyRoute,
-  ProjectIdLazyRoute: ProjectIdLazyRoute,
+  IndexRoute: IndexRoute,
+  AboutRoute: AboutRoute,
+  ProjectIdRoute: ProjectIdRoute,
 }
 
 export const routeTree = rootRoute
@@ -126,13 +121,13 @@ export const routeTree = rootRoute
       ]
     },
     "/": {
-      "filePath": "index.lazy.tsx"
+      "filePath": "index.tsx"
     },
     "/about": {
-      "filePath": "about.lazy.tsx"
+      "filePath": "about.tsx"
     },
     "/project/$id": {
-      "filePath": "project.$id.lazy.tsx"
+      "filePath": "project.$id.tsx"
     }
   }
 }

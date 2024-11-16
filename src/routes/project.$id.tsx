@@ -1,4 +1,4 @@
-import {createLazyFileRoute, Link} from '@tanstack/react-router'
+import {createFileRoute, Link} from "@tanstack/react-router";
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {addConnection, DbConnectionMeta, getConnections, getProject, removeConnection} from "@/stores.ts";
 import {toast} from "@/hooks/use-toast.ts";
@@ -10,7 +10,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger
+  DialogTrigger,
 } from "@/components/ui/dialog.tsx";
 import {Button} from "@/components/ui/button.tsx";
 import {Label} from "@/components/ui/label.tsx";
@@ -27,7 +27,7 @@ import {
   StarIcon,
   Table2Icon,
   TableIcon,
-  XIcon
+  XIcon,
 } from "lucide-react";
 import {open} from "@tauri-apps/plugin-dialog";
 import {ReactNode, useState} from "react";
@@ -50,7 +50,7 @@ import {
   SidebarMenuSub,
   SidebarProvider,
   SidebarRail,
-  SidebarTrigger
+  SidebarTrigger,
 } from "@/components/ui/sidebar.tsx";
 import {Separator} from "@/components/ui/separator.tsx";
 import {
@@ -59,19 +59,19 @@ import {
   BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
-  BreadcrumbSeparator
+  BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb.tsx";
-import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card.tsx";
+import {Card, CardContent, CardDescription, CardHeader, CardTitle,} from "@/components/ui/card.tsx";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.tsx";
 import {Skeleton} from "@/components/ui/skeleton.tsx";
-import {Collapsible, CollapsibleContent, CollapsibleTrigger} from "@/components/ui/collapsible.tsx";
+import {Collapsible, CollapsibleContent, CollapsibleTrigger,} from "@/components/ui/collapsible.tsx";
 
-export const Route = createLazyFileRoute('/project/$id')({
+export const Route = createFileRoute('/project/$id')({
   component: RouteComponent,
 })
 
@@ -118,8 +118,8 @@ function ProjectHeader({projectId}: { projectId: string }) {
   const projectQuery = useQuery({
     queryKey: ['projects', projectId],
     queryFn: async () => {
-      return await getProject(projectId);
-    }
+      return await getProject(projectId)
+    },
   })
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
@@ -148,22 +148,14 @@ function Test({projectId}: { projectId: string }) {
   const connectionQuery = useQuery({
     queryKey: ['projects', projectId, 'connections', 'first'],
     queryFn: async () => {
-      return (await getConnections(projectId))[0];
-    }
+      return (await getConnections(projectId))[0]
+    },
   })
   if (connectionQuery.status === 'pending') {
-    return (
-      <div className="p-2">
-        Loading...
-      </div>
-    )
+    return <div className="p-2">Loading...</div>
   }
   if (connectionQuery.status === 'error') {
-    return (
-      <div className="p-2">
-        Error: {connectionQuery.error.message}
-      </div>
-    )
+    return <div className="p-2">Error: {connectionQuery.error.message}</div>
   }
   return (
     <div className="p-2">
@@ -178,7 +170,7 @@ function QueryTest({dbPath}: { dbPath: string }) {
   const connectMutation = useMutation({
     mutationFn: async () => {
       const ret = await load(`sqlite:${dbPath}`)
-      console.log(ret);
+      console.log(ret)
     },
     onSuccess: () => {
       setConnected(true)
@@ -193,7 +185,7 @@ function QueryTest({dbPath}: { dbPath: string }) {
         description: err.message,
       })
       console.log(err)
-    }
+    },
   })
 
   if (!connected) {
@@ -203,7 +195,9 @@ function QueryTest({dbPath}: { dbPath: string }) {
           disabled={connectMutation.isPending}
           onClick={() => connectMutation.mutate()}
         >
-          {connectMutation.isPending && <Loader2Icon className="animate-spin"/>}
+          {connectMutation.isPending && (
+            <Loader2Icon className="animate-spin"/>
+          )}
           Connect
         </Button>
       </div>
@@ -224,8 +218,8 @@ function ConnectedTest({dbPath}: { dbPath: string }) {
   const queryMutation = useMutation({
     mutationFn: async () => {
       const ret = await query(`sqlite:${dbPath}`, queryText, [])
-      console.log(ret);
-      return ret;
+      console.log(ret)
+      return ret
     },
     onSuccess: () => {
       toast({
@@ -234,12 +228,15 @@ function ConnectedTest({dbPath}: { dbPath: string }) {
     },
     onError: (err) => {
       console.log('query', err)
-    }
+    },
   })
 
   return (
     <div>
-      <Textarea value={queryText} onChange={e => setQueryText(e.target.value)}/>
+      <Textarea
+        value={queryText}
+        onChange={(e) => setQueryText(e.target.value)}
+      />
       <Button
         disabled={queryMutation.isPending}
         onClick={() => queryMutation.mutate()}
@@ -255,7 +252,13 @@ function ConnectedTest({dbPath}: { dbPath: string }) {
 function DatabaseTreeControls({projectId}: { projectId: string }) {
   const queryClient = useQueryClient()
   const newConnectionMutation = useMutation({
-    mutationFn: async ({dbType, filePath}: { dbType: string, filePath: string }) => {
+    mutationFn: async ({
+                         dbType,
+                         filePath,
+                       }: {
+      dbType: string
+      filePath: string
+    }) => {
       await addConnection(projectId, {
         dbType: dbType as 'sqlite',
         filePath,
@@ -264,9 +267,11 @@ function DatabaseTreeControls({projectId}: { projectId: string }) {
     onSuccess: async () => {
       toast({
         title: 'New connected added',
-      });
-      await queryClient.invalidateQueries({queryKey: ['projects', projectId, 'connections']})
-    }
+      })
+      await queryClient.invalidateQueries({
+        queryKey: ['projects', projectId, 'connections'],
+      })
+    },
   })
   return (
     <Dialog>
@@ -288,11 +293,15 @@ function DatabaseTreeControls({projectId}: { projectId: string }) {
             e.preventDefault()
             e.stopPropagation()
 
-            const formData = new FormData(e.currentTarget);
-            console.log('formData', formData, JSON.stringify(Object.fromEntries(formData)));
-            const dbType = formData.get('dbType') as string;
-            const filePath = formData.get('filePath') as string;
-            if (!dbType || !filePath) return;
+            const formData = new FormData(e.currentTarget)
+            console.log(
+              'formData',
+              formData,
+              JSON.stringify(Object.fromEntries(formData)),
+            )
+            const dbType = formData.get('dbType') as string
+            const filePath = formData.get('filePath') as string
+            if (!dbType || !filePath) return
             newConnectionMutation.mutate({
               dbType,
               filePath,
@@ -304,7 +313,13 @@ function DatabaseTreeControls({projectId}: { projectId: string }) {
               <Label htmlFor="dbType" className="text-right text-nowrap">
                 Database
               </Label>
-              <Input id="dbType" name="dbType" value="sqlite" readOnly className="col-span-3"/>
+              <Input
+                id="dbType"
+                name="dbType"
+                value="sqlite"
+                readOnly
+                className="col-span-3"
+              />
               <Label htmlFor="filePath" className="text-right text-nowrap">
                 File Path
               </Label>
@@ -316,7 +331,9 @@ function DatabaseTreeControls({projectId}: { projectId: string }) {
         </form>
         <DialogFooter>
           <DialogClose asChild>
-            <Button type="submit" form="new-connection-form">Add Connection</Button>
+            <Button type="submit" form="new-connection-form">
+              Add Connection
+            </Button>
           </DialogClose>
         </DialogFooter>
       </DialogContent>
@@ -340,23 +357,26 @@ function SelectFile() {
         </Button>
         <Input readOnly name="filePath" value={filePath} className="pr-8"/>
       </div>
-
     )
   }
 
   return (
-    <Button onClick={async () => {
-      const path = await open({
-        title: 'Select a SQLite file',
-        filters: [{
-          name: 'SQLite files',
-          extensions: ['db', 'sqlite', 'sqlite3'],
-        }],
-        multiple: false,
-        directory: false,
-      })
-      setFilePath(path)
-    }}>
+    <Button
+      onClick={async () => {
+        const path = await open({
+          title: 'Select a SQLite file',
+          filters: [
+            {
+              name: 'SQLite files',
+              extensions: ['db', 'sqlite', 'sqlite3'],
+            },
+          ],
+          multiple: false,
+          directory: false,
+        })
+        setFilePath(path)
+      }}
+    >
       Select File
     </Button>
   )
@@ -366,41 +386,43 @@ function DatabaseTree({projectId}: { projectId: string }) {
   const connectionsQuery = useQuery({
     queryKey: ['projects', projectId, 'connections'],
     queryFn: async () => {
-      return await getConnections(projectId);
-    }
+      return await getConnections(projectId)
+    },
   })
   if (connectionsQuery.status === 'pending') {
-    return (
-      <div className="p-2">
-        Loading...
-      </div>
-    )
+    return <div className="p-2">Loading...</div>
   }
   if (connectionsQuery.status === 'error') {
-    return (
-      <div className="p-2">
-        Error: {connectionsQuery.error.message}
-      </div>
-    )
+    return <div className="p-2">Error: {connectionsQuery.error.message}</div>
   }
   return (
     <SidebarGroupContent>
       <SidebarMenu>
         {connectionsQuery.data.map((connection) => (
-          <DatabaseTreeItem projectId={projectId} connection={connection} key={connection.id}/>
+          <DatabaseTreeItem
+            projectId={projectId}
+            connection={connection}
+            key={connection.id}
+          />
         ))}
       </SidebarMenu>
     </SidebarGroupContent>
   )
 }
 
-function DatabaseTreeItem({projectId, connection}: { projectId: string, connection: DbConnectionMeta }) {
+function DatabaseTreeItem({
+                            projectId,
+                            connection,
+                          }: {
+  projectId: string
+  connection: DbConnectionMeta
+}) {
   const queryClient = useQueryClient()
   const connectMutation = useMutation({
     mutationFn: async () => {
-      const connString = `sqlite:${connection.filePath}`;
+      const connString = `sqlite:${connection.filePath}`
       const ret = await load(connString)
-      console.log(ret);
+      console.log(ret)
     },
     onSuccess: () => {
       toast({
@@ -413,23 +435,23 @@ function DatabaseTreeItem({projectId, connection}: { projectId: string, connecti
         description: err.message,
       })
       console.log(err)
-    }
+    },
   })
   const removeConnectionMutation = useMutation({
     mutationFn: async () => {
       await removeConnection(projectId, connection.id)
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({queryKey: ['projects', projectId, 'connections']})
-    }
+      await queryClient.invalidateQueries({
+        queryKey: ['projects', projectId, 'connections'],
+      })
+    },
   })
 
   return (
     <Dialog>
       <SidebarMenuItem>
-        <Collapsible
-          className="group/collapsible [&[data-state=open]>button>svg:first-child]:rotate-90"
-        >
+        <Collapsible className="group/collapsible [&[data-state=open]>button>svg:first-child]:rotate-90">
           <CollapsibleTrigger asChild>
             <SidebarMenuButton>
               <ChevronRightIcon className="transition-transform"/>
@@ -440,14 +462,34 @@ function DatabaseTreeItem({projectId, connection}: { projectId: string, connecti
           </CollapsibleTrigger>
           <CollapsibleContent>
             <SidebarMenuSub>
-              <DbObjectMenu projectId={projectId} connection={connection} type="table" label="Tables"
-                            icon={<TableIcon/>}/>
-              <DbObjectMenu projectId={projectId} connection={connection} type="view" label="Views"
-                            icon={<Table2Icon/>}/>
-              <DbObjectMenu projectId={projectId} connection={connection} type="index" label="Indexes"
-                            icon={<ListOrderedIcon/>}/>
-              <DbObjectMenu projectId={projectId} connection={connection} type="trigger" label="Triggers"
-                            icon={<RefreshCcwIcon/>}/>
+              <DbObjectMenu
+                projectId={projectId}
+                connection={connection}
+                type="table"
+                label="Tables"
+                icon={<TableIcon/>}
+              />
+              <DbObjectMenu
+                projectId={projectId}
+                connection={connection}
+                type="view"
+                label="Views"
+                icon={<Table2Icon/>}
+              />
+              <DbObjectMenu
+                projectId={projectId}
+                connection={connection}
+                type="index"
+                label="Indexes"
+                icon={<ListOrderedIcon/>}
+              />
+              <DbObjectMenu
+                projectId={projectId}
+                connection={connection}
+                type="trigger"
+                label="Triggers"
+                icon={<RefreshCcwIcon/>}
+              />
             </SidebarMenuSub>
           </CollapsibleContent>
         </Collapsible>
@@ -478,53 +520,51 @@ function DatabaseTreeItem({projectId, connection}: { projectId: string, connecti
         </DialogHeader>
         <div className="grid grid-cols-4 gap-y-2">
           <div>Database</div>
-          <div className="col-span-3 font-bold">
-            {connection.dbType}
-          </div>
+          <div className="col-span-3 font-bold">{connection.dbType}</div>
           <div>File Path</div>
-          <div className="col-span-3 font-bold">
-            {connection.filePath}
-          </div>
+          <div className="col-span-3 font-bold">{connection.filePath}</div>
         </div>
       </DialogContent>
     </Dialog>
   )
 }
 
-function DbObjectMenu({projectId, connection, type, label, icon}: {
-  projectId: string,
-  connection: DbConnectionMeta,
-  type: string,
-  label: string,
+function DbObjectMenu({
+                        projectId,
+                        connection,
+                        type,
+                        label,
+                        icon,
+                      }: {
+  projectId: string
+  connection: DbConnectionMeta
+  type: string
+  label: string
   icon: ReactNode
 }) {
   const objectQuery = useQuery({
     queryKey: ['projects', projectId, 'connections', connection.id, type],
     queryFn: async () => {
-      const connString = `sqlite:${connection.filePath}`;
-      await load(connString);
-      return await query(connString, `SELECT name FROM sqlite_schema WHERE type = '${type}'`, []);
-    }
+      const connString = `sqlite:${connection.filePath}`
+      await load(connString)
+      return await query(
+        connString,
+        `SELECT name
+         FROM sqlite_schema
+         WHERE type = '${type}'`,
+        [],
+      )
+    },
   })
   if (objectQuery.status === 'pending') {
-    return (
-      <div className="p-2">
-        Loading...
-      </div>
-    )
+    return <div className="p-2">Loading...</div>
   }
   if (objectQuery.status === 'error') {
-    return (
-      <div className="p-2">
-        Error: {objectQuery.error.message}
-      </div>
-    )
+    return <div className="p-2">Error: {objectQuery.error.message}</div>
   }
   return (
     <SidebarMenuItem>
-      <Collapsible
-        className="group/collapsible [&[data-state=open]>button>svg:first-child]:rotate-90"
-      >
+      <Collapsible className="group/collapsible [&[data-state=open]>button>svg:first-child]:rotate-90">
         <CollapsibleTrigger asChild>
           <SidebarMenuButton>
             <ChevronRightIcon className="transition-transform"/>
@@ -572,5 +612,5 @@ function SidebarBranding() {
 }
 
 function baseName(path: string) {
-  return path.replace(/^.+[\/\\]/, '');
+  return path.replace(/^.+[\/\\]/, '')
 }

@@ -66,6 +66,11 @@ export async function getConnections(projectId: string) {
   return project.connections;
 }
 
+export async function getConnection(projectId: string, connectionId: string) {
+  const connections = await getConnections(projectId);
+  return connections.find(connection => connection.id === connectionId);
+}
+
 export async function addConnection(projectId: string, connection: Omit<DbConnectionMeta, CoreFields>) {
   const project = await getProject(projectId)
   if (!project) {

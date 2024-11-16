@@ -1,6 +1,6 @@
 import {createLazyFileRoute, Link} from '@tanstack/react-router'
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
-import {addConnection, getConnections, getProject, removeConnection} from "@/stores.ts";
+import {addConnection, getConnection, getConnections, getProject, removeConnection} from "@/stores.ts";
 import {toast} from "@/hooks/use-toast.ts";
 import {
   Dialog,
@@ -15,9 +15,22 @@ import {
 import {Button} from "@/components/ui/button.tsx";
 import {Label} from "@/components/ui/label.tsx";
 import {Input} from "@/components/ui/input.tsx";
-import {HomeIcon, Loader2Icon, MoreHorizontal, PlusIcon, StarIcon, XIcon} from "lucide-react";
+import {
+  ChevronRightIcon,
+  DatabaseIcon,
+  HomeIcon,
+  ListOrderedIcon,
+  Loader2Icon,
+  MoreHorizontal,
+  PlusIcon,
+  RefreshCcwIcon,
+  StarIcon,
+  Table2Icon,
+  TableIcon,
+  XIcon
+} from "lucide-react";
 import {open} from "@tauri-apps/plugin-dialog";
-import {useState} from "react";
+import {ReactNode, useState} from "react";
 import {load, query} from "@/commands.ts";
 import {Textarea} from "@/components/ui/textarea.tsx";
 import {
@@ -34,6 +47,7 @@ import {
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
   SidebarProvider,
   SidebarRail,
   SidebarTrigger
@@ -55,6 +69,7 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu.tsx";
 import {Skeleton} from "@/components/ui/skeleton.tsx";
+import {Collapsible, CollapsibleContent, CollapsibleTrigger} from "@/components/ui/collapsible.tsx";
 
 export const Route = createLazyFileRoute('/project/$id')({
   component: RouteComponent,
@@ -382,10 +397,30 @@ function DatabaseTree({projectId}: { projectId: string }) {
         {connectionsQuery.data.map(connection => (
           <Dialog key={connection.id}>
             <SidebarMenuItem>
-              <SidebarMenuButton>
-                {connection.filePath.replace(/^.+[\/\\]/, '')}
-                <small>{connection.dbType}</small>
-              </SidebarMenuButton>
+              <Collapsible
+                className="group/collapsible [&[data-state=open]>button>svg:first-child]:rotate-90"
+              >
+                <CollapsibleTrigger asChild>
+                  <SidebarMenuButton>
+                    <ChevronRightIcon className="transition-transform"/>
+                    <DatabaseIcon/>
+                    <span>{connection.filePath.replace(/^.+[\/\\]/, '')}</span>
+                    <small>{connection.dbType}</small>
+                  </SidebarMenuButton>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <SidebarMenuSub>
+                    <DbObjectMenu projectId={projectId} connectionId={connection.id} type="table" label="Tables"
+                                  icon={<TableIcon/>}/>
+                    <DbObjectMenu projectId={projectId} connectionId={connection.id} type="view" label="Views"
+                                  icon={<Table2Icon/>}/>
+                    <DbObjectMenu projectId={projectId} connectionId={connection.id} type="index" label="Indexes"
+                                  icon={<ListOrderedIcon/>}/>
+                    <DbObjectMenu projectId={projectId} connectionId={connection.id} type="trigger" label="Triggers"
+                                  icon={<RefreshCcwIcon/>}/>
+                  </SidebarMenuSub>
+                </CollapsibleContent>
+              </Collapsible>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <SidebarMenuAction>
@@ -423,6 +458,65 @@ function DatabaseTree({projectId}: { projectId: string }) {
         ))}
       </SidebarMenu>
     </SidebarGroupContent>
+  )
+}
+
+function DbObjectMenu({projectId, connectionId, type, label, icon}: {
+  projectId: string,
+  connectionId: string,
+  type: string,
+  label: string,
+  icon: ReactNode
+}) {
+  const objectQuery = useQuery({
+    queryKey: ['projects', projectId, 'connections', connectionId, type],
+    queryFn: async () => {
+      const connection = await getConnection(projectId, connectionId);
+      if (!connection) return [];
+      let connString = `sqlite:${connection.filePath}`;
+      await load(connString);
+      return await query(connString, `SELECT name
+                                      FROM sqlite_schema
+                                      WHERE type = '${type}'`, []);
+    }
+  })
+  if (objectQuery.status === 'pending') {
+    return (
+      <div className="p-2">
+        Loading...
+      </div>
+    )
+  }
+  if (objectQuery.status === 'error') {
+    return (
+      <div className="p-2">
+        Error: {objectQuery.error.message}
+      </div>
+    )
+  }
+  return (
+    <SidebarMenuItem>
+      <Collapsible
+        className="group/collapsible [&[data-state=open]>button>svg:first-child]:rotate-90"
+      >
+        <CollapsibleTrigger asChild>
+          <SidebarMenuButton>
+            <ChevronRightIcon className="transition-transform"/>
+            {icon}
+            {label}
+          </SidebarMenuButton>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <SidebarMenuSub>
+            {objectQuery.data.map((subItem, index) => (
+              <SidebarMenuButton key={index} title={subItem.name}>
+                {subItem.name}
+              </SidebarMenuButton>
+            ))}
+          </SidebarMenuSub>
+        </CollapsibleContent>
+      </Collapsible>
+    </SidebarMenuItem>
   )
 }
 

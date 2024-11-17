@@ -17,10 +17,11 @@ import {Label} from "@/components/ui/label.tsx";
 import {Input} from "@/components/ui/input.tsx";
 import {
   ChevronRightIcon,
+  CircleSlash2Icon,
   DatabaseIcon,
   HomeIcon,
   ListOrderedIcon,
-  Loader2Icon,
+  MicroscopeIcon,
   MoreHorizontal,
   PlusIcon,
   RefreshCcwIcon,
@@ -30,9 +31,8 @@ import {
   XIcon,
 } from "lucide-react";
 import {open} from "@tauri-apps/plugin-dialog";
-import {ReactNode, useState} from "react";
+import {ReactNode, useEffect, useMemo, useState} from "react";
 import {load, query} from "@/commands.ts";
-import {Textarea} from "@/components/ui/textarea.tsx";
 import {
   Sidebar,
   SidebarContent,
@@ -70,6 +70,9 @@ import {
 } from "@/components/ui/dropdown-menu.tsx";
 import {Skeleton} from "@/components/ui/skeleton.tsx";
 import {Collapsible, CollapsibleContent, CollapsibleTrigger,} from "@/components/ui/collapsible.tsx";
+import {ProjectWorkspaceProvider, useProjectWorkspace} from "@/contexts/ProjectWorkspaceContext.tsx";
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs.tsx";
+import {QueryView} from "@/components/project/QueryView.tsx";
 
 export const Route = createFileRoute('/project/$id')({
   component: RouteComponent,
@@ -78,13 +81,15 @@ export const Route = createFileRoute('/project/$id')({
 function RouteComponent() {
   const {id} = Route.useParams()
   return (
-    <SidebarProvider>
-      <ProjectSidebar projectId={id}/>
-      <SidebarInset>
-        <ProjectHeader projectId={id}/>
-        <Test projectId={id}/>
-      </SidebarInset>
-    </SidebarProvider>
+    <ProjectWorkspaceProvider>
+      <SidebarProvider>
+        <ProjectSidebar projectId={id}/>
+        <SidebarInset>
+          <ProjectHeader projectId={id}/>
+          <ProjectWorkspace projectId={id}/>
+        </SidebarInset>
+      </SidebarProvider>
+    </ProjectWorkspaceProvider>
   )
 }
 
@@ -144,110 +149,63 @@ function ProjectHeader({projectId}: { projectId: string }) {
   )
 }
 
-function Test({projectId}: { projectId: string }) {
-  const connectionQuery = useQuery({
-    queryKey: ['projects', projectId, 'connections', 'first'],
-    queryFn: async () => {
-      return (await getConnections(projectId))[0]
-    },
-  })
-  if (connectionQuery.status === 'pending') {
-    return <div className="p-2">Loading...</div>
-  }
-  if (connectionQuery.status === 'error') {
-    return <div className="p-2">Error: {connectionQuery.error.message}</div>
-  }
-  return (
-    <div className="p-2">
-      {connectionQuery.data.filePath}
-      <QueryTest dbPath={connectionQuery.data.filePath}/>
-    </div>
-  )
-}
+function ProjectWorkspace({projectId}: { projectId: string }) {
+  const {tabs} = useProjectWorkspace()
+  const [activeTabId, setActiveTabId] = useState(tabs[0]?.id)
 
-function QueryTest({dbPath}: { dbPath: string }) {
-  const [connected, setConnected] = useState(false)
-  const connectMutation = useMutation({
-    mutationFn: async () => {
-      const ret = await load(`sqlite:${dbPath}`)
-      console.log(ret)
-    },
-    onSuccess: () => {
-      setConnected(true)
-      toast({
-        title: 'Connected',
-      })
-    },
-    onError: (err) => {
-      setConnected(false)
-      toast({
-        title: 'Error',
-        description: err.message,
-      })
-      console.log(err)
-    },
-  })
+  const activeTab = useMemo(() => tabs.find(t => t.id === activeTabId), [tabs, activeTabId])
 
-  if (!connected) {
+  useEffect(() => {
+    if (tabs.length) {
+      setActiveTabId(tabs[tabs.length - 1].id)
+    }
+  }, [tabs])
+
+  if (!tabs.length || !activeTabId || !activeTab) {
     return (
-      <div>
-        <Button
-          disabled={connectMutation.isPending}
-          onClick={() => connectMutation.mutate()}
-        >
-          {connectMutation.isPending && (
-            <Loader2Icon className="animate-spin"/>
-          )}
-          Connect
-        </Button>
+      <div className="flex flex-col items-center justify-center h-full">
+        <CircleSlash2Icon className="w-12 h-12 text-muted-foreground mb-4"/>
+        <h2 className="text-lg font-medium">No Tabs Open</h2>
+        <p className="text-muted-foreground mb-4">Get started by querying a database or viewing tables.</p>
       </div>
     )
   }
 
   return (
-    <div>
-      Connected!
-      <ConnectedTest dbPath={dbPath}/>
-    </div>
+    <Tabs value={activeTabId} onValueChange={setActiveTabId} className="h-full flex flex-col">
+      <TabsList className="w-full border-b rounded-none justify-start">
+        {tabs.map((tab) => (
+          <TabsTrigger
+            key={tab.id}
+            value={tab.id}
+            className="gap-2 group items-center"
+          >
+            <span>
+              {tab.descriptor.type === 'query-view' ? <MicroscopeIcon className="size-4"/> :
+                <TableIcon className="size-4"/>}
+            </span>
+            <span>{tab.name}</span>
+            <span className="size-4 hidden group-hover:inline-block text-muted-foreground">
+              <XIcon className="size-4"/>
+            </span>
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      <TabsContent value={activeTabId} className="m-0 flex-1">
+        {
+          activeTab.descriptor.type === 'query-view' ? (
+            <QueryView projectId={projectId} connectionId={activeTab.descriptor.connectionId}/>
+          ): (
+            <>
+              <pre>{JSON.stringify(activeTab, null, 2)}</pre>
+            </>
+          )
+        }
+      </TabsContent>
+    </Tabs>
   )
 }
 
-function ConnectedTest({dbPath}: { dbPath: string }) {
-  const [queryText, setQueryText] = useState('')
-
-  const queryMutation = useMutation({
-    mutationFn: async () => {
-      const ret = await query(`sqlite:${dbPath}`, queryText, [])
-      console.log(ret)
-      return ret
-    },
-    onSuccess: () => {
-      toast({
-        title: 'Executed',
-      })
-    },
-    onError: (err) => {
-      console.log('query', err)
-    },
-  })
-
-  return (
-    <div>
-      <Textarea
-        value={queryText}
-        onChange={(e) => setQueryText(e.target.value)}
-      />
-      <Button
-        disabled={queryMutation.isPending}
-        onClick={() => queryMutation.mutate()}
-      >
-        {queryMutation.isPending && <Loader2Icon className="animate-spin"/>}
-        Run Query
-      </Button>
-      <Textarea value={JSON.stringify(queryMutation.data, null, 2)} readOnly/>
-    </div>
-  )
-}
 
 function DatabaseTreeControls({projectId}: { projectId: string }) {
   const queryClient = useQueryClient()
@@ -417,6 +375,7 @@ function DatabaseTreeItem({
   projectId: string
   connection: DbConnectionMeta
 }) {
+  const {addTab} = useProjectWorkspace()
   const queryClient = useQueryClient()
   const connectMutation = useMutation({
     mutationFn: async () => {
@@ -499,9 +458,15 @@ function DatabaseTreeItem({
               <MoreHorizontal/>
             </SidebarMenuAction>
           </DropdownMenuTrigger>
-          <DropdownMenuContent side="right" align="start">
+          <DropdownMenuContent side="right" align="start" className="*:cursor-pointer">
             <DropdownMenuItem onClick={() => connectMutation.mutate()}>
               <span>Connect</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => addTab(`Query - ${baseName(connection.filePath)}`, {
+              type: 'query-view',
+              connectionId: connection.id,
+            })}>
+              <span>Query</span>
             </DropdownMenuItem>
             <DialogTrigger asChild>
               <DropdownMenuItem>
@@ -542,6 +507,7 @@ function DbObjectMenu({
   label: string
   icon: ReactNode
 }) {
+  const {addTab} = useProjectWorkspace()
   const objectQuery = useQuery({
     queryKey: ['projects', projectId, 'connections', connection.id, type],
     queryFn: async () => {
@@ -575,7 +541,12 @@ function DbObjectMenu({
         <CollapsibleContent>
           <SidebarMenuSub>
             {objectQuery.data.map((subItem, index) => (
-              <SidebarMenuButton key={index} title={subItem.name}>
+              <SidebarMenuButton key={index} title={subItem.name}
+                                 onDoubleClick={() => addTab(`Table - ${subItem.name}`, {
+                                   type: 'table-view',
+                                   connectionId: connection.id,
+                                   tableName: subItem.name,
+                                 })}>
                 {subItem.name}
               </SidebarMenuButton>
             ))}

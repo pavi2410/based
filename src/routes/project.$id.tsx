@@ -151,7 +151,7 @@ function ProjectHeader({projectId}: { projectId: string }) {
 }
 
 function ProjectWorkspace({projectId}: { projectId: string }) {
-  const {tabs} = useProjectWorkspace()
+  const {tabs, removeTab} = useProjectWorkspace()
   const [activeTabId, setActiveTabId] = useState(tabs[0]?.id)
 
   const activeTab = useMemo(() => tabs.find(t => t.id === activeTabId), [tabs, activeTabId])
@@ -186,7 +186,8 @@ function ProjectWorkspace({projectId}: { projectId: string }) {
                 <TableIcon className="size-4"/>}
             </span>
             <span>{tab.name}</span>
-            <span className="size-4 hidden group-hover:inline-block text-muted-foreground">
+            <span className="size-4 hidden group-hover:inline-block text-muted-foreground"
+                  onClick={() => removeTab(tab.id)}>
               <XIcon className="size-4"/>
             </span>
           </TabsTrigger>

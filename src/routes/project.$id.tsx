@@ -73,6 +73,7 @@ import {Collapsible, CollapsibleContent, CollapsibleTrigger,} from "@/components
 import {ProjectWorkspaceProvider, useProjectWorkspace} from "@/contexts/ProjectWorkspaceContext.tsx";
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs.tsx";
 import {QueryView} from "@/components/project/QueryView.tsx";
+import {TableView} from "@/components/project/TableView.tsx";
 
 export const Route = createFileRoute('/project/$id')({
   component: RouteComponent,
@@ -195,10 +196,9 @@ function ProjectWorkspace({projectId}: { projectId: string }) {
         {
           activeTab.descriptor.type === 'query-view' ? (
             <QueryView projectId={projectId} connectionId={activeTab.descriptor.connectionId}/>
-          ): (
-            <>
-              <pre>{JSON.stringify(activeTab, null, 2)}</pre>
-            </>
+          ) : (
+            <TableView projectId={projectId} connectionId={activeTab.descriptor.connectionId}
+                       tableName={activeTab.descriptor.tableName}/>
           )
         }
       </TabsContent>

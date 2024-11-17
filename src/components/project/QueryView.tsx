@@ -5,7 +5,8 @@ import {toast} from "@/hooks/use-toast.ts";
 import {DbConnectionMeta, getConnection} from "@/stores.ts";
 import {Textarea} from "@/components/ui/textarea.tsx";
 import {Button} from "@/components/ui/button.tsx";
-import {Loader2Icon, Rows3Icon, TimerIcon} from "lucide-react";
+import {Loader2Icon, PlayIcon} from "lucide-react";
+import {TableViewMain} from "@/components/project/TableView.tsx";
 
 export function QueryView({projectId, connectionId}: { projectId: string, connectionId: string }) {
   const connectionQuery = useQuery({
@@ -56,36 +57,27 @@ function QueryViewMain({connection}: { connection: DbConnectionMeta }) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex flex-col *:flex-1 flex-1 *:rounded-none">
+      <div className="flex flex-col flex-1 *:rounded-none">
         <Textarea
           value={queryText}
           onChange={(e) => setQueryText(e.target.value)}
         />
 
-        <Textarea
-          value={queryMutation.data != null ? JSON.stringify(queryMutation.data.results, null, 2) : queryMutation.isPending ? 'Running...' : ''}
-          readOnly
-        />
+        <div className="flex-1">
+
+          {queryMutation.data != null ?
+            <TableViewMain results={queryMutation.data.results}
+                           queryTime={queryMutation.data.queryTime}/> : queryMutation.isPending ? 'Running...' : ''}
+        </div>
+
       </div>
       <div className="flex justify-end gap-4 p-2">
-        {queryMutation.data != null && (
-          <>
-            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-              <TimerIcon className="size-5"/>
-              <span>{queryMutation.data.queryTime.toFixed(2)}ms</span>
-            </div>
-            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-              <Rows3Icon className="size-5"/>
-              <span>{queryMutation.data.results.length} rows</span>
-            </div>
-          </>
-        )}
         <Button
           disabled={queryMutation.isPending}
           onClick={() => queryMutation.mutate()}
           size="sm"
         >
-          {queryMutation.isPending && <Loader2Icon className="animate-spin"/>}
+          {queryMutation.isPending ? <Loader2Icon className="animate-spin"/> : <PlayIcon/>}
           Run Query
         </Button>
       </div>

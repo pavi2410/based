@@ -81,3 +81,9 @@
 #root {
   height: 100vh;
 }
+
+html, body, * {
+  background: transparent !important;
+  color: #fff9 !important;
+  border-color: #fff3 !important;
+}

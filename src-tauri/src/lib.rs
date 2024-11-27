@@ -7,7 +7,9 @@ use crate::commands::{close, load, query};
 use crate::db_pool::DbPool;
 use crate::error::Error;
 use std::collections::HashMap;
+use tauri::Manager;
 use tokio::sync::RwLock;
+use window_vibrancy::*;
 
 #[derive(Default)]
 pub struct DbInstances(pub RwLock<HashMap<String, DbPool>>);
@@ -24,6 +26,19 @@ pub fn run() {
             close,
             query,
         ])
+        .setup(|app| {
+            let window = app.get_webview_window("main").unwrap();
+
+            #[cfg(target_os = "macos")]
+            apply_vibrancy(&window, NSVisualEffectMaterial::HudWindow, None, None)
+                .expect("Unsupported platform! 'apply_vibrancy' is only supported on macOS");
+
+            #[cfg(target_os = "windows")]
+            apply_mica(&window, None)
+                .expect("Unsupported platform! 'apply_blur' is only supported on Windows");
+
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

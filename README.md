@@ -1,7 +1,12 @@
-# Tauri + React + Typescript
+# based
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+Based is a database explorer and management tool for developers. It is a desktop application that runs on Windows, macOS, and Linux. Based is designed to be simple and easy to use, while still providing powerful features for advanced users.
 
-## Recommended IDE Setup
+## Features
+- Supports SQLite
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+## Sample Database for testing
+- SQLite
+    - https://github.com/codecrafters-io/sample-sqlite-databases
+    - https://github.com/jpwhite3/northwind-SQLite3
+

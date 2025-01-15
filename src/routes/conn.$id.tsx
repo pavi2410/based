@@ -1,25 +1,27 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { load, query } from "@/commands.ts";
+import { QueryView } from "@/components/project/QueryView.tsx";
+import { TableView } from "@/components/project/TableView.tsx";
 import {
-  DbConnectionMeta,
-  getConnection,
-} from '@/stores.ts'
-import { Button } from '@/components/ui/button.tsx'
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb.tsx";
+import { Button } from "@/components/ui/button.tsx";
 import {
-  ChevronRightIcon,
-  CircleSlash2Icon,
-  DatabaseIcon,
-  ListOrderedIcon,
-  MicroscopeIcon,
-  NotebookPenIcon,
-  RefreshCcwIcon,
-  StarIcon,
-  Table2Icon,
-  TableIcon,
-  XIcon,
-} from 'lucide-react'
-import { ReactNode } from 'react'
-import { load, query } from '@/commands.ts'
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card.tsx";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible.tsx";
+import { Separator } from "@/components/ui/separator.tsx";
 import {
   Sidebar,
   SidebarContent,
@@ -36,65 +38,58 @@ import {
   SidebarProvider,
   SidebarRail,
   SidebarTrigger,
-} from '@/components/ui/sidebar.tsx'
-import { Separator } from '@/components/ui/separator.tsx'
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb.tsx'
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card.tsx'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible.tsx'
-import {
-  WorkspaceProvider,
-  useWorkspace,
-} from '@/contexts/WorkspaceContext'
+} from "@/components/ui/sidebar.tsx";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from '@/components/ui/tabs.tsx'
-import { QueryView } from '@/components/project/QueryView.tsx'
-import { TableView } from '@/components/project/TableView.tsx'
+} from "@/components/ui/tabs.tsx";
+import { WorkspaceProvider, useWorkspace } from "@/contexts/WorkspaceContext";
+import { type DbConnectionMeta, getConnection } from "@/stores.ts";
+import { baseName } from "@/utils";
+import { useQuery } from "@tanstack/react-query";
+import { Link, createFileRoute } from "@tanstack/react-router";
+import {
+  ChevronRightIcon,
+  CircleSlash2Icon,
+  DatabaseIcon,
+  ListOrderedIcon,
+  MicroscopeIcon,
+  NotebookPenIcon,
+  RefreshCcwIcon,
+  StarIcon,
+  Table2Icon,
+  TableIcon,
+  XIcon,
+} from "lucide-react";
+import type { ReactNode } from "react";
 
-export const Route = createFileRoute('/conn/$id')({
+export const Route = createFileRoute("/conn/$id")({
   component: RouteComponent,
-})
+});
 
 function RouteComponent() {
-  const { id } = Route.useParams()
+  const { id } = Route.useParams();
 
   const connQuery = useQuery({
-    queryKey: ['conn', id],
+    queryKey: ["conn", id],
     queryFn: async () => {
-      return await getConnection(id)
+      return await getConnection(id);
     },
-  })
+  });
 
-  if (connQuery.status === 'pending') {
-    return <div className="p-2">Loading...</div>
+  if (connQuery.status === "pending") {
+    return <div className="p-2">Loading...</div>;
   }
-  if (connQuery.status === 'error') {
-    return <div className="p-2">Error: {connQuery.error.message}</div>
+  if (connQuery.status === "error") {
+    return <div className="p-2">Error: {connQuery.error.message}</div>;
   }
   if (!connQuery.data) {
-    return <div className="p-2">Connection not found</div>
+    return <div className="p-2">Connection not found</div>;
   }
 
-  const conn = connQuery.data
+  const conn = connQuery.data;
   return (
     <WorkspaceProvider>
       <SidebarProvider>
@@ -105,7 +100,7 @@ function RouteComponent() {
         </SidebarInset>
       </SidebarProvider>
     </WorkspaceProvider>
-  )
+  );
 }
 
 function ProjectSidebar({ conn }: { conn: DbConnectionMeta }) {
@@ -157,19 +152,19 @@ function ProjectSidebar({ conn }: { conn: DbConnectionMeta }) {
       <SidebarFooter>
         <SidebarBranding />
       </SidebarFooter>
-    </Sidebar >
-  )
+    </Sidebar>
+  );
 }
 
 function ProjectHeader({ conn }: { conn: DbConnectionMeta }) {
-  const { addTab } = useWorkspace()
+  const { addTab } = useWorkspace();
 
-  const connName = baseName(conn.filePath)
+  const connName = baseName(conn.filePath);
 
   function addQueryTab() {
     addTab(`Query - ${connName}`, {
-      type: 'query-view',
-    })
+      type: "query-view",
+    });
   }
 
   return (
@@ -185,22 +180,25 @@ function ProjectHeader({ conn }: { conn: DbConnectionMeta }) {
           </BreadcrumbItem>
           <BreadcrumbSeparator className="hidden md:block" />
           <BreadcrumbItem>
-            <BreadcrumbPage>
-              {connName}
-            </BreadcrumbPage>
+            <BreadcrumbPage>{connName}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      <div className='flex-1' />
-      <Button variant="outline" size="icon" title="Query Database" onClick={addQueryTab}>
+      <div className="flex-1" />
+      <Button
+        variant="outline"
+        size="icon"
+        title="Query Database"
+        onClick={addQueryTab}
+      >
         <NotebookPenIcon />
       </Button>
     </header>
-  )
+  );
 }
 
 function ProjectWorkspace({ conn }: { conn: DbConnectionMeta }) {
-  const { tabs, activeTab, setActiveTabId, removeTab } = useWorkspace()
+  const { tabs, activeTab, setActiveTabId, removeTab } = useWorkspace();
 
   if (!tabs.length || !activeTab) {
     return (
@@ -211,7 +209,7 @@ function ProjectWorkspace({ conn }: { conn: DbConnectionMeta }) {
           Get started by querying a database or viewing tables.
         </p>
       </div>
-    )
+    );
   }
 
   const activeTabId = activeTab.id;
@@ -230,15 +228,16 @@ function ProjectWorkspace({ conn }: { conn: DbConnectionMeta }) {
             className="gap-2 group items-center"
           >
             <span>
-              {tab.descriptor.type === 'query-view' ? (
+              {tab.descriptor.type === "query-view" ? (
                 <MicroscopeIcon className="size-4" />
               ) : (
                 <TableIcon className="size-4" />
               )}
             </span>
             <span>{tab.name}</span>
+            {/* biome-ignore lint/a11y/useKeyWithClickEvents: <explanation> */}
             <span
-              className="size-4 hidden group-hover:inline-block text-muted-foreground"
+              className="absolute right-0 size-4 hidden group-hover:inline-block text-muted-foreground"
               onClick={() => removeTab(tab.id)}
             >
               <XIcon className="size-4" />
@@ -247,10 +246,8 @@ function ProjectWorkspace({ conn }: { conn: DbConnectionMeta }) {
         ))}
       </TabsList>
       <TabsContent value={activeTabId} className="m-0 flex-1">
-        {activeTab.descriptor.type === 'query-view' ? (
-          <QueryView
-            connection={conn}
-          />
+        {activeTab.descriptor.type === "query-view" ? (
+          <QueryView connection={conn} />
         ) : (
           <TableView
             connection={conn}
@@ -259,7 +256,7 @@ function ProjectWorkspace({ conn }: { conn: DbConnectionMeta }) {
         )}
       </TabsContent>
     </Tabs>
-  )
+  );
 }
 
 function DbObjectMenu({
@@ -268,39 +265,39 @@ function DbObjectMenu({
   label,
   icon,
 }: {
-  conn: DbConnectionMeta
-  type: string
-  label: string
-  icon: ReactNode
+  conn: DbConnectionMeta;
+  type: string;
+  label: string;
+  icon: ReactNode;
 }) {
-  const { addTab } = useWorkspace()
+  const { addTab } = useWorkspace();
   const objectQuery = useQuery({
-    queryKey: ['conn', conn.id, type],
+    queryKey: ["conn", conn.id, type],
     queryFn: async () => {
-      const connString = `sqlite:${conn.filePath}`
-      await load(connString)
+      const connString = `sqlite:${conn.filePath}`;
+      await load(connString);
       return await query(
         connString,
         `SELECT name
          FROM sqlite_schema
          WHERE type = '${type}'`,
         [],
-      )
+      );
     },
-  })
+  });
 
   function addTableTab(tableName: string) {
     addTab(`Table - ${tableName}`, {
-      type: 'table-view',
+      type: "table-view",
       tableName,
-    })
+    });
   }
 
-  if (objectQuery.status === 'pending') {
-    return <div className="p-2">Loading...</div>
+  if (objectQuery.status === "pending") {
+    return <div className="p-2">Loading...</div>;
   }
-  if (objectQuery.status === 'error') {
-    return <div className="p-2">Error: {objectQuery.error.message}</div>
+  if (objectQuery.status === "error") {
+    return <div className="p-2">Error: {objectQuery.error.message}</div>;
   }
 
   return (
@@ -318,8 +315,8 @@ function DbObjectMenu({
 
         <CollapsibleContent>
           <SidebarMenuSub>
-            {objectQuery.data.map((subItem, index) => (
-              <SidebarMenuSubItem key={index}>
+            {objectQuery.data.map((subItem) => (
+              <SidebarMenuSubItem key={subItem.name}>
                 <SidebarMenuSubButton
                   title={subItem.name}
                   onDoubleClick={() => addTableTab(subItem.name)}
@@ -327,14 +324,12 @@ function DbObjectMenu({
                   <span>{subItem.name}</span>
                 </SidebarMenuSubButton>
               </SidebarMenuSubItem>
-
             ))}
           </SidebarMenuSub>
         </CollapsibleContent>
       </Collapsible>
     </SidebarMenu>
-
-  )
+  );
 }
 
 function SidebarBranding() {
@@ -349,16 +344,16 @@ function SidebarBranding() {
           size="sm"
           asChild
         >
-          <a href="https://github.com/pavi2410/based" target="_blank">
+          <a
+            href="https://github.com/pavi2410/based"
+            target="_blank"
+            rel="noreferrer"
+          >
             <StarIcon />
             Star on GitHub
           </a>
         </Button>
       </CardContent>
     </Card>
-  )
-}
-
-function baseName(path: string) {
-  return path.replace(/^.+[\/\\]/, '')
+  );
 }

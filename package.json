@@ -36,6 +36,7 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
+    "@biomejs/biome": "1.9.4",
     "@tanstack/router-devtools": "^1.95.6",
     "@tanstack/router-plugin": "^1.95.6",
     "@tauri-apps/cli": "^2.2.4",

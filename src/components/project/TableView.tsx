@@ -3,8 +3,15 @@ import { DataTable } from "@/components/data-table.tsx";
 import type { DbConnectionMeta } from "@/stores.ts";
 import { buildConnString } from "@/utils";
 import { useQuery } from "@tanstack/react-query";
-import { Rows3Icon, TimerIcon } from "lucide-react";
+import { KeyRoundIcon, Rows3Icon, TimerIcon } from "lucide-react";
 import { useMemo } from "react";
+
+type ColumnInfo = {
+  index: number;
+  name: string;
+  type: string;
+  pk: boolean;
+};
 
 export function TableView({
   connection,
@@ -18,9 +25,30 @@ export function TableView({
     queryFn: async () => {
       const connString = buildConnString(connection);
       const queryTime = performance.now();
-      const results = await query(connString, `SELECT * FROM ${tableName}`, []);
+      const tableInfo = await query(
+        connString,
+        `PRAGMA table_info("${tableName}")`,
+        [],
+      );
+
+      const columns = tableInfo.map(
+        (column) =>
+          ({
+            index: column.cid,
+            name: column.name,
+            type: column.type,
+            pk: column.pk === 1,
+          }) as ColumnInfo,
+      );
+
+      const results = await query(
+        connString,
+        `SELECT * FROM "${tableName}"`,
+        [],
+      );
       const endQueryTime = performance.now();
       return {
+        columns,
         results,
         queryTime: endQueryTime - queryTime,
       };
@@ -32,11 +60,12 @@ export function TableView({
   }
 
   if (tableQuery.status === "error") {
-    return <div className="p-2">Error: {tableQuery.error.message}</div>;
+    return <div className="p-2">Error: {tableQuery.error.toString()}</div>;
   }
 
   return (
     <TableViewMain
+      columns={tableQuery.data.columns}
       results={tableQuery.data.results}
       queryTime={tableQuery.data.queryTime}
     />
@@ -44,35 +73,56 @@ export function TableView({
 }
 
 export function TableViewMain({
+  columns,
   results,
   queryTime,
 }: {
+  columns: ColumnInfo[];
   results: object[];
   queryTime: number;
 }) {
-  const columns = useMemo(() => {
-    if (results.length === 0) {
-      return [];
-    }
+  const columnDefs = useMemo(() => {
+    return columns.map((column) => ({
+      accessorKey: column.name,
+      header: () => (
+        <div className="flex items-start gap-1 min-w-32">
+          {column.pk && <KeyRoundIcon className="size-4 mt-1" />}
+          <div className="flex flex-col font-mono">
+            {column.name}
+            <span className="text-xs font-light">{column.type}</span>
+          </div>
+        </div>
+      ),
+      cell: ({ row }) => {
+        if (column.type === "INTEGER") {
+          return row.getValue(column.name);
+        }
 
-    return Object.keys(results[0]).map((key) => ({
-      accessorKey: key,
-      header: key,
+        if (column.type === "BLOB") {
+          return (
+            <span className="text-muted-foreground">
+              {row.getValue(column.name).length} bytes
+            </span>
+          );
+        }
+
+        return row.getValue(column.name);
+      },
     }));
-  }, [results]);
+  }, [columns]);
 
   return (
     <DataTable
-      columns={columns}
+      columns={columnDefs}
       data={results}
       extraFooter={
         <>
           <div className="flex items-center gap-1 text-sm text-muted-foreground">
-            <TimerIcon className="size-5" />
+            <TimerIcon className="size-4" />
             <span>{queryTime.toFixed(2)}ms</span>
           </div>
           <div className="flex items-center gap-1 text-sm text-muted-foreground">
-            <Rows3Icon className="size-5" />
+            <Rows3Icon className="size-4" />
             <span>{results.length} rows</span>
           </div>
         </>

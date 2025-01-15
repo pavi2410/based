@@ -294,7 +294,8 @@ function DbObjectMenu({
   });
 
   function addTableTab(tableName: string) {
-    addTab(`Table - ${tableName}`, {
+    // TODO: Add different types of tabs based on the object type
+    addTab(`${tableName}`, {
       type: "table-view",
       tableName,
     });

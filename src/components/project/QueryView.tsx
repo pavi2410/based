@@ -1,37 +1,14 @@
-import {useState} from "react";
-import {useMutation, useQuery} from "@tanstack/react-query";
-import {query} from "@/commands.ts";
-import {toast} from "@/hooks/use-toast.ts";
-import {DbConnectionMeta, getConnection} from "@/stores.ts";
-import {Textarea} from "@/components/ui/textarea.tsx";
-import {Button} from "@/components/ui/button.tsx";
-import {Loader2Icon, PlayIcon} from "lucide-react";
-import {TableViewMain} from "@/components/project/TableView.tsx";
+import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { query } from "@/commands.ts";
+import { toast } from "@/hooks/use-toast.ts";
+import { DbConnectionMeta } from "@/stores.ts";
+import { Textarea } from "@/components/ui/textarea.tsx";
+import { Button } from "@/components/ui/button.tsx";
+import { Loader2Icon, PlayIcon } from "lucide-react";
+import { TableViewMain } from "@/components/project/TableView.tsx";
 
-export function QueryView({projectId, connectionId}: { projectId: string, connectionId: string }) {
-  const connectionQuery = useQuery({
-    queryKey: ['projects', projectId, 'connections', connectionId],
-    queryFn: async () => {
-      return await getConnection(projectId, connectionId)
-    },
-  })
-
-  if (connectionQuery.status === 'pending') {
-    return <div className="p-2">Loading...</div>
-  }
-
-  if (connectionQuery.status === 'error') {
-    return <div className="p-2">Error: {connectionQuery.error.message}</div>
-  }
-
-  if (!connectionQuery.data) {
-    return <div className="p-2">Connection not found</div>
-  }
-
-  return <QueryViewMain connection={connectionQuery.data}/>
-}
-
-function QueryViewMain({connection}: { connection: DbConnectionMeta }) {
+export function QueryView({ connection }: { connection: DbConnectionMeta }) {
   const [queryText, setQueryText] = useState('')
 
   const queryMutation = useMutation({
@@ -67,7 +44,7 @@ function QueryViewMain({connection}: { connection: DbConnectionMeta }) {
 
           {queryMutation.data != null ?
             <TableViewMain results={queryMutation.data.results}
-                           queryTime={queryMutation.data.queryTime}/> : queryMutation.isPending ? 'Running...' : ''}
+              queryTime={queryMutation.data.queryTime} /> : queryMutation.isPending ? 'Running...' : ''}
         </div>
 
       </div>
@@ -77,7 +54,7 @@ function QueryViewMain({connection}: { connection: DbConnectionMeta }) {
           onClick={() => queryMutation.mutate()}
           size="sm"
         >
-          {queryMutation.isPending ? <Loader2Icon className="animate-spin"/> : <PlayIcon/>}
+          {queryMutation.isPending ? <Loader2Icon className="animate-spin" /> : <PlayIcon />}
           Run Query
         </Button>
       </div>

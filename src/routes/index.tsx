@@ -1,9 +1,9 @@
-import {createFileRoute, Link} from '@tanstack/react-router'
-import {Button} from '@/components/ui/button.tsx'
-import {toast} from '@/hooks/use-toast.ts'
-import {addProject, getProjects, removeProject} from '@/stores.ts'
-import {useMutation, useQuery} from '@tanstack/react-query'
-import {Loader2Icon, Trash2Icon} from 'lucide-react'
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { Button } from '@/components/ui/button.tsx'
+import { toast } from '@/hooks/use-toast.ts'
+import { addConnection, getConnections, removeConnection } from '@/stores.ts'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { Loader2Icon, Trash2Icon } from 'lucide-react'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -20,100 +20,119 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog.tsx'
-import {Input} from '@/components/ui/input.tsx'
-import {Label} from '@/components/ui/label.tsx'
+import { Input } from '@/components/ui/input.tsx'
+import { Label } from '@/components/ui/label.tsx'
+import { SelectFile } from '@/components/select-file'
 
 export const Route = createFileRoute('/')({
   component: Index,
 })
 
 function Index() {
-  const projectsQuery = useQuery({
-    queryKey: ['projects'],
-    queryFn: async () => {
-      return await getProjects()
-    },
+  const connListQuery = useQuery({
+    queryKey: ['connections'],
+    queryFn: getConnections,
   })
 
-  const newProjectMutation = useMutation({
-    mutationFn: async (name: string) => {
-      await addProject({
-        name,
-        connections: [],
+  const newConnMutation = useMutation({
+    mutationFn: async ({
+      dbType,
+      filePath,
+    }: {
+      dbType: string
+      filePath: string
+    }) => {
+      await addConnection({
+        dbType: dbType as 'sqlite',
+        filePath,
+        groupName: 'test'
       })
     },
     onSuccess: async () => {
       toast({
-        title: 'Project created',
+        title: 'New connected added',
       })
-
-      await projectsQuery.refetch()
+      await connListQuery.refetch()
     },
   })
 
-  const removeProjectMutation = useMutation({
-    mutationFn: removeProject,
+  const removeConnMutation = useMutation({
+    mutationFn: removeConnection,
     onSuccess: async () => {
-      await projectsQuery.refetch()
+      await connListQuery.refetch()
     },
   })
 
   return (
     <div className="p-2">
-      <h3>This is a based app!</h3>
-
       <Dialog>
         <DialogTrigger asChild>
-          <Button>New Project</Button>
+          <Button>Add Connection</Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>New Project</DialogTitle>
+            <DialogTitle>Add New Connection</DialogTitle>
             <DialogDescription>
-              Create a new project to start working with databases.
+              Add a new connection to a database.
             </DialogDescription>
           </DialogHeader>
           <form
-            id="new-project-form"
+            id="new-connection-form"
             onSubmit={(e) => {
               e.preventDefault()
               e.stopPropagation()
 
               const formData = new FormData(e.currentTarget)
-              const name = formData.get('name') as string
-              if (!name || name.trim() === '') return
-              newProjectMutation.mutate(name.trim())
+              const dbType = formData.get('dbType') as string
+              const filePath = formData.get('filePath') as string
+              if (!dbType || !filePath) return
+              newConnMutation.mutate({
+                dbType,
+                filePath,
+              })
             }}
           >
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="name" className="text-right text-nowrap">
-                  Project Name
+                <Label htmlFor="dbType" className="text-right text-nowrap">
+                  Database
                 </Label>
-                <Input id="name" name="name" className="col-span-3"/>
+                <Input
+                  id="dbType"
+                  name="dbType"
+                  value="sqlite"
+                  readOnly
+                  className="col-span-3"
+                />
+                <Label htmlFor="filePath" className="text-right text-nowrap">
+                  File Path
+                </Label>
+                <div className="col-span-3">
+                  <SelectFile />
+                </div>
               </div>
             </div>
           </form>
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="submit" form="new-project-form">
-                Create Project
+              <Button type="submit" form="new-connection-form">
+                Add Connection
               </Button>
             </DialogClose>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {projectsQuery.isLoading && <p>Loading...</p>}
+      {connListQuery.isLoading && <p>Loading...</p>}
 
-      {projectsQuery.data && (
+      {connListQuery.data && (
         <ul className="flex flex-col gap-2">
-          {projectsQuery.data.map((project) => (
-            <ContextMenu key={project.name}>
+          {connListQuery.data.map((conn) => (
+            <ContextMenu key={conn.groupName}>
               <ContextMenuTrigger>
-                <Link to="/project/$id" params={{id: project.id}}>
+                <Link to="/conn/$id" params={{ id: conn.id }}>
                   <li className="p-4 rounded hover:bg-accent hover:text-accent-foreground">
-                    {project.name}
+                    {conn.groupName}
                   </li>
                 </Link>
               </ContextMenuTrigger>
@@ -121,15 +140,15 @@ function Index() {
                 <ContextMenuItem
                   className="!text-red-500"
                   disabled={
-                    newProjectMutation.isPending ||
-                    removeProjectMutation.isPending
+                    newConnMutation.isPending ||
+                    removeConnMutation.isPending
                   }
-                  onClick={() => removeProjectMutation.mutate(project.id)}
+                  onClick={() => removeConnMutation.mutate(conn.id)}
                 >
-                  {removeProjectMutation.isPending ? (
-                    <Loader2Icon className="animate-spin"/>
+                  {removeConnMutation.isPending ? (
+                    <Loader2Icon className="animate-spin" />
                   ) : (
-                    <Trash2Icon className="size-4"/>
+                    <Trash2Icon className="size-4" />
                   )}
                   &nbsp; Remove
                 </ContextMenuItem>

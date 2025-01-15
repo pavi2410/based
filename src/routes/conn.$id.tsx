@@ -203,9 +203,11 @@ function ProjectWorkspace({ conn }: { conn: DbConnectionMeta }) {
   if (!tabs.length || !activeTab) {
     return (
       <div className="flex flex-col items-center justify-center h-full">
-        <CircleSlash2Icon className="w-12 h-12 text-muted-foreground mb-4" />
-        <h2 className="text-lg font-medium">No Tabs Open</h2>
-        <p className="text-muted-foreground mb-4">
+        <CircleSlash2Icon className="w-12 h-12 text-muted-foreground/80 mb-4" />
+        <h2 className="text-muted-foreground/80 text-lg font-medium">
+          No Tabs Open
+        </h2>
+        <p className="text-muted-foreground/80 font-light mb-4">
           Get started by querying a database or viewing tables.
         </p>
       </div>
@@ -220,12 +222,17 @@ function ProjectWorkspace({ conn }: { conn: DbConnectionMeta }) {
       onValueChange={setActiveTabId}
       className="h-full flex flex-col"
     >
-      <TabsList className="w-full border-b rounded-none justify-start">
+      <TabsList
+        className="w-full border-b rounded-none justify-start overflow-x-scroll"
+        style={{
+          scrollbarWidth: "thin",
+        }}
+      >
         {tabs.map((tab) => (
           <TabsTrigger
             key={tab.id}
             value={tab.id}
-            className="gap-2 group items-center"
+            className="gap-2 group items-center relative"
           >
             <span>
               {tab.descriptor.type === "query-view" ? (
@@ -236,12 +243,12 @@ function ProjectWorkspace({ conn }: { conn: DbConnectionMeta }) {
             </span>
             <span>{tab.name}</span>
             {/* biome-ignore lint/a11y/useKeyWithClickEvents: <explanation> */}
-            <span
-              className="absolute right-0 size-4 hidden group-hover:inline-block text-muted-foreground"
+            <div
+              className="absolute right-2 top-1/2 -translate-y-1/2 z-10 hidden group-hover:inline-block text-muted-foreground hover:text-red-500"
               onClick={() => removeTab(tab.id)}
             >
-              <XIcon className="size-4" />
-            </span>
+              <XIcon className="size-5 p-1 bg-white rounded-full" />
+            </div>
           </TabsTrigger>
         ))}
       </TabsList>

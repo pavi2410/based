@@ -97,19 +97,25 @@ export function TableViewMain({
         </div>
       ),
       cell: ({ row }) => {
+        const cellValue = row.getValue(column.name);
+
+        if (!cellValue) {
+          return <span className="text-muted-foreground/50">NULL</span>;
+        }
+
         if (column.type === "INTEGER") {
-          return row.getValue(column.name);
+          return cellValue;
         }
 
         if (column.type === "BLOB") {
           return (
             <span className="text-muted-foreground">
-              {row.getValue(column.name).length} bytes
+              {cellValue.length} bytes
             </span>
           );
         }
 
-        return row.getValue(column.name);
+        return cellValue;
       },
     }));
   }, [columns]);

@@ -1,42 +1,50 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { type ReactNode, createContext, use, useState } from "react";
 
 type TableViewTab = {
-  type: 'table-view';
+  type: "table-view";
   tableName: string;
-}
+};
 
 type QueryViewTab = {
-  type: 'query-view';
-}
+  type: "query-view";
+};
 
 export type Tab = {
   id: string;
   name: string;
   descriptor: TableViewTab | QueryViewTab;
-}
+};
 
 type WorkspaceContextValue = {
   tabs: Tab[];
   activeTab: Tab | undefined;
-  setActiveTabId: (id: Tab['id']) => void;
-  addTab: (name: Tab['name'], descriptor: Tab['descriptor']) => void;
-  removeTab: (id: Tab['id']) => void;
-}
+  setActiveTabId: (id: Tab["id"]) => void;
+  addTab: (name: Tab["name"], descriptor: Tab["descriptor"]) => void;
+  removeTab: (id: Tab["id"]) => void;
+};
 
-const WorkspaceContext = createContext<WorkspaceContextValue | undefined>(undefined);
+const WorkspaceContext = createContext<WorkspaceContextValue | undefined>(
+  undefined,
+);
 
 export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
   const [tabs, setTabs] = useState<Tab[]>([]);
-  const [activeTabId, setActiveTabId] = useState<Tab['id'] | undefined>(undefined);
+  const [activeTabId, setActiveTabId] = useState<Tab["id"] | undefined>(
+    undefined,
+  );
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId);
 
-  const addTab = (name: Tab['name'], descriptor: Tab['descriptor']) => {
+  const addTab = (name: Tab["name"], descriptor: Tab["descriptor"]) => {
     const newTabId = crypto.randomUUID();
 
     // do not create duplicate table tabs
-    if (descriptor.type === 'table-view') {
-      const existingTab = tabs.find((tab) => tab.descriptor.type === 'table-view' && tab.descriptor.tableName === descriptor.tableName);
+    if (descriptor.type === "table-view") {
+      const existingTab = tabs.find(
+        (tab) =>
+          tab.descriptor.type === "table-view" &&
+          tab.descriptor.tableName === descriptor.tableName,
+      );
       if (existingTab) {
         console.warn(`Tab for table ${descriptor.tableName} already exists`);
         setActiveTabId(existingTab.id);
@@ -49,7 +57,7 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
     return newTabId;
   };
 
-  const removeTab = (id: Tab['id']) => {
+  const removeTab = (id: Tab["id"]) => {
     if (activeTabId === id) {
       const removedTabIndex = tabs.findIndex((tab) => tab.id === id);
 
@@ -69,16 +77,18 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <WorkspaceContext.Provider value={{ tabs, activeTab, setActiveTabId, addTab, removeTab }}>
+    <WorkspaceContext
+      value={{ tabs, activeTab, setActiveTabId, addTab, removeTab }}
+    >
       {children}
-    </WorkspaceContext.Provider>
+    </WorkspaceContext>
   );
 };
 
 export const useWorkspace = () => {
-  const context = useContext(WorkspaceContext);
+  const context = use(WorkspaceContext);
   if (!context) {
-    throw new Error('useWorkspace must be used within a WorkspaceProvider');
+    throw new Error("useWorkspace must be used within a WorkspaceProvider");
   }
   return context;
 };

@@ -43,12 +43,15 @@ export function TableView({
 
       const results = await query(
         connString,
-        `SELECT * FROM "${tableName}"`,
+        `SELECT rowid, * FROM "${tableName}"`,
         [],
       );
       const endQueryTime = performance.now();
       return {
-        columns,
+        columns: [
+          { index: -1, name: "rowid", type: "INTEGER", pk: false },
+          ...columns,
+        ],
         results,
         queryTime: endQueryTime - queryTime,
       };

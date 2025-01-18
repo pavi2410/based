@@ -29,3 +29,6 @@
 - SQLite
     - https://github.com/codecrafters-io/sample-sqlite-databases
     - https://github.com/jpwhite3/northwind-SQLite3
+
+### Useful links
+- https://www.todesktop.com/blog/posts/designing-desktop-apps-cross-platform-ux

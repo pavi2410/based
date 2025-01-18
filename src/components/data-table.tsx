@@ -37,7 +37,7 @@ export function DataTable<TData, TValue>({
 
   return (
     <div>
-      <Table className="border border-collapse w-full overflow-y-scroll">
+      <Table className="border border-collapse">
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id}>
@@ -69,7 +69,7 @@ export function DataTable<TData, TValue>({
                 {row.getVisibleCells().map((cell) => (
                   <TableCell
                     key={cell.id}
-                    className="p-1 text-nowrap border border-collapse"
+                    className="p-1 text-nowrap border border-collapse tabular-nums font-mono"
                   >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </TableCell>

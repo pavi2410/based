@@ -16,8 +16,17 @@ export function QueryView({ connection }: { connection: DbConnectionMeta }) {
       const connString = buildConnString(connection);
       const queryTime = performance.now();
       const results = await query(connString, queryText, []);
+
+      const columns = results.length > 0 ? Object.keys(results[0]).map((name, index) => ({
+        index,
+        name,
+        type: "TEXT",
+        pk: false,
+      })) : [];
+
       const endQueryTime = performance.now();
       return {
+        columns,
         results,
         queryTime: endQueryTime - queryTime,
       };
@@ -40,6 +49,7 @@ export function QueryView({ connection }: { connection: DbConnectionMeta }) {
               queryMutation.error.toString()
             ) : queryMutation.status === "success" ? (
               <TableViewMain
+                columns={queryMutation.data.columns}
                 results={queryMutation.data.results}
                 queryTime={queryMutation.data.queryTime}
               />

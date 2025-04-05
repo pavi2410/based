@@ -107,7 +107,7 @@ function RouteComponent() {
 
 function ProjectSidebar({ conn }: { conn: DbConnectionMeta }) {
   return (
-    <Sidebar>
+    <Sidebar collapsible="icon">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -149,11 +149,11 @@ function ProjectSidebar({ conn }: { conn: DbConnectionMeta }) {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarRail />
-
-      <SidebarFooter>
+      <SidebarFooter className="group-data-[collapsible=icon]:hidden">
         <SidebarBranding />
       </SidebarFooter>
+
+      <SidebarRail />
     </Sidebar>
   );
 }

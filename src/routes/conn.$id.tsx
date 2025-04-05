@@ -1,6 +1,7 @@
 import { load, query } from "@/commands.ts";
 import { QueryView } from "@/components/project/QueryView.tsx";
 import { TableView } from "@/components/project/TableView.tsx";
+import { Badge } from "@/components/ui/badge";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -30,6 +31,7 @@ import {
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuSub,
@@ -316,7 +318,10 @@ function DbObjectMenu({
             <SidebarMenuButton>
               {icon}
               {label}
-              <ChevronRightIcon className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+              <span className="ml-auto inline-flex items-center gap-1">
+                <Badge variant="outline">{objectQuery.data.length}</Badge>
+                <ChevronRightIcon className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 size-4" />
+              </span>
             </SidebarMenuButton>
           </CollapsibleTrigger>
         </SidebarMenuItem>

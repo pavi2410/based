@@ -89,10 +89,10 @@ export function TableViewMain({
       accessorKey: column.name,
       header: () => (
         <div className="flex items-start gap-1 min-w-32">
-          {column.pk && <KeyRoundIcon className="size-4 mt-1" />}
+          {column.pk && <KeyRoundIcon className="size-4 mt-1 text-yellow-500" />}
           <div className="flex flex-col font-mono">
             {column.name}
-            <span className="text-xs font-light">{column.type}</span>
+            <span className="text-xs font-light text-muted-foreground">{column.type}</span>
           </div>
         </div>
       ),
@@ -128,7 +128,7 @@ export function TableViewMain({
         <>
           <div className="flex items-center gap-1 text-sm text-muted-foreground">
             <TimerIcon className="size-4" />
-            <span>{queryTime.toFixed(2)}ms</span>
+            <span>{queryTime.toFixed(0)}ms</span>
           </div>
           <div className="flex items-center gap-1 text-sm text-muted-foreground">
             <Rows3Icon className="size-4" />

@@ -36,9 +36,9 @@ export function DataTable<TData, TValue>({
   });
 
   return (
-    <div>
+    <>
       <Table className="border border-collapse">
-        <TableHeader>
+        <TableHeader className="bg-muted-foreground/10">
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id}>
               {headerGroup.headers.map((header) => {
@@ -89,6 +89,6 @@ export function DataTable<TData, TValue>({
         <div>{extraFooter}</div>
         <DataTablePagination table={table} />
       </div>
-    </div>
+    </>
   );
 }

@@ -95,7 +95,7 @@ function RouteComponent() {
     <WorkspaceProvider>
       <SidebarProvider>
         <ProjectSidebar conn={conn} />
-        <SidebarInset>
+        <SidebarInset className="overflow-hidden">
           <ProjectHeader conn={conn} />
           <ProjectWorkspace conn={conn} />
         </SidebarInset>
@@ -221,10 +221,10 @@ function ProjectWorkspace({ conn }: { conn: DbConnectionMeta }) {
     <Tabs
       value={activeTabId}
       onValueChange={setActiveTabId}
-      className="h-full flex flex-col"
+      className="h-full gap-0"
     >
       <TabsList
-        className="w-full border-b rounded-none justify-start overflow-x-scroll"
+        className="rounded-none border-b overflow-x-scroll w-full bg-transparent"
         style={{
           scrollbarWidth: "thin",
         }}
@@ -233,7 +233,7 @@ function ProjectWorkspace({ conn }: { conn: DbConnectionMeta }) {
           <TabsTrigger
             key={tab.id}
             value={tab.id}
-            className="gap-2 group items-center relative"
+            className="group relative"
           >
             <span>
               {tab.descriptor.type === "query-view" ? (
@@ -242,18 +242,18 @@ function ProjectWorkspace({ conn }: { conn: DbConnectionMeta }) {
                 <TableIcon className="size-4" />
               )}
             </span>
-            <span>{tab.name}</span>
+            <span className="group-hover:mask-r-from-[calc(100%-3rem)] group-hover:mask-r-to-100%">{tab.name}</span>
             {/* biome-ignore lint/a11y/useKeyWithClickEvents: <explanation> */}
             <div
               className="absolute right-2 top-1/2 -translate-y-1/2 z-10 hidden group-hover:inline-block text-muted-foreground hover:text-red-500"
               onClick={() => removeTab(tab.id)}
             >
-              <XIcon className="size-5 p-1 bg-white rounded-full" />
+              <XIcon className="size-4" />
             </div>
           </TabsTrigger>
         ))}
       </TabsList>
-      <TabsContent value={activeTabId} className="m-0 flex-1">
+      <TabsContent value={activeTabId}>
         {activeTab.descriptor.type === "query-view" ? (
           <QueryView connection={conn} />
         ) : (
@@ -348,11 +348,11 @@ function SidebarBranding() {
   return (
     <Card className="shadow-none gap-3 py-6">
       <CardHeader>
-        <CardTitle className="text-sm text-muted-foreground">pavi2410 / <span className="text-white">based</span></CardTitle>
+        <CardTitle className="text-sm text-muted-foreground">pavi2410 / <span className="text-foreground">based</span></CardTitle>
       </CardHeader>
       <CardContent>
         <Button
-          className="w-full bg-sidebar-primary text-sidebar-primary-foreground/80 hover:text-sidebar-primary/80 shadow-none"
+          className="w-full shadow-none"
           asChild
         >
           <a

@@ -164,7 +164,7 @@ function ConnectionList() {
           </ContextMenuTrigger>
           <ContextMenuContent>
             <ContextMenuItem
-              className="!text-red-500"
+              className="text-red-500!"
               disabled={removeConnMutation.isPending}
               onClick={() => removeConnMutation.mutate(conn.id)}
             >

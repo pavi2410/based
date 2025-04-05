@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
+use crate::DbInstances;
 use crate::db_pool::DbPool;
 use crate::error::Error;
-use crate::DbInstances;
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
-use tauri::{command, AppHandle, Runtime, State};
+use tauri::{AppHandle, Runtime, State, command};
 
 #[command]
 pub(crate) async fn load<R: Runtime>(

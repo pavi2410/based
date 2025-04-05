@@ -4,7 +4,7 @@
 
 use crate::error::Error;
 use serde_json::Value as JsonValue;
-use sqlx::{sqlite::SqliteValueRef, TypeInfo, Value, ValueRef};
+use sqlx::{TypeInfo, Value, ValueRef, sqlite::SqliteValueRef};
 use time::{Date, PrimitiveDateTime, Time};
 
 pub(crate) fn to_json(v: SqliteValueRef) -> Result<JsonValue, Error> {
@@ -13,62 +13,38 @@ pub(crate) fn to_json(v: SqliteValueRef) -> Result<JsonValue, Error> {
     }
 
     let res = match v.type_info().name() {
-        "TEXT" => {
-            if let Ok(v) = v.to_owned().try_decode() {
-                JsonValue::String(v)
-            } else {
-                JsonValue::Null
-            }
-        }
-        "REAL" => {
-            if let Ok(v) = v.to_owned().try_decode::<f64>() {
-                JsonValue::from(v)
-            } else {
-                JsonValue::Null
-            }
-        }
-        "INTEGER" | "NUMERIC" => {
-            if let Ok(v) = v.to_owned().try_decode::<i64>() {
-                JsonValue::Number(v.into())
-            } else {
-                JsonValue::Null
-            }
-        }
-        "BOOLEAN" => {
-            if let Ok(v) = v.to_owned().try_decode() {
-                JsonValue::Bool(v)
-            } else {
-                JsonValue::Null
-            }
-        }
-        "DATE" => {
-            if let Ok(v) = v.to_owned().try_decode::<Date>() {
-                JsonValue::String(v.to_string())
-            } else {
-                JsonValue::Null
-            }
-        }
-        "TIME" => {
-            if let Ok(v) = v.to_owned().try_decode::<Time>() {
-                JsonValue::String(v.to_string())
-            } else {
-                JsonValue::Null
-            }
-        }
-        "DATETIME" => {
-            if let Ok(v) = v.to_owned().try_decode::<PrimitiveDateTime>() {
-                JsonValue::String(v.to_string())
-            } else {
-                JsonValue::Null
-            }
-        }
-        "BLOB" => {
-            if let Ok(v) = v.to_owned().try_decode::<Vec<u8>>() {
-                JsonValue::Array(v.into_iter().map(|n| JsonValue::Number(n.into())).collect())
-            } else {
-                JsonValue::Null
-            }
-        }
+        "TEXT" => match v.to_owned().try_decode() {
+            Ok(v) => JsonValue::String(v),
+            _ => JsonValue::Null,
+        },
+        "REAL" => match v.to_owned().try_decode::<f64>() {
+            Ok(v) => JsonValue::from(v),
+            _ => JsonValue::Null,
+        },
+        "INTEGER" | "NUMERIC" => match v.to_owned().try_decode::<i64>() {
+            Ok(v) => JsonValue::Number(v.into()),
+            _ => JsonValue::Null,
+        },
+        "BOOLEAN" => match v.to_owned().try_decode() {
+            Ok(v) => JsonValue::Bool(v),
+            _ => JsonValue::Null,
+        },
+        "DATE" => match v.to_owned().try_decode::<Date>() {
+            Ok(v) => JsonValue::String(v.to_string()),
+            _ => JsonValue::Null,
+        },
+        "TIME" => match v.to_owned().try_decode::<Time>() {
+            Ok(v) => JsonValue::String(v.to_string()),
+            _ => JsonValue::Null,
+        },
+        "DATETIME" => match v.to_owned().try_decode::<PrimitiveDateTime>() {
+            Ok(v) => JsonValue::String(v.to_string()),
+            _ => JsonValue::Null,
+        },
+        "BLOB" => match v.to_owned().try_decode::<Vec<u8>>() {
+            Ok(v) => JsonValue::Array(v.into_iter().map(|n| JsonValue::Number(n.into())).collect()),
+            _ => JsonValue::Null,
+        },
         "NULL" => JsonValue::Null,
         _ => return Err(Error::UnsupportedDatatype(v.type_info().name().to_string())),
     };

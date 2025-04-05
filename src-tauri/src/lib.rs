@@ -19,11 +19,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .manage(DbInstances::default())
-        .invoke_handler(tauri::generate_handler![
-            load,
-            close,
-            query,
-        ])
+        .invoke_handler(tauri::generate_handler![load, close, query,])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

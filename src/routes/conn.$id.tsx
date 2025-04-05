@@ -346,14 +346,13 @@ function DbObjectMenu({
 
 function SidebarBranding() {
   return (
-    <Card className="shadow-none">
-      <CardHeader className="p-4 pb-0">
-        <CardTitle className="text-sm">pavi2410 / based</CardTitle>
+    <Card className="shadow-none gap-3 py-6">
+      <CardHeader>
+        <CardTitle className="text-sm text-muted-foreground">pavi2410 / <span className="text-white">based</span></CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-2.5 p-4">
+      <CardContent>
         <Button
-          className="w-full bg-sidebar-primary text-sidebar-primary-foreground shadow-none"
-          size="sm"
+          className="w-full bg-sidebar-primary text-sidebar-primary-foreground/80 hover:text-sidebar-primary/80 shadow-none"
           asChild
         >
           <a

@@ -1,4 +1,4 @@
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { addConnection } from "@/stores";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -18,9 +18,7 @@ export function newConnectionMutation() {
       });
     },
     onSuccess: async () => {
-      toast({
-        title: "New connected added",
-      });
+      toast.success("New connected added");
       await queryClient.invalidateQueries({
         queryKey: ["connections"],
       });

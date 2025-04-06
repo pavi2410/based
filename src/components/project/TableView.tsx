@@ -24,7 +24,7 @@ export function TableView({
   tableName: string;
 }) {
   const connString = buildConnString(connMeta);
-  
+
   // Use the connection hook
   const { status: connectionStatus, retry } = useConnection(connMeta.id);
 
@@ -32,7 +32,7 @@ export function TableView({
     queryKey: ["connection", connMeta.id, "table", tableName],
     queryFn: async () => {
       const queryTime = performance.now();
-      const tableInfo = await query(
+      const { result: tableInfo } = await query<Array<Record<string, any>>>(
         connString,
         `PRAGMA table_info("${tableName}")`,
         [],
@@ -48,7 +48,7 @@ export function TableView({
           }) as ColumnInfo,
       );
 
-      const results = await query(
+      const { result } = await query<Array<Record<string, any>>>(
         connString,
         `SELECT rowid, * FROM "${tableName}"`,
         [],
@@ -59,7 +59,7 @@ export function TableView({
           { index: -1, name: "rowid", type: "INTEGER", pk: false },
           ...columns,
         ],
-        results,
+        results: result,
         queryTime: endQueryTime - queryTime,
       };
     },
@@ -76,9 +76,9 @@ export function TableView({
             {connectionStatus.error.message}
           </div>
           <div className="flex gap-4 mt-4">
-            <Button 
-              variant="outline" 
-              onClick={retry} 
+            <Button
+              variant="outline"
+              onClick={retry}
               className="flex items-center gap-2"
             >
               <RefreshCcwIcon className="size-4" />
@@ -98,11 +98,11 @@ export function TableView({
       if (tableQuery.isPending) {
         return <div className="p-4">Loading table data...</div>;
       }
-      
+
       if (tableQuery.isError) {
         return <div className="p-4 text-destructive">Error: {tableQuery.error.message}</div>;
       }
-      
+
       return (
         <TableViewMain
           columns={tableQuery.data.columns}

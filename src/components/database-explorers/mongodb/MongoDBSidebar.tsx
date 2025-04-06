@@ -26,6 +26,7 @@ import {
   ChevronRightIcon,
   FolderKanbanIcon,
   KeyIcon,
+  Loader2Icon,
 } from "lucide-react";
 import DeviconMongodb from '~icons/devicon/mongodb';
 import type { ReactNode } from "react";
@@ -101,13 +102,22 @@ function MongoDBObjectMenu({
       // For MongoDB, we need different queries based on type
       if (type === "collection") {
         // Query to list collections
-        return await query(
+        const { result } = await query<{ ok: boolean; cursor: { firstBatch: any[] } }>(
           connString,
           JSON.stringify({
             listCollections: 1
           }),
           [],
         );
+
+        // Process cursor-based results (like listCollections)
+        // The MongoDB response format has the actual data in cursor.firstBatch
+        return result.cursor.firstBatch.map((collection: any) => ({
+          name: collection.name,
+          type: collection.type,
+        }));
+
+
       } else if (type === "index") {
         // In a real implementation, we would list all indexes across collections
         // This is simplified for now
@@ -125,6 +135,11 @@ function MongoDBObjectMenu({
     });
   }
 
+  // Calculate the number of items to display
+  const itemsCount = objectQuery.isSuccess
+    ? objectQuery.data.length
+    : 0;
+
   return (
     <SidebarMenu>
       <Collapsible className="group/collapsible">
@@ -135,7 +150,7 @@ function MongoDBObjectMenu({
               {label}
               <span className="ml-auto inline-flex items-center gap-1">
                 <Badge variant="outline">
-                  {objectQuery.isSuccess ? objectQuery.data.length : 0}
+                  {itemsCount}
                 </Badge>
                 <ChevronRightIcon className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 size-4" />
               </span>

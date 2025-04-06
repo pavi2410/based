@@ -6,7 +6,6 @@ use crate::DbInstances;
 use crate::connection_pool::ConnectionPool;
 use crate::error::Error;
 use serde_json::Value as JsonValue;
-use std::collections::HashMap;
 use tauri::{AppHandle, Runtime, State, command};
 
 #[command]
@@ -49,7 +48,7 @@ pub(crate) async fn query(
     db: String,
     query: String,
     values: Vec<JsonValue>,
-) -> Result<Vec<HashMap<String, JsonValue>>, Error> {
+) -> Result<JsonValue, Error> {
     let instances = db_instances.0.read().await;
 
     let db = instances.get(&db).ok_or(Error::DatabaseNotLoaded(db))?;

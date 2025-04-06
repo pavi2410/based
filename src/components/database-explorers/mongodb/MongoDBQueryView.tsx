@@ -1,5 +1,4 @@
 import { query } from "@/commands.ts";
-import { TableViewMain } from "@/components/project/TableView.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { CodeEditor } from "@/components/code-editor";
 import type { DbConnectionMeta } from "@/stores/db-connections";
@@ -11,6 +10,7 @@ import { useConnection } from "@/queries/use-connection";
 import { Link } from "@tanstack/react-router";
 import { addQueryToHistory } from "@/stores/query-history";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // MongoDB query suggestions
 const QUERY_SUGGESTIONS = [
@@ -74,14 +74,9 @@ export function MongoDBQueryView({ connection: connMeta }: { connection: DbConne
   const queryMutation = useMutation({
     mutationFn: async () => {
       const queryTime = performance.now();
-      const results = await query(connString, queryText, []);
+      const { result } = await query<Record<string, any>>(connString, queryText, []);
 
-      const columns = results.length > 0 ? Object.keys(results[0]).map((name, index) => ({
-        index,
-        name,
-        type: "TEXT",
-        pk: false,
-      })) : [];
+      console.log('Raw results:', result);
 
       const endQueryTime = performance.now();
       const executionTime = endQueryTime - queryTime;
@@ -90,15 +85,15 @@ export function MongoDBQueryView({ connection: connMeta }: { connection: DbConne
       try {
         await addQueryToHistory(connMeta.id, queryText, {
           executionTime,
-          resultsCount: results.length,
+          resultsCount: result.length,
         });
       } catch (error) {
         console.error("Failed to add query to history:", error);
       }
 
       return {
-        columns,
-        results,
+        columns: [],
+        results: result,
         queryTime: executionTime,
       };
     },
@@ -162,28 +157,57 @@ export function MongoDBQueryView({ connection: connMeta }: { connection: DbConne
               })}
             </div>
 
-            <CodeEditor
-              value={queryText}
-              onChange={setQueryText}
-              language="json"
-              placeholder="Enter your MongoDB query as JSON..."
-              className="min-h-32 font-mono"
-            />
+            <div className="flex-1">
+              <CodeEditor
+                value={queryText}
+                onChange={setQueryText}
+                language="json"
+                placeholder="Enter your MongoDB query as JSON..."
+                className="min-h-32 font-mono"
+              />
+            </div>
 
             <div className="flex-1">
-              {
-                queryMutation.status === "pending" ? (
-                  "Running..."
-                ) : queryMutation.status === "error" ? (
-                  queryMutation.error.toString()
-                ) : queryMutation.status === "success" ? (
-                  <TableViewMain
-                    columns={queryMutation.data.columns}
-                    results={queryMutation.data.results}
-                    queryTime={queryMutation.data.queryTime}
-                  />
-                ) : null
-              }
+              {queryMutation.status === "pending" ? (
+                <div className="flex items-center justify-center h-full">
+                  <Loader2Icon className="animate-spin mr-2" />
+                  <span>Running query...</span>
+                </div>
+              ) : queryMutation.status === "error" ? (
+                <div className="p-4 text-destructive">
+                  <h3 className="font-medium mb-2">Error</h3>
+                  <pre className="bg-destructive/10 p-2 rounded text-sm overflow-auto">
+                    {queryMutation.error.toString()}
+                  </pre>
+                </div>
+              ) : queryMutation.status === "success" ? (
+                <Tabs defaultValue="json">
+                  <div className="flex flex-col h-full">
+                    <div className="border-b p-2 flex justify-between items-center">
+                      <div className="text-xs text-muted-foreground">
+                        <span>{queryMutation.data.queryTime.toFixed(2)}ms</span>
+                      </div>
+                      <TabsList className="h-7">
+                        <TabsTrigger value="table" className="text-xs px-2 h-5">Table</TabsTrigger>
+                        <TabsTrigger value="json" className="text-xs px-2 h-5">JSON</TabsTrigger>
+                      </TabsList>
+                    </div>
+                    <div className="flex-1 overflow-auto">
+                      <TabsContent value="table" className="h-full m-0">
+                        WIP
+                      </TabsContent>
+                      <TabsContent value="json" className="h-full m-0 p-0">
+                        <CodeEditor
+                          value={JSON.stringify(queryMutation.data.results, null, 2)}
+                          language="json"
+                          className="min-h-32 font-mono h-full"
+                          onChange={() => { }}
+                        />
+                      </TabsContent>
+                    </div>
+                  </div>
+                </Tabs>
+              ) : null}
             </div>
           </div>
           <div className="flex justify-end gap-4 p-2">
@@ -193,9 +217,9 @@ export function MongoDBQueryView({ connection: connMeta }: { connection: DbConne
               size="sm"
             >
               {queryMutation.isPending ? (
-                <Loader2Icon className="animate-spin" />
+                <Loader2Icon className="animate-spin mr-1 size-4" />
               ) : (
-                <PlayIcon />
+                <PlayIcon className="mr-1 size-4" />
               )}
               Run Query
             </Button>

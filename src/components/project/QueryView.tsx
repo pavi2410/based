@@ -13,16 +13,16 @@ import { Link } from "@tanstack/react-router";
 export function QueryView({ connection: connMeta }: { connection: DbConnectionMeta }) {
   const [queryText, setQueryText] = useState("");
   const connString = buildConnString(connMeta);
-  
+
   // Use the connection hook
   const { status: connectionStatus, retry } = useConnection(connMeta.id);
 
   const queryMutation = useMutation({
     mutationFn: async () => {
       const queryTime = performance.now();
-      const results = await query(connString, queryText, []);
+      const { result } = await query<Array<Record<string, any>>>(connString, queryText, []);
 
-      const columns = results.length > 0 ? Object.keys(results[0]).map((name, index) => ({
+      const columns = result.length > 0 ? Object.keys(result[0]).map((name, index) => ({
         index,
         name,
         type: "TEXT",
@@ -32,7 +32,7 @@ export function QueryView({ connection: connMeta }: { connection: DbConnectionMe
       const endQueryTime = performance.now();
       return {
         columns,
-        results,
+        results: result,
         queryTime: endQueryTime - queryTime,
       };
     },
@@ -48,9 +48,9 @@ export function QueryView({ connection: connMeta }: { connection: DbConnectionMe
             {connectionStatus.error.message}
           </div>
           <div className="flex gap-4 mt-4">
-            <Button 
-              variant="outline" 
-              onClick={retry} 
+            <Button
+              variant="outline"
+              onClick={retry}
               className="flex items-center gap-2"
             >
               <RefreshCcwIcon className="size-4" />

@@ -105,20 +105,21 @@ function SQLiteObjectMenu({
 }) {
   const connString = buildConnString(connMeta);
   const { addTab } = useWorkspace();
-  
+
   // Use the connection hook with connection id
   const { status: connectionStatus, retry } = useConnection(connMeta.id);
-  
+
   const objectQuery = useQuery({
     queryKey: ["connection", connMeta.id, type],
     queryFn: async () => {
-      return await query(
+      const { result } = await query<Array<Record<string, any>>>(
         connString,
         `SELECT name
          FROM sqlite_schema
          WHERE type = '${type}'`,
         [],
       );
+      return result;
     },
     enabled: connectionStatus.status === 'success', // Only run when connection is successful
   });

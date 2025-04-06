@@ -63,9 +63,9 @@ export function SQLiteQueryView({ connection: connMeta }: { connection: DbConnec
   const queryMutation = useMutation({
     mutationFn: async () => {
       const queryTime = performance.now();
-      const results = await query(connString, queryText, []);
+      const { result } = await query<Array<Record<string, any>>>(connString, queryText, []);
 
-      const columns = results.length > 0 ? Object.keys(results[0]).map((name, index) => ({
+      const columns = result.length > 0 ? Object.keys(result[0]).map((name, index) => ({
         index,
         name,
         type: "TEXT",
@@ -79,7 +79,7 @@ export function SQLiteQueryView({ connection: connMeta }: { connection: DbConnec
       try {
         await addQueryToHistory(connMeta.id, queryText, {
           executionTime,
-          resultsCount: results.length,
+          resultsCount: result.length,
         });
       } catch (error) {
         console.error("Failed to add query to history:", error);
@@ -87,7 +87,7 @@ export function SQLiteQueryView({ connection: connMeta }: { connection: DbConnec
 
       return {
         columns,
-        results,
+        results: result,
         queryTime: executionTime,
       };
     },

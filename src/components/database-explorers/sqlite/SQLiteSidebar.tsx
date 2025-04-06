@@ -33,6 +33,8 @@ import DeviconSqlite from '~icons/devicon/sqlite';
 import type { ReactNode } from "react";
 import { useConnection } from "@/queries/use-connection";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
+import { EditConnectionDialog } from "@/components/edit-connection-dialogs";
+import { DialogTrigger } from "@/components/ui/dialog";
 
 export function SQLiteSidebar({ connMeta }: { connMeta: DbConnectionMeta }) {
   return (
@@ -40,11 +42,14 @@ export function SQLiteSidebar({ connMeta }: { connMeta: DbConnectionMeta }) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton>
-              <DeviconSqlite />
-              <span>{baseName(connMeta.filePath)}</span>
-              <small className="text-muted-foreground">{connMeta.dbType}</small>
-            </SidebarMenuButton>
+            <EditConnectionDialog connection={connMeta} trigger={
+              <DialogTrigger asChild>
+                <SidebarMenuButton>
+                  <DeviconSqlite />
+                  <span>{baseName(connMeta.filePath)}</span>
+                </SidebarMenuButton>
+              </DialogTrigger>
+            } />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>

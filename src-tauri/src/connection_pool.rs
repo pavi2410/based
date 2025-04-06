@@ -8,15 +8,13 @@ use sqlx::{Column, Executor, Pool, Row, Sqlite};
 use mongodb::{Client, Database, bson::{Document, Bson}};
 use std::collections::HashMap;
 use tauri::{AppHandle, Runtime};
-use std::path::Path;
-use std::fs;
 
-pub enum DbPool {
+pub enum ConnectionPool {
     Sqlite(Pool<Sqlite>),
     Mongo(Database),
 }
 
-impl DbPool {
+impl ConnectionPool {
     pub(crate) async fn connect<R: Runtime>(
         conn_url: &str,
         _app: &AppHandle<R>,
@@ -64,14 +62,89 @@ impl DbPool {
                 }
                 Ok(Self::Sqlite(Pool::connect(conn_url).await?))
             }
-            "mongodb" => {
-                let client = Client::with_uri_str(conn_url).await?;
+            "mongodb" => {                
+                // Validate protocol
+                if !conn_url.starts_with("mongodb://") && !conn_url.starts_with("mongodb+srv://") {
+                    return Err(crate::Error::InvalidDbUrl(format!(
+                        "Invalid MongoDB connection string. Must start with 'mongodb://' or 'mongodb+srv://': {}",
+                        conn_url
+                    )));
+                }
+                
+                // Attempt to create a client and connect
+                let client_result = Client::with_uri_str(conn_url).await;
+                
+                // Handle specific authentication errors
+                if let Err(ref e) = client_result {
+                    let error_msg = e.to_string();
+                    
+                    if error_msg.contains("SCRAM failure") || error_msg.contains("Authentication failed") {
+                        return Err(crate::Error::MongoAuth(
+                            "Authentication failed. Please check your username and password.".to_string()
+                        ));
+                    } else if error_msg.contains("connection refused") || error_msg.contains("timed out") {
+                        return Err(crate::Error::MongoConnection(
+                            "Connection refused or timed out. Please check if the MongoDB server is running and accessible.".to_string()
+                        ));
+                    }
+                }
+                
+                let client = client_result?;
+                
+                // Extract the database name from the connection string
                 let db_name = conn_url
                     .split('/')
                     .last()
-                    .ok_or_else(|| crate::Error::InvalidDbUrl(conn_url.to_string()))?;
-                let db = client.database(db_name);
-                Ok(Self::Mongo(db))
+                    .ok_or_else(|| crate::Error::InvalidDbUrl(format!("No database name found in connection string: {}", conn_url)))?;
+                
+                // Extract potential auth parameters
+                let has_auth_params = db_name.contains('?');
+                let clean_db_name = if has_auth_params {
+                    db_name.split('?').next().unwrap_or(db_name)
+                } else {
+                    db_name
+                };
+                
+                // Validate the database name isn't empty
+                if clean_db_name.trim().is_empty() {
+                    return Err(crate::Error::InvalidDbUrl(format!("Empty database name in connection string: {}", conn_url)));
+                }
+                
+                // Validate that the database name doesn't contain periods or other invalid characters
+                if clean_db_name.contains('.') {
+                    return Err(crate::Error::InvalidDbUrl(format!("Invalid database name '{}': '.' is an invalid character in a db name", clean_db_name)));
+                }
+
+                // Other invalid characters in MongoDB database names
+                let invalid_chars = ['/', '\\', ' ', '"', '$', '*', '<', '>', ':', '|', '?'];
+                if let Some(c) = clean_db_name.chars().find(|&c| invalid_chars.contains(&c)) {
+                    return Err(crate::Error::InvalidDbUrl(format!("Invalid database name '{}': '{}' is an invalid character in a db name", clean_db_name, c)));
+                }
+                
+                // Create database instance
+                let db = client.database(clean_db_name);
+                
+                // Verify connection by running a simple command
+                let mut command_doc = Document::new();
+                command_doc.insert("ping".to_string(), Bson::Int32(1));
+                
+                match db.run_command(command_doc, None).await {
+                    Ok(_) => Ok(Self::Mongo(db)),
+                    Err(e) => {
+                        let error_msg = e.to_string();
+                        if error_msg.contains("SCRAM failure") || error_msg.contains("Authentication failed") {
+                            Err(crate::Error::MongoAuth(
+                                "Authentication failed. Please check your username and password.".to_string()
+                            ))
+                        } else if error_msg.contains("authorization") {
+                            Err(crate::Error::MongoAuth(
+                                "Authorization failed. User may not have access to this database.".to_string()
+                            ))
+                        } else {
+                            Err(crate::Error::Mongo(e))
+                        }
+                    }
+                }
             }
             _ => Err(crate::Error::InvalidDbUrl(conn_url.to_string())),
         }
@@ -79,8 +152,8 @@ impl DbPool {
 
     pub(crate) async fn close(&self) {
         match self {
-            DbPool::Sqlite(pool) => pool.close().await,
-            DbPool::Mongo(_) => (), // MongoDB client handles connection pooling internally
+            ConnectionPool::Sqlite(pool) => pool.close().await,
+            ConnectionPool::Mongo(_) => (), // MongoDB client handles connection pooling internally
         }
     }
 
@@ -90,7 +163,7 @@ impl DbPool {
         values: Vec<JsonValue>,
     ) -> Result<Vec<HashMap<String, JsonValue>>, crate::Error> {
         match self {
-            DbPool::Sqlite(pool) => {
+            ConnectionPool::Sqlite(pool) => {
                 let mut query = sqlx::query(&query);
                 for value in values {
                     if value.is_null() {
@@ -116,7 +189,7 @@ impl DbPool {
                 }
                 Ok(values)
             }
-            DbPool::Mongo(db) => {
+            ConnectionPool::Mongo(db) => {
                 // Parse the query as a MongoDB command
                 let command: Document = serde_json::from_str(&query)?;
                 

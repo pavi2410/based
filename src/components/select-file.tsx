@@ -4,8 +4,10 @@ import { useState } from "react"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 
-export function SelectFile() {
-  const [filePath, setFilePath] = useState<string | null>(null)
+export function SelectFile(
+  { defaultValue }: { defaultValue?: string }
+) {
+  const [filePath, setFilePath] = useState<string | null>(defaultValue ?? null)
 
   if (filePath) {
     return (

@@ -18,6 +18,10 @@ pub enum Error {
     DatabaseNotLoaded(String),
     #[error("unsupported datatype: {0}")]
     UnsupportedDatatype(String),
+    #[error("mongodb authentication error: {0}")]
+    MongoAuth(String),
+    #[error("mongodb connection error: {0}")]
+    MongoConnection(String),
 }
 
 impl Serialize for Error {

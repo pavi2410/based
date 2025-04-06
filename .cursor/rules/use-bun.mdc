@@ -1,0 +1,11 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Use Bun for NPM dependency management
+
+- Before installing any NPM package, always check [package.json](mdc:package.json) for the package's existence.
+- Use Bun to run [package.json](mdc:package.json) scripts.
+

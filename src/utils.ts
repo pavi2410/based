@@ -1,4 +1,4 @@
-import type { DbConnectionMeta } from "./stores";
+import type { DbConnectionMeta } from "./stores/index";
 
 export function baseName(path: string) {
   return path.replace(/^.+[\/\\]/, "");

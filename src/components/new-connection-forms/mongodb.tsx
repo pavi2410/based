@@ -2,18 +2,22 @@ import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
 import { newConnectionMutation } from "@/mutations/new-connection";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, InfoIcon } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { PasswordInput } from "@/components/password-input";
 
 export function MongoDBConnectionForm() {
   const newConnMutation = newConnectionMutation();
   const [connectionTab, setConnectionTab] = useState<string>("form");
+  const [formError, setFormError] = useState<string | null>(null);
 
   const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     e.stopPropagation();
+    setFormError(null);
 
     const formData = new FormData(e.currentTarget);
 
@@ -22,6 +26,18 @@ export function MongoDBConnectionForm() {
       const connectionString = formData.get("connectionString") as string;
 
       if (!connectionString) {
+        return;
+      }
+
+      // Validate that the connection string includes a database name
+      if (!connectionString.includes('/') || connectionString.endsWith('/')) {
+        setFormError("Connection string must include a database name (e.g., mongodb://hostname:port/database_name)");
+        return;
+      }
+
+      // Validate that the connection string starts with mongodb:// or mongodb+srv://
+      if (!connectionString.startsWith('mongodb://') && !connectionString.startsWith('mongodb+srv://')) {
+        setFormError("Connection string must start with 'mongodb://' or 'mongodb+srv://'");
         return;
       }
 
@@ -36,6 +52,13 @@ export function MongoDBConnectionForm() {
       const database = formData.get("database") as string;
       const username = formData.get("username") as string;
       const password = formData.get("password") as string;
+      const authSource = formData.get("authSource") as string;
+      
+      // Validate that database name is provided
+      if (!database) {
+        setFormError("Database name is required");
+        return;
+      }
       
       // Build the MongoDB connection string
       let connectionString = "mongodb://";
@@ -52,9 +75,15 @@ export function MongoDBConnectionForm() {
       // Add host and port
       connectionString += `${host}:${port}`;
       
-      // Add database name if provided
-      if (database) {
-        connectionString += `/${database}`;
+      // Add database name
+      connectionString += `/${database}`;
+      
+      // Add auth source if provided
+      if (authSource && username) {
+        connectionString += `?authSource=${authSource}`;
+      } else if (username) {
+        // Default to admin authSource to prevent SCRAM authentication failures
+        connectionString += `?authSource=admin`;
       }
       
       newConnMutation.mutate({
@@ -100,13 +129,23 @@ export function MongoDBConnectionForm() {
                 Database
               </Label>
               <div className="col-span-3">
-                <Input id="database" name="database" placeholder="my_database (optional)" />
+                <Input id="database" name="database" placeholder="my_database" required />
               </div>
             </div>
 
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="username" className="text-right text-nowrap">
                 Username
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <InfoIcon className="h-3 w-3 ml-1 inline" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">If authentication is required, enter your username</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </Label>
               <div className="col-span-3">
                 <Input id="username" name="username" placeholder="(optional)" />
@@ -118,9 +157,35 @@ export function MongoDBConnectionForm() {
                 Password
               </Label>
               <div className="col-span-3">
-                <Input id="password" name="password" type="password" placeholder="(optional)" />
+                <PasswordInput id="password" name="password" placeholder="(optional)" />
               </div>
             </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="authSource" className="text-right text-nowrap">
+                Auth Source
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <InfoIcon className="h-3 w-3 ml-1 inline" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">The database used for authentication (usually 'admin' for MongoDB). <strong>Set to 'admin' to fix SCRAM authentication failures</strong>.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </Label>
+              <div className="col-span-3">
+                <Input id="authSource" name="authSource" defaultValue="admin" placeholder="admin (recommended)" />
+              </div>
+            </div>
+
+            <Alert className="bg-blue-500/10 text-blue-600 border-blue-200 mt-2">
+              <InfoIcon className="h-4 w-4" />
+              <AlertDescription>
+                To prevent "SCRAM authentication failure," Auth Source is set to "admin" by default
+              </AlertDescription>
+            </Alert>
           </div>
         </TabsContent>
 
@@ -129,16 +194,32 @@ export function MongoDBConnectionForm() {
               id="connectionString"
               name="connectionString"
               placeholder="Paste your MongoDB connection string here.
+Database name is required at the end of the URL.
 
 Examples:
-- mongodb://localhost:27017
-- mongodb://localhost:27017/mydb
-- mongodb+srv://username:password@cluster.mongodb.net"
+- mongodb://localhost:27017/my_database
+- mongodb://username:password@localhost:27017/my_database
+- mongodb://username:password@localhost:27017/my_database?authSource=admin
+- mongodb+srv://username:password@cluster.mongodb.net/my_database"
               required={connectionTab === "connectionString"}
               className="min-h-24"
             />
+            <div className="text-xs text-muted-foreground mt-2">
+              <p>For authenticated connections, make sure to include the username, password, and authSource if needed.</p>
+              <p>Example with authentication: <code>mongodb://username:password@host:port/database?authSource=admin</code></p>
+              <p className="mt-1 text-blue-500 font-medium">👉 If you encounter "SCRAM authentication failure," add <code>?authSource=admin</code> to your connection string.</p>
+            </div>
         </TabsContent>
       </Tabs>
+
+      {formError && (
+        <Alert variant="destructive" className="mt-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {formError}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {newConnMutation.isError && (
         <Alert variant="destructive" className="mt-4">

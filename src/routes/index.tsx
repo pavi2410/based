@@ -1,13 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button.tsx";
-import { getConnections, removeConnection, DbConnectionMeta } from "@/stores/db-connections";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { DbConnectionMeta } from "@/stores/db-connections";
 import {
   DatabaseIcon,
   Loader2Icon,
   PlusIcon,
   StarIcon,
   Trash2Icon,
+  Pencil,
 } from "lucide-react";
 import DeviconSqlite from '~icons/devicon/sqlite'
 import DeviconMongodb from '~icons/devicon/mongodb'
@@ -19,6 +19,10 @@ import {
 } from "@/components/ui/context-menu.tsx";
 import { baseName } from "@/utils";
 import { NewConnectionDialog } from "@/components/new-connection-dialog";
+import { EditConnectionDialog } from "@/components/edit-connection-dialogs/index.tsx";
+import { DialogTrigger } from "@/components/ui/dialog";
+import { useRemoveConnectionMutation } from "@/mutations/remove-connection";
+import { useConnectionList } from "@/queries/connection-list";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -50,14 +54,14 @@ function getConnectionLabel(conn: DbConnectionMeta) {
     try {
       // Parse MongoDB connection string
       const url = new URL(conn.filePath.replace('mongodb://', 'http://').replace('mongodb+srv://', 'http://'));
-      
+
       // Get database name from path (removing leading slash)
       const dbName = url.pathname.replace('/', '');
-      
+
       if (dbName) {
         return dbName;
       }
-      
+
       // If no database specified, show hostname
       const hostname = url.hostname;
       return hostname || "MongoDB Server";
@@ -65,12 +69,12 @@ function getConnectionLabel(conn: DbConnectionMeta) {
       // If parsing fails, extract database the basic way
       const parts = conn.filePath.split('/');
       const lastPart = parts[parts.length - 1];
-      
+
       // If the last part exists and isn't empty, use it
       if (lastPart && lastPart.trim() !== '') {
         return lastPart;
       }
-      
+
       // Otherwise try to extract the host
       try {
         const hostPart = parts[2]; // After mongodb://
@@ -84,17 +88,7 @@ function getConnectionLabel(conn: DbConnectionMeta) {
 }
 
 function ConnectionList() {
-  const connListQuery = useQuery<DbConnectionMeta[]>({
-    queryKey: ["connections"],
-    queryFn: getConnections,
-  });
-
-  const removeConnMutation = useMutation({
-    mutationFn: removeConnection,
-    onSuccess: async () => {
-      await connListQuery.refetch();
-    },
-  });
+  const connListQuery = useConnectionList();
 
   if (connListQuery.status === "pending") return <p className="w-full">Loading...</p>;
 
@@ -124,39 +118,57 @@ function ConnectionList() {
   return (
     <div className="grid grid-cols-3 gap-2 w-full">
       {connListQuery.data.map((conn) => (
-        <ContextMenu key={conn.groupName}>
-          <ContextMenuTrigger>
-            <Link to="/conn/$id" params={{ id: conn.id }}>
-              <div className="flex flex-col gap-1 p-4 rounded-xl border hover:bg-accent hover:text-accent-foreground">
-                <span className="inline-flex items-center gap-2">
-                  {conn.dbType === "mongodb" ? (
-                    <DeviconMongodb className="text-muted-foreground" />
-                  ) : (
-                    <DeviconSqlite className="text-muted-foreground" />
-                  )}
-                  <small className="text-muted-foreground">{conn.dbType}</small>
-                </span>
-                <div>{getConnectionLabel(conn)}</div>
-              </div>
-            </Link>
-          </ContextMenuTrigger>
-          <ContextMenuContent>
-            <ContextMenuItem
-              className="text-red-500!"
-              disabled={removeConnMutation.isPending}
-              onClick={() => removeConnMutation.mutate(conn.id)}
-            >
-              {removeConnMutation.isPending ? (
-                <Loader2Icon className="animate-spin" />
-              ) : (
-                <Trash2Icon className="size-4" />
-              )}
-              &nbsp; Remove
-            </ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
+        <EditConnectionDialog key={conn.id} connection={conn} trigger={<ConnectionItem connection={conn} />} />
       ))}
     </div>
+  );
+}
+
+function ConnectionItem({
+  connection,
+}: {
+  connection: DbConnectionMeta,
+}) {
+  const removeConnMutation = useRemoveConnectionMutation();
+
+  return (
+    <ContextMenu key={connection.groupName}>
+      <ContextMenuTrigger>
+        <Link to="/conn/$id" params={{ id: connection.id }}>
+          <div className="flex flex-col gap-1 p-4 rounded-xl border hover:bg-accent hover:text-accent-foreground">
+            <span className="inline-flex items-center gap-2">
+              {connection.dbType === "mongodb" ? (
+                <DeviconMongodb className="text-muted-foreground" />
+              ) : (
+                <DeviconSqlite className="text-muted-foreground" />
+              )}
+              <small className="text-muted-foreground">{connection.dbType}</small>
+            </span>
+            <div>{getConnectionLabel(connection)}</div>
+          </div>
+        </Link>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <DialogTrigger asChild>
+          <ContextMenuItem>
+            <Pencil className="size-4" />
+            &nbsp; Edit
+          </ContextMenuItem>
+        </DialogTrigger>
+        <ContextMenuItem
+          className="text-red-500!"
+          disabled={removeConnMutation.isPending}
+          onClick={() => removeConnMutation.mutate(connection.id)}
+        >
+          {removeConnMutation.isPending ? (
+            <Loader2Icon className="animate-spin size-4" />
+          ) : (
+            <Trash2Icon className="size-4 text-red-500" />
+          )}
+          &nbsp; Remove
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 

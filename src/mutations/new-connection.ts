@@ -59,9 +59,19 @@ export function newConnectionMutation() {
           } else if (error.message.includes("connection refused")) {
             console.error('Connection refused error');
             throw new Error("Connection refused. Please check if the MongoDB server is running.");
-          } else if (error.message.includes("authentication failed")) {
+          } else if (
+            error.message.includes("authentication failed") || 
+            error.message.includes("Authentication failed") ||
+            error.message.includes("SCRAM failure")
+          ) {
             console.error('Authentication error');
             throw new Error("Authentication failed. Please check your username and password.");
+          } else if (error.message.includes("InvalidNamespace")) {
+            console.error('Invalid database name error');
+            throw new Error("Invalid database name. Database names cannot contain periods (.) or other special characters.");
+          } else if (error.message.includes("No database name found")) {
+            console.error('Missing database name error');
+            throw new Error("No database name specified. Please include a database name in your connection string.");
           }
         }
         console.error('Unhandled error:', error);

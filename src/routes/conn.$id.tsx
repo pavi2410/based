@@ -5,7 +5,7 @@ import {
 } from "@/components/database-explorers";
 import { useConnection } from "@/queries/use-connection";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { RefreshCcwIcon } from "lucide-react";
+import { Loader2Icon, RefreshCcwIcon } from "lucide-react";
 
 export const Route = createFileRoute("/conn/$id")({
   component: RouteComponent,
@@ -19,7 +19,12 @@ function RouteComponent() {
   // Using exhaustive switch pattern for better type safety
   switch (status.status) {
     case 'loading':
-      return <div className="p-2">Loading...</div>;
+      return (
+        <div className="flex flex-col items-center justify-center h-full gap-4">
+          <Loader2Icon className="animate-spin" />
+          Loading...
+        </div>
+      );
     case 'error':
       return (
         <div className="flex flex-col items-center justify-center h-full gap-4 p-4">

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 use crate::DbInstances;
-use crate::db_pool::DbPool;
+use crate::connection_pool::ConnectionPool;
 use crate::error::Error;
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
@@ -15,7 +15,7 @@ pub(crate) async fn load<R: Runtime>(
     db_instances: State<'_, DbInstances>,
     db: String,
 ) -> Result<String, Error> {
-    let pool = DbPool::connect(&db, &app).await?;
+    let pool = ConnectionPool::connect(&db, &app).await?;
 
     db_instances.0.write().await.insert(db.clone(), pool);
 

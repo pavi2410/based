@@ -1,16 +1,16 @@
 mod commands;
-mod db_pool;
+mod connection_pool;
 mod decode;
 mod error;
 
 use crate::commands::{close, load, query};
-use crate::db_pool::DbPool;
+use crate::connection_pool::ConnectionPool;
 use crate::error::Error;
 use std::collections::HashMap;
 use tokio::sync::RwLock;
 
 #[derive(Default)]
-pub struct DbInstances(pub RwLock<HashMap<String, DbPool>>);
+pub struct DbInstances(pub RwLock<HashMap<String, ConnectionPool>>);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

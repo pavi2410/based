@@ -31,6 +31,8 @@ import DeviconMongodb from '~icons/devicon/mongodb';
 import type { ReactNode } from "react";
 import { useConnection } from "@/queries/use-connection";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
+import { EditConnectionDialog } from "@/components/edit-connection-dialogs";
+import { DialogTrigger } from "@/components/ui/dialog";
 
 export function MongoDBSidebar({ connMeta }: { connMeta: DbConnectionMeta }) {
   return (
@@ -38,11 +40,14 @@ export function MongoDBSidebar({ connMeta }: { connMeta: DbConnectionMeta }) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton>
-              <DeviconMongodb />
-              <span>{getMongoDBConnectionName(connMeta.filePath)}</span>
-              <small className="text-muted-foreground">{connMeta.dbType}</small>
-            </SidebarMenuButton>
+            <EditConnectionDialog connection={connMeta} trigger={
+              <DialogTrigger asChild>
+                <SidebarMenuButton>
+                  <DeviconMongodb />
+                  <span>{getMongoDBConnectionName(connMeta.filePath)}</span>
+                </SidebarMenuButton>
+              </DialogTrigger>
+            } />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
@@ -86,10 +91,10 @@ function MongoDBObjectMenu({
 }) {
   const connString = buildConnString(connMeta);
   const { addTab } = useWorkspace();
-  
+
   // Use the connection hook with connection id
   const { status: connectionStatus, retry } = useConnection(connMeta.id);
-  
+
   const objectQuery = useQuery({
     queryKey: ["connection", connMeta.id, type],
     queryFn: async () => {
@@ -170,14 +175,14 @@ function getMongoDBConnectionName(connectionString: string): string {
   try {
     // Parse MongoDB connection string
     const url = new URL(connectionString.replace('mongodb://', 'http://').replace('mongodb+srv://', 'http://'));
-    
+
     // Get database name from path (removing leading slash)
     const dbName = url.pathname.replace('/', '');
-    
+
     if (dbName) {
       return dbName;
     }
-    
+
     // If no database specified, show hostname
     const hostname = url.hostname;
     return hostname || "MongoDB Server";
@@ -185,12 +190,12 @@ function getMongoDBConnectionName(connectionString: string): string {
     // If parsing fails, extract database the basic way
     const parts = connectionString.split('/');
     const lastPart = parts[parts.length - 1];
-    
+
     // If the last part exists and isn't empty, use it
     if (lastPart && lastPart.trim() !== '') {
       return lastPart;
     }
-    
+
     // Otherwise try to extract the host
     try {
       const hostPart = parts[2]; // After mongodb://

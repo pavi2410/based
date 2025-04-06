@@ -19,7 +19,7 @@ import {
   SidebarMenuSubItem,
   SidebarRail,
 } from "@/components/ui/sidebar.tsx";
-import { type DbConnectionMeta } from "@/stores.ts";
+import { type DbConnectionMeta } from "@/stores";
 import { buildConnString } from "@/utils";
 import { useQuery } from "@tanstack/react-query";
 import {

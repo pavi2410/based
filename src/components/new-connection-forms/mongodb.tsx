@@ -70,7 +70,7 @@ export function MongoDBConnectionForm() {
       onSubmit={handleFormSubmit}
     >
       <Tabs value={connectionTab} onValueChange={setConnectionTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-4">
+        <TabsList className="grid w-full grid-cols-2 mb-4 bg-muted-foreground/10">
           <TabsTrigger value="form">Connection Form</TabsTrigger>
           <TabsTrigger value="connectionString">Connection String</TabsTrigger>
         </TabsList>

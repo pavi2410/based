@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { addConnection } from "@/stores";
+import { addConnection } from "@/stores/db-connections";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { load } from "@/commands";
 

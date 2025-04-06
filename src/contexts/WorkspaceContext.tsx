@@ -7,6 +7,7 @@ type TableViewTab = {
 
 type QueryViewTab = {
   type: "query-view";
+  initialQuery?: string;
 };
 
 export type Tab = {

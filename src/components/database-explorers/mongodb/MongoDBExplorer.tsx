@@ -3,7 +3,7 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar.tsx";
 import { WorkspaceProvider } from "@/contexts/WorkspaceContext";
-import { type DbConnectionMeta } from "@/stores.ts";
+import { type DbConnectionMeta } from "@/stores";
 import { MongoDBHeader } from "./MongoDBHeader";
 import { MongoDBWorkspace } from "./MongoDBWorkspace";
 import { MongoDBSidebar } from "./MongoDBSidebar";

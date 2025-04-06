@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button.tsx";
-import { getConnections, removeConnection } from "@/stores.ts";
+import { getConnections, removeConnection, DbConnectionMeta } from "@/stores/db-connections";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   DatabaseIcon,
@@ -43,7 +43,7 @@ function Index() {
   );
 }
 
-function getConnectionLabel(conn: any) {
+function getConnectionLabel(conn: DbConnectionMeta) {
   if (conn.dbType === "sqlite") {
     return baseName(conn.filePath);
   } else if (conn.dbType === "mongodb") {
@@ -84,7 +84,7 @@ function getConnectionLabel(conn: any) {
 }
 
 function ConnectionList() {
-  const connListQuery = useQuery({
+  const connListQuery = useQuery<DbConnectionMeta[]>({
     queryKey: ["connections"],
     queryFn: getConnections,
   });

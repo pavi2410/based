@@ -7,7 +7,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs.tsx";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
-import { type DbConnectionMeta } from "@/stores.ts";
+import { type DbConnectionMeta } from "@/stores";
 import {
   CircleSlash2Icon,
   CodeIcon,

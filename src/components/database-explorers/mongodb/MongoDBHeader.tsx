@@ -1,4 +1,4 @@
-import { 
+import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbLink,
@@ -10,23 +10,24 @@ import { Button } from "@/components/ui/button.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
 import { SidebarTrigger } from "@/components/ui/sidebar.tsx";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
-import { type DbConnectionMeta } from "@/stores.ts";
+import { type DbConnectionMeta } from "@/stores/db-connections";
 import { Link } from "@tanstack/react-router";
-import { CodeIcon } from "lucide-react";
+import { CodeIcon, HistoryIcon } from "lucide-react";
+import { QueryHistorySheet } from "@/components/project/QueryHistorySheet";
 
 // Helper function to extract the database name from MongoDB connection string
 function getMongoDBConnectionName(connectionString: string): string {
   try {
     // Parse MongoDB connection string
     const url = new URL(connectionString.replace('mongodb://', 'http://').replace('mongodb+srv://', 'http://'));
-    
+
     // Get database name from path (removing leading slash)
     const dbName = url.pathname.replace('/', '');
-    
+
     if (dbName) {
       return dbName;
     }
-    
+
     // If no database specified, show hostname
     const hostname = url.hostname;
     return hostname || "MongoDB Server";
@@ -34,12 +35,12 @@ function getMongoDBConnectionName(connectionString: string): string {
     // If parsing fails, extract database the basic way
     const parts = connectionString.split('/');
     const lastPart = parts[parts.length - 1];
-    
+
     // If the last part exists and isn't empty, use it
     if (lastPart && lastPart.trim() !== '') {
       return lastPart;
     }
-    
+
     // Otherwise try to extract the host
     try {
       const hostPart = parts[2]; // After mongodb://
@@ -78,14 +79,28 @@ export function MongoDBHeader({ connMeta }: { connMeta: DbConnectionMeta }) {
         </BreadcrumbList>
       </Breadcrumb>
       <div className="flex-1" />
-      <Button
-        variant="outline"
-        size="icon"
-        title="Query Database"
-        onClick={addQueryTab}
-      >
-        <CodeIcon />
-      </Button>
+      <div className="flex gap-1">
+        <QueryHistorySheet
+          connectionId={connMeta.id}
+        >
+          <Button
+            variant="outline"
+            size="icon"
+            title="Query History"
+            className="mr-1"
+          >
+            <HistoryIcon />
+          </Button>
+        </QueryHistorySheet>
+        <Button
+          variant="outline"
+          size="icon"
+          title="New Query"
+          onClick={addQueryTab}
+        >
+          <CodeIcon />
+        </Button>
+      </div>
     </header>
   );
 } 

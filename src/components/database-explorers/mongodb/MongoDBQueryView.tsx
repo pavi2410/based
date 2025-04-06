@@ -2,13 +2,15 @@ import { query } from "@/commands.ts";
 import { TableViewMain } from "@/components/project/TableView.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { CodeEditor } from "@/components/code-editor";
-import type { DbConnectionMeta } from "@/stores.ts";
+import type { DbConnectionMeta } from "@/stores/db-connections";
 import { buildConnString } from "@/utils";
 import { useMutation } from "@tanstack/react-query";
 import { Loader2Icon, PlayIcon, RefreshCcwIcon } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useConnection } from "@/queries/use-connection";
 import { Link } from "@tanstack/react-router";
+import { addQueryToHistory } from "@/stores/query-history";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 
 // MongoDB query suggestions
 const QUERY_SUGGESTIONS = [
@@ -55,11 +57,19 @@ const BUTTON_COLORS = [
 ];
 
 export function MongoDBQueryView({ connection: connMeta }: { connection: DbConnectionMeta }) {
+  const { activeTab } = useWorkspace();
   const [queryText, setQueryText] = useState("");
   const connString = buildConnString(connMeta);
 
   // Use the connection hook
   const { status: connectionStatus, retry } = useConnection(connMeta.id);
+
+  // Initialize with initialQuery if provided
+  useEffect(() => {
+    if (activeTab?.descriptor.type === "query-view" && activeTab.descriptor.initialQuery) {
+      setQueryText(activeTab.descriptor.initialQuery);
+    }
+  }, [activeTab]);
 
   const queryMutation = useMutation({
     mutationFn: async () => {
@@ -74,10 +84,22 @@ export function MongoDBQueryView({ connection: connMeta }: { connection: DbConne
       })) : [];
 
       const endQueryTime = performance.now();
+      const executionTime = endQueryTime - queryTime;
+
+      // Add query to history with metadata
+      try {
+        await addQueryToHistory(connMeta.id, queryText, {
+          executionTime,
+          resultsCount: results.length,
+        });
+      } catch (error) {
+        console.error("Failed to add query to history:", error);
+      }
+
       return {
         columns,
         results,
-        queryTime: endQueryTime - queryTime,
+        queryTime: executionTime,
       };
     },
   });

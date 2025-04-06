@@ -3,7 +3,7 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar.tsx";
 import { WorkspaceProvider } from "@/contexts/WorkspaceContext";
-import { type DbConnectionMeta } from "@/stores.ts";
+import { type DbConnectionMeta } from "@/stores";
 import { SQLiteHeader } from "./SQLiteHeader";
 import { SQLiteWorkspace } from "./SQLiteWorkspace";
 import { SQLiteSidebar } from "./SQLiteSidebar";

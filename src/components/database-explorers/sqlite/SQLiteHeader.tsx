@@ -10,10 +10,11 @@ import { Button } from "@/components/ui/button.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
 import { SidebarTrigger } from "@/components/ui/sidebar.tsx";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
-import { type DbConnectionMeta } from "@/stores.ts";
+import { type DbConnectionMeta } from "@/stores/db-connections";
 import { baseName } from "@/utils";
 import { Link } from "@tanstack/react-router";
-import { NotebookPenIcon } from "lucide-react";
+import { HistoryIcon, NotebookPenIcon } from "lucide-react";
+import { QueryHistorySheet } from "@/components/project/QueryHistorySheet";
 
 export function SQLiteHeader({ connMeta }: { connMeta: DbConnectionMeta }) {
   const { addTab } = useWorkspace();
@@ -43,14 +44,28 @@ export function SQLiteHeader({ connMeta }: { connMeta: DbConnectionMeta }) {
         </BreadcrumbList>
       </Breadcrumb>
       <div className="flex-1" />
-      <Button
-        variant="outline"
-        size="icon"
-        title="Query Database"
-        onClick={addQueryTab}
-      >
-        <NotebookPenIcon />
-      </Button>
+      <div className="flex gap-1">
+        <QueryHistorySheet
+          connectionId={connMeta.id}
+        >
+          <Button
+            variant="outline"
+            size="icon"
+            title="Query History"
+            className="mr-1"
+          >
+            <HistoryIcon />
+          </Button>
+        </QueryHistorySheet>
+        <Button
+          variant="outline"
+          size="icon"
+          title="New Query"
+          onClick={addQueryTab}
+        >
+          <NotebookPenIcon />
+        </Button>
+      </div>
     </header>
   );
 } 

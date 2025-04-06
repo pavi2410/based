@@ -1,6 +1,4 @@
-import { LazyStore } from '@tauri-apps/plugin-store';
-
-const store = new LazyStore('settings.json');
+import { store, STORE_KEYS } from './store-config';
 
 export type DbConnectionMeta = {
   id: string;
@@ -14,10 +12,6 @@ export type DbConnectionMeta = {
 }
 
 type CoreFields = 'id' | 'createdAt' | 'updatedAt';
-
-const STORE_KEYS = {
-  DB_CONN_META: 'db_conn_meta',
-}
 
 export async function getConnections() {
   return (await store.get<DbConnectionMeta[]>(STORE_KEYS.DB_CONN_META)) ?? [];
@@ -57,4 +51,4 @@ export async function updateConnection(connectionId: string, connectionMeta: DbC
 export async function removeConnection(connectionId: string) {
   const connections = await getConnections();
   await store.set(STORE_KEYS.DB_CONN_META, connections.filter(connection => connection.id !== connectionId));
-}
+} 

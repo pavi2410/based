@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { ConnectionMeta, getConnection } from "@/stores/db-connections";
 import { buildConnString, testConnection } from "@/utils";
+import { load } from "@/commands";
 
 // Define a status enum for the connection
 export type ConnectionStatus = 
@@ -28,7 +29,7 @@ export function useConnection(connId: string) {
       const connMeta = connMetaQuery.data;
       const connString = buildConnString(connMeta);
 
-      await testConnection(connString);
+      await load(connString);
 
       return { connMeta, isConnected: true };
     },

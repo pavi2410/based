@@ -2,6 +2,7 @@ import { toast } from "sonner";
 import { updateConnection, getConnection, EditableFields, ConnectionMeta, SqliteConnectionMeta, MongoDBConnectionMeta } from "@/stores/db-connections";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { buildConnString, testConnection } from "@/utils";
+import { load } from "@/commands";
 
 export function useEditConnectionMutation() {
   const queryClient = useQueryClient();
@@ -32,7 +33,7 @@ export function useEditConnectionMutation() {
       const connectionString = buildConnString(newConnection);
 
       // Validate the connection works
-      await testConnection(connectionString);
+      await load(connectionString);
 
       // Update the connection
       await updateConnection(variables.connectionId, newConnection);

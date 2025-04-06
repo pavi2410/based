@@ -1,4 +1,3 @@
-import { load } from "./commands";
 import type { ConnectionVariables } from "./stores/index";
 
 export function baseName(path: string) {
@@ -12,15 +11,5 @@ export function buildConnString(connection: ConnectionVariables) {
     return connection.connectionString;
   } else {
     throw new Error("Unsupported DB type");
-  }
-}
-
-export async function testConnection(connString: string) {
-  try {
-    await load(connString);
-    return true;
-  } catch (error) {
-    console.error('Error loading connection:', error);
-    return false;
   }
 }

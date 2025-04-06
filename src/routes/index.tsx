@@ -30,8 +30,8 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   return (
-    <div className="p-4 flex flex-col h-screen">
-      <div className="flex justify-between items-center mb-4">
+    <div className="flex flex-col h-screen overflow-hidden">
+      <div className="flex justify-between items-center border-b p-4">
         <Branding />
         <NewConnectionDialog>
           <Button variant="outline" size="icon" title="Add Connection">
@@ -40,7 +40,7 @@ function Index() {
         </NewConnectionDialog>
       </div>
 
-      <div className="flex-1 flex">
+      <div className="flex-1 flex p-4 overflow-y-auto">
         <ConnectionList />
       </div>
     </div>
@@ -116,7 +116,7 @@ function ConnectionList() {
   }
 
   return (
-    <div className="grid grid-cols-3 gap-2 w-full">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 grid-flow-row auto-rows-min gap-4 w-full">
       {connListQuery.data.map((conn) => (
         <EditConnectionDialog key={conn.id} connection={conn} trigger={<ConnectionItem connection={conn} />} />
       ))}
@@ -133,7 +133,7 @@ function ConnectionItem({
 
   return (
     <ContextMenu key={connection.id}>
-      <ContextMenuTrigger>
+      <ContextMenuTrigger asChild>
         <Link to="/conn/$id" params={{ id: connection.id }}>
           <div className="flex flex-col gap-1 p-4 rounded-xl border hover:bg-accent hover:text-accent-foreground">
             <span className="inline-flex items-center gap-2">

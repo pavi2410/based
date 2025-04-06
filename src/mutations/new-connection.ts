@@ -2,6 +2,7 @@ import { toast } from "sonner";
 import { addConnection, EditableFields } from "@/stores/db-connections";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { buildConnString, testConnection } from "@/utils";
+import { load } from "@/commands";
 
 export function newConnectionMutation() {
   const queryClient = useQueryClient();
@@ -10,7 +11,7 @@ export function newConnectionMutation() {
       let connString = buildConnString(variables);
       
       // First try to load the connection to validate it
-      await testConnection(connString);
+      await load(connString);
 
       // If the connection is valid, add it to the store
       await addConnection(variables);

@@ -114,24 +114,31 @@ function ConnectionList() {
 
 function Branding() {
   return (
-    <div className="flex flex-row gap-2 justify-center items-center">
-      <h1 className="font-semibold">based</h1>
-      <span className="text-sm text-muted-foreground">by pavi2410</span>
-      <Button
-        className="shadow-none text-muted-foreground bg-background"
-        variant="outline"
-        size="sm"
-        asChild
-      >
-        <a
-          href="https://github.com/pavi2410/based"
-          target="_blank"
-          rel="noreferrer"
+    <div className="flex flex-row items-center">
+      <div className="mr-4">
+        <h1 className="text-sm font-medium">
+          <span className="text-muted-foreground">pavi2410 / </span>
+          <span className="text-foreground font-bold">based</span>
+        </h1>
+        <em className="text-xs text-muted-foreground block">The Everything Database App</em>
+      </div>
+      <div className="flex items-center gap-3 border-l pl-4">
+        <Button
+          className="shadow-none text-muted-foreground hover:text-primary hover:bg-primary/10"
+          variant="outline"
+          size="sm"
+          asChild
         >
-          <StarIcon />
-          Star on GitHub
-        </a>
-      </Button>
+          <a
+            href="https://github.com/pavi2410/based"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <StarIcon className="mr-1 h-3.5 w-3.5" />
+            Star on GitHub
+          </a>
+        </Button>
+      </div>
     </div>
   );
 }

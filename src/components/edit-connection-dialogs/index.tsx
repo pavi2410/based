@@ -1,6 +1,6 @@
 import { EditSQLiteConnectionDialog } from "./sqlite";
 import { EditMongoDBConnectionDialog } from "./mongodb";
-import { type DbConnectionMeta } from "@/stores/db-connections";
+import { type ConnectionMeta } from "@/stores/db-connections";
 
 export { EditSQLiteConnectionDialog, EditMongoDBConnectionDialog };
 
@@ -9,7 +9,7 @@ export function EditConnectionDialog({
   connection,
   trigger,
 }: {
-  connection: DbConnectionMeta,
+  connection: ConnectionMeta,
   trigger: React.ReactNode
 }) {
   if (connection.dbType === 'sqlite') {

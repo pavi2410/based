@@ -43,7 +43,8 @@ export function MongoDBConnectionForm() {
 
       newConnMutation.mutate({
         dbType: "mongodb",
-        filePath: connectionString,
+        connectionString,
+        tags: [],
       });
     } else {
       // Handle form-based connection
@@ -88,7 +89,8 @@ export function MongoDBConnectionForm() {
       
       newConnMutation.mutate({
         dbType: "mongodb",
-        filePath: connectionString,
+        connectionString,
+        tags: [],
       });
     }
   };

@@ -7,7 +7,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs.tsx";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
-import { type DbConnectionMeta } from "@/stores";
+import { type ConnectionMeta } from "@/stores";
 import {
   CircleSlash2Icon,
   CodeIcon,
@@ -15,7 +15,7 @@ import {
   XIcon,
 } from "lucide-react";
 
-export function MongoDBWorkspace({ connMeta }: { connMeta: DbConnectionMeta }) {
+export function MongoDBWorkspace({ connMeta }: { connMeta: ConnectionMeta }) {
   const { tabs, activeTab, setActiveTabId, removeTab } = useWorkspace();
 
   if (!tabs.length || !activeTab) {

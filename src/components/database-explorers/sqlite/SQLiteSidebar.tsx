@@ -19,7 +19,7 @@ import {
   SidebarMenuSubItem,
   SidebarRail,
 } from "@/components/ui/sidebar.tsx";
-import { type DbConnectionMeta } from "@/stores";
+import { type SqliteConnectionMeta } from "@/stores/db-connections";
 import { baseName, buildConnString } from "@/utils";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -36,7 +36,7 @@ import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { EditConnectionDialog } from "@/components/edit-connection-dialogs";
 import { DialogTrigger } from "@/components/ui/dialog";
 
-export function SQLiteSidebar({ connMeta }: { connMeta: DbConnectionMeta }) {
+export function SQLiteSidebar({ connMeta }: { connMeta: SqliteConnectionMeta }) {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
@@ -98,7 +98,7 @@ function SQLiteObjectMenu({
   label,
   icon,
 }: {
-  connMeta: DbConnectionMeta;
+  connMeta: SqliteConnectionMeta;
   type: string;
   label: string;
   icon: ReactNode;
@@ -107,7 +107,7 @@ function SQLiteObjectMenu({
   const { addTab } = useWorkspace();
 
   // Use the connection hook with connection id
-  const { status: connectionStatus, retry } = useConnection(connMeta.id);
+  const { status: connectionStatus } = useConnection(connMeta.id);
 
   const objectQuery = useQuery({
     queryKey: ["connection", connMeta.id, type],

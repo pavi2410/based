@@ -3,12 +3,12 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar.tsx";
 import { WorkspaceProvider } from "@/contexts/WorkspaceContext";
-import { type DbConnectionMeta } from "@/stores";
+import { type SqliteConnectionMeta } from "@/stores/db-connections";
 import { SQLiteHeader } from "./SQLiteHeader";
 import { SQLiteWorkspace } from "./SQLiteWorkspace";
 import { SQLiteSidebar } from "./SQLiteSidebar";
 
-export function SQLiteExplorer({ connMeta }: { connMeta: DbConnectionMeta }) {
+export function SQLiteExplorer({ connMeta }: { connMeta: SqliteConnectionMeta }) {
   return (
     <WorkspaceProvider>
       <SidebarProvider>

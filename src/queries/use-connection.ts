@@ -1,13 +1,12 @@
-import { load, query } from "@/commands";
 import { useQuery } from "@tanstack/react-query";
-import { DbConnectionMeta, getConnection } from "@/stores/db-connections";
-import { buildConnString } from "@/utils";
+import { ConnectionMeta, getConnection } from "@/stores/db-connections";
+import { buildConnString, testConnection } from "@/utils";
 
 // Define a status enum for the connection
 export type ConnectionStatus = 
   | { status: 'loading' }
   | { status: 'error', error: Error }
-  | { status: 'success', data: DbConnectionMeta };
+  | { status: 'success', data: ConnectionMeta };
 
 export function useConnection(connId: string) {
   // First query to get connection metadata
@@ -20,7 +19,7 @@ export function useConnection(connId: string) {
 
   // Second dependent query to check connection status
   const connStatusQuery = useQuery({
-    queryKey: ["connection-status", connId],
+    queryKey: ["connection", connId, "status"],
     queryFn: async () => {
       if (!connMetaQuery.data) {
         throw new Error("Connection not found");
@@ -28,23 +27,10 @@ export function useConnection(connId: string) {
       
       const connMeta = connMetaQuery.data;
       const connString = buildConnString(connMeta);
-      
-      try {
-        await load(connString);
-        return { connMeta, isConnected: true };
-      } catch (error) {
-        if (error instanceof Error) {
-          console.error('Error loading connection:', error);
-          if (error.message.includes("Parent directory does not exist")) {
-            throw new Error("The directory containing the database file does not exist");
-          } else if (error.message.includes("No write permissions")) {
-            throw new Error("You don't have permission to access this database file");
-          } else if (error.message.includes("invalid connection url")) {
-            throw new Error("Invalid database file path");
-          }
-        }
-        throw error;
-      }
+
+      await testConnection(connString);
+
+      return { connMeta, isConnected: true };
     },
     enabled: connMetaQuery.isSuccess,
     retry: false,

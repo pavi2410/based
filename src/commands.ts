@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 
 export async function load(db: string) {
-  return await invoke<string>('load', { db });
+  return await invoke<boolean>('load', { db });
 }
 
 export async function close(db?: string) {

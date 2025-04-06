@@ -1,4 +1,3 @@
-import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
 import { SelectFile } from "@/components/select-file";
 import { newConnectionMutation } from "@/mutations/new-connection";
@@ -7,11 +6,6 @@ import { AlertCircle } from "lucide-react";
 
 export function SQLiteConnectionForm() {
   const newConnMutation = newConnectionMutation();
-  console.log('SQLiteConnectionForm rendered, mutation state:', {
-    isError: newConnMutation.isError,
-    error: newConnMutation.error,
-    isPending: newConnMutation.isPending
-  });
 
   return (
     <form
@@ -19,8 +13,7 @@ export function SQLiteConnectionForm() {
       onSubmit={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        console.log('Form submitted');
-
+        
         const formData = new FormData(e.currentTarget);
         const filePath = formData.get("filePath") as string;
         console.log('Form data:', { filePath });
@@ -34,6 +27,7 @@ export function SQLiteConnectionForm() {
         newConnMutation.mutate({
           dbType: "sqlite",
           filePath,
+          tags: [],
         });
       }}
     >

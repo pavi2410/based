@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
 import { SidebarTrigger } from "@/components/ui/sidebar.tsx";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
-import { type DbConnectionMeta } from "@/stores/db-connections";
+import { type MongoDBConnectionMeta } from "@/stores/db-connections";
 import { Link } from "@tanstack/react-router";
 import { CodeIcon, HistoryIcon } from "lucide-react";
 import { QueryHistorySheet } from "@/components/project/QueryHistorySheet";
@@ -51,9 +51,9 @@ function getMongoDBConnectionName(connectionString: string): string {
   }
 }
 
-export function MongoDBHeader({ connMeta }: { connMeta: DbConnectionMeta }) {
+export function MongoDBHeader({ connMeta }: { connMeta: MongoDBConnectionMeta }) {
   const { addTab } = useWorkspace();
-  const connName = getMongoDBConnectionName(connMeta.filePath);
+  const connName = getMongoDBConnectionName(connMeta.connectionString);
 
   function addQueryTab() {
     addTab("Query", {

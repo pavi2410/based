@@ -10,13 +10,13 @@ import { Button } from "@/components/ui/button.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
 import { SidebarTrigger } from "@/components/ui/sidebar.tsx";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
-import { type DbConnectionMeta } from "@/stores/db-connections";
+import { type SqliteConnectionMeta } from "@/stores/db-connections";
 import { baseName } from "@/utils";
 import { Link } from "@tanstack/react-router";
 import { HistoryIcon, NotebookPenIcon } from "lucide-react";
 import { QueryHistorySheet } from "@/components/project/QueryHistorySheet";
 
-export function SQLiteHeader({ connMeta }: { connMeta: DbConnectionMeta }) {
+export function SQLiteHeader({ connMeta }: { connMeta: SqliteConnectionMeta }) {
   const { addTab } = useWorkspace();
   const connName = baseName(connMeta.filePath);
 

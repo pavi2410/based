@@ -1,20 +1,40 @@
 import { store, STORE_KEYS } from './store-config';
 
-export type DbConnectionMeta = {
+type BaseConnectionMeta = {
   id: string;
   createdAt: number;
   updatedAt: number;
-
-  dbType: 'sqlite' | 'mongodb';
-  filePath: string;
-
-  groupName: string;
+  tags: string[];
 }
 
-type CoreFields = 'id' | 'createdAt' | 'updatedAt';
+type SqliteConnectionVariables = {
+  dbType: 'sqlite';
+  filePath: string;
+}
+
+type MongoDBConnectionVariables = {
+  dbType: 'mongodb';
+  connectionString: string;
+}
+
+export type ConnectionVariables =
+  | SqliteConnectionVariables
+  | MongoDBConnectionVariables;
+
+export type SqliteConnectionMeta = BaseConnectionMeta & SqliteConnectionVariables;
+
+export type MongoDBConnectionMeta = BaseConnectionMeta & MongoDBConnectionVariables;
+
+export type ConnectionMeta =
+  | SqliteConnectionMeta
+  | MongoDBConnectionMeta;
+
+type AutoFields = 'id' | 'createdAt' | 'updatedAt';
+type BaseVariables = Omit<BaseConnectionMeta, AutoFields>;
+export type EditableFields = ConnectionVariables & BaseVariables;
 
 export async function getConnections() {
-  return (await store.get<DbConnectionMeta[]>(STORE_KEYS.DB_CONN_META)) ?? [];
+  return (await store.get<ConnectionMeta[]>(STORE_KEYS.CONN_META)) ?? [];
 }
 
 export async function getConnection(connectionId: string) {
@@ -22,33 +42,55 @@ export async function getConnection(connectionId: string) {
   return connections.find(connection => connection.id === connectionId);
 }
 
-export async function addConnection(connMeta: Omit<DbConnectionMeta, CoreFields>) {
+export async function addConnection(fields: EditableFields) {
   const newId = crypto.randomUUID();
   const connections = await getConnections();
-  await store.set(STORE_KEYS.DB_CONN_META, [
+
+  const newConnection: ConnectionMeta = {
+    ...fields,
+    id: newId,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+
+  await store.set(STORE_KEYS.CONN_META, [
     ...connections,
-    {
-      ...connMeta,
-      id: newId,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    }
+    newConnection,
   ]);
   return newId;
 }
 
-export async function updateConnection(connectionId: string, connectionMeta: DbConnectionMeta) {
+export async function updateConnection(connectionId: string, fields: EditableFields) {
   const connections = await getConnections();
   const connIndex = connections.findIndex(conn => conn.id === connectionId);
   if (connIndex === -1) {
-    throw new Error('Project not found');
+    throw new Error('Connection not found');
   }
-  connectionMeta.updatedAt = Date.now();
-  connections[connIndex] = connectionMeta;
-  await store.set(STORE_KEYS.DB_CONN_META, connections);
+
+  const existingConnection = connections[connIndex];
+
+  let updatedConnection: ConnectionMeta;
+  if (existingConnection.dbType === 'sqlite' && fields.dbType === 'sqlite') {
+    updatedConnection = {
+      ...existingConnection,
+      ...fields,
+      updatedAt: Date.now(),
+    } as SqliteConnectionMeta;
+  } else if (existingConnection.dbType === 'mongodb' && fields.dbType === 'mongodb') {
+    updatedConnection = {
+      ...existingConnection,
+      ...fields,
+      updatedAt: Date.now(),
+    } as MongoDBConnectionMeta;
+  } else {
+    throw new Error('Cannot update connection type');
+  }
+
+  connections[connIndex] = updatedConnection;
+  await store.set(STORE_KEYS.CONN_META, connections);
 }
 
 export async function removeConnection(connectionId: string) {
   const connections = await getConnections();
-  await store.set(STORE_KEYS.DB_CONN_META, connections.filter(connection => connection.id !== connectionId));
+  await store.set(STORE_KEYS.CONN_META, connections.filter(connection => connection.id !== connectionId));
 } 

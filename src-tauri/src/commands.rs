@@ -13,12 +13,12 @@ pub(crate) async fn load<R: Runtime>(
     app: AppHandle<R>,
     db_instances: State<'_, DbInstances>,
     db: String,
-) -> Result<String, Error> {
+) -> Result<bool, Error> {
     let pool = ConnectionPool::connect(&db, &app).await?;
 
     db_instances.0.write().await.insert(db.clone(), pool);
 
-    Ok(db)
+    Ok(true)
 }
 
 #[command]

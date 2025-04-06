@@ -2,7 +2,7 @@ import { query } from "@/commands.ts";
 import { TableViewMain } from "@/components/project/TableView.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { CodeEditor } from "@/components/code-editor";
-import type { DbConnectionMeta } from "@/stores/db-connections";
+import type { ConnectionMeta } from "@/stores/db-connections";
 import { buildConnString } from "@/utils";
 import { useMutation } from "@tanstack/react-query";
 import { Loader2Icon, PlayIcon, RefreshCcwIcon } from "lucide-react";
@@ -45,7 +45,7 @@ const BUTTON_COLORS = [
   "border-rose-950!",
 ];
 
-export function SQLiteQueryView({ connection: connMeta }: { connection: DbConnectionMeta }) {
+export function SQLiteQueryView({ connection: connMeta }: { connection: ConnectionMeta }) {
   const { activeTab } = useWorkspace();
   const [queryText, setQueryText] = useState("");
   const connString = buildConnString(connMeta);

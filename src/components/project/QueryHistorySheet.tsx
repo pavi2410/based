@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { HistoryIcon, StarIcon, SearchIcon, ClockIcon, TrashIcon, TagIcon, XIcon } from "lucide-react";
+import { HistoryIcon, StarIcon, SearchIcon, ClockIcon, TrashIcon, TagIcon } from "lucide-react";
 
 import {
   Sheet,

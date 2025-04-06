@@ -1,7 +1,7 @@
 import { query } from "@/commands.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { CodeEditor } from "@/components/code-editor";
-import type { DbConnectionMeta } from "@/stores/db-connections";
+import type { ConnectionMeta } from "@/stores/db-connections";
 import { buildConnString } from "@/utils";
 import { useMutation } from "@tanstack/react-query";
 import { Loader2Icon, PlayIcon, RefreshCcwIcon } from "lucide-react";
@@ -56,7 +56,7 @@ const BUTTON_COLORS = [
   "border-pink-950!",
 ];
 
-export function MongoDBQueryView({ connection: connMeta }: { connection: DbConnectionMeta }) {
+export function MongoDBQueryView({ connection: connMeta }: { connection: ConnectionMeta }) {
   const { activeTab } = useWorkspace();
   const [queryText, setQueryText] = useState("");
   const connString = buildConnString(connMeta);

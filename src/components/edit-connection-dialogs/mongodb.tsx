@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { type DbConnectionMeta } from "@/stores/db-connections";
+import { type MongoDBConnectionMeta } from "@/stores/db-connections";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,12 +20,12 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { PasswordInput } from "@/components/password-input";
 
 interface EditMongoDBConnectionDialogProps {
-  connection: DbConnectionMeta;
+  connection: MongoDBConnectionMeta;
   trigger: React.ReactNode;
 }
 
-export function EditMongoDBConnectionDialog({ 
-  connection, 
+export function EditMongoDBConnectionDialog({
+  connection,
   trigger,
 }: EditMongoDBConnectionDialogProps) {
   const [open, setOpen] = useState(false);
@@ -37,35 +37,34 @@ export function EditMongoDBConnectionDialog({
   const parseConnectionString = (connString: string) => {
     try {
       const url = new URL(connString.replace('mongodb://', 'http://').replace('mongodb+srv://', 'http://'));
-      
+
       let host = url.hostname || 'localhost';
       let port = url.port || '27017';
       let database = url.pathname.replace('/', '') || '';
       let username = url.username || '';
       let password = url.password || '';
-      
+
       // Extract auth source if available
       let authSource = '';
       if (url.search) {
         const params = new URLSearchParams(url.search);
         authSource = params.get('authSource') || '';
       }
-      
+
       return { host, port, database, username, password, authSource };
     } catch (e) {
       // Fallback to basic parsing if URL parsing fails
-      const isMongoSrv = connString.startsWith('mongodb+srv://');
-      
+
       let parts = connString.split('@');
       let hostPart = parts.length > 1 ? parts[1] : parts[0];
-      
+
       // Remove protocol prefix from hostPart if needed
       if (hostPart.startsWith('mongodb://')) {
         hostPart = hostPart.substring(10);
       } else if (hostPart.startsWith('mongodb+srv://')) {
         hostPart = hostPart.substring(14);
       }
-      
+
       // Extract credentials
       let username = '';
       let password = '';
@@ -77,11 +76,11 @@ export function EditMongoDBConnectionDialog({
         username = credParts[0] || '';
         password = credParts.length > 1 ? credParts[1] || '' : '';
       }
-      
+
       // Extract host, port, database
       let [hostAndPort, ...dbParts] = hostPart.split('/');
       let database = dbParts.join('/') || '';
-      
+
       // Extract auth source if available
       let authSource = '';
       if (database.includes('?')) {
@@ -90,30 +89,30 @@ export function EditMongoDBConnectionDialog({
         const params = new URLSearchParams('?' + dbAndParams[1]);
         authSource = params.get('authSource') || '';
       }
-      
+
       // Extract host and port
       let [host, port] = hostAndPort.split(':');
       host = host || 'localhost';
       port = port || '27017';
-      
+
       return { host, port, database, username, password, authSource };
     }
   };
-  
-  const parsed = parseConnectionString(connection.filePath);
+
+  const parsed = parseConnectionString(connection.connectionString);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setFormError(null);
-    
+
     const formData = new FormData(e.currentTarget);
     let connectionString: string;
-    
+
     if (connectionTab === "connectionString") {
       connectionString = formData.get("connectionString") as string;
-      
+
       if (!connectionString) return;
-      
+
       // Validate that the connection string includes a database name
       if (!connectionString.includes('/') || connectionString.endsWith('/')) {
         setFormError("Connection string must include a database name (e.g., mongodb://hostname:port/database_name)");
@@ -133,16 +132,16 @@ export function EditMongoDBConnectionDialog({
       const username = formData.get("username") as string;
       const password = formData.get("password") as string;
       const authSource = formData.get("authSource") as string;
-      
+
       // Validate that database name is provided
       if (!database) {
         setFormError("Database name is required");
         return;
       }
-      
+
       // Build the MongoDB connection string
       connectionString = "mongodb://";
-      
+
       // Add credentials if provided
       if (username) {
         connectionString += username;
@@ -151,13 +150,13 @@ export function EditMongoDBConnectionDialog({
         }
         connectionString += '@';
       }
-      
+
       // Add host and port
       connectionString += `${host}:${port}`;
-      
+
       // Add database name
       connectionString += `/${database}`;
-      
+
       // Add auth source if provided
       if (authSource && username) {
         connectionString += `?authSource=${authSource}`;
@@ -166,10 +165,12 @@ export function EditMongoDBConnectionDialog({
         connectionString += `?authSource=admin`;
       }
     }
-    
+
     editMutation.mutate({
       connectionId: connection.id,
-      filePath: connectionString
+      dbType: 'mongodb',
+      connectionString,
+      tags: [],
     }, {
       onSuccess: () => {
         setOpen(false);
@@ -187,7 +188,7 @@ export function EditMongoDBConnectionDialog({
             Update the connection details for this MongoDB database.
           </DialogDescription>
         </DialogHeader>
-        
+
         <form id="edit-mongodb-form" onSubmit={handleSubmit}>
           <Tabs value={connectionTab} onValueChange={setConnectionTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-4 bg-muted-foreground/10">
@@ -270,7 +271,7 @@ export function EditMongoDBConnectionDialog({
                     <Input id="authSource" name="authSource" defaultValue={parsed.authSource || "admin"} placeholder="admin (recommended)" />
                   </div>
                 </div>
-                
+
                 <Alert className="bg-blue-500/10 text-blue-500 mt-2">
                   <InfoIcon className="size-4" />
                   <AlertDescription>
@@ -284,7 +285,7 @@ export function EditMongoDBConnectionDialog({
               <Textarea
                 id="connectionString"
                 name="connectionString"
-                defaultValue={connection.filePath}
+                defaultValue={connection.connectionString}
                 placeholder="Paste your MongoDB connection string here.
 Database name is required at the end of the URL.
 
@@ -303,7 +304,7 @@ Examples:
               </div>
             </TabsContent>
           </Tabs>
-            
+
           {formError && (
             <Alert variant="destructive" className="mt-4">
               <AlertCircle className="h-4 w-4" />
@@ -312,7 +313,7 @@ Examples:
               </AlertDescription>
             </Alert>
           )}
-            
+
           {editMutation.isError && (
             <Alert variant="destructive" className="mt-4">
               <AlertCircle className="h-4 w-4" />
@@ -322,10 +323,10 @@ Examples:
             </Alert>
           )}
         </form>
-        
+
         <DialogFooter>
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             form="edit-mongodb-form"
             disabled={editMutation.isPending}
           >

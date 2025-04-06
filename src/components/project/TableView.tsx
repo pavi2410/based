@@ -1,6 +1,6 @@
 import { query } from "@/commands.ts";
 import { DataTable } from "@/components/data-table.tsx";
-import type { DbConnectionMeta } from "@/stores";
+import type { ConnectionMeta } from "@/stores";
 import { buildConnString } from "@/utils";
 import { useQuery } from "@tanstack/react-query";
 import { KeyRoundIcon, RefreshCcwIcon, Rows3Icon, TimerIcon } from "lucide-react";
@@ -20,7 +20,7 @@ export function TableView({
   connection: connMeta,
   tableName,
 }: {
-  connection: DbConnectionMeta;
+  connection: ConnectionMeta;
   tableName: string;
 }) {
   const connString = buildConnString(connMeta);

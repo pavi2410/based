@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button.tsx";
-import { DbConnectionMeta } from "@/stores/db-connections";
+import { ConnectionMeta } from "@/stores/db-connections";
 import {
   DatabaseIcon,
   Loader2Icon,
@@ -47,13 +47,13 @@ function Index() {
   );
 }
 
-function getConnectionLabel(conn: DbConnectionMeta) {
+function getConnectionLabel(conn: ConnectionMeta) {
   if (conn.dbType === "sqlite") {
     return baseName(conn.filePath);
   } else if (conn.dbType === "mongodb") {
     try {
       // Parse MongoDB connection string
-      const url = new URL(conn.filePath.replace('mongodb://', 'http://').replace('mongodb+srv://', 'http://'));
+      const url = new URL(conn.connectionString.replace('mongodb://', 'http://').replace('mongodb+srv://', 'http://'));
 
       // Get database name from path (removing leading slash)
       const dbName = url.pathname.replace('/', '');
@@ -67,7 +67,7 @@ function getConnectionLabel(conn: DbConnectionMeta) {
       return hostname || "MongoDB Server";
     } catch (e) {
       // If parsing fails, extract database the basic way
-      const parts = conn.filePath.split('/');
+      const parts = conn.connectionString.split('/');
       const lastPart = parts[parts.length - 1];
 
       // If the last part exists and isn't empty, use it
@@ -127,12 +127,12 @@ function ConnectionList() {
 function ConnectionItem({
   connection,
 }: {
-  connection: DbConnectionMeta,
+  connection: ConnectionMeta,
 }) {
   const removeConnMutation = useRemoveConnectionMutation();
 
   return (
-    <ContextMenu key={connection.groupName}>
+    <ContextMenu key={connection.id}>
       <ContextMenuTrigger>
         <Link to="/conn/$id" params={{ id: connection.id }}>
           <div className="flex flex-col gap-1 p-4 rounded-xl border hover:bg-accent hover:text-accent-foreground">

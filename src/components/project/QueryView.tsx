@@ -2,7 +2,7 @@ import { query } from "@/commands.ts";
 import { TableViewMain } from "@/components/project/TableView.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Textarea } from "@/components/ui/textarea.tsx";
-import type { DbConnectionMeta } from "@/stores";
+import type { ConnectionMeta } from "@/stores";
 import { buildConnString } from "@/utils";
 import { useMutation } from "@tanstack/react-query";
 import { Loader2Icon, PlayIcon, RefreshCcwIcon } from "lucide-react";
@@ -10,7 +10,7 @@ import { useState } from "react";
 import { useConnection } from "@/queries/use-connection";
 import { Link } from "@tanstack/react-router";
 
-export function QueryView({ connection: connMeta }: { connection: DbConnectionMeta }) {
+export function QueryView({ connection: connMeta }: { connection: ConnectionMeta }) {
   const [queryText, setQueryText] = useState("");
   const connString = buildConnString(connMeta);
 

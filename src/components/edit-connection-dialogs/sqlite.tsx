@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { type DbConnectionMeta } from "@/stores/db-connections";
+import { type SqliteConnectionMeta } from "@/stores/db-connections";
 import { Label } from "@/components/ui/label";
 import { SelectFile } from "@/components/select-file";
 import { useEditConnectionMutation } from "@/mutations/edit-connection";
@@ -16,7 +16,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 
 interface EditSQLiteConnectionDialogProps {
-  connection: DbConnectionMeta;
+  connection: SqliteConnectionMeta;
   trigger: React.ReactNode;
 }
 
@@ -36,7 +36,9 @@ export function EditSQLiteConnectionDialog({
     
     editMutation.mutate({
       connectionId: connection.id,
-      filePath
+      dbType: 'sqlite',
+      filePath,
+      tags: [],
     }, {
       onSuccess: () => {
         setOpen(false);

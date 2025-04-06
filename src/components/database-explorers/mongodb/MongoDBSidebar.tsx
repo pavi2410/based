@@ -19,14 +19,13 @@ import {
   SidebarMenuSubItem,
   SidebarRail,
 } from "@/components/ui/sidebar.tsx";
-import { type DbConnectionMeta } from "@/stores";
+import { type MongoDBConnectionMeta } from "@/stores/db-connections";
 import { buildConnString } from "@/utils";
 import { useQuery } from "@tanstack/react-query";
 import {
   ChevronRightIcon,
   FolderKanbanIcon,
   KeyIcon,
-  Loader2Icon,
 } from "lucide-react";
 import DeviconMongodb from '~icons/devicon/mongodb';
 import type { ReactNode } from "react";
@@ -35,7 +34,7 @@ import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { EditConnectionDialog } from "@/components/edit-connection-dialogs";
 import { DialogTrigger } from "@/components/ui/dialog";
 
-export function MongoDBSidebar({ connMeta }: { connMeta: DbConnectionMeta }) {
+export function MongoDBSidebar({ connMeta }: { connMeta: MongoDBConnectionMeta }) {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
@@ -45,7 +44,7 @@ export function MongoDBSidebar({ connMeta }: { connMeta: DbConnectionMeta }) {
               <DialogTrigger asChild>
                 <SidebarMenuButton>
                   <DeviconMongodb />
-                  <span>{getMongoDBConnectionName(connMeta.filePath)}</span>
+                  <span>{getMongoDBConnectionName(connMeta.connectionString)}</span>
                 </SidebarMenuButton>
               </DialogTrigger>
             } />
@@ -85,7 +84,7 @@ function MongoDBObjectMenu({
   label,
   icon,
 }: {
-  connMeta: DbConnectionMeta;
+  connMeta: MongoDBConnectionMeta;
   type: string;
   label: string;
   icon: ReactNode;
@@ -94,7 +93,7 @@ function MongoDBObjectMenu({
   const { addTab } = useWorkspace();
 
   // Use the connection hook with connection id
-  const { status: connectionStatus, retry } = useConnection(connMeta.id);
+  const { status: connectionStatus } = useConnection(connMeta.id);
 
   const objectQuery = useQuery({
     queryKey: ["connection", connMeta.id, type],

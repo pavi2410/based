@@ -3,8 +3,11 @@ import { DataTable } from "@/components/data-table.tsx";
 import type { DbConnectionMeta } from "@/stores.ts";
 import { buildConnString } from "@/utils";
 import { useQuery } from "@tanstack/react-query";
-import { KeyRoundIcon, Rows3Icon, TimerIcon } from "lucide-react";
+import { KeyRoundIcon, RefreshCcwIcon, Rows3Icon, TimerIcon } from "lucide-react";
 import { useMemo } from "react";
+import { useConnection } from "@/queries/use-connection";
+import { Link } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
 
 type ColumnInfo = {
   index: number;
@@ -14,16 +17,20 @@ type ColumnInfo = {
 };
 
 export function TableView({
-  connection,
+  connection: connMeta,
   tableName,
 }: {
   connection: DbConnectionMeta;
   tableName: string;
 }) {
+  const connString = buildConnString(connMeta);
+  
+  // Use the connection hook
+  const { status: connectionStatus, retry } = useConnection(connMeta.id);
+
   const tableQuery = useQuery({
-    queryKey: ["conn", connection.id, "table", tableName],
+    queryKey: ["connection", connMeta.id, "table", tableName],
     queryFn: async () => {
-      const connString = buildConnString(connection);
       const queryTime = performance.now();
       const tableInfo = await query(
         connString,
@@ -56,23 +63,54 @@ export function TableView({
         queryTime: endQueryTime - queryTime,
       };
     },
+    enabled: connectionStatus.status === 'success', // Only run when connection is successful
   });
 
-  if (tableQuery.status === "pending") {
-    return <div className="p-2">Loading...</div>;
+  // Using exhaustive switch pattern for better type checking
+  switch (connectionStatus.status) {
+    case 'error':
+      return (
+        <div className="flex flex-col items-center justify-center h-full gap-4 p-4">
+          <div className="text-destructive text-lg font-medium">Connection Error</div>
+          <div className="text-destructive/80 text-center max-w-md">
+            {connectionStatus.error.message}
+          </div>
+          <div className="flex gap-4 mt-4">
+            <Button 
+              variant="outline" 
+              onClick={retry} 
+              className="flex items-center gap-2"
+            >
+              <RefreshCcwIcon className="size-4" />
+              Retry Connection
+            </Button>
+            <Button asChild>
+              <Link to="/">
+                Go Home
+              </Link>
+            </Button>
+          </div>
+        </div>
+      );
+    case 'loading':
+      return <div className="p-4">Connecting to database...</div>;
+    case 'success':
+      if (tableQuery.isPending) {
+        return <div className="p-4">Loading table data...</div>;
+      }
+      
+      if (tableQuery.isError) {
+        return <div className="p-4 text-destructive">Error: {tableQuery.error.message}</div>;
+      }
+      
+      return (
+        <TableViewMain
+          columns={tableQuery.data.columns}
+          results={tableQuery.data.results}
+          queryTime={tableQuery.data.queryTime}
+        />
+      );
   }
-
-  if (tableQuery.status === "error") {
-    return <div className="p-2">Error: {tableQuery.error.toString()}</div>;
-  }
-
-  return (
-    <TableViewMain
-      columns={tableQuery.data.columns}
-      results={tableQuery.data.results}
-      queryTime={tableQuery.data.queryTime}
-    />
-  );
 }
 
 export function TableViewMain({
@@ -96,7 +134,7 @@ export function TableViewMain({
           </div>
         </div>
       ),
-      cell: ({ row }) => {
+      cell: ({ row }: { row: any }) => {
         const cellValue = row.getValue(column.name);
 
         if (!cellValue) {

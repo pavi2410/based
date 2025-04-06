@@ -1,4 +1,4 @@
-import { load, query } from "@/commands.ts";
+import { query } from "@/commands.ts";
 import { QueryView } from "@/components/project/QueryView.tsx";
 import { TableView } from "@/components/project/TableView.tsx";
 import { Badge } from "@/components/ui/badge";
@@ -48,7 +48,7 @@ import {
 } from "@/components/ui/tabs.tsx";
 import { WorkspaceProvider, useWorkspace } from "@/contexts/WorkspaceContext";
 import { type DbConnectionMeta, getConnection } from "@/stores.ts";
-import { baseName } from "@/utils";
+import { baseName, buildConnString } from "@/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import {
@@ -65,6 +65,7 @@ import {
   XIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { useConnection } from "@/queries/use-connection";
 
 export const Route = createFileRoute("/conn/$id")({
   component: RouteComponent,
@@ -72,39 +73,54 @@ export const Route = createFileRoute("/conn/$id")({
 
 function RouteComponent() {
   const { id } = Route.useParams();
+  
+  const { status, retry } = useConnection(id);
 
-  const connQuery = useQuery({
-    queryKey: ["conn", id],
-    queryFn: async () => {
-      return await getConnection(id);
-    },
-  });
-
-  if (connQuery.status === "pending") {
-    return <div className="p-2">Loading...</div>;
+  // Using exhaustive switch pattern for better type safety
+  switch (status.status) {
+    case 'loading':
+      return <div className="p-2">Loading...</div>;
+    case 'error':
+      return (
+        <div className="flex flex-col items-center justify-center h-full gap-4 p-4">
+          <div className="text-destructive text-lg font-medium">Connection Error</div>
+          <div className="text-destructive/80 text-center max-w-md">
+            {status.error.message}
+          </div>
+          <div className="flex gap-4 mt-4">
+            <Button 
+              variant="outline" 
+              onClick={retry} 
+              className="flex items-center gap-2"
+            >
+              <RefreshCcwIcon className="size-4" />
+              Retry Connection
+            </Button>
+            <Button asChild>
+              <Link to="/">
+                Go Home
+              </Link>
+            </Button>
+          </div>
+        </div>
+      );
+    case 'success':
+      const connMeta = status.data;
+      return (
+        <WorkspaceProvider>
+          <SidebarProvider>
+            <ProjectSidebar connMeta={connMeta} />
+            <SidebarInset className="overflow-hidden">
+              <ProjectHeader connMeta={connMeta} />
+              <ProjectWorkspace connMeta={connMeta} />
+            </SidebarInset>
+          </SidebarProvider>
+        </WorkspaceProvider>
+      );
   }
-  if (connQuery.status === "error") {
-    return <div className="p-2">Error: {connQuery.error.message}</div>;
-  }
-  if (!connQuery.data) {
-    return <div className="p-2">Connection not found</div>;
-  }
-
-  const conn = connQuery.data;
-  return (
-    <WorkspaceProvider>
-      <SidebarProvider>
-        <ProjectSidebar conn={conn} />
-        <SidebarInset className="overflow-hidden">
-          <ProjectHeader conn={conn} />
-          <ProjectWorkspace conn={conn} />
-        </SidebarInset>
-      </SidebarProvider>
-    </WorkspaceProvider>
-  );
 }
 
-function ProjectSidebar({ conn }: { conn: DbConnectionMeta }) {
+function ProjectSidebar({ connMeta }: { connMeta: DbConnectionMeta }) {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
@@ -112,8 +128,8 @@ function ProjectSidebar({ conn }: { conn: DbConnectionMeta }) {
           <SidebarMenuItem>
             <SidebarMenuButton>
               <DatabaseIcon />
-              <span>{baseName(conn.filePath)}</span>
-              <small>{conn.dbType}</small>
+              <span>{baseName(connMeta.filePath)}</span>
+              <small>{connMeta.dbType}</small>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -122,25 +138,25 @@ function ProjectSidebar({ conn }: { conn: DbConnectionMeta }) {
       <SidebarContent>
         <SidebarGroup>
           <DbObjectMenu
-            conn={conn}
+            connMeta={connMeta}
             type="table"
             label="Tables"
             icon={<TableIcon />}
           />
           <DbObjectMenu
-            conn={conn}
+            connMeta={connMeta}
             type="view"
             label="Views"
             icon={<Table2Icon />}
           />
           <DbObjectMenu
-            conn={conn}
+            connMeta={connMeta}
             type="index"
             label="Indexes"
             icon={<ListOrderedIcon />}
           />
           <DbObjectMenu
-            conn={conn}
+            connMeta={connMeta}
             type="trigger"
             label="Triggers"
             icon={<RefreshCcwIcon />}
@@ -157,10 +173,10 @@ function ProjectSidebar({ conn }: { conn: DbConnectionMeta }) {
   );
 }
 
-function ProjectHeader({ conn }: { conn: DbConnectionMeta }) {
+function ProjectHeader({ connMeta }: { connMeta: DbConnectionMeta }) {
   const { addTab } = useWorkspace();
 
-  const connName = baseName(conn.filePath);
+  const connName = baseName(connMeta.filePath);
 
   function addQueryTab() {
     addTab(`Query - ${connName}`, {
@@ -198,7 +214,7 @@ function ProjectHeader({ conn }: { conn: DbConnectionMeta }) {
   );
 }
 
-function ProjectWorkspace({ conn }: { conn: DbConnectionMeta }) {
+function ProjectWorkspace({ connMeta }: { connMeta: DbConnectionMeta }) {
   const { tabs, activeTab, setActiveTabId, removeTab } = useWorkspace();
 
   if (!tabs.length || !activeTab) {
@@ -255,10 +271,10 @@ function ProjectWorkspace({ conn }: { conn: DbConnectionMeta }) {
       </TabsList>
       <TabsContent value={activeTabId}>
         {activeTab.descriptor.type === "query-view" ? (
-          <QueryView connection={conn} />
+          <QueryView connection={connMeta} />
         ) : (
           <TableView
-            connection={conn}
+            connection={connMeta}
             tableName={activeTab.descriptor.tableName}
           />
         )}
@@ -268,22 +284,25 @@ function ProjectWorkspace({ conn }: { conn: DbConnectionMeta }) {
 }
 
 function DbObjectMenu({
-  conn,
+  connMeta,
   type,
   label,
   icon,
 }: {
-  conn: DbConnectionMeta;
+  connMeta: DbConnectionMeta;
   type: string;
   label: string;
   icon: ReactNode;
 }) {
   const { addTab } = useWorkspace();
+  const connString = buildConnString(connMeta);
+  
+  // Use the connection hook with connection id
+  const { status: connectionStatus, retry } = useConnection(connMeta.id);
+  
   const objectQuery = useQuery({
-    queryKey: ["conn", conn.id, type],
+    queryKey: ["connection", connMeta.id, type],
     queryFn: async () => {
-      const connString = `sqlite:${conn.filePath}`;
-      await load(connString);
       return await query(
         connString,
         `SELECT name
@@ -292,56 +311,86 @@ function DbObjectMenu({
         [],
       );
     },
+    enabled: connectionStatus.status === 'success', // Only run when connection is successful
   });
 
   function addTableTab(tableName: string) {
-    // TODO: Add different types of tabs based on the object type
     addTab(`${tableName}`, {
       type: "table-view",
       tableName,
     });
   }
 
-  if (objectQuery.status === "pending") {
-    return <div className="p-2">Loading...</div>;
-  }
-  if (objectQuery.status === "error") {
-    return <div className="p-2">Error: {objectQuery.error.message}</div>;
-  }
+  // Using exhaustive switch pattern for better type safety
+  switch (connectionStatus.status) {
+    case 'error':
+      return (
+        <div className="p-2 border rounded-md bg-muted/20 space-y-2">
+          <div className="font-medium text-destructive">Connection Error</div>
+          <div className="text-sm text-destructive/80">{connectionStatus.error.message}</div>
+          <div className="flex gap-2 pt-1">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={retry} 
+              className="h-7 text-xs"
+            >
+              <RefreshCcwIcon className="size-3 mr-1" />
+              Retry
+            </Button>
+            <Button asChild size="sm" variant="secondary" className="h-7 text-xs">
+              <Link to="/">
+                Go Home
+              </Link>
+            </Button>
+          </div>
+        </div>
+      );
+    case 'loading':
+      return <div className="p-2">Connecting to database...</div>;
+    case 'success':
+      if (objectQuery.isPending) {
+        return <div className="p-2">Loading {type}s...</div>;
+      }
+      
+      if (objectQuery.isError) {
+        return <div className="p-2 text-destructive">Error: {objectQuery.error.message}</div>;
+      }
+      
+      return (
+        <SidebarMenu>
+          <Collapsible className="group/collapsible">
+            <SidebarMenuItem>
+              <CollapsibleTrigger asChild>
+                <SidebarMenuButton>
+                  {icon}
+                  {label}
+                  <span className="ml-auto inline-flex items-center gap-1">
+                    <Badge variant="outline">{objectQuery.data.length}</Badge>
+                    <ChevronRightIcon className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 size-4" />
+                  </span>
+                </SidebarMenuButton>
+              </CollapsibleTrigger>
+            </SidebarMenuItem>
 
-  return (
-    <SidebarMenu>
-      <Collapsible className="group/collapsible">
-        <SidebarMenuItem>
-          <CollapsibleTrigger asChild>
-            <SidebarMenuButton>
-              {icon}
-              {label}
-              <span className="ml-auto inline-flex items-center gap-1">
-                <Badge variant="outline">{objectQuery.data.length}</Badge>
-                <ChevronRightIcon className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 size-4" />
-              </span>
-            </SidebarMenuButton>
-          </CollapsibleTrigger>
-        </SidebarMenuItem>
-
-        <CollapsibleContent>
-          <SidebarMenuSub>
-            {objectQuery.data.map((subItem) => (
-              <SidebarMenuSubItem key={subItem.name}>
-                <SidebarMenuSubButton
-                  title={subItem.name}
-                  onDoubleClick={() => addTableTab(subItem.name)}
-                >
-                  <span>{subItem.name}</span>
-                </SidebarMenuSubButton>
-              </SidebarMenuSubItem>
-            ))}
-          </SidebarMenuSub>
-        </CollapsibleContent>
-      </Collapsible>
-    </SidebarMenu>
-  );
+            <CollapsibleContent>
+              <SidebarMenuSub>
+                {objectQuery.data.map((subItem) => (
+                  <SidebarMenuSubItem key={subItem.name}>
+                    <SidebarMenuSubButton
+                      title={subItem.name}
+                      onDoubleClick={() => addTableTab(subItem.name)}
+                    >
+                      <span>{subItem.name}</span>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                ))}
+              </SidebarMenuSub>
+            </CollapsibleContent>
+          </Collapsible>
+        </SidebarMenu>
+      );
+  }
 }
 
 function SidebarBranding() {

@@ -2,19 +2,35 @@ import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
 import { SelectFile } from "@/components/select-file";
 import { newConnectionMutation } from "@/mutations/new-connection";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 export function SQLiteConnectionForm() {
   const newConnMutation = newConnectionMutation();
+  console.log('SQLiteConnectionForm rendered, mutation state:', {
+    isError: newConnMutation.isError,
+    error: newConnMutation.error,
+    isPending: newConnMutation.isPending
+  });
+
   return (
     <form
       id="new-connection-form"
       onSubmit={(e) => {
         e.preventDefault();
         e.stopPropagation();
+        console.log('Form submitted');
 
         const formData = new FormData(e.currentTarget);
         const filePath = formData.get("filePath") as string;
-        if (!filePath) return;
+        console.log('Form data:', { filePath });
+        
+        if (!filePath) {
+          console.log('No file path provided');
+          return;
+        }
+        
+        console.log('Starting mutation with:', { filePath });
         newConnMutation.mutate({
           dbType: "sqlite",
           filePath,
@@ -28,7 +44,15 @@ export function SQLiteConnectionForm() {
           </Label>
           <Input type="file" name="filePath" className="col-span-3" />
         </div>
+        {newConnMutation.isError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              {newConnMutation.error.message}
+            </AlertDescription>
+          </Alert>
+        )}
       </div>
     </form>
-  )
+  );
 }

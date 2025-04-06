@@ -42,7 +42,9 @@ export function SQLiteConnectionForm() {
           <Label htmlFor="filePath" className="text-right text-nowrap">
             File Path
           </Label>
-          <Input type="file" name="filePath" className="col-span-3" />
+          <div className="col-span-3">
+            <SelectFile />
+          </div>
         </div>
         {newConnMutation.isError && (
           <Alert variant="destructive">

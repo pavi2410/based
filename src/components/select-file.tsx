@@ -26,18 +26,33 @@ export function SelectFile() {
   return (
     <Button
       onClick={async () => {
-        const path = await open({
-          title: 'Select a SQLite file',
-          filters: [
-            {
-              name: 'SQLite files',
-              extensions: ['db', 'sqlite', 'sqlite3'],
-            },
-          ],
-          multiple: false,
-          directory: false,
-        })
-        setFilePath(path)
+        try {
+          const path = await open({
+            title: 'Select a SQLite file',
+            filters: [
+              {
+                name: 'SQLite files',
+                extensions: ['db', 'sqlite', 'sqlite3'],
+              },
+            ],
+            multiple: false,
+            directory: false,
+          })
+          
+          // Handle null case (when user cancels dialog)
+          if (!path) {
+            console.log('File selection canceled by user');
+            return;
+          }
+          
+          // Ensure we have a string path
+          const pathStr = typeof path === 'string' ? path : String(path);
+          console.log('Selected file path:', pathStr);
+          
+          setFilePath(pathStr);
+        } catch (error) {
+          console.error('Error selecting file:', error);
+        }
       }}
     >
       Select File

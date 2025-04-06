@@ -24,8 +24,8 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   return (
-    <div className="p-4 flex flex-col gap-4">
-      <div className="flex justify-between items-center">
+    <div className="p-4 flex flex-col h-screen">
+      <div className="flex justify-between items-center mb-4">
         <Branding />
         <NewConnectionDialog>
           <Button variant="outline" size="icon" title="Add Connection">
@@ -34,7 +34,9 @@ function Index() {
         </NewConnectionDialog>
       </div>
 
-      <ConnectionList />
+      <div className="flex-1 flex">
+        <ConnectionList />
+      </div>
     </div>
   );
 }
@@ -52,13 +54,33 @@ function ConnectionList() {
     },
   });
 
-  if (connListQuery.status === "pending") return <p>Loading...</p>;
+  if (connListQuery.status === "pending") return <p className="w-full">Loading...</p>;
 
   if (connListQuery.status === "error")
-    return <p>Error: {connListQuery.error.message}</p>;
+    return <p className="w-full">Error: {connListQuery.error.message}</p>;
+
+  if (!connListQuery.data.length) {
+    return (
+      <div className="flex flex-col items-center justify-center w-full">
+        <DatabaseIcon className="size-12 text-muted-foreground/80 mb-6" />
+        <h2 className="text-foreground font-semibold mb-2">
+          No Connections
+        </h2>
+        <p className="text-muted-foreground/80 font-normal mb-8 text-center text-sm max-w-md text-balance">
+          Get started by adding a database connection using the "New Connection" button.
+        </p>
+        <NewConnectionDialog>
+          <Button>
+            <PlusIcon />
+            New Connection
+          </Button>
+        </NewConnectionDialog>
+      </div>
+    );
+  }
 
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid grid-cols-3 gap-2 w-full">
       {connListQuery.data.map((conn) => (
         <ContextMenu key={conn.groupName}>
           <ContextMenuTrigger>

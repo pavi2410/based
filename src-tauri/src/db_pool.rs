@@ -28,37 +28,39 @@ impl DbPool {
         {
             "sqlite" => {
                 // Extract the file path from the connection URL
-                let file_path = conn_url
-                    .strip_prefix("sqlite:")
-                    .ok_or_else(|| crate::Error::InvalidDbUrl(conn_url.to_string()))?;
+                // let file_path = conn_url
+                //     .strip_prefix("sqlite:")
+                //     .ok_or_else(|| crate::Error::InvalidDbUrl(conn_url.to_string()))?;
                 
-                // Check if the parent directory exists and is writable
-                let parent_dir = Path::new(file_path)
-                    .parent()
-                    .ok_or_else(|| crate::Error::InvalidDbUrl(conn_url.to_string()))?;
+                // // Check if the parent directory exists and is writable
+                // let parent_dir = Path::new(file_path)
+                //     .parent()
+                //     .ok_or_else(|| crate::Error::InvalidDbUrl(conn_url.to_string()))?;
                 
-                if !parent_dir.exists() {
-                    return Err(crate::Error::InvalidDbUrl(format!(
-                        "Parent directory does not exist: {}",
-                        parent_dir.display()
-                    )));
-                }
+                // if !parent_dir.exists() {
+                //     return Err(crate::Error::InvalidDbUrl(format!(
+                //         "Parent directory does not exist: {}",
+                //         parent_dir.display()
+                //     )));
+                // }
 
-                // Check if we have write permissions in the directory
-                if !fs::metadata(parent_dir)
-                    .map_err(|e| crate::Error::InvalidDbUrl(format!("Failed to check directory permissions: {}", e)))?
-                    .permissions()
-                    .readonly()
-                {
-                    return Err(crate::Error::InvalidDbUrl(format!(
-                        "No write permissions in directory: {}",
-                        parent_dir.display()
-                    )));
-                }
+                // // Check if we have write permissions in the directory
+                // if !fs::metadata(parent_dir)
+                //     .map_err(|e| crate::Error::InvalidDbUrl(format!("Failed to check directory permissions: {}", e)))?
+                //     .permissions()
+                //     .readonly()
+                // {
+                //     return Err(crate::Error::InvalidDbUrl(format!(
+                //         "No write permissions in directory: {}",
+                //         parent_dir.display()
+                //     )));
+                // }
 
                 if !Sqlite::database_exists(conn_url).await.unwrap_or(false) {
-                    // TODO: maybe throw a DatabaseNotExists error?
-                    Sqlite::create_database(conn_url).await?;
+                    return Err(crate::Error::InvalidDbUrl(format!(
+                        "Database does not exist: {}",
+                        conn_url
+                    )));
                 }
                 Ok(Self::Sqlite(Pool::connect(conn_url).await?))
             }

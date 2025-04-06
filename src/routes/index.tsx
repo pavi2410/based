@@ -9,6 +9,8 @@ import {
   StarIcon,
   Trash2Icon,
 } from "lucide-react";
+import DeviconSqlite from '~icons/devicon/sqlite'
+import DeviconMongodb from '~icons/devicon/mongodb'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -39,6 +41,46 @@ function Index() {
       </div>
     </div>
   );
+}
+
+function getConnectionLabel(conn: any) {
+  if (conn.dbType === "sqlite") {
+    return baseName(conn.filePath);
+  } else if (conn.dbType === "mongodb") {
+    try {
+      // Parse MongoDB connection string
+      const url = new URL(conn.filePath.replace('mongodb://', 'http://').replace('mongodb+srv://', 'http://'));
+      
+      // Get database name from path (removing leading slash)
+      const dbName = url.pathname.replace('/', '');
+      
+      if (dbName) {
+        return dbName;
+      }
+      
+      // If no database specified, show hostname
+      const hostname = url.hostname;
+      return hostname || "MongoDB Server";
+    } catch (e) {
+      // If parsing fails, extract database the basic way
+      const parts = conn.filePath.split('/');
+      const lastPart = parts[parts.length - 1];
+      
+      // If the last part exists and isn't empty, use it
+      if (lastPart && lastPart.trim() !== '') {
+        return lastPart;
+      }
+      
+      // Otherwise try to extract the host
+      try {
+        const hostPart = parts[2]; // After mongodb://
+        return hostPart.split('@').pop() || "MongoDB Server";
+      } catch {
+        return "MongoDB Server";
+      }
+    }
+  }
+  return "Unknown Database";
 }
 
 function ConnectionList() {
@@ -86,9 +128,15 @@ function ConnectionList() {
           <ContextMenuTrigger>
             <Link to="/conn/$id" params={{ id: conn.id }}>
               <div className="flex flex-col gap-1 p-4 rounded-xl border hover:bg-accent hover:text-accent-foreground">
-                <DatabaseIcon className="text-muted-foreground" />
-                <div>{baseName(conn.filePath)}</div>
-                <small className="text-muted-foreground">{conn.dbType}</small>
+                <span className="inline-flex items-center gap-2">
+                  {conn.dbType === "mongodb" ? (
+                    <DeviconMongodb className="text-muted-foreground" />
+                  ) : (
+                    <DeviconSqlite className="text-muted-foreground" />
+                  )}
+                  <small className="text-muted-foreground">{conn.dbType}</small>
+                </span>
+                <div>{getConnectionLabel(conn)}</div>
               </div>
             </Link>
           </ContextMenuTrigger>

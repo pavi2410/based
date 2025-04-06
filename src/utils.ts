@@ -5,8 +5,11 @@ export function baseName(path: string) {
 }
 
 export function buildConnString(connection: DbConnectionMeta) {
-  if (connection.dbType !== "sqlite") {
+  if (connection.dbType === "sqlite") {
+    return `sqlite:${connection.filePath}`;
+  } else if (connection.dbType === "mongodb") {
+    return connection.filePath; // MongoDB connection string is already in the correct format
+  } else {
     throw new Error("Unsupported DB type");
   }
-  return `sqlite:${connection.filePath}`;
 }

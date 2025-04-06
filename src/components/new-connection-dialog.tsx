@@ -1,7 +1,6 @@
 import * as React from "react"
-import {
-  Database,
-} from "lucide-react"
+import DeviconSqlite from '~icons/devicon/sqlite'
+import DeviconMongodb from '~icons/devicon/mongodb'
 
 import { Button } from "@/components/ui/button"
 import {
@@ -25,10 +24,11 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { SQLiteConnectionForm } from "./new-connection-forms/sqlite"
+import { MongoDBConnectionForm } from "./new-connection-forms/mongodb"
 
 const databaseTypes = [
-  { name: "SQLite", icon: Database },
-  { name: "MongoDB", icon: Database },
+  { name: "SQLite", icon: DeviconSqlite },
+  { name: "MongoDB", icon: DeviconMongodb },
 ];
 
 export function NewConnectionDialog({
@@ -83,11 +83,7 @@ export function NewConnectionDialog({
             </header>
             <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 pt-0">
               {selected.name === "SQLite" && <SQLiteConnectionForm />}
-              {selected.name === "MongoDB" && (
-                <div>
-                  Work in progress
-                </div>
-              )}
+              {selected.name === "MongoDB" && <MongoDBConnectionForm />}
             </div>
             <DialogFooter className="px-4">
               <DialogClose asChild>

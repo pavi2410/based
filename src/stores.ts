@@ -7,7 +7,7 @@ export type DbConnectionMeta = {
   createdAt: number;
   updatedAt: number;
 
-  dbType: 'sqlite';
+  dbType: 'sqlite' | 'mongodb';
   filePath: string;
 
   groupName: string;

@@ -28,7 +28,16 @@ export function newConnectionMutation() {
       }
       
       // First try to load the connection to validate it
-      const connString = `sqlite:${filePathStr}`;
+      let connString: string;
+      
+      if (dbType === 'sqlite') {
+        connString = `sqlite:${filePathStr}`;
+      } else if (dbType === 'mongodb') {
+        connString = filePathStr; // MongoDB connection string is already in the correct format
+      } else {
+        throw new Error(`Unsupported database type: ${dbType}`);
+      }
+      
       console.log('Attempting to load connection with string:', connString);
       
       try {
@@ -47,6 +56,12 @@ export function newConnectionMutation() {
           } else if (error.message.includes("invalid connection url")) {
             console.error('Invalid URL error');
             throw new Error("Invalid database file path");
+          } else if (error.message.includes("connection refused")) {
+            console.error('Connection refused error');
+            throw new Error("Connection refused. Please check if the MongoDB server is running.");
+          } else if (error.message.includes("authentication failed")) {
+            console.error('Authentication error');
+            throw new Error("Authentication failed. Please check your username and password.");
           }
         }
         console.error('Unhandled error:', error);
@@ -56,7 +71,7 @@ export function newConnectionMutation() {
       console.log('Adding connection to store');
       // If connection is successful, add it to the store
       await addConnection({
-        dbType: dbType as "sqlite",
+        dbType: dbType as "sqlite" | "mongodb",
         filePath: filePathStr,
         groupName: "test",
       });

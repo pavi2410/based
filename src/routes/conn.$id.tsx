@@ -64,6 +64,8 @@ import {
   TableIcon,
   XIcon,
 } from "lucide-react";
+import DeviconSqlite from '~icons/devicon/sqlite'
+import DeviconMongodb from '~icons/devicon/mongodb'
 import type { ReactNode } from "react";
 import { useConnection } from "@/queries/use-connection";
 
@@ -127,9 +129,13 @@ function ProjectSidebar({ connMeta }: { connMeta: DbConnectionMeta }) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton>
-              <DatabaseIcon />
+              {connMeta.dbType === "mongodb" ? (
+                <DeviconMongodb />
+              ) : (
+                <DeviconSqlite />
+              )}
               <span>{baseName(connMeta.filePath)}</span>
-              <small>{connMeta.dbType}</small>
+              <small className="text-muted-foreground">{connMeta.dbType}</small>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

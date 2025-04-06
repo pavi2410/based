@@ -1,7 +1,7 @@
 import { query } from "@/commands.ts";
 import { TableViewMain } from "@/components/project/TableView.tsx";
 import { Button } from "@/components/ui/button.tsx";
-import { Textarea } from "@/components/ui/textarea.tsx";
+import { CodeEditor } from "@/components/code-editor";
 import type { DbConnectionMeta } from "@/stores.ts";
 import { buildConnString } from "@/utils";
 import { useMutation } from "@tanstack/react-query";
@@ -15,38 +15,38 @@ const QUERY_SUGGESTIONS = [
   {
     label: "Tables",
     query: "SELECT name FROM sqlite_master WHERE type='table';",
-    colorClass: "border-blue-950!",
   },
   {
     label: "Table schema",
-    emoji: "🔍",
     query: "PRAGMA table_info({table_name});",
-    colorClass: "border-green-950!",
   },
   {
     label: "All rows",
-    emoji: "✨",
     query: "SELECT * FROM {table_name} LIMIT 100;",
-    colorClass: "border-purple-950!",
   },
   {
     label: "Count rows",
-    emoji: "🔢",
     query: "SELECT COUNT(*) FROM {table_name};",
-    colorClass: "border-amber-950!",
   },
   {
     label: "Search",
-    emoji: "🔎",
     query: "SELECT * FROM {table_name} WHERE {column} LIKE '%{value}%' LIMIT 50;",
-    colorClass: "border-rose-950!",
   },
+];
+
+// Button colors for suggestions
+const BUTTON_COLORS = [
+  "border-blue-950!",
+  "border-green-950!",
+  "border-purple-950!",
+  "border-amber-950!",
+  "border-rose-950!",
 ];
 
 export function SQLiteQueryView({ connection: connMeta }: { connection: DbConnectionMeta }) {
   const [queryText, setQueryText] = useState("");
   const connString = buildConnString(connMeta);
-  
+
   // Use the connection hook
   const { status: connectionStatus, retry } = useConnection(connMeta.id);
 
@@ -86,9 +86,9 @@ export function SQLiteQueryView({ connection: connMeta }: { connection: DbConnec
             {connectionStatus.error.message}
           </div>
           <div className="flex gap-4 mt-4">
-            <Button 
-              variant="outline" 
-              onClick={retry} 
+            <Button
+              variant="outline"
+              onClick={retry}
               className="flex items-center gap-2"
             >
               <RefreshCcwIcon className="size-4" />
@@ -114,13 +114,13 @@ export function SQLiteQueryView({ connection: connMeta }: { connection: DbConnec
                 <span>✨</span>
                 <span>Suggestions:</span>
               </div>
-              {QUERY_SUGGESTIONS.map((suggestion) => {
+              {QUERY_SUGGESTIONS.map((suggestion, index) => {
                 return (
                   <Button
                     key={suggestion.label}
                     variant="outline"
                     size="sm"
-                    className={`flex-shrink-0 h-7 text-xs rounded-full ${suggestion.colorClass}`}
+                    className={`flex-shrink-0 h-6 text-xs rounded-full ${BUTTON_COLORS[index]}`}
                     onClick={() => applySuggestion(suggestion.query)}
                   >
                     {suggestion.label}
@@ -128,12 +128,13 @@ export function SQLiteQueryView({ connection: connMeta }: { connection: DbConnec
                 );
               })}
             </div>
-            
-            <Textarea
+
+            <CodeEditor
               value={queryText}
-              onChange={(e) => setQueryText(e.target.value)}
+              onChange={setQueryText}
+              language="sql"
               placeholder="Enter your SQL query..."
-              className="min-h-32 font-mono text-sm"
+              className="min-h-32 font-mono"
             />
 
             <div className="flex-1">

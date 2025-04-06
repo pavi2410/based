@@ -1,7 +1,7 @@
 import { query } from "@/commands.ts";
 import { TableViewMain } from "@/components/project/TableView.tsx";
 import { Button } from "@/components/ui/button.tsx";
-import { Textarea } from "@/components/ui/textarea.tsx";
+import { CodeEditor } from "@/components/code-editor";
 import type { DbConnectionMeta } from "@/stores.ts";
 import { buildConnString } from "@/utils";
 import { useMutation } from "@tanstack/react-query";
@@ -15,17 +15,14 @@ const QUERY_SUGGESTIONS = [
   {
     label: "List collections",
     query: JSON.stringify({ listCollections: 1 }, null, 2),
-    colorClass: "border-emerald-950!",
   },
   {
     label: "Find all",
     query: JSON.stringify({ find: "{collection}", limit: 100 }, null, 2),
-    colorClass: "border-cyan-950!",
   },
   {
     label: "Count documents",
     query: JSON.stringify({ count: "{collection}" }, null, 2),
-    colorClass: "border-indigo-950!",
   },
   {
     label: "Find with query",
@@ -34,7 +31,6 @@ const QUERY_SUGGESTIONS = [
       filter: { "{field}": "{value}" },
       limit: 10
     }, null, 2),
-    colorClass: "border-orange-950!",
   },
   {
     label: "Aggregation",
@@ -46,8 +42,16 @@ const QUERY_SUGGESTIONS = [
       ],
       cursor: {}
     }, null, 2),
-    colorClass: "border-pink-950!",
   },
+];
+
+// Button colors for suggestions
+const BUTTON_COLORS = [
+  "border-emerald-950!",
+  "border-cyan-950!",
+  "border-indigo-950!",
+  "border-orange-950!",
+  "border-pink-950!",
 ];
 
 export function MongoDBQueryView({ connection: connMeta }: { connection: DbConnectionMeta }) {
@@ -121,13 +125,13 @@ export function MongoDBQueryView({ connection: connMeta }: { connection: DbConne
                 <span>✨</span>
                 <span>Suggestions:</span>
               </div>
-              {QUERY_SUGGESTIONS.map((suggestion) => {
+              {QUERY_SUGGESTIONS.map((suggestion, index) => {
                 return (
                   <Button
                     key={suggestion.label}
                     variant="outline"
                     size="sm"
-                    className={`flex-shrink-0 h-7 text-xs border-2 rounded-full ${suggestion.colorClass}`}
+                    className={`flex-shrink-0 h-6 text-xs rounded-full ${BUTTON_COLORS[index]}`}
                     onClick={() => applySuggestion(suggestion.query)}
                   >
                     {suggestion.label}
@@ -136,11 +140,12 @@ export function MongoDBQueryView({ connection: connMeta }: { connection: DbConne
               })}
             </div>
 
-            <Textarea
+            <CodeEditor
               value={queryText}
-              onChange={(e) => setQueryText(e.target.value)}
+              onChange={setQueryText}
+              language="json"
               placeholder="Enter your MongoDB query as JSON..."
-              className="min-h-32 font-mono text-sm"
+              className="min-h-32 font-mono"
             />
 
             <div className="flex-1">

@@ -5,7 +5,7 @@
 <img width="1582" alt="image" src="https://github.com/user-attachments/assets/2844a8f6-ec55-4daf-a6aa-a56026ce28a8" />
 
 ## Features
-- Supports SQLite (PostgreSQL & MongoDB support is planned)
+- Supports SQLite and MongoDB (PostgreSQL support is planned)
  
 ## Goals
 - Free & Open Source

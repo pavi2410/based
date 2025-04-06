@@ -8,6 +8,10 @@ use serde::{Serialize, Serializer};
 pub enum Error {
     #[error(transparent)]
     Sql(#[from] sqlx::Error),
+    #[error(transparent)]
+    Mongo(#[from] mongodb::error::Error),
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
     #[error("invalid connection url: {0}")]
     InvalidDbUrl(String),
     #[error("database {0} not loaded")]

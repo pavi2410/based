@@ -1,7 +1,7 @@
 import { toast } from "sonner";
 import { updateConnection, getConnection, EditableFields, ConnectionMeta, SqliteConnectionMeta, MongoDBConnectionMeta } from "@/stores/db-connections";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { buildConnString, testConnection } from "@/utils";
+import { buildConnString } from "@/utils";
 import { load } from "@/commands";
 
 export function useEditConnectionMutation() {

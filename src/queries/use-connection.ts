@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { ConnectionMeta, getConnection } from "@/stores/db-connections";
-import { buildConnString, testConnection } from "@/utils";
+import { buildConnString } from "@/utils";
 import { load } from "@/commands";
 
 // Define a status enum for the connection

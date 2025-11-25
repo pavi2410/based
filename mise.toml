@@ -1,0 +1,45 @@
+[tools]
+node = "latest"
+bun = "latest"
+rust = "latest"
+
+[tasks.dev]
+description = "Start development server for desktop app"
+run = "bun --filter desktop dev"
+
+[tasks.build]
+description = "Build desktop app for production"
+run = "bun --filter desktop run build"
+
+[tasks."tauri:dev"]
+description = "Start Tauri development mode"
+run = "bun --filter desktop tauri dev"
+
+[tasks."tauri:build"]
+description = "Build Tauri app for production"
+run = "bun --filter desktop tauri build"
+
+[tasks.install]
+description = "Install all dependencies"
+run = "bun install"
+
+[tasks.clean]
+description = "Clean all build artifacts and dependencies"
+run = [
+  "rm -rf apps/desktop/node_modules",
+  "rm -rf apps/desktop/dist",
+  "rm -rf apps/desktop/src-tauri/target",
+  "rm -rf node_modules"
+]
+
+[tasks.lint]
+description = "Lint all code"
+run = "bun --filter desktop run lint"
+
+[tasks.format]
+description = "Format all code"
+run = "bun --filter desktop run format"
+
+[tasks."type-check"]
+description = "Type check TypeScript code"
+run = "bun --filter desktop run type-check"

@@ -1,36 +1,77 @@
-# based
+# Based - The Everything Database App
 
-*The Everything Database App*
-
-`based` is a database explorer and management tool for developers. It is a desktop application that runs on Windows, macOS, and Linux. Based is designed to be simple and easy to use, while still providing powerful features for advanced users.
-
-<img width="1582" alt="image" src="https://github.com/user-attachments/assets/2844a8f6-ec55-4daf-a6aa-a56026ce28a8" />
+A free, open-source database explorer and management tool for developers.
 
 ## Features
-- Supports SQLite and MongoDB (PostgreSQL support is planned)
- 
-## Goals
+- Supports SQLite and MongoDB (PostgreSQL planned)
 - Free & Open Source
-- No pricing page -- Never pay for features. You get to enjoy the same features as everyone else.
-- No backend involved -- No data is ever sent to any server.
- 
-## Inspiration
-- [DataGrip](https://www.jetbrains.com/datagrip/)
-- [Beekeeper Studio](https://www.beekeeperstudio.io/)
-- [TablePlus](https://tableplus.com/)
-- [DBeaver](https://dbeaver.io/)
-- [DB Browser for SQLite](https://sqlitebrowser.org/)
-- [SQL Studio](https://www.sql.studio/)
-- [dbx](https://getdbx.com/)
+- Privacy-focused - No backend, no data sent to servers
 
-## Developement
+## Project Structure
 
-`based` is built as a desktop app using Tauri.
+```
+based/
+├── apps/
+│   └── desktop/        # Main Tauri desktop application
+├── packages/           # Shared packages (future)
+├── crates/             # Shared Rust crates (future)
+└── mise.toml           # Task runner configuration
+```
 
-### Sample Database for testing
-- SQLite
-    - https://github.com/codecrafters-io/sample-sqlite-databases
-    - https://github.com/jpwhite3/northwind-SQLite3
+## Quick Start
 
-### Useful links
-- https://www.todesktop.com/blog/posts/designing-desktop-apps-cross-platform-ux
+### Prerequisites
+- Node.js 20+
+- Bun (latest)
+- Rust (latest stable)
+- Tauri prerequisites for your OS
+
+### Installation
+
+```bash
+bun install
+# or
+mise run install
+```
+
+### Development
+
+```bash
+# Start development server (frontend only)
+bun dev
+# or
+mise run dev
+
+# Start Tauri development mode (full app)
+bun tauri dev
+# or
+mise run tauri:dev
+```
+
+### Building
+
+```bash
+# Build frontend
+bun run build
+
+# Build Tauri app
+bun tauri build
+# or
+mise run tauri:build
+```
+
+## Available Tasks (via mise)
+
+- `mise run dev` - Start frontend dev server
+- `mise run tauri:dev` - Start Tauri development mode
+- `mise run build` - Build for production
+- `mise run tauri:build` - Build Tauri app
+- `mise run install` - Install dependencies
+- `mise run clean` - Clean build artifacts
+- `mise run lint` - Lint code
+- `mise run format` - Format code
+- `mise run type-check` - Type check TypeScript
+
+## Documentation
+
+See [apps/desktop/README.md](./apps/desktop/README.md) for desktop app details.

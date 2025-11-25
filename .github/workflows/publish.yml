@@ -45,7 +45,7 @@ jobs:
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
+          workspaces: './apps/desktop/src-tauri -> target'
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -53,11 +53,12 @@ jobs:
 
       - name: install frontend dependencies
         run: bun install
-               
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          projectPath: apps/desktop
           tagName: v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
           releaseName: 'v__VERSION__'
           releaseBody: 'See the assets to download this version and install.'

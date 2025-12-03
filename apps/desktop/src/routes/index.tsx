@@ -1,28 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button.tsx";
-import { ConnectionMeta } from "@/stores/db-connections";
-import {
-  DatabaseIcon,
-  Loader2Icon,
-  PlusIcon,
-  StarIcon,
-  Trash2Icon,
-  Pencil,
-} from "lucide-react";
-import DeviconSqlite from '~icons/devicon/sqlite'
-import DeviconMongodb from '~icons/devicon/mongodb'
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu.tsx";
-import { baseName } from "@/utils";
-import { NewConnectionDialog } from "@/components/new-connection-dialog";
-import { EditConnectionDialog } from "@/components/edit-connection-dialogs/index.tsx";
-import { DialogTrigger } from "@/components/ui/dialog";
-import { useRemoveConnectionMutation } from "@/mutations/remove-connection";
-import { useConnectionList } from "@/queries/connection-list";
+import { StarIcon } from "lucide-react";
+import { RecentProjects } from "@/components/welcome/recent-projects";
+import { ActionButtons } from "@/components/welcome/action-buttons";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -31,144 +11,67 @@ export const Route = createFileRoute("/")({
 function Index() {
   return (
     <div className="flex flex-col h-screen overflow-hidden">
+      {/* Header */}
       <div className="flex justify-between items-center border-b p-4">
         <Branding />
-        <NewConnectionDialog>
-          <Button variant="outline" size="icon" title="Add Connection">
-            <PlusIcon />
-          </Button>
-        </NewConnectionDialog>
       </div>
 
-      <div className="flex-1 flex p-4 overflow-y-auto">
-        <ConnectionList />
-      </div>
-    </div>
-  );
-}
-
-function getConnectionLabel(conn: ConnectionMeta) {
-  if (conn.dbType === "sqlite") {
-    return baseName(conn.filePath);
-  } else if (conn.dbType === "mongodb") {
-    try {
-      // Parse MongoDB connection string
-      const url = new URL(conn.connectionString.replace('mongodb://', 'http://').replace('mongodb+srv://', 'http://'));
-
-      // Get database name from path (removing leading slash)
-      const dbName = url.pathname.replace('/', '');
-
-      if (dbName) {
-        return dbName;
-      }
-
-      // If no database specified, show hostname
-      const hostname = url.hostname;
-      return hostname || "MongoDB Server";
-    } catch (e) {
-      // If parsing fails, extract database the basic way
-      const parts = conn.connectionString.split('/');
-      const lastPart = parts[parts.length - 1];
-
-      // If the last part exists and isn't empty, use it
-      if (lastPart && lastPart.trim() !== '') {
-        return lastPart;
-      }
-
-      // Otherwise try to extract the host
-      try {
-        const hostPart = parts[2]; // After mongodb://
-        return hostPart.split('@').pop() || "MongoDB Server";
-      } catch {
-        return "MongoDB Server";
-      }
-    }
-  }
-  return "Unknown Database";
-}
-
-function ConnectionList() {
-  const connListQuery = useConnectionList();
-
-  if (connListQuery.status === "pending") return <p className="w-full">Loading...</p>;
-
-  if (connListQuery.status === "error")
-    return <p className="w-full">Error: {connListQuery.error.message}</p>;
-
-  if (!connListQuery.data.length) {
-    return (
-      <div className="flex flex-col items-center justify-center w-full">
-        <DatabaseIcon className="size-12 text-muted-foreground/80 mb-6" />
-        <h2 className="text-foreground font-semibold mb-2">
-          No Connections
-        </h2>
-        <p className="text-muted-foreground/80 font-normal mb-8 text-center text-sm max-w-md text-balance">
-          Get started by adding a database connection using the "New Connection" button.
-        </p>
-        <NewConnectionDialog>
-          <Button>
-            <PlusIcon />
-            New Connection
-          </Button>
-        </NewConnectionDialog>
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 grid-flow-row auto-rows-min gap-4 w-full">
-      {connListQuery.data.map((conn) => (
-        <EditConnectionDialog key={conn.id} connection={conn} trigger={<ConnectionItem connection={conn} />} />
-      ))}
-    </div>
-  );
-}
-
-function ConnectionItem({
-  connection,
-}: {
-  connection: ConnectionMeta,
-}) {
-  const removeConnMutation = useRemoveConnectionMutation();
-
-  return (
-    <ContextMenu key={connection.id}>
-      <ContextMenuTrigger asChild>
-        <Link to="/conn/$id" params={{ id: connection.id }}>
-          <div className="flex flex-col gap-1 p-4 rounded-xl border hover:bg-accent hover:text-accent-foreground">
-            <span className="inline-flex items-center gap-2">
-              {connection.dbType === "mongodb" ? (
-                <DeviconMongodb className="text-muted-foreground" />
-              ) : (
-                <DeviconSqlite className="text-muted-foreground" />
-              )}
-              <small className="text-muted-foreground">{connection.dbType}</small>
-            </span>
-            <div>{getConnectionLabel(connection)}</div>
+      {/* Welcome Content */}
+      <div className="flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto">
+        <div className="max-w-4xl w-full space-y-12">
+          {/* Hero Section */}
+          <div className="text-center space-y-6">
+            <div>
+              <h1 className="text-4xl font-bold text-foreground mb-2">
+                Welcome to Based
+              </h1>
+              <p className="text-lg text-muted-foreground">
+                Git-Friendly Database Client for Developers
+              </p>
+            </div>
+            <ActionButtons />
           </div>
-        </Link>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <DialogTrigger asChild>
-          <ContextMenuItem>
-            <Pencil className="size-4" />
-            &nbsp; Edit
-          </ContextMenuItem>
-        </DialogTrigger>
-        <ContextMenuItem
-          className="text-red-500!"
-          disabled={removeConnMutation.isPending}
-          onClick={() => removeConnMutation.mutate(connection.id)}
-        >
-          {removeConnMutation.isPending ? (
-            <Loader2Icon className="animate-spin size-4" />
-          ) : (
-            <Trash2Icon className="size-4 text-red-500" />
-          )}
-          &nbsp; Remove
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+
+          {/* Recent Projects */}
+          <RecentProjects />
+
+          {/* Getting Started */}
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold text-foreground">Getting Started</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 rounded-lg border">
+                <h3 className="font-medium mb-2">Open a Project</h3>
+                <p className="text-sm text-muted-foreground">
+                  Open an existing folder with a <code className="px-1 py-0.5 rounded bg-muted">.based/</code> directory,
+                  or initialize a new project in any folder.
+                </p>
+              </div>
+              <div className="p-4 rounded-lg border">
+                <h3 className="font-medium mb-2">Version Control</h3>
+                <p className="text-sm text-muted-foreground">
+                  All your database configs and queries are stored as plain text files,
+                  making them perfect for git and team collaboration.
+                </p>
+              </div>
+              <div className="p-4 rounded-lg border">
+                <h3 className="font-medium mb-2">Multi-Database Support</h3>
+                <p className="text-sm text-muted-foreground">
+                  Connect to SQLite, MongoDB, and PostgreSQL databases within a single project,
+                  with environment-specific configurations.
+                </p>
+              </div>
+              <div className="p-4 rounded-lg border">
+                <h3 className="font-medium mb-2">Saved Queries</h3>
+                <p className="text-sm text-muted-foreground">
+                  Save and organize your queries as <code className="px-1 py-0.5 rounded bg-muted">.sqlx</code> and{" "}
+                  <code className="px-1 py-0.5 rounded bg-muted">.mongox</code> files with YAML metadata.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -180,7 +83,7 @@ function Branding() {
           <span className="text-muted-foreground">pavi2410 / </span>
           <span className="text-foreground font-bold">based</span>
         </h1>
-        <em className="text-xs text-muted-foreground block">The Everything Database App</em>
+        <em className="text-xs text-muted-foreground block">Git-Friendly Database Client</em>
       </div>
       <div className="flex items-center gap-3 border-l pl-4">
         <Button

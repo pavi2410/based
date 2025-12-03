@@ -1,5 +1,5 @@
 import { atom } from "nanostores";
-import { persistentMap } from "@nanostores/persistent";
+import { persistentAtom } from "@nanostores/persistent";
 
 /**
  * Per-project state management using nanostores
@@ -22,7 +22,7 @@ export const $activeEnvironment = atom<string>("dev");
 export const $sidebarVisible = atom<boolean>(true);
 
 // Recent projects (persisted to localStorage)
-export const $recentProjects = persistentMap<RecentProject[]>(
+export const $recentProjects = persistentAtom<RecentProject[]>(
   "based:recent-projects",
   [],
   {

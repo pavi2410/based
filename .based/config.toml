@@ -1,0 +1,33 @@
+version = "1.0"
+name = "based"
+description = "A new Based project"
+
+[databases.northwind]
+name = "Northwind Database"
+type = "sqlite"
+description = "SQLite Northwind sample database"
+
+[databases.northwind.connection]
+path = "/Users/pavi2410/Downloads/northwind.db"
+
+[databases.test_mongo]
+name = "Test MongoDB"
+type = "mongodb"
+description = "MongoDB test database on Railway"
+
+[databases.test_mongo.connection]
+url = "mongodb://mongo:QchzKmCzUPaSFWzwlSCkVCRsRvlifNKH@tramway.proxy.rlwy.net:15815/test?authSource=admin"
+
+[environments]
+default = "dev"
+available = [
+    "dev",
+    "staging",
+    "prod",
+]
+
+[settings]
+queryTimeout = 30000
+maxResultRows = 1000
+enableQueryCache = true
+cacheTTL = 3600

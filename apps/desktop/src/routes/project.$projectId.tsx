@@ -1,9 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useEffectEvent } from "react";
 import { readProjectConfig } from "@/stores/projects";
 import { addRecentProject, setActiveDatabase, setActiveEnvironment } from "@/stores/project-state";
 import type { ProjectConfig } from "@/types/project";
 import { Loader2Icon } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/project/$projectId")({
   component: ProjectWorkspace,
@@ -18,39 +21,82 @@ function ProjectWorkspace() {
   // Decode project path from Base64
   const projectPath = atob(projectId);
 
-  useEffect(() => {
-    async function loadProject() {
+  // useEffectEvent allows us to use latest values without being part of dependencies
+  const loadProject = useEffectEvent(async (showToast = false) => {
+    const doLoad = async () => {
+      setLoading(true);
+      const projectConfig = await readProjectConfig(projectPath);
+      setConfig(projectConfig);
+
+      // Add to recent projects
+      addRecentProject({
+        path: projectPath,
+        name: projectConfig.name,
+        lastOpened: new Date().toISOString(),
+      });
+
+      // Set default environment and database
+      setActiveEnvironment(projectConfig.environments.default);
+
+      // Set first database as active if exists
+      const firstDbKey = Object.keys(projectConfig.databases)[0];
+      if (firstDbKey) {
+        setActiveDatabase(firstDbKey);
+      }
+
+      setError(null);
+      setLoading(false);
+    };
+
+    if (showToast) {
+      toast.promise(doLoad(), {
+        loading: "Reloading project config...",
+        success: "Project reloaded successfully",
+        error: "Failed to reload project",
+      });
+    } else {
       try {
-        setLoading(true);
-        const projectConfig = await readProjectConfig(projectPath);
-        setConfig(projectConfig);
-
-        // Add to recent projects
-        addRecentProject({
-          path: projectPath,
-          name: projectConfig.name,
-          lastOpened: new Date().toISOString(),
-        });
-
-        // Set default environment and database
-        setActiveEnvironment(projectConfig.environments.default);
-
-        // Set first database as active if exists
-        const firstDbKey = Object.keys(projectConfig.databases)[0];
-        if (firstDbKey) {
-          setActiveDatabase(firstDbKey);
-        }
-
-        setError(null);
+        await doLoad();
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
-      } finally {
         setLoading(false);
       }
     }
+  });
 
-    loadProject();
-  }, [projectPath]);
+  // Initial load and file watcher setup
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+
+    async function init() {
+      // Initial load
+      await loadProject(false);
+
+      try {
+        // Start file watcher
+        await invoke("watch_project_config", {
+          projectPath,
+        });
+
+        // Listen for config changes
+        unlisten = await listen("config-changed", async () => {
+          await loadProject(true);
+        });
+      } catch (error) {
+        console.error("Failed to start config watcher:", error);
+      }
+    }
+
+    init();
+
+    // Cleanup
+    return () => {
+      if (unlisten) {
+        unlisten();
+      }
+      invoke("unwatch_project_config").catch(console.error);
+    };
+  }, [projectPath]); // Only depends on projectPath, loadProject is stable via useEffectEvent
 
   if (loading) {
     return (

@@ -2,6 +2,7 @@ mod commands;
 mod connection_pool;
 mod decode;
 mod error;
+mod file_watcher;
 mod project_commands;
 mod project_types;
 mod variables;
@@ -9,6 +10,7 @@ mod variables;
 use crate::commands::{close, load, query};
 use crate::connection_pool::ConnectionPool;
 use crate::error::Error;
+use crate::file_watcher::{watch_project_config, unwatch_project_config, FileWatcherState};
 use crate::project_commands::{
     delete_query_file, initialize_project, list_query_files, load_env_file_command,
     read_project_config, read_query_file, resolve_connection_config_command,
@@ -27,6 +29,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .manage(DbInstances::default())
+        .manage(FileWatcherState::default())
         .invoke_handler(tauri::generate_handler![
             // Legacy connection commands
             load,
@@ -42,6 +45,9 @@ pub fn run() {
             read_query_file,
             write_query_file,
             delete_query_file,
+            // File watcher commands
+            watch_project_config,
+            unwatch_project_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

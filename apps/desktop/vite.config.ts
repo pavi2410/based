@@ -14,7 +14,11 @@ export default defineConfig(async () => ({
       autoCodeSplitting: true
     }),
     tailwindcss(),
-    react(),
+    react({
+      babel: {
+        plugins: ['babel-plugin-react-compiler'],
+      },
+    }),
     Icons({
       compiler: 'jsx',
       jsx: 'react',

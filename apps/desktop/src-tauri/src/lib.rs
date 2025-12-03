@@ -2,10 +2,18 @@ mod commands;
 mod connection_pool;
 mod decode;
 mod error;
+mod project_commands;
+mod project_types;
+mod variables;
 
 use crate::commands::{close, load, query};
 use crate::connection_pool::ConnectionPool;
 use crate::error::Error;
+use crate::project_commands::{
+    delete_query_file, initialize_project, list_query_files, load_env_file_command,
+    read_project_config, read_query_file, resolve_connection_config_command,
+    write_project_config, write_query_file,
+};
 use std::collections::HashMap;
 use tokio::sync::RwLock;
 
@@ -19,7 +27,22 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .manage(DbInstances::default())
-        .invoke_handler(tauri::generate_handler![load, close, query,])
+        .invoke_handler(tauri::generate_handler![
+            // Legacy connection commands
+            load,
+            close,
+            query,
+            // Project commands
+            initialize_project,
+            read_project_config,
+            write_project_config,
+            load_env_file_command,
+            resolve_connection_config_command,
+            list_query_files,
+            read_query_file,
+            write_query_file,
+            delete_query_file,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

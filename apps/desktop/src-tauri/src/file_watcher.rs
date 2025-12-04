@@ -23,7 +23,7 @@ impl Default for FileWatcherState {
     }
 }
 
-/// Start watching the project config file for changes
+/// Start watching the project config file and env file for changes
 #[tauri::command]
 pub async fn watch_project_config(
     app_handle: AppHandle,
@@ -31,6 +31,7 @@ pub async fn watch_project_config(
     state: tauri::State<'_, FileWatcherState>,
 ) -> Result<(), String> {
     let config_path = Path::new(&project_path).join(".based/config.toml");
+    let env_path = Path::new(&project_path).join(".based/.env");
 
     // Stop existing watcher if any
     let mut watcher_guard = state.watcher.lock().await;
@@ -48,6 +49,13 @@ pub async fn watch_project_config(
     watcher
         .watch(&config_path, RecursiveMode::NonRecursive)
         .map_err(|e| format!("Failed to watch config file: {}", e))?;
+
+    // Watch the env file (if it exists)
+    if env_path.exists() {
+        watcher
+            .watch(&env_path, RecursiveMode::NonRecursive)
+            .map_err(|e| format!("Failed to watch env file: {}", e))?;
+    }
 
     // Store the watcher
     let mut watcher_guard = state.watcher.lock().await;

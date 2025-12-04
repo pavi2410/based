@@ -22,7 +22,7 @@ host = "caboose.proxy.rlwy.net"
 port = 34306
 database = "railway"
 username = "postgres"
-password = "UYDGdVvqPgJhIwndpIxkWrpffspaXBVT"
+password = { env = "RAILWAY_PG_PASSWORD" }
 ssl = true
 
 [settings]

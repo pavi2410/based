@@ -318,6 +318,354 @@ pub async fn close_project_connections(
 }
 
 // ============================================================================
+// Data Query Commands
+// ============================================================================
+
+/// Result of a data query - rows with column info
+#[derive(Debug, Serialize, Deserialize)]
+pub struct QueryResult {
+    pub columns: Vec<ColumnInfo>,
+    pub rows: Vec<Vec<serde_json::Value>>,
+    pub total_count: Option<i64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ColumnInfo {
+    pub name: String,
+    pub data_type: String,
+}
+
+/// Query data from a SQLite table
+#[tauri::command]
+pub async fn query_sqlite_table(
+    project_path: String,
+    conn_key: String,
+    table_name: String,
+    limit: Option<i64>,
+    offset: Option<i64>,
+    registry: State<'_, ConnectionRegistry>,
+    app: tauri::AppHandle,
+) -> Result<QueryResult, Error> {
+    let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
+
+    let pools = registry.pools().await;
+    let pool = pools
+        .get(&conn_id)
+        .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
+
+    match pool {
+        ConnectionPool::Sqlite(pool) => {
+            // Get column info
+            let pragma_query = format!("PRAGMA table_info('{}')", table_name);
+            let column_rows = sqlx::query(&pragma_query).fetch_all(pool).await?;
+            
+            let columns: Vec<ColumnInfo> = column_rows
+                .iter()
+                .map(|row| ColumnInfo {
+                    name: row.get::<String, _>("name"),
+                    data_type: row.get::<String, _>("type"),
+                })
+                .collect();
+
+            // Get total count
+            let count_query = format!("SELECT COUNT(*) as cnt FROM \"{}\"", table_name);
+            let count_row = sqlx::query(&count_query).fetch_one(pool).await?;
+            let total_count: i64 = count_row.get("cnt");
+
+            // Query data with pagination
+            let limit_val = limit.unwrap_or(100);
+            let offset_val = offset.unwrap_or(0);
+            let data_query = format!(
+                "SELECT * FROM \"{}\" LIMIT {} OFFSET {}",
+                table_name, limit_val, offset_val
+            );
+            
+            let data_rows = sqlx::query(&data_query).fetch_all(pool).await?;
+            
+            let rows: Vec<Vec<serde_json::Value>> = data_rows
+                .iter()
+                .map(|row| {
+                    columns
+                        .iter()
+                        .map(|col| sqlite_value_to_json(row, &col.name))
+                        .collect()
+                })
+                .collect();
+
+            Ok(QueryResult {
+                columns,
+                rows,
+                total_count: Some(total_count),
+            })
+        }
+        _ => Err(Error::InvalidDbUrl("Expected SQLite connection".to_string())),
+    }
+}
+
+/// Convert SQLite row value to JSON
+fn sqlite_value_to_json(row: &sqlx::sqlite::SqliteRow, column: &str) -> serde_json::Value {
+    use sqlx::Row;
+    use sqlx::ValueRef;
+    
+    let value_ref = row.try_get_raw(column);
+    match value_ref {
+        Ok(val) if val.is_null() => serde_json::Value::Null,
+        Ok(_) => {
+            // Try different types
+            if let Ok(v) = row.try_get::<i64, _>(column) {
+                serde_json::Value::Number(v.into())
+            } else if let Ok(v) = row.try_get::<f64, _>(column) {
+                serde_json::Number::from_f64(v)
+                    .map(serde_json::Value::Number)
+                    .unwrap_or(serde_json::Value::Null)
+            } else if let Ok(v) = row.try_get::<String, _>(column) {
+                serde_json::Value::String(v)
+            } else if let Ok(v) = row.try_get::<bool, _>(column) {
+                serde_json::Value::Bool(v)
+            } else if let Ok(v) = row.try_get::<Vec<u8>, _>(column) {
+                // Binary data - show size
+                serde_json::Value::String(format!("[BLOB: {} bytes]", v.len()))
+            } else {
+                serde_json::Value::Null
+            }
+        }
+        Err(_) => serde_json::Value::Null,
+    }
+}
+
+/// Query data from a PostgreSQL table
+#[tauri::command]
+pub async fn query_postgres_table(
+    project_path: String,
+    conn_key: String,
+    schema: String,
+    table_name: String,
+    limit: Option<i64>,
+    offset: Option<i64>,
+    registry: State<'_, ConnectionRegistry>,
+    app: tauri::AppHandle,
+) -> Result<QueryResult, Error> {
+    let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
+
+    let pools = registry.pools().await;
+    let pool = pools
+        .get(&conn_id)
+        .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
+
+    match pool {
+        ConnectionPool::Postgres(pool) => {
+            // Get column info
+            let column_query = r#"
+                SELECT column_name, data_type 
+                FROM information_schema.columns 
+                WHERE table_schema = $1 AND table_name = $2
+                ORDER BY ordinal_position
+            "#;
+            let column_rows = sqlx::query(column_query)
+                .bind(&schema)
+                .bind(&table_name)
+                .fetch_all(pool)
+                .await?;
+            
+            let columns: Vec<ColumnInfo> = column_rows
+                .iter()
+                .map(|row| ColumnInfo {
+                    name: row.get("column_name"),
+                    data_type: row.get("data_type"),
+                })
+                .collect();
+
+            // Get total count
+            let count_query = format!("SELECT COUNT(*) as cnt FROM \"{}\".\"{}\"", schema, table_name);
+            let count_row = sqlx::query(&count_query).fetch_one(pool).await?;
+            let total_count: i64 = count_row.get("cnt");
+
+            // Query data with pagination
+            let limit_val = limit.unwrap_or(100);
+            let offset_val = offset.unwrap_or(0);
+            let data_query = format!(
+                "SELECT * FROM \"{}\".\"{}\" LIMIT {} OFFSET {}",
+                schema, table_name, limit_val, offset_val
+            );
+            
+            let data_rows = sqlx::query(&data_query).fetch_all(pool).await?;
+            
+            let rows: Vec<Vec<serde_json::Value>> = data_rows
+                .iter()
+                .map(|row| {
+                    columns
+                        .iter()
+                        .map(|col| postgres_value_to_json(row, &col.name))
+                        .collect()
+                })
+                .collect();
+
+            Ok(QueryResult {
+                columns,
+                rows,
+                total_count: Some(total_count),
+            })
+        }
+        _ => Err(Error::InvalidDbUrl("Expected PostgreSQL connection".to_string())),
+    }
+}
+
+/// Convert PostgreSQL row value to JSON
+fn postgres_value_to_json(row: &sqlx::postgres::PgRow, column: &str) -> serde_json::Value {
+    use sqlx::Row;
+    use sqlx::ValueRef;
+    
+    let value_ref = row.try_get_raw(column);
+    match value_ref {
+        Ok(val) if val.is_null() => serde_json::Value::Null,
+        Ok(_) => {
+            // Try different types
+            if let Ok(v) = row.try_get::<i64, _>(column) {
+                serde_json::Value::Number(v.into())
+            } else if let Ok(v) = row.try_get::<i32, _>(column) {
+                serde_json::Value::Number(v.into())
+            } else if let Ok(v) = row.try_get::<f64, _>(column) {
+                serde_json::Number::from_f64(v)
+                    .map(serde_json::Value::Number)
+                    .unwrap_or(serde_json::Value::Null)
+            } else if let Ok(v) = row.try_get::<String, _>(column) {
+                serde_json::Value::String(v)
+            } else if let Ok(v) = row.try_get::<bool, _>(column) {
+                serde_json::Value::Bool(v)
+            } else if let Ok(v) = row.try_get::<chrono::NaiveDateTime, _>(column) {
+                serde_json::Value::String(v.to_string())
+            } else if let Ok(v) = row.try_get::<chrono::DateTime<chrono::Utc>, _>(column) {
+                serde_json::Value::String(v.to_rfc3339())
+            } else if let Ok(v) = row.try_get::<chrono::NaiveDate, _>(column) {
+                serde_json::Value::String(v.to_string())
+            } else if let Ok(v) = row.try_get::<serde_json::Value, _>(column) {
+                v
+            } else {
+                // Fallback - try to get as string
+                row.try_get::<String, _>(column)
+                    .map(serde_json::Value::String)
+                    .unwrap_or(serde_json::Value::Null)
+            }
+        }
+        Err(_) => serde_json::Value::Null,
+    }
+}
+
+/// Query data from a MongoDB collection
+#[tauri::command]
+pub async fn query_mongodb_collection(
+    project_path: String,
+    conn_key: String,
+    collection_name: String,
+    limit: Option<i64>,
+    offset: Option<i64>,
+    registry: State<'_, ConnectionRegistry>,
+    app: tauri::AppHandle,
+) -> Result<QueryResult, Error> {
+    use mongodb::bson::doc;
+    use futures::TryStreamExt;
+
+    let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
+
+    let pools = registry.pools().await;
+    let pool = pools
+        .get(&conn_id)
+        .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
+
+    match pool {
+        ConnectionPool::Mongo(db) => {
+            let collection = db.collection::<mongodb::bson::Document>(&collection_name);
+            
+            // Get total count
+            let total_count = collection.count_documents(doc! {}, None).await? as i64;
+
+            // Query data with pagination
+            let limit_val = limit.unwrap_or(100);
+            let offset_val = offset.unwrap_or(0);
+            
+            let find_options = mongodb::options::FindOptions::builder()
+                .limit(limit_val)
+                .skip(offset_val as u64)
+                .build();
+            
+            let mut cursor = collection.find(doc! {}, find_options).await?;
+            
+            let mut documents: Vec<mongodb::bson::Document> = Vec::new();
+            while let Some(doc) = cursor.try_next().await? {
+                documents.push(doc);
+            }
+
+            // Extract columns from first document (MongoDB is schemaless)
+            let columns: Vec<ColumnInfo> = if let Some(first_doc) = documents.first() {
+                first_doc
+                    .keys()
+                    .map(|key| ColumnInfo {
+                        name: key.clone(),
+                        data_type: "mixed".to_string(),
+                    })
+                    .collect()
+            } else {
+                vec![]
+            };
+
+            // Convert documents to rows
+            let rows: Vec<Vec<serde_json::Value>> = documents
+                .iter()
+                .map(|doc| {
+                    columns
+                        .iter()
+                        .map(|col| {
+                            doc.get(&col.name)
+                                .map(|v| bson_to_json(v))
+                                .unwrap_or(serde_json::Value::Null)
+                        })
+                        .collect()
+                })
+                .collect();
+
+            Ok(QueryResult {
+                columns,
+                rows,
+                total_count: Some(total_count),
+            })
+        }
+        _ => Err(Error::InvalidDbUrl("Expected MongoDB connection".to_string())),
+    }
+}
+
+/// Convert BSON value to JSON
+fn bson_to_json(bson: &mongodb::bson::Bson) -> serde_json::Value {
+    use mongodb::bson::Bson;
+    
+    match bson {
+        Bson::Null => serde_json::Value::Null,
+        Bson::Boolean(b) => serde_json::Value::Bool(*b),
+        Bson::Int32(i) => serde_json::Value::Number((*i).into()),
+        Bson::Int64(i) => serde_json::Value::Number((*i).into()),
+        Bson::Double(f) => serde_json::Number::from_f64(*f)
+            .map(serde_json::Value::Number)
+            .unwrap_or(serde_json::Value::Null),
+        Bson::String(s) => serde_json::Value::String(s.clone()),
+        Bson::ObjectId(oid) => serde_json::Value::String(oid.to_hex()),
+        Bson::DateTime(dt) => serde_json::Value::String(dt.to_string()),
+        Bson::Array(arr) => serde_json::Value::Array(
+            arr.iter().map(bson_to_json).collect()
+        ),
+        Bson::Document(doc) => {
+            let map: serde_json::Map<String, serde_json::Value> = doc
+                .iter()
+                .map(|(k, v)| (k.clone(), bson_to_json(v)))
+                .collect();
+            serde_json::Value::Object(map)
+        }
+        Bson::Binary(bin) => serde_json::Value::String(format!("[Binary: {} bytes]", bin.bytes.len())),
+        Bson::Timestamp(ts) => serde_json::Value::String(format!("Timestamp({}, {})", ts.time, ts.increment)),
+        Bson::RegularExpression(regex) => serde_json::Value::String(format!("/{}/{}", regex.pattern, regex.options)),
+        _ => serde_json::Value::String(bson.to_string()),
+    }
+}
+
+// ============================================================================
 // Helper Functions
 // ============================================================================
 

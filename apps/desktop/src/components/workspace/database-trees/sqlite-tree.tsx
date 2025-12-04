@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useQuery } from "@tanstack/react-query";
+import { useStore } from "@nanostores/react";
 import { TableIcon, Table2Icon, ListOrderedIcon, RefreshCcwIcon, ChevronRightIcon } from "lucide-react";
 import {
   Collapsible,
@@ -10,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ConnectionConfig } from "@/types/project";
+import { selectObject, $selectedObject } from "@/stores/project-state";
 
 interface SQLiteDatabaseTreeProps {
   connKey: string;
@@ -81,6 +83,7 @@ function SQLiteObjectGroup({
   icon,
 }: SQLiteObjectGroupProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const selectedObject = useStore($selectedObject);
 
   const objectQuery = useQuery({
     queryKey: ["project-db-objects", projectPath, connKey, type],
@@ -95,6 +98,13 @@ function SQLiteObjectGroup({
     },
     enabled: isOpen, // Only fetch when expanded
   });
+
+  const handleObjectClick = (name: string) => {
+    selectObject({
+      type: type === "table" ? "table" : "view",
+      name,
+    });
+  };
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -130,16 +140,20 @@ function SQLiteObjectGroup({
           </div>
         )}
         {objectQuery.isSuccess &&
-          objectQuery.data.map((obj) => (
-            <Button
-              key={obj.name}
-              variant="ghost"
-              className="w-full justify-start h-7 px-2 text-xs font-normal"
-              title={obj.name}
-            >
-              {obj.name}
-            </Button>
-          ))}
+          objectQuery.data.map((obj) => {
+            const isSelected = selectedObject?.name === obj.name && !selectedObject?.schema;
+            return (
+              <Button
+                key={obj.name}
+                variant={isSelected ? "secondary" : "ghost"}
+                className="w-full justify-start h-7 px-2 text-xs font-normal"
+                title={obj.name}
+                onClick={() => handleObjectClick(obj.name)}
+              >
+                {obj.name}
+              </Button>
+            );
+          })}
       </CollapsibleContent>
     </Collapsible>
   );

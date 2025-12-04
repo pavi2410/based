@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useQuery } from "@tanstack/react-query";
+import { useStore } from "@nanostores/react";
 import { DatabaseIcon, TableIcon, ChevronRightIcon } from "lucide-react";
 import {
   Collapsible,
@@ -10,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ConnectionConfig } from "@/types/project";
+import { selectObject, $selectedObject } from "@/stores/project-state";
 
 interface PostgresDatabaseTreeProps {
   connKey: string;
@@ -105,6 +107,7 @@ function PostgresSchemaGroup({
   projectPath,
 }: PostgresSchemaGroupProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const selectedObject = useStore($selectedObject);
 
   const tablesQuery = useQuery({
     queryKey: ["project-pg-tables", projectPath, connKey, schema],
@@ -118,6 +121,14 @@ function PostgresSchemaGroup({
     },
     enabled: isOpen,
   });
+
+  const handleTableClick = (tableName: string) => {
+    selectObject({
+      type: "table",
+      name: tableName,
+      schema,
+    });
+  };
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -153,17 +164,21 @@ function PostgresSchemaGroup({
           </div>
         )}
         {tablesQuery.isSuccess &&
-          tablesQuery.data.map((table) => (
-            <Button
-              key={table.name}
-              variant="ghost"
-              className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal"
-              title={table.name}
-            >
-              <TableIcon className="size-3" />
-              {table.name}
-            </Button>
-          ))}
+          tablesQuery.data.map((table) => {
+            const isSelected = selectedObject?.name === table.name && selectedObject?.schema === schema;
+            return (
+              <Button
+                key={table.name}
+                variant={isSelected ? "secondary" : "ghost"}
+                className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal"
+                title={table.name}
+                onClick={() => handleTableClick(table.name)}
+              >
+                <TableIcon className="size-3" />
+                {table.name}
+              </Button>
+            );
+          })}
       </CollapsibleContent>
     </Collapsible>
   );

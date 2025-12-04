@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useQuery } from "@tanstack/react-query";
+import { useStore } from "@nanostores/react";
 import { DatabaseIcon, ChevronRightIcon } from "lucide-react";
 import {
   Collapsible,
@@ -10,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ConnectionConfig } from "@/types/project";
+import { selectObject, $selectedObject } from "@/stores/project-state";
 
 interface MongoDBDatabaseTreeProps {
   connKey: string;
@@ -26,6 +28,7 @@ export function MongoDBDatabaseTree({
   projectPath,
 }: MongoDBDatabaseTreeProps) {
   const [isOpen, setIsOpen] = useState(true);
+  const selectedObject = useStore($selectedObject);
 
   const collectionsQuery = useQuery({
     queryKey: ["project-db-collections", projectPath, connKey],
@@ -38,6 +41,13 @@ export function MongoDBDatabaseTree({
     },
     enabled: isOpen,
   });
+
+  const handleCollectionClick = (name: string) => {
+    selectObject({
+      type: "collection",
+      name,
+    });
+  };
 
   return (
     <div className="p-2">
@@ -74,16 +84,20 @@ export function MongoDBDatabaseTree({
             </div>
           )}
           {collectionsQuery.isSuccess &&
-            collectionsQuery.data.map((collection) => (
-              <Button
-                key={collection.name}
-                variant="ghost"
-                className="w-full justify-start h-7 px-2 text-xs font-normal"
-                title={collection.name}
-              >
-                {collection.name}
-              </Button>
-            ))}
+            collectionsQuery.data.map((collection) => {
+              const isSelected = selectedObject?.name === collection.name && selectedObject?.type === "collection";
+              return (
+                <Button
+                  key={collection.name}
+                  variant={isSelected ? "secondary" : "ghost"}
+                  className="w-full justify-start h-7 px-2 text-xs font-normal"
+                  title={collection.name}
+                  onClick={() => handleCollectionClick(collection.name)}
+                >
+                  {collection.name}
+                </Button>
+              );
+            })}
         </CollapsibleContent>
       </Collapsible>
     </div>

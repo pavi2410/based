@@ -18,6 +18,7 @@ use crate::project_commands::{
 use crate::project_db_commands::{
     connect_project_db, get_sqlite_objects, get_mongodb_collections, get_postgres_schemas, 
     get_postgres_tables, close_project_connections, get_connection_info,
+    query_sqlite_table, query_postgres_table, query_mongodb_collection,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -50,6 +51,10 @@ pub fn run() {
             get_postgres_schemas,
             get_postgres_tables,
             close_project_connections,
+            // Data query commands
+            query_sqlite_table,
+            query_postgres_table,
+            query_mongodb_collection,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

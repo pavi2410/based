@@ -8,7 +8,6 @@ import {
   setProjectPath,
   switchConnection,
   $activeConnection,
-  $activeConnectionId,
   $connectionStatus,
 } from "@/stores/project-state";
 import type { ProjectConfig } from "@/types/project";
@@ -20,6 +19,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { TopBar } from "@/components/workspace/top-bar";
 import { WorkspaceSidebar } from "@/components/workspace/workspace-sidebar";
 import { StatusBar } from "@/components/workspace/status-bar";
+import { DataViewer } from "@/components/workspace/data-viewer";
 
 export const Route = createFileRoute("/project/$projectId")({
   component: ProjectWorkspace,
@@ -33,7 +33,6 @@ function ProjectWorkspace() {
 
   // Get reactive state from stores
   const activeConnection = useStore($activeConnection);
-  const activeConnectionId = useStore($activeConnectionId);
   const connectionStatus = useStore($connectionStatus);
 
   // Decode project path from Base64
@@ -185,20 +184,7 @@ function ProjectWorkspace() {
 
         {/* Main Content */}
         <ResizablePanel defaultSize={80}>
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center space-y-4">
-              <h2 className="text-2xl font-bold">Welcome to Your Project</h2>
-              <p className="text-muted-foreground">
-                Select a table or collection from the sidebar to explore
-              </p>
-              <div className="text-sm text-muted-foreground space-y-1">
-                <p>Active Connection: {activeConnectionConfig?.label || activeConnection || "None"}</p>
-                {activeConnectionId && (
-                  <p className="text-xs font-mono opacity-50">ID: {activeConnectionId}</p>
-                )}
-              </div>
-            </div>
-          </div>
+          <DataViewer />
         </ResizablePanel>
       </ResizablePanelGroup>
 

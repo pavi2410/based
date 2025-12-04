@@ -4,41 +4,44 @@
  */
 
 export type ProjectConfig = {
-  version: string;
+  version: number;
   name: string;
   description?: string;
-  databases: Record<string, DatabaseConfig>;
-  environments: EnvironmentConfig;
+  connection: Record<string, ConnectionConfig>;
   settings?: ProjectSettings;
 }
 
-export type DatabaseConfig = {
-  name: string;
-  type: 'sqlite' | 'mongodb' | 'postgres';
-  connection: ConnectionConfig;
-  description?: string;
-  environments?: Record<string, Partial<DatabaseConfig>>;
-}
+export type Engine = 'sqlite' | 'mongodb' | 'postgres';
+
+export type SecretValue =
+  | { env: string }
+  | { value: string }
+  | { file: string }
+  | string; // Literal value
 
 export type ConnectionConfig = {
-  // SQLite
-  path?: string;
+  label?: string;
+  engine: Engine;
+  group?: string;
+  disabled?: boolean;
+  order?: number;
+  color?: string;
+  icon?: string;
 
-  // MongoDB
-  url?: string;
+  // SQLite fields
+  file?: string;
+  readonly?: boolean;
 
-  // PostgreSQL
+  // MongoDB fields
+  url?: SecretValue;
+
+  // PostgreSQL fields
   host?: string;
   port?: number;
   database?: string;
   username?: string;
-  password?: string;
-  sslmode?: 'disable' | 'require' | 'verify-ca' | 'verify-full';
-}
-
-export type EnvironmentConfig = {
-  default: string;
-  available: string[];
+  password?: SecretValue;
+  ssl?: boolean;
 }
 
 export type ProjectSettings = {
@@ -51,14 +54,14 @@ export type ProjectSettings = {
 export type QueryFile = {
   path: string;           // Relative to .based/queries/
   name: string;
-  database: string;
+  connection: string;     // Connection key
   content: string;
   metadata: QueryMetadata;
 }
 
 export type QueryMetadata = {
   name: string;
-  database: string;
+  connection: string;     // Connection key
   description?: string;
   tags?: string[];
   parameters?: QueryParameter[];
@@ -80,8 +83,7 @@ export type Project = {
 }
 
 export type ProjectState = {
-  activeDatabase: string;
-  activeEnvironment: string;
+  activeConnection: string;
   openQueries: string[];
   uiState: {
     sidebarCollapsed: boolean;

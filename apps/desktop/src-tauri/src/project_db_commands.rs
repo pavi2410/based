@@ -1,7 +1,6 @@
 use crate::connection_pool::ConnectionPool;
 use crate::error::Error;
 use crate::project_commands::read_project_config;
-use crate::variables::{resolve_variables, VariableError};
 use crate::DbInstances;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -37,44 +36,67 @@ async fn ensure_project_connection(
         .await
         .map_err(|e| Error::InvalidDbUrl(e))?;
 
-    // Get database config
-    let db_config = config
-        .databases
+    // Get connection config
+    let conn_config = config
+        .connection
         .get(db_key)
-        .ok_or_else(|| Error::InvalidDbUrl(format!("Database key not found: {}", db_key)))?;
+        .ok_or_else(|| Error::InvalidDbUrl(format!("Connection key not found: {}", db_key)))?;
 
-    // Load environment file - for now, just use empty map since we don't have env-specific file loading
-    // TODO: Implement environment-specific .env file loading
-    let env_vars: HashMap<String, String> = HashMap::new();
+    // Load environment file from .based/.env
+    let env_file_path = std::path::Path::new(project_path).join(".based/.env");
+    let env_vars = if env_file_path.exists() {
+        crate::variables::load_env_file(&env_file_path.to_string_lossy().to_string())
+            .unwrap_or_else(|_| HashMap::new())
+    } else {
+        HashMap::new()
+    };
 
-    // Resolve connection string based on database type
-    let resolved_conn_string = match &db_config.connection {
-        connection if connection.path.is_some() => {
+    // Resolve connection string based on engine type
+    use crate::project_types::Engine;
+    let resolved_conn_string = match conn_config.engine {
+        Engine::Sqlite => {
             // SQLite
-            let path = connection.path.as_ref().unwrap();
-            let resolved_path = resolve_variables(path, &env_vars)
-                .map_err(|e| Error::InvalidDbUrl(format!("Variable resolution failed: {:?}", e)))?;
+            let file = conn_config.file.as_ref()
+                .ok_or_else(|| Error::InvalidDbUrl("SQLite connection missing 'file' field".to_string()))?;
+
             // Make path absolute if relative
-            let absolute_path = if std::path::Path::new(&resolved_path).is_relative() {
+            let absolute_path = if std::path::Path::new(&file).is_relative() {
                 std::path::Path::new(project_path)
-                    .join(&resolved_path)
+                    .join(&file)
                     .to_string_lossy()
                     .to_string()
             } else {
-                resolved_path
+                file.clone()
             };
             format!("sqlite:{}", absolute_path)
         }
-        connection if connection.url.is_some() => {
-            // MongoDB or PostgreSQL (both use URL)
-            let url = connection.url.as_ref().unwrap();
-            resolve_variables(url, &env_vars)
-                .map_err(|e| Error::InvalidDbUrl(format!("Variable resolution failed: {:?}", e)))?
+        Engine::MongoDB => {
+            // MongoDB
+            let url_secret = conn_config.url.as_ref()
+                .ok_or_else(|| Error::InvalidDbUrl("MongoDB connection missing 'url' field".to_string()))?;
+
+            url_secret.resolve(&env_vars)
+                .map_err(|e| Error::InvalidDbUrl(format!("Failed to resolve MongoDB URL: {}", e)))?
         }
-        _ => {
-            return Err(Error::InvalidDbUrl(
-                "No valid connection config found".to_string(),
-            ));
+        Engine::Postgres => {
+            // PostgreSQL - construct URL from parts or use password secret
+            let host = conn_config.host.as_ref()
+                .ok_or_else(|| Error::InvalidDbUrl("PostgreSQL connection missing 'host' field".to_string()))?;
+            let port = conn_config.port.unwrap_or(5432);
+            let database = conn_config.database.as_ref()
+                .ok_or_else(|| Error::InvalidDbUrl("PostgreSQL connection missing 'database' field".to_string()))?;
+            let username = conn_config.username.as_ref()
+                .ok_or_else(|| Error::InvalidDbUrl("PostgreSQL connection missing 'username' field".to_string()))?;
+
+            let password = if let Some(pass_secret) = &conn_config.password {
+                pass_secret.resolve(&env_vars)
+                    .map_err(|e| Error::InvalidDbUrl(format!("Failed to resolve PostgreSQL password: {}", e)))?
+            } else {
+                String::new()
+            };
+
+            let ssl_mode = if conn_config.ssl.unwrap_or(false) { "require" } else { "disable" };
+            format!("postgresql://{}:{}@{}:{}/{}?sslmode={}", username, password, host, port, database, ssl_mode)
         }
     };
 

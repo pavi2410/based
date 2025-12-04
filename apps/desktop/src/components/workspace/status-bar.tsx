@@ -1,11 +1,10 @@
 import { CircleCheckIcon, CircleXIcon, CircleDotIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import type { DatabaseConfig } from "@/types/project";
+import type { ConnectionConfig } from "@/types/project";
 
 interface StatusBarProps {
-  activeDatabase: string | null;
-  databaseConfig: DatabaseConfig | null;
-  activeEnvironment: string;
+  activeConnection: string | null;
+  connectionConfig: ConnectionConfig | null;
   connectionStatus: "connected" | "disconnected" | "connecting" | "error";
 }
 
@@ -36,9 +35,8 @@ function getStatusLabel(status: string) {
 }
 
 export function StatusBar({
-  activeDatabase,
-  databaseConfig,
-  activeEnvironment,
+  activeConnection,
+  connectionConfig,
   connectionStatus,
 }: StatusBarProps) {
   return (
@@ -50,26 +48,22 @@ export function StatusBar({
           <span className="text-muted-foreground">{getStatusLabel(connectionStatus)}</span>
         </div>
 
-        {activeDatabase && databaseConfig && (
+        {activeConnection && connectionConfig && (
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground">|</span>
             <Badge variant="secondary" className="text-xs font-normal">
-              {databaseConfig.type.toUpperCase()}
+              {connectionConfig.engine.toUpperCase()}
             </Badge>
-            <span className="font-medium">{databaseConfig.name}</span>
+            <span className="font-medium">{connectionConfig.label || activeConnection}</span>
           </div>
         )}
       </div>
 
-      {/* Right: Environment */}
-      <div className="flex items-center gap-2">
-        <span className="text-muted-foreground">Environment:</span>
-        <Badge
-          variant={activeEnvironment === "production" ? "destructive" : "outline"}
-          className="text-xs font-normal capitalize"
-        >
-          {activeEnvironment}
-        </Badge>
+      {/* Right: Additional Info */}
+      <div className="flex items-center gap-2 text-muted-foreground">
+        {connectionConfig?.group && (
+          <span className="capitalize">{connectionConfig.group}</span>
+        )}
       </div>
     </div>
   );

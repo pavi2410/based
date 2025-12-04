@@ -2,20 +2,18 @@ import { DatabaseIcon, HistoryIcon, FileTextIcon } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DatabaseTree } from "./database-tree";
-import type { DatabaseConfig } from "@/types/project";
+import type { ConnectionConfig } from "@/types/project";
 
 interface WorkspaceSidebarProps {
-  activeDatabase: string | null;
-  databaseConfig: DatabaseConfig | null;
+  activeConnection: string | null;
+  connectionConfig: ConnectionConfig | null;
   projectPath: string;
-  activeEnvironment: string;
 }
 
 export function WorkspaceSidebar({
-  activeDatabase,
-  databaseConfig,
+  activeConnection,
+  connectionConfig,
   projectPath,
-  activeEnvironment,
 }: WorkspaceSidebarProps) {
   return (
     <div className="flex flex-col h-full border-r bg-background">
@@ -37,16 +35,15 @@ export function WorkspaceSidebar({
 
         <TabsContent value="database" className="flex-1 m-0">
           <ScrollArea className="h-full">
-            {activeDatabase && databaseConfig ? (
+            {activeConnection && connectionConfig ? (
               <DatabaseTree
-                dbKey={activeDatabase}
-                dbConfig={databaseConfig}
+                connKey={activeConnection}
+                connConfig={connectionConfig}
                 projectPath={projectPath}
-                environment={activeEnvironment}
               />
             ) : (
               <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
-                Select a database to explore
+                Select a connection to explore
               </div>
             )}
           </ScrollArea>

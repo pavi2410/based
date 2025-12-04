@@ -9,13 +9,12 @@ import {
 } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { DatabaseConfig } from "@/types/project";
+import type { ConnectionConfig } from "@/types/project";
 
 interface SQLiteDatabaseTreeProps {
-  dbKey: string;
-  dbConfig: DatabaseConfig;
+  connKey: string;
+  connConfig: ConnectionConfig;
   projectPath: string;
-  environment: string;
 }
 
 interface SQLiteObject {
@@ -23,45 +22,40 @@ interface SQLiteObject {
 }
 
 export function SQLiteDatabaseTree({
-  dbKey,
-  dbConfig,
+  connKey,
+  connConfig,
   projectPath,
-  environment,
 }: SQLiteDatabaseTreeProps) {
   return (
     <div className="p-2 space-y-2">
       <SQLiteObjectGroup
-        dbKey={dbKey}
-        dbConfig={dbConfig}
+        connKey={connKey}
+        connConfig={connConfig}
         projectPath={projectPath}
-        environment={environment}
         type="table"
         label="Tables"
         icon={<TableIcon className="size-4" />}
       />
       <SQLiteObjectGroup
-        dbKey={dbKey}
-        dbConfig={dbConfig}
+        connKey={connKey}
+        connConfig={connConfig}
         projectPath={projectPath}
-        environment={environment}
         type="view"
         label="Views"
         icon={<Table2Icon className="size-4" />}
       />
       <SQLiteObjectGroup
-        dbKey={dbKey}
-        dbConfig={dbConfig}
+        connKey={connKey}
+        connConfig={connConfig}
         projectPath={projectPath}
-        environment={environment}
         type="index"
         label="Indexes"
         icon={<ListOrderedIcon className="size-4" />}
       />
       <SQLiteObjectGroup
-        dbKey={dbKey}
-        dbConfig={dbConfig}
+        connKey={connKey}
+        connConfig={connConfig}
         projectPath={projectPath}
-        environment={environment}
         type="trigger"
         label="Triggers"
         icon={<RefreshCcwIcon className="size-4" />}
@@ -71,19 +65,17 @@ export function SQLiteDatabaseTree({
 }
 
 interface SQLiteObjectGroupProps {
-  dbKey: string;
-  dbConfig: DatabaseConfig;
+  connKey: string;
+  connConfig: ConnectionConfig;
   projectPath: string;
-  environment: string;
   type: string;
   label: string;
   icon: React.ReactNode;
 }
 
 function SQLiteObjectGroup({
-  dbKey,
+  connKey,
   projectPath,
-  environment,
   type,
   label,
   icon,
@@ -91,13 +83,12 @@ function SQLiteObjectGroup({
   const [isOpen, setIsOpen] = useState(false);
 
   const objectQuery = useQuery({
-    queryKey: ["project-db-objects", projectPath, dbKey, environment, type],
+    queryKey: ["project-db-objects", projectPath, connKey, type],
     queryFn: async () => {
-      // Call Tauri command to get objects for this database
+      // Call Tauri command to get objects for this connection
       const objects = await invoke<SQLiteObject[]>("get_sqlite_objects", {
         projectPath,
-        dbKey,
-        environment,
+        connKey,
         objectType: type,
       });
       return objects;

@@ -89,46 +89,8 @@ pub fn resolve_variables(
     Ok(result)
 }
 
-/// Resolve all variables in a ConnectionConfig
-pub fn resolve_connection_config(
-    config: &crate::project_types::ConnectionConfig,
-    env_vars: &HashMap<String, String>,
-) -> Result<crate::project_types::ConnectionConfig, VariableError> {
-    Ok(crate::project_types::ConnectionConfig {
-        path: config
-            .path
-            .as_ref()
-            .map(|v| resolve_variables(v, env_vars))
-            .transpose()?,
-        url: config
-            .url
-            .as_ref()
-            .map(|v| resolve_variables(v, env_vars))
-            .transpose()?,
-        host: config
-            .host
-            .as_ref()
-            .map(|v| resolve_variables(v, env_vars))
-            .transpose()?,
-        port: config.port,
-        database: config
-            .database
-            .as_ref()
-            .map(|v| resolve_variables(v, env_vars))
-            .transpose()?,
-        username: config
-            .username
-            .as_ref()
-            .map(|v| resolve_variables(v, env_vars))
-            .transpose()?,
-        password: config
-            .password
-            .as_ref()
-            .map(|v| resolve_variables(v, env_vars))
-            .transpose()?,
-        sslmode: config.sslmode.clone(),
-    })
-}
+// Note: resolve_connection_config is no longer needed
+// Secret resolution now happens via SecretValue::resolve in project_types.rs
 
 #[cfg(test)]
 mod tests {

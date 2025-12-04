@@ -1,5 +1,5 @@
 use crate::project_types::*;
-use crate::variables::{load_env_file, resolve_connection_config, VariableError};
+use crate::variables::{load_env_file, VariableError};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -19,8 +19,8 @@ pub enum ProjectError {
     YamlParseError(#[from] serde_yaml::Error),
     #[error("Variable resolution error: {0}")]
     VariableError(#[from] VariableError),
-    #[error("Database not found: {0}")]
-    DatabaseNotFound(String),
+    #[error("Connection not found: {0}")]
+    ConnectionNotFound(String),
     #[error("Project not initialized at: {0}")]
     ProjectNotInitialized(String),
     #[error("Invalid frontmatter: {0}")]
@@ -42,18 +42,14 @@ pub async fn initialize_project(project_path: String) -> Result<(), String> {
 
     // Create default config.toml
     let default_config = ProjectConfig {
-        version: "1.0".to_string(),
+        version: 1,
         name: Path::new(&project_path)
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("New Project")
             .to_string(),
         description: Some("A new Based project".to_string()),
-        databases: HashMap::new(),
-        environments: EnvironmentConfig {
-            default: "dev".to_string(),
-            available: vec!["dev".to_string(), "staging".to_string(), "prod".to_string()],
-        },
+        connection: HashMap::new(),
         settings: Some(ProjectSettings {
             query_timeout: Some(30000),
             max_result_rows: Some(1000),
@@ -140,67 +136,24 @@ pub async fn load_env_file_command(project_path: String) -> Result<HashMap<Strin
         .map_err(|e| format!("Failed to load .env file: {}", e))
 }
 
-/// Resolve connection config with environment overrides and variable interpolation
+/// Resolve connection config with variable interpolation
 #[command]
 pub async fn resolve_connection_config_command(
     project_path: String,
-    db_key: String,
-    environment: String,
+    conn_key: String,
 ) -> Result<ConnectionConfig, String> {
     // Read project config
     let config = read_project_config(project_path.clone()).await?;
 
-    // Get database config
-    let db_config = config
-        .databases
-        .get(&db_key)
-        .ok_or_else(|| format!("Database '{}' not found in config", db_key))?;
+    // Get connection config
+    let conn_config = config
+        .connection
+        .get(&conn_key)
+        .ok_or_else(|| format!("Connection '{}' not found in config", conn_key))?;
 
-    // Start with base connection config
-    let mut merged_config = db_config.connection.clone();
-
-    // Merge environment-specific overrides if they exist
-    if let Some(environments) = &db_config.environments {
-        if let Some(env_override) = environments.get(&environment) {
-            if let Some(env_connection) = &env_override.connection {
-                // Merge fields (environment override takes precedence)
-                if env_connection.path.is_some() {
-                    merged_config.path = env_connection.path.clone();
-                }
-                if env_connection.url.is_some() {
-                    merged_config.url = env_connection.url.clone();
-                }
-                if env_connection.host.is_some() {
-                    merged_config.host = env_connection.host.clone();
-                }
-                if env_connection.port.is_some() {
-                    merged_config.port = env_connection.port;
-                }
-                if env_connection.database.is_some() {
-                    merged_config.database = env_connection.database.clone();
-                }
-                if env_connection.username.is_some() {
-                    merged_config.username = env_connection.username.clone();
-                }
-                if env_connection.password.is_some() {
-                    merged_config.password = env_connection.password.clone();
-                }
-                if env_connection.sslmode.is_some() {
-                    merged_config.sslmode = env_connection.sslmode.clone();
-                }
-            }
-        }
-    }
-
-    // Load environment variables
-    let env_vars = load_env_file(&project_path)
-        .map_err(|e| format!("Failed to load .env file: {}", e))?;
-
-    // Resolve variables in connection config
-    let resolved_config = resolve_connection_config(&merged_config, &env_vars)
-        .map_err(|e| format!("Failed to resolve variables: {}", e))?;
-
-    Ok(resolved_config)
+    // Connection config is already complete, just return it
+    // Secret resolution happens at connection time in project_db_commands
+    Ok(conn_config.clone())
 }
 
 /// List all query files in the project
@@ -257,7 +210,7 @@ pub async fn read_query_file(
     Ok(QueryFile {
         path: query_path.clone(),
         name: metadata.name.clone(),
-        database: metadata.database.clone(),
+        connection: metadata.connection.clone(),
         content: query_content,
         metadata,
     })

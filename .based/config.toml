@@ -1,30 +1,18 @@
-version = "1.0"
+version = 1
 name = "based"
 description = "A new Based project"
 
-[databases.northwind]
-name = "Northwind Database"
-type = "sqlite"
-description = "SQLite Northwind sample database"
+[connection.northwind]
+label = "Northwind Database"
+engine = "sqlite"
+group = "local"
+file = "/Users/pavi2410/Downloads/northwind.db"
 
-[databases.northwind.connection]
-path = "/Users/pavi2410/Downloads/northwind.db"
-
-[databases.test_mongo]
-name = "Test MongoDB"
-type = "mongodb"
-description = "MongoDB test database on Railway"
-
-[databases.test_mongo.connection]
-url = "mongodb://mongo:QchzKmCzUPaSFWzwlSCkVCRsRvlifNKH@tramway.proxy.rlwy.net:15815/test?authSource=admin"
-
-[environments]
-default = "dev"
-available = [
-    "dev",
-    "staging",
-    "prod",
-]
+[connection.test_mongo]
+label = "Test MongoDB"
+engine = "mongodb"
+group = "remote"
+url = { env = "MONGO_URL" }
 
 [settings]
 queryTimeout = 30000

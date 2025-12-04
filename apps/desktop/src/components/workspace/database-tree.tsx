@@ -1,37 +1,33 @@
-import type { DatabaseConfig } from "@/types/project";
+import type { ConnectionConfig } from "@/types/project";
 import { SQLiteDatabaseTree } from "./database-trees/sqlite-tree";
 import { MongoDBDatabaseTree } from "./database-trees/mongodb-tree";
 
 interface DatabaseTreeProps {
-  dbKey: string;
-  dbConfig: DatabaseConfig;
+  connKey: string;
+  connConfig: ConnectionConfig;
   projectPath: string;
-  environment: string;
 }
 
 export function DatabaseTree({
-  dbKey,
-  dbConfig,
+  connKey,
+  connConfig,
   projectPath,
-  environment,
 }: DatabaseTreeProps) {
-  switch (dbConfig.type) {
+  switch (connConfig.engine) {
     case "sqlite":
       return (
         <SQLiteDatabaseTree
-          dbKey={dbKey}
-          dbConfig={dbConfig}
+          connKey={connKey}
+          connConfig={connConfig}
           projectPath={projectPath}
-          environment={environment}
         />
       );
     case "mongodb":
       return (
         <MongoDBDatabaseTree
-          dbKey={dbKey}
-          dbConfig={dbConfig}
+          connKey={connKey}
+          connConfig={connConfig}
           projectPath={projectPath}
-          environment={environment}
         />
       );
     case "postgres":
@@ -43,7 +39,7 @@ export function DatabaseTree({
     default:
       return (
         <div className="p-4 text-sm text-muted-foreground">
-          Unknown database type: {dbConfig.type}
+          Unknown database engine: {connConfig.engine}
         </div>
       );
   }

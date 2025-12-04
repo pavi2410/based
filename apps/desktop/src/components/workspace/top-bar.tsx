@@ -2,26 +2,21 @@ import { SettingsIcon, RefreshCwIcon, FolderOpenIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { ProjectConfig } from "@/types/project";
-import { DatabaseSelector } from "./database-selector";
-import { EnvironmentSelector } from "./environment-selector";
+import { ConnectionSelector } from "./connection-selector";
 
 interface TopBarProps {
   config: ProjectConfig;
   projectPath: string;
-  activeDatabase: string | null;
-  activeEnvironment: string;
-  onDatabaseChange: (dbKey: string) => void;
-  onEnvironmentChange: (env: string) => void;
+  activeConnection: string | null;
+  onConnectionChange: (connKey: string) => void;
   onReloadConfig: () => void;
 }
 
 export function TopBar({
   config,
   projectPath,
-  activeDatabase,
-  activeEnvironment,
-  onDatabaseChange,
-  onEnvironmentChange,
+  activeConnection,
+  onConnectionChange,
   onReloadConfig,
 }: TopBarProps) {
   return (
@@ -43,17 +38,12 @@ export function TopBar({
           </div>
         </div>
 
-        {/* Center: Selectors */}
+        {/* Center: Connection Selector */}
         <div className="flex items-center gap-2">
-          <DatabaseSelector
-            databases={config.databases}
-            activeDatabase={activeDatabase}
-            onDatabaseChange={onDatabaseChange}
-          />
-          <EnvironmentSelector
-            environments={config.environments}
-            activeEnvironment={activeEnvironment}
-            onEnvironmentChange={onEnvironmentChange}
+          <ConnectionSelector
+            connections={config.connection}
+            activeConnection={activeConnection}
+            onConnectionChange={onConnectionChange}
           />
         </div>
 

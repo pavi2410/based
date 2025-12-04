@@ -9,13 +9,12 @@ import {
 } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { DatabaseConfig } from "@/types/project";
+import type { ConnectionConfig } from "@/types/project";
 
 interface MongoDBDatabaseTreeProps {
-  dbKey: string;
-  dbConfig: DatabaseConfig;
+  connKey: string;
+  connConfig: ConnectionConfig;
   projectPath: string;
-  environment: string;
 }
 
 interface MongoCollection {
@@ -23,19 +22,17 @@ interface MongoCollection {
 }
 
 export function MongoDBDatabaseTree({
-  dbKey,
+  connKey,
   projectPath,
-  environment,
 }: MongoDBDatabaseTreeProps) {
   const [isOpen, setIsOpen] = useState(true);
 
   const collectionsQuery = useQuery({
-    queryKey: ["project-db-collections", projectPath, dbKey, environment],
+    queryKey: ["project-db-collections", projectPath, connKey],
     queryFn: async () => {
       const collections = await invoke<MongoCollection[]>("get_mongodb_collections", {
         projectPath,
-        dbKey,
-        environment,
+        connKey,
       });
       return collections;
     },

@@ -4,13 +4,10 @@ import { useStore } from "@nanostores/react";
 import { readProjectConfig } from "@/stores/projects";
 import {
   addRecentProject,
-  setActiveDatabase,
-  setActiveEnvironment,
+  setActiveConnection,
   setProjectConfig,
-  switchDatabase,
-  switchEnvironment,
-  $activeDatabase,
-  $activeEnvironment,
+  switchConnection,
+  $activeConnection,
   $connectionStatus,
 } from "@/stores/project-state";
 import type { ProjectConfig } from "@/types/project";
@@ -34,16 +31,15 @@ function ProjectWorkspace() {
   const [error, setError] = useState<string | null>(null);
 
   // Get reactive state from stores
-  const activeDatabase = useStore($activeDatabase);
-  const activeEnvironment = useStore($activeEnvironment);
+  const activeConnection = useStore($activeConnection);
   const connectionStatus = useStore($connectionStatus);
 
   // Decode project path from Base64
   const projectPath = atob(projectId);
 
-  // Get active database config
-  const activeDatabaseConfig =
-    config && activeDatabase ? config.databases[activeDatabase] : null;
+  // Get active connection config
+  const activeConnectionConfig =
+    config && activeConnection ? config.connection[activeConnection] : null;
 
   // useEffectEvent allows us to use latest values without being part of dependencies
   const loadProject = useEffectEvent(async (showToast = false) => {
@@ -60,13 +56,10 @@ function ProjectWorkspace() {
         lastOpened: new Date().toISOString(),
       });
 
-      // Set default environment and database
-      setActiveEnvironment(projectConfig.environments.default);
-
-      // Set first database as active if exists
-      const firstDbKey = Object.keys(projectConfig.databases)[0];
-      if (firstDbKey) {
-        setActiveDatabase(firstDbKey);
+      // Set first connection as active if exists
+      const firstConnKey = Object.keys(projectConfig.connection)[0];
+      if (firstConnKey) {
+        setActiveConnection(firstConnKey);
       }
 
       setError(null);
@@ -125,12 +118,8 @@ function ProjectWorkspace() {
   }, [projectPath]); // Only depends on projectPath, loadProject is stable via useEffectEvent
 
   // Handlers for selectors
-  const handleDatabaseChange = (dbKey: string) => {
-    switchDatabase(dbKey);
-  };
-
-  const handleEnvironmentChange = (env: string) => {
-    switchEnvironment(env);
+  const handleConnectionChange = (connKey: string) => {
+    switchConnection(connKey);
   };
 
   const handleReloadConfig = () => {
@@ -172,10 +161,8 @@ function ProjectWorkspace() {
       <TopBar
         config={config}
         projectPath={projectPath}
-        activeDatabase={activeDatabase}
-        activeEnvironment={activeEnvironment}
-        onDatabaseChange={handleDatabaseChange}
-        onEnvironmentChange={handleEnvironmentChange}
+        activeConnection={activeConnection}
+        onConnectionChange={handleConnectionChange}
         onReloadConfig={handleReloadConfig}
       />
 
@@ -184,10 +171,9 @@ function ProjectWorkspace() {
         {/* Sidebar */}
         <ResizablePanel defaultSize={20} minSize={15} maxSize={40}>
           <WorkspaceSidebar
-            activeDatabase={activeDatabase}
-            databaseConfig={activeDatabaseConfig}
+            activeConnection={activeConnection}
+            connectionConfig={activeConnectionConfig}
             projectPath={projectPath}
-            activeEnvironment={activeEnvironment}
           />
         </ResizablePanel>
 
@@ -202,8 +188,7 @@ function ProjectWorkspace() {
                 Select a table or collection from the sidebar to explore
               </p>
               <div className="text-sm text-muted-foreground space-y-1">
-                <p>Active Database: {activeDatabaseConfig?.name || "None"}</p>
-                <p>Environment: {activeEnvironment}</p>
+                <p>Active Connection: {activeConnectionConfig?.label || activeConnection || "None"}</p>
               </div>
             </div>
           </div>
@@ -212,9 +197,8 @@ function ProjectWorkspace() {
 
       {/* Status Bar */}
       <StatusBar
-        activeDatabase={activeDatabase}
-        databaseConfig={activeDatabaseConfig}
-        activeEnvironment={activeEnvironment}
+        activeConnection={activeConnection}
+        connectionConfig={activeConnectionConfig}
         connectionStatus={connectionStatus}
       />
     </div>

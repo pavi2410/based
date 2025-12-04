@@ -4,7 +4,7 @@ import type { ProjectConfig } from "@/types/project";
 
 /**
  * Per-project state management using nanostores
- * Tracks active database, environment, and UI state for each project
+ * Tracks active connection and UI state for each project
  */
 
 export interface RecentProject {
@@ -15,20 +15,14 @@ export interface RecentProject {
 
 export type ConnectionStatus = "connected" | "disconnected" | "connecting" | "error";
 
-// Active database key for the current project
-export const $activeDatabase = atom<string | null>(null);
-
-// Active environment (dev, staging, prod, etc.)
-export const $activeEnvironment = atom<string>("dev");
+// Active connection key for the current project
+export const $activeConnection = atom<string | null>(null);
 
 // Current project configuration
 export const $projectConfig = atom<ProjectConfig | null>(null);
 
-// Connection status for the active database
+// Connection status for the active connection
 export const $connectionStatus = atom<ConnectionStatus>("disconnected");
-
-// Resolved environment variables for current environment
-export const $environmentVariables = atom<Record<string, string>>({});
 
 // Sidebar visibility
 export const $sidebarVisible = atom<boolean>(true);
@@ -44,13 +38,8 @@ export const $recentProjects = persistentAtom<RecentProject[]>(
 );
 
 // Actions
-export function setActiveDatabase(dbKey: string) {
-  $activeDatabase.set(dbKey);
-  $connectionStatus.set("disconnected");
-}
-
-export function setActiveEnvironment(env: string) {
-  $activeEnvironment.set(env);
+export function setActiveConnection(connKey: string) {
+  $activeConnection.set(connKey);
   $connectionStatus.set("disconnected");
 }
 
@@ -60,10 +49,6 @@ export function setProjectConfig(config: ProjectConfig | null) {
 
 export function setConnectionStatus(status: ConnectionStatus) {
   $connectionStatus.set(status);
-}
-
-export function setEnvironmentVariables(vars: Record<string, string>) {
-  $environmentVariables.set(vars);
 }
 
 export function toggleSidebar() {
@@ -83,12 +68,7 @@ export function removeRecentProject(projectPath: string) {
   $recentProjects.set(current.filter((p) => p.path !== projectPath));
 }
 
-export async function switchDatabase(dbKey: string) {
-  setActiveDatabase(dbKey);
+export async function switchConnection(connKey: string) {
+  setActiveConnection(connKey);
   // Connection will be established in the component
-}
-
-export async function switchEnvironment(env: string) {
-  setActiveEnvironment(env);
-  // Connections will be re-established in the component
 }

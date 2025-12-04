@@ -12,7 +12,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
 import { TopBar } from "@/components/workspace/top-bar";
-import { StatusBar } from "@/components/workspace/status-bar";
 
 // Context to share project data with child routes
 interface ProjectContextValue {
@@ -164,17 +163,14 @@ function ProjectLayout() {
         <TopBar
           config={config}
           onReloadConfig={handleReloadConfig}
+          onConnectionChange={handleConnectionChange}
+          onDisconnect={handleDisconnect}
         />
 
         {/* Child routes render here */}
         <div className="flex-1 overflow-hidden">
           <Outlet />
         </div>
-
-        <StatusBar
-          onConnectionChange={handleConnectionChange}
-          onDisconnect={handleDisconnect}
-        />
       </div>
     </ProjectContext.Provider>
   );

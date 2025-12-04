@@ -63,7 +63,7 @@ export function ConnectionSelector({
 
   return (
     <Select value={connKey || undefined} onValueChange={onConnectionChange}>
-      <SelectTrigger size="sm" className={compact ? "h-auto! py-0! px-1 text-[11px] gap-1 border-none bg-transparent shadow-none hover:bg-muted/50 [&_svg:last-child]:size-3" : "w-[280px]"}>
+      <SelectTrigger size="sm" className={compact ? "h-auto! py-1 px-2 text-xs gap-1.5 border-none bg-transparent shadow-none hover:bg-muted/50 [&_svg:last-child]:size-3" : "w-[280px]"}>
         <SelectValue placeholder="Select connection">
           {activeConnConfig && (
             <div className="flex items-center gap-1">

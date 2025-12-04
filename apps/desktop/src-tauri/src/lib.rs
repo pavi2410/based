@@ -4,6 +4,7 @@ mod decode;
 mod error;
 mod file_watcher;
 mod project_commands;
+mod project_db_commands;
 mod project_types;
 mod variables;
 
@@ -15,6 +16,9 @@ use crate::project_commands::{
     delete_query_file, initialize_project, list_query_files, load_env_file_command,
     read_project_config, read_query_file, resolve_connection_config_command,
     write_project_config, write_query_file,
+};
+use crate::project_db_commands::{
+    get_sqlite_objects, get_mongodb_collections, close_project_connections,
 };
 use std::collections::HashMap;
 use tokio::sync::RwLock;
@@ -48,6 +52,10 @@ pub fn run() {
             // File watcher commands
             watch_project_config,
             unwatch_project_config,
+            // Project database commands
+            get_sqlite_objects,
+            get_mongodb_collections,
+            close_project_connections,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

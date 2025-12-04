@@ -1,12 +1,27 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useEffectEvent } from "react";
+import { useStore } from "@nanostores/react";
 import { readProjectConfig } from "@/stores/projects";
-import { addRecentProject, setActiveDatabase, setActiveEnvironment } from "@/stores/project-state";
+import {
+  addRecentProject,
+  setActiveDatabase,
+  setActiveEnvironment,
+  setProjectConfig,
+  switchDatabase,
+  switchEnvironment,
+  $activeDatabase,
+  $activeEnvironment,
+  $connectionStatus,
+} from "@/stores/project-state";
 import type { ProjectConfig } from "@/types/project";
 import { Loader2Icon } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { TopBar } from "@/components/workspace/top-bar";
+import { WorkspaceSidebar } from "@/components/workspace/workspace-sidebar";
+import { StatusBar } from "@/components/workspace/status-bar";
 
 export const Route = createFileRoute("/project/$projectId")({
   component: ProjectWorkspace,
@@ -18,8 +33,17 @@ function ProjectWorkspace() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Get reactive state from stores
+  const activeDatabase = useStore($activeDatabase);
+  const activeEnvironment = useStore($activeEnvironment);
+  const connectionStatus = useStore($connectionStatus);
+
   // Decode project path from Base64
   const projectPath = atob(projectId);
+
+  // Get active database config
+  const activeDatabaseConfig =
+    config && activeDatabase ? config.databases[activeDatabase] : null;
 
   // useEffectEvent allows us to use latest values without being part of dependencies
   const loadProject = useEffectEvent(async (showToast = false) => {
@@ -27,6 +51,7 @@ function ProjectWorkspace() {
       setLoading(true);
       const projectConfig = await readProjectConfig(projectPath);
       setConfig(projectConfig);
+      setProjectConfig(projectConfig);
 
       // Add to recent projects
       addRecentProject({
@@ -95,8 +120,22 @@ function ProjectWorkspace() {
         unlisten();
       }
       invoke("unwatch_project_config").catch(console.error);
+      invoke("close_project_connections", { projectPath }).catch(console.error);
     };
   }, [projectPath]); // Only depends on projectPath, loadProject is stable via useEffectEvent
+
+  // Handlers for selectors
+  const handleDatabaseChange = (dbKey: string) => {
+    switchDatabase(dbKey);
+  };
+
+  const handleEnvironmentChange = (env: string) => {
+    switchEnvironment(env);
+  };
+
+  const handleReloadConfig = () => {
+    loadProject(true);
+  };
 
   if (loading) {
     return (
@@ -129,24 +168,55 @@ function ProjectWorkspace() {
 
   return (
     <div className="flex flex-col h-screen">
-      <div className="border-b p-4">
-        <h1 className="text-lg font-semibold">{config.name}</h1>
-        <p className="text-sm text-muted-foreground">{config.description}</p>
-      </div>
+      {/* Top Bar */}
+      <TopBar
+        config={config}
+        projectPath={projectPath}
+        activeDatabase={activeDatabase}
+        activeEnvironment={activeEnvironment}
+        onDatabaseChange={handleDatabaseChange}
+        onEnvironmentChange={handleEnvironmentChange}
+        onReloadConfig={handleReloadConfig}
+      />
 
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <h2 className="text-2xl font-bold">Project Workspace</h2>
-          <p className="text-muted-foreground">
-            Database explorer and query editor coming soon...
-          </p>
-          <div className="text-sm text-muted-foreground space-y-1">
-            <p>Version: {config.version}</p>
-            <p>Databases: {Object.keys(config.databases).length}</p>
-            <p>Environments: {config.environments.available.join(", ")}</p>
+      {/* Main Content Area with Resizable Panels */}
+      <ResizablePanelGroup direction="horizontal" className="flex-1">
+        {/* Sidebar */}
+        <ResizablePanel defaultSize={20} minSize={15} maxSize={40}>
+          <WorkspaceSidebar
+            activeDatabase={activeDatabase}
+            databaseConfig={activeDatabaseConfig}
+            projectPath={projectPath}
+            activeEnvironment={activeEnvironment}
+          />
+        </ResizablePanel>
+
+        <ResizableHandle />
+
+        {/* Main Content */}
+        <ResizablePanel defaultSize={80}>
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center space-y-4">
+              <h2 className="text-2xl font-bold">Welcome to Your Project</h2>
+              <p className="text-muted-foreground">
+                Select a table or collection from the sidebar to explore
+              </p>
+              <div className="text-sm text-muted-foreground space-y-1">
+                <p>Active Database: {activeDatabaseConfig?.name || "None"}</p>
+                <p>Environment: {activeEnvironment}</p>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
+
+      {/* Status Bar */}
+      <StatusBar
+        activeDatabase={activeDatabase}
+        databaseConfig={activeDatabaseConfig}
+        activeEnvironment={activeEnvironment}
+        connectionStatus={connectionStatus}
+      />
     </div>
   );
 }

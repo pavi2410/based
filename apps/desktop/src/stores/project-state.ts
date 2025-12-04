@@ -1,5 +1,6 @@
 import { atom } from "nanostores";
 import { persistentAtom } from "@nanostores/persistent";
+import type { ProjectConfig } from "@/types/project";
 
 /**
  * Per-project state management using nanostores
@@ -12,11 +13,22 @@ export interface RecentProject {
   lastOpened: string; // ISO timestamp
 }
 
+export type ConnectionStatus = "connected" | "disconnected" | "connecting" | "error";
+
 // Active database key for the current project
 export const $activeDatabase = atom<string | null>(null);
 
 // Active environment (dev, staging, prod, etc.)
 export const $activeEnvironment = atom<string>("dev");
+
+// Current project configuration
+export const $projectConfig = atom<ProjectConfig | null>(null);
+
+// Connection status for the active database
+export const $connectionStatus = atom<ConnectionStatus>("disconnected");
+
+// Resolved environment variables for current environment
+export const $environmentVariables = atom<Record<string, string>>({});
 
 // Sidebar visibility
 export const $sidebarVisible = atom<boolean>(true);
@@ -34,10 +46,24 @@ export const $recentProjects = persistentAtom<RecentProject[]>(
 // Actions
 export function setActiveDatabase(dbKey: string) {
   $activeDatabase.set(dbKey);
+  $connectionStatus.set("disconnected");
 }
 
 export function setActiveEnvironment(env: string) {
   $activeEnvironment.set(env);
+  $connectionStatus.set("disconnected");
+}
+
+export function setProjectConfig(config: ProjectConfig | null) {
+  $projectConfig.set(config);
+}
+
+export function setConnectionStatus(status: ConnectionStatus) {
+  $connectionStatus.set(status);
+}
+
+export function setEnvironmentVariables(vars: Record<string, string>) {
+  $environmentVariables.set(vars);
 }
 
 export function toggleSidebar() {
@@ -55,4 +81,14 @@ export function addRecentProject(project: RecentProject) {
 export function removeRecentProject(projectPath: string) {
   const current = $recentProjects.get();
   $recentProjects.set(current.filter((p) => p.path !== projectPath));
+}
+
+export async function switchDatabase(dbKey: string) {
+  setActiveDatabase(dbKey);
+  // Connection will be established in the component
+}
+
+export async function switchEnvironment(env: string) {
+  setActiveEnvironment(env);
+  // Connections will be re-established in the component
 }

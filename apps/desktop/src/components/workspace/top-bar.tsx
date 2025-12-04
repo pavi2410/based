@@ -1,0 +1,88 @@
+import { SettingsIcon, RefreshCwIcon, FolderOpenIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import type { ProjectConfig } from "@/types/project";
+import { DatabaseSelector } from "./database-selector";
+import { EnvironmentSelector } from "./environment-selector";
+
+interface TopBarProps {
+  config: ProjectConfig;
+  projectPath: string;
+  activeDatabase: string | null;
+  activeEnvironment: string;
+  onDatabaseChange: (dbKey: string) => void;
+  onEnvironmentChange: (env: string) => void;
+  onReloadConfig: () => void;
+}
+
+export function TopBar({
+  config,
+  projectPath,
+  activeDatabase,
+  activeEnvironment,
+  onDatabaseChange,
+  onEnvironmentChange,
+  onReloadConfig,
+}: TopBarProps) {
+  return (
+    <div className="border-b bg-background">
+      <div className="flex items-center justify-between px-4 py-2">
+        {/* Left: Project Info */}
+        <div className="flex items-center gap-4">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              <FolderOpenIcon className="size-4 text-muted-foreground" />
+              <h1 className="text-sm font-semibold">{config.name}</h1>
+              <Badge variant="outline" className="text-xs">
+                v{config.version}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground truncate max-w-md">
+              {projectPath}
+            </p>
+          </div>
+        </div>
+
+        {/* Center: Selectors */}
+        <div className="flex items-center gap-2">
+          <DatabaseSelector
+            databases={config.databases}
+            activeDatabase={activeDatabase}
+            onDatabaseChange={onDatabaseChange}
+          />
+          <EnvironmentSelector
+            environments={config.environments}
+            activeEnvironment={activeEnvironment}
+            onEnvironmentChange={onEnvironmentChange}
+          />
+        </div>
+
+        {/* Right: Actions */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onReloadConfig}
+            title="Reload configuration"
+          >
+            <RefreshCwIcon className="size-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            title="Project settings"
+          >
+            <SettingsIcon className="size-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Bottom: Description */}
+      {config.description && (
+        <div className="px-4 pb-2">
+          <p className="text-xs text-muted-foreground">{config.description}</p>
+        </div>
+      )}
+    </div>
+  );
+}

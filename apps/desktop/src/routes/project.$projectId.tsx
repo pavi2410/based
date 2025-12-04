@@ -4,10 +4,11 @@ import { useStore } from "@nanostores/react";
 import { readProjectConfig } from "@/stores/projects";
 import {
   addRecentProject,
-  setActiveConnection,
   setProjectConfig,
+  setProjectPath,
   switchConnection,
   $activeConnection,
+  $activeConnectionId,
   $connectionStatus,
 } from "@/stores/project-state";
 import type { ProjectConfig } from "@/types/project";
@@ -32,6 +33,7 @@ function ProjectWorkspace() {
 
   // Get reactive state from stores
   const activeConnection = useStore($activeConnection);
+  const activeConnectionId = useStore($activeConnectionId);
   const connectionStatus = useStore($connectionStatus);
 
   // Decode project path from Base64
@@ -45,6 +47,7 @@ function ProjectWorkspace() {
   const loadProject = useEffectEvent(async (showToast = false) => {
     const doLoad = async () => {
       setLoading(true);
+      setProjectPath(projectPath); // Set project path for connection management
       const projectConfig = await readProjectConfig(projectPath);
       setConfig(projectConfig);
       setProjectConfig(projectConfig);
@@ -56,10 +59,11 @@ function ProjectWorkspace() {
         lastOpened: new Date().toISOString(),
       });
 
-      // Set first connection as active if exists
+      // Set first connection as active and connect
       const firstConnKey = Object.keys(projectConfig.connection)[0];
       if (firstConnKey) {
-        setActiveConnection(firstConnKey);
+        // Use switchConnection to both set active and establish connection
+        await switchConnection(firstConnKey);
       }
 
       setError(null);
@@ -189,6 +193,9 @@ function ProjectWorkspace() {
               </p>
               <div className="text-sm text-muted-foreground space-y-1">
                 <p>Active Connection: {activeConnectionConfig?.label || activeConnection || "None"}</p>
+                {activeConnectionId && (
+                  <p className="text-xs font-mono opacity-50">ID: {activeConnectionId}</p>
+                )}
               </div>
             </div>
           </div>

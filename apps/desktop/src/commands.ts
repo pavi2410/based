@@ -1,13 +1,24 @@
 import { invoke } from '@tauri-apps/api/core';
+import type { ConnectionInfo } from '@/types/project';
 
-export async function load(db: string) {
-  return await invoke<boolean>('load', { db });
+/**
+ * Connect to a project database and get its stable connection ID.
+ * If already connected, returns the existing ID.
+ */
+export async function connectProjectDb(projectPath: string, connKey: string): Promise<string> {
+  return await invoke<string>('connect_project_db', { projectPath, connKey });
 }
 
-export async function close(db?: string) {
-  return await invoke<boolean>('close', { db });
+/**
+ * Get connection info by ID.
+ */
+export async function getConnectionInfo(connId: string): Promise<ConnectionInfo> {
+  return await invoke<ConnectionInfo>('get_connection_info', { connId });
 }
 
-export async function query<T>(db: string, query: string, values: Array<any>) {
-  return await invoke<{ db: string; result: T }>('query', { db, query, values });
+/**
+ * Close all connections for a project.
+ */
+export async function closeProjectConnections(projectPath: string): Promise<void> {
+  return await invoke<void>('close_project_connections', { projectPath });
 }

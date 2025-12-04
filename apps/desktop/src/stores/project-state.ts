@@ -1,6 +1,7 @@
 import { atom } from "nanostores";
 import { persistentAtom } from "@nanostores/persistent";
 import type { ProjectConfig } from "@/types/project";
+import { connectProjectDb } from "@/commands";
 
 /**
  * Per-project state management using nanostores
@@ -15,8 +16,14 @@ export interface RecentProject {
 
 export type ConnectionStatus = "connected" | "disconnected" | "connecting" | "error";
 
-// Active connection key for the current project
+// Active connection key for the current project (config key like "dev", "prod")
 export const $activeConnection = atom<string | null>(null);
+
+// Active connection ID (stable hash-based ID from backend)
+export const $activeConnectionId = atom<string | null>(null);
+
+// Current project path
+export const $projectPath = atom<string | null>(null);
 
 // Current project configuration
 export const $projectConfig = atom<ProjectConfig | null>(null);
@@ -40,7 +47,16 @@ export const $recentProjects = persistentAtom<RecentProject[]>(
 // Actions
 export function setActiveConnection(connKey: string) {
   $activeConnection.set(connKey);
+  $activeConnectionId.set(null); // Reset ID until connected
   $connectionStatus.set("disconnected");
+}
+
+export function setActiveConnectionId(connId: string) {
+  $activeConnectionId.set(connId);
+}
+
+export function setProjectPath(path: string) {
+  $projectPath.set(path);
 }
 
 export function setProjectConfig(config: ProjectConfig | null) {
@@ -68,7 +84,28 @@ export function removeRecentProject(projectPath: string) {
   $recentProjects.set(current.filter((p) => p.path !== projectPath));
 }
 
-export async function switchConnection(connKey: string) {
+/**
+ * Switch to a new connection and establish the connection.
+ * Returns the connection ID on success.
+ */
+export async function switchConnection(connKey: string): Promise<string | null> {
+  const projectPath = $projectPath.get();
+  if (!projectPath) {
+    console.error("No project path set");
+    return null;
+  }
+
   setActiveConnection(connKey);
-  // Connection will be established in the component
+  setConnectionStatus("connecting");
+
+  try {
+    const connId = await connectProjectDb(projectPath, connKey);
+    setActiveConnectionId(connId);
+    setConnectionStatus("connected");
+    return connId;
+  } catch (error) {
+    console.error("Failed to connect:", error);
+    setConnectionStatus("error");
+    return null;
+  }
 }

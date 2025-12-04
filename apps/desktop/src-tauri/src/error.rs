@@ -22,6 +22,14 @@ pub enum Error {
     MongoAuth(String),
     #[error("mongodb connection error: {0}")]
     MongoConnection(String),
+    #[error("connection not found: {0}")]
+    ConnectionNotFound(String),
+}
+
+impl From<String> for Error {
+    fn from(s: String) -> Self {
+        Error::ConnectionNotFound(s)
+    }
 }
 
 impl Serialize for Error {

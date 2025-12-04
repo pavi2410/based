@@ -91,3 +91,15 @@ export type ProjectState = {
     explorerExpanded: string[];
   };
 }
+
+/**
+ * Connection info returned from the backend registry.
+ * Contains the stable connection ID and metadata.
+ */
+export type ConnectionInfo = {
+  id: string;           // Stable hash-based ID
+  project_path: string;
+  conn_key: string;     // Original key from config
+  engine: Engine;
+  label?: string;
+}

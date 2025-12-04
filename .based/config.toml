@@ -14,6 +14,17 @@ engine = "mongodb"
 group = "remote"
 url = { env = "MONGO_URL" }
 
+[connection.railway_pg]
+label = "Railway PostgreSQL"
+engine = "postgres"
+group = "remote"
+host = "caboose.proxy.rlwy.net"
+port = 34306
+database = "railway"
+username = "postgres"
+password = "UYDGdVvqPgJhIwndpIxkWrpffspaXBVT"
+ssl = true
+
 [settings]
 queryTimeout = 30000
 maxResultRows = 1000

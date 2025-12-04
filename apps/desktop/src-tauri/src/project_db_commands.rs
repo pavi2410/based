@@ -8,25 +8,24 @@ use std::collections::HashMap;
 use tauri::State;
 
 /// Generate a project-aware connection key
-/// Format: {projectPath}::{dbKey}::{env}
-fn get_connection_key(project_path: &str, db_key: &str, env: &str) -> String {
-    format!("{}::{}::{}", project_path, db_key, env)
+/// Format: {projectPath}::{connKey}
+fn get_connection_key(project_path: &str, conn_key: &str) -> String {
+    format!("{}::{}", project_path, conn_key)
 }
 
 /// Ensure a project database connection exists in the pool
 async fn ensure_project_connection(
     project_path: &str,
-    db_key: &str,
-    environment: &str,
+    conn_key: &str,
     db_instances: &State<'_, DbInstances>,
     app: tauri::AppHandle,
 ) -> Result<(), Error> {
-    let conn_key = get_connection_key(project_path, db_key, environment);
+    let pool_key = get_connection_key(project_path, conn_key);
 
     // Check if connection already exists
     {
         let instances = db_instances.0.read().await;
-        if instances.contains_key(&conn_key) {
+        if instances.contains_key(&pool_key) {
             return Ok(());
         }
     }
@@ -39,8 +38,8 @@ async fn ensure_project_connection(
     // Get connection config
     let conn_config = config
         .connection
-        .get(db_key)
-        .ok_or_else(|| Error::InvalidDbUrl(format!("Connection key not found: {}", db_key)))?;
+        .get(conn_key)
+        .ok_or_else(|| Error::InvalidDbUrl(format!("Connection key not found: {}", conn_key)))?;
 
     // Load environment file from .based/.env
     let env_file_path = std::path::Path::new(project_path).join(".based/.env");
@@ -105,7 +104,7 @@ async fn ensure_project_connection(
 
     // Store in pool
     let mut instances = db_instances.0.write().await;
-    instances.insert(conn_key, pool);
+    instances.insert(pool_key, pool);
 
     Ok(())
 }
@@ -118,20 +117,19 @@ pub struct SQLiteObject {
 #[tauri::command]
 pub async fn get_sqlite_objects(
     project_path: String,
-    db_key: String,
-    environment: String,
+    conn_key: String,
     object_type: String,
     db_instances: State<'_, DbInstances>,
     app: tauri::AppHandle,
 ) -> Result<Vec<SQLiteObject>, Error> {
     // Ensure connection exists
-    ensure_project_connection(&project_path, &db_key, &environment, &db_instances, app).await?;
+    ensure_project_connection(&project_path, &conn_key, &db_instances, app).await?;
 
-    let conn_key = get_connection_key(&project_path, &db_key, &environment);
+    let pool_key = get_connection_key(&project_path, &conn_key);
 
     let instances = db_instances.0.read().await;
     let pool = instances
-        .get(&conn_key)
+        .get(&pool_key)
         .ok_or_else(|| Error::InvalidDbUrl("Connection not found".to_string()))?;
 
     match pool {
@@ -166,19 +164,18 @@ pub struct MongoDBCollection {
 #[tauri::command]
 pub async fn get_mongodb_collections(
     project_path: String,
-    db_key: String,
-    environment: String,
+    conn_key: String,
     db_instances: State<'_, DbInstances>,
     app: tauri::AppHandle,
 ) -> Result<Vec<MongoDBCollection>, Error> {
     // Ensure connection exists
-    ensure_project_connection(&project_path, &db_key, &environment, &db_instances, app).await?;
+    ensure_project_connection(&project_path, &conn_key, &db_instances, app).await?;
 
-    let conn_key = get_connection_key(&project_path, &db_key, &environment);
+    let pool_key = get_connection_key(&project_path, &conn_key);
 
     let instances = db_instances.0.read().await;
     let pool = instances
-        .get(&conn_key)
+        .get(&pool_key)
         .ok_or_else(|| Error::InvalidDbUrl("Connection not found".to_string()))?;
 
     match pool {
@@ -194,6 +191,103 @@ pub async fn get_mongodb_collections(
         }
         _ => Err(Error::InvalidDbUrl(
             "Expected MongoDB connection".to_string(),
+        )),
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PostgresSchema {
+    name: String,
+}
+
+#[tauri::command]
+pub async fn get_postgres_schemas(
+    project_path: String,
+    conn_key: String,
+    db_instances: State<'_, DbInstances>,
+    app: tauri::AppHandle,
+) -> Result<Vec<PostgresSchema>, Error> {
+    // Ensure connection exists
+    ensure_project_connection(&project_path, &conn_key, &db_instances, app).await?;
+
+    let pool_key = get_connection_key(&project_path, &conn_key);
+
+    let instances = db_instances.0.read().await;
+    let pool = instances
+        .get(&pool_key)
+        .ok_or_else(|| Error::InvalidDbUrl("Connection not found".to_string()))?;
+
+    match pool {
+        ConnectionPool::Postgres(pool) => {
+            let query = "SELECT schema_name as name FROM information_schema.schemata
+                         WHERE schema_name NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+                         ORDER BY schema_name";
+
+            let rows = sqlx::query(query).fetch_all(pool).await?;
+
+            let schemas: Vec<PostgresSchema> = rows
+                .iter()
+                .map(|row| PostgresSchema {
+                    name: row.get(0),
+                })
+                .collect();
+
+            Ok(schemas)
+        }
+        _ => Err(Error::InvalidDbUrl(
+            "Expected PostgreSQL connection".to_string(),
+        )),
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PostgresTable {
+    name: String,
+    schema: String,
+}
+
+#[tauri::command]
+pub async fn get_postgres_tables(
+    project_path: String,
+    conn_key: String,
+    schema: String,
+    db_instances: State<'_, DbInstances>,
+    app: tauri::AppHandle,
+) -> Result<Vec<PostgresTable>, Error> {
+    // Ensure connection exists
+    ensure_project_connection(&project_path, &conn_key, &db_instances, app).await?;
+
+    let pool_key = get_connection_key(&project_path, &conn_key);
+
+    let instances = db_instances.0.read().await;
+    let pool = instances
+        .get(&pool_key)
+        .ok_or_else(|| Error::InvalidDbUrl("Connection not found".to_string()))?;
+
+    match pool {
+        ConnectionPool::Postgres(pool) => {
+            let query = "SELECT table_name as name, table_schema as schema
+                         FROM information_schema.tables
+                         WHERE table_schema = $1 AND table_type = 'BASE TABLE'
+                         ORDER BY table_name";
+
+            let rows = sqlx::query(query)
+                .bind(&schema)
+                .fetch_all(pool)
+                .await?;
+
+            let tables: Vec<PostgresTable> = rows
+                .iter()
+                .map(|row| PostgresTable {
+                    name: row.get(0),
+                    schema: row.get(1),
+                })
+                .collect();
+
+            Ok(tables)
+        }
+        _ => Err(Error::InvalidDbUrl(
+            "Expected PostgreSQL connection".to_string(),
         )),
     }
 }

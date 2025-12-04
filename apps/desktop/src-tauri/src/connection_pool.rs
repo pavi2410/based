@@ -8,12 +8,13 @@ use mongodb::{
 };
 use serde_json::{Value as JsonValue, json};
 use sqlx::migrate::MigrateDatabase;
-use sqlx::{Column, Executor, Pool, Row, Sqlite};
+use sqlx::{Column, Executor, Pool, Row, Sqlite, Postgres};
 use std::collections::HashMap;
 use tauri::{AppHandle, Runtime};
 
 pub enum ConnectionPool {
     Sqlite(Pool<Sqlite>),
+    Postgres(Pool<Postgres>),
     Mongo(Database),
 }
 
@@ -169,6 +170,9 @@ impl ConnectionPool {
                     }
                 }
             }
+            "postgresql" => {
+                Ok(Self::Postgres(Pool::connect(conn_url).await?))
+            }
             _ => Err(crate::Error::InvalidDbUrl(conn_url.to_string())),
         }
     }
@@ -176,6 +180,7 @@ impl ConnectionPool {
     pub(crate) async fn close(&self) {
         match self {
             ConnectionPool::Sqlite(pool) => pool.close().await,
+            ConnectionPool::Postgres(pool) => pool.close().await,
             ConnectionPool::Mongo(_) => (), // MongoDB client handles connection pooling internally
         }
     }
@@ -212,6 +217,35 @@ impl ConnectionPool {
                 }
                 Ok(json!({
                     "db": "sqlite",
+                    "result": values,
+                }))
+            }
+            ConnectionPool::Postgres(pool) => {
+                let mut query = sqlx::query(&query);
+                for value in values {
+                    if value.is_null() {
+                        query = query.bind(None::<JsonValue>);
+                    } else if value.is_string() {
+                        query = query.bind(value.as_str().unwrap().to_owned())
+                    } else if let Some(number) = value.as_number() {
+                        query = query.bind(number.as_f64().unwrap_or_default())
+                    } else {
+                        query = query.bind(value);
+                    }
+                }
+                let rows = pool.fetch_all(query).await?;
+                let mut values = Vec::new();
+                for row in rows {
+                    let mut value: HashMap<String, JsonValue> = HashMap::default();
+                    for (i, column) in row.columns().iter().enumerate() {
+                        let v = row.try_get_raw(i)?;
+                        let v = crate::decode::postgres::to_json(v)?;
+                        value.insert(column.name().to_string(), v);
+                    }
+                    values.push(value);
+                }
+                Ok(json!({
+                    "db": "postgres",
                     "result": values,
                 }))
             }

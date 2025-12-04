@@ -1,6 +1,7 @@
 import type { ConnectionConfig } from "@/types/project";
 import { SQLiteDatabaseTree } from "./database-trees/sqlite-tree";
 import { MongoDBDatabaseTree } from "./database-trees/mongodb-tree";
+import { PostgresDatabaseTree } from "./database-trees/postgres-tree";
 
 interface DatabaseTreeProps {
   connKey: string;
@@ -32,9 +33,11 @@ export function DatabaseTree({
       );
     case "postgres":
       return (
-        <div className="p-4 text-sm text-muted-foreground">
-          PostgreSQL explorer coming in Phase 9
-        </div>
+        <PostgresDatabaseTree
+          connKey={connKey}
+          connConfig={connConfig}
+          projectPath={projectPath}
+        />
       );
     default:
       return (

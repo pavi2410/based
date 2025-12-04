@@ -1,4 +1,7 @@
-import { DatabaseIcon, CheckIcon, CircleDotIcon } from "lucide-react";
+import { CircleDotIcon } from "lucide-react";
+import DeviconSqlite from "~icons/devicon/sqlite";
+import DeviconMongodb from "~icons/devicon/mongodb";
+import DeviconPostgresql from "~icons/devicon/postgresql";
 import {
   Select,
   SelectContent,
@@ -9,7 +12,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { ConnectionConfig } from "@/types/project";
-import { Badge } from "@/components/ui/badge";
 
 interface ConnectionSelectorProps {
   connections: Record<string, ConnectionConfig>;
@@ -17,29 +19,16 @@ interface ConnectionSelectorProps {
   onConnectionChange: (connKey: string) => void;
 }
 
-function getEngineLabel(engine: string): string {
+function getEngineIcon(engine: string) {
   switch (engine) {
     case "sqlite":
-      return "SQLite";
+      return <DeviconSqlite className="size-4" />;
     case "mongodb":
-      return "MongoDB";
+      return <DeviconMongodb className="size-4" />;
     case "postgres":
-      return "PostgreSQL";
+      return <DeviconPostgresql className="size-4" />;
     default:
-      return engine;
-  }
-}
-
-function getEngineColor(engine: string): string {
-  switch (engine) {
-    case "sqlite":
-      return "text-blue-500";
-    case "mongodb":
-      return "text-green-500";
-    case "postgres":
-      return "text-purple-500";
-    default:
-      return "text-gray-500";
+      return <CircleDotIcon className="size-4" />;
   }
 }
 
@@ -75,41 +64,28 @@ export function ConnectionSelector({
 
   return (
     <Select value={activeConnection || undefined} onValueChange={onConnectionChange}>
-      <SelectTrigger className="w-[250px]">
-        <div className="flex items-center gap-2">
-          <DatabaseIcon className="size-4" />
-          <SelectValue placeholder="Select connection">
-            {activeConnConfig && (
-              <div className="flex items-center gap-2">
-                <span>{activeConnConfig.label || activeConnection}</span>
-                <Badge variant="secondary" className="text-xs">
-                  {getEngineLabel(activeConnConfig.engine)}
-                </Badge>
-              </div>
-            )}
-          </SelectValue>
-        </div>
+      <SelectTrigger className="w-[280px]">
+        <SelectValue placeholder="Select connection">
+          {activeConnConfig && (
+            <div className="flex items-center gap-2">
+              {getEngineIcon(activeConnConfig.engine)}
+              <span>{activeConnConfig.label || activeConnection}</span>
+            </div>
+          )}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {Object.entries(groupedConnections).map(([groupKey, conns]) => (
           <SelectGroup key={groupKey}>
-            <SelectLabel className="flex items-center gap-2">
-              <CircleDotIcon className={`size-3 ${getEngineColor(conns[0].engine)}`} />
+            <SelectLabel className="flex items-center gap-2 text-xs">
+              <CircleDotIcon className="size-3" />
               {groupKey.charAt(0).toUpperCase() + groupKey.slice(1)}
             </SelectLabel>
             {conns.map((conn) => (
               <SelectItem key={conn.key} value={conn.key}>
-                <div className="flex items-center gap-2">
-                  {activeConnection === conn.key && (
-                    <CheckIcon className="size-3 text-primary" />
-                  )}
-                  <span>{conn.label || conn.key}</span>
-                  {conn.color && (
-                    <div
-                      className="size-2 rounded-full"
-                      style={{ backgroundColor: conn.color }}
-                    />
-                  )}
+                <div className="flex items-center gap-2 w-full">
+                  {getEngineIcon(conn.engine)}
+                  <span className="flex-1">{conn.label || conn.key}</span>
                 </div>
               </SelectItem>
             ))}

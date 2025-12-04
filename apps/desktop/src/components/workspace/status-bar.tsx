@@ -1,5 +1,7 @@
 import { CircleCheckIcon, CircleXIcon, CircleDotIcon } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import DeviconSqlite from "~icons/devicon/sqlite";
+import DeviconMongodb from "~icons/devicon/mongodb";
+import DeviconPostgresql from "~icons/devicon/postgresql";
 import type { ConnectionConfig } from "@/types/project";
 
 interface StatusBarProps {
@@ -34,6 +36,19 @@ function getStatusLabel(status: string) {
   }
 }
 
+function getEngineIcon(engine: string) {
+  switch (engine) {
+    case "sqlite":
+      return <DeviconSqlite className="size-4" />;
+    case "mongodb":
+      return <DeviconMongodb className="size-4" />;
+    case "postgres":
+      return <DeviconPostgresql className="size-4" />;
+    default:
+      return null;
+  }
+}
+
 export function StatusBar({
   activeConnection,
   connectionConfig,
@@ -51,9 +66,7 @@ export function StatusBar({
         {activeConnection && connectionConfig && (
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground">|</span>
-            <Badge variant="secondary" className="text-xs font-normal">
-              {connectionConfig.engine.toUpperCase()}
-            </Badge>
+            {getEngineIcon(connectionConfig.engine)}
             <span className="font-medium">{connectionConfig.label || activeConnection}</span>
           </div>
         )}

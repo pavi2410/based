@@ -18,7 +18,7 @@ use crate::project_commands::{
     write_project_config, write_query_file,
 };
 use crate::project_db_commands::{
-    get_sqlite_objects, get_mongodb_collections, close_project_connections,
+    get_sqlite_objects, get_mongodb_collections, get_postgres_schemas, get_postgres_tables, close_project_connections,
 };
 use std::collections::HashMap;
 use tokio::sync::RwLock;
@@ -55,6 +55,8 @@ pub fn run() {
             // Project database commands
             get_sqlite_objects,
             get_mongodb_collections,
+            get_postgres_schemas,
+            get_postgres_tables,
             close_project_connections,
         ])
         .run(tauri::generate_context!())

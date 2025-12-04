@@ -3,3 +3,4 @@
 // SPDX-License-Identifier: MIT
 
 pub(crate) mod sqlite;
+pub(crate) mod postgres;

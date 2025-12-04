@@ -118,12 +118,12 @@ function ProjectLayout() {
       <div className="flex flex-col h-screen">
         <header
           data-tauri-drag-region
-          className="h-12 border-b bg-background/80 backdrop-blur-sm select-none"
+          className="h-10 border-b bg-background/95 backdrop-blur-sm select-none"
         />
         <div className="flex-1 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2Icon className="size-8 animate-spin text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Loading project...</p>
+          <div className="flex flex-col items-center gap-3">
+            <Loader2Icon className="size-6 animate-spin text-muted-foreground" />
+            <p className="text-xs text-muted-foreground">Loading project...</p>
           </div>
         </div>
       </div>
@@ -135,12 +135,12 @@ function ProjectLayout() {
       <div className="flex flex-col h-screen">
         <header
           data-tauri-drag-region
-          className="h-12 border-b bg-background/80 backdrop-blur-sm select-none"
+          className="h-10 border-b bg-background/95 backdrop-blur-sm select-none"
         />
         <div className="flex-1 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4 max-w-md">
-            <h2 className="text-lg font-semibold text-destructive">Failed to load project</h2>
-            <p className="text-sm text-muted-foreground text-center">{error}</p>
+          <div className="flex flex-col items-center gap-3 max-w-md">
+            <h2 className="text-sm font-semibold text-destructive">Failed to load project</h2>
+            <p className="text-xs text-muted-foreground text-center">{error}</p>
             <p className="text-xs text-muted-foreground font-mono bg-muted p-2 rounded">
               {projectPath}
             </p>

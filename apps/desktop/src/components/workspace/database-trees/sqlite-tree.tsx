@@ -7,8 +7,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import type { ConnectionConfig } from "@/types/project";
 
 interface SQLiteDatabaseTreeProps {
@@ -31,16 +29,17 @@ export function SQLiteDatabaseTree({
   selectedTable,
 }: SQLiteDatabaseTreeProps) {
   return (
-    <div className="p-2 space-y-2">
+    <div className="py-1 space-y-0.5">
       <SQLiteObjectGroup
         connKey={connKey}
         connConfig={connConfig}
         projectPath={projectPath}
         type="table"
         label="Tables"
-        icon={<TableIcon className="size-4" />}
+        icon={<TableIcon className="size-3.5" />}
         onSelectTable={onSelectTable}
         selectedTable={selectedTable}
+        defaultOpen
       />
       <SQLiteObjectGroup
         connKey={connKey}
@@ -48,7 +47,7 @@ export function SQLiteDatabaseTree({
         projectPath={projectPath}
         type="view"
         label="Views"
-        icon={<Table2Icon className="size-4" />}
+        icon={<Table2Icon className="size-3.5" />}
         onSelectTable={onSelectTable}
         selectedTable={selectedTable}
       />
@@ -58,7 +57,7 @@ export function SQLiteDatabaseTree({
         projectPath={projectPath}
         type="index"
         label="Indexes"
-        icon={<ListOrderedIcon className="size-4" />}
+        icon={<ListOrderedIcon className="size-3.5" />}
       />
       <SQLiteObjectGroup
         connKey={connKey}
@@ -66,7 +65,7 @@ export function SQLiteDatabaseTree({
         projectPath={projectPath}
         type="trigger"
         label="Triggers"
-        icon={<RefreshCcwIcon className="size-4" />}
+        icon={<RefreshCcwIcon className="size-3.5" />}
       />
     </div>
   );
@@ -81,6 +80,7 @@ interface SQLiteObjectGroupProps {
   icon: React.ReactNode;
   onSelectTable?: (tableName: string, schema?: string) => void;
   selectedTable?: string;
+  defaultOpen?: boolean;
 }
 
 function SQLiteObjectGroup({
@@ -91,8 +91,9 @@ function SQLiteObjectGroup({
   icon,
   onSelectTable,
   selectedTable,
+  defaultOpen = false,
 }: SQLiteObjectGroupProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(defaultOpen);
 
   const objectQuery = useQuery({
     queryKey: ["project-db-objects", projectPath, connKey, type],
@@ -115,49 +116,51 @@ function SQLiteObjectGroup({
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <CollapsibleTrigger asChild>
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-2 px-2 h-8"
+        <button
+          className="w-full flex items-center gap-1.5 px-2 h-7 text-xs hover:bg-muted/50 transition-colors"
         >
           <ChevronRightIcon
-            className={`size-4 transition-transform ${isOpen ? "rotate-90" : ""}`}
+            className={`size-3 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`}
           />
-          {icon}
-          <span className="flex-1 text-left text-sm">{label}</span>
-          <Badge variant="outline" className="text-xs">
-            {objectQuery.isSuccess ? objectQuery.data.length : 0}
-          </Badge>
-        </Button>
+          <span className="text-muted-foreground">{icon}</span>
+          <span className="flex-1 text-left font-medium">{label}</span>
+          <span className="text-[10px] text-muted-foreground tabular-nums">
+            {objectQuery.isSuccess ? objectQuery.data.length : "–"}
+          </span>
+        </button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="ml-6 mt-1 space-y-1">
+      <CollapsibleContent className="ml-4 border-l border-border/50">
         {objectQuery.isLoading && (
-          <div className="text-xs text-muted-foreground px-2 py-1">
+          <div className="text-[11px] text-muted-foreground px-3 py-1.5">
             Loading...
           </div>
         )}
         {objectQuery.isError && (
-          <div className="text-xs text-destructive px-2 py-1">
-            Failed to load {label.toLowerCase()}
+          <div className="text-[11px] text-destructive px-3 py-1.5">
+            Failed to load
           </div>
         )}
         {objectQuery.isSuccess && objectQuery.data.length === 0 && (
-          <div className="text-xs text-muted-foreground px-2 py-1">
-            No {label.toLowerCase()} found
+          <div className="text-[11px] text-muted-foreground px-3 py-1.5 italic">
+            None
           </div>
         )}
         {objectQuery.isSuccess &&
           objectQuery.data.map((obj) => {
             const isSelected = selectedTable === obj.name;
             return (
-              <Button
+              <button
                 key={obj.name}
-                variant={isSelected ? "secondary" : "ghost"}
-                className="w-full justify-start h-7 px-2 text-xs font-normal"
+                className={`w-full text-left h-6 px-3 text-[11px] truncate transition-colors ${
+                  isSelected
+                    ? "bg-primary/10 text-primary font-medium"
+                    : "text-foreground/80 hover:bg-muted/50"
+                }`}
                 title={obj.name}
                 onClick={() => handleObjectClick(obj.name)}
               >
                 {obj.name}
-              </Button>
+              </button>
             );
           })}
       </CollapsibleContent>

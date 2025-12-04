@@ -3,23 +3,24 @@ import { Button } from "@/components/ui/button.tsx";
 import { StarIcon } from "lucide-react";
 import { RecentProjects } from "@/components/welcome/recent-projects";
 import { ActionButtons } from "@/components/welcome/action-buttons";
+import { useTitlebar } from "@/hooks/use-titlebar";
 
 export const Route = createFileRoute("/")({
   component: Index,
 });
 
 function Index() {
+  const { leftRef, rightRef } = useTitlebar();
+
   return (
     <div className="flex flex-col h-screen overflow-hidden">
-      {/* Header - Custom Titlebar */}
-      <header
-        data-tauri-drag-region
-        className="h-12 flex items-center justify-between border-b bg-background/80 backdrop-blur-sm select-none"
-      >
-        <div data-tauri-drag-region className="pl-20">
+      {/* Header */}
+      <header className="h-10 flex items-center justify-between border-b bg-background/95 backdrop-blur-sm select-none">
+        <div ref={leftRef} className="pl-20 pr-4">
           <Branding />
         </div>
-        <div className="pr-4">
+        <div className="flex-1" />
+        <div ref={rightRef} className="pr-4">
           <Button
             className="shadow-none text-muted-foreground hover:text-foreground hover:bg-yellow-500/10 group"
             variant="outline"

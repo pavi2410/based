@@ -1,6 +1,11 @@
 import { DatabaseIcon, HistoryIcon, FileTextIcon } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { DatabaseTree } from "./database-tree";
 import { useConnection } from "@/routes/project.$projectId/conn.$connKey";
 
@@ -14,22 +19,34 @@ export function WorkspaceSidebar(_props: WorkspaceSidebarProps) {
   return (
     <div className="flex flex-col h-full border-r bg-background">
       <Tabs defaultValue="database" className="flex flex-col h-full">
-        <TabsList className="w-full justify-start rounded-none border-b bg-muted/50 px-2">
-          <TabsTrigger value="database" className="gap-2">
-            <DatabaseIcon className="size-4" />
-            Database
-          </TabsTrigger>
-          <TabsTrigger value="queries" className="gap-2" disabled>
-            <FileTextIcon className="size-4" />
-            Queries
-          </TabsTrigger>
-          <TabsTrigger value="history" className="gap-2" disabled>
-            <HistoryIcon className="size-4" />
-            History
-          </TabsTrigger>
+        <TabsList className="h-9 w-full justify-start rounded-none border-b bg-transparent px-1 gap-0">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <TabsTrigger value="database" className="size-7 p-0 data-[state=active]:bg-muted">
+                <DatabaseIcon className="size-4" />
+              </TabsTrigger>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Database</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <TabsTrigger value="queries" className="size-7 p-0 data-[state=active]:bg-muted" disabled>
+                <FileTextIcon className="size-4" />
+              </TabsTrigger>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Queries (coming soon)</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <TabsTrigger value="history" className="size-7 p-0 data-[state=active]:bg-muted" disabled>
+                <HistoryIcon className="size-4" />
+              </TabsTrigger>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">History (coming soon)</TooltipContent>
+          </Tooltip>
         </TabsList>
 
-        <TabsContent value="database" className="flex-1 m-0">
+        <TabsContent value="database" className="flex-1 m-0 mt-0">
           <ScrollArea className="h-full">
             <DatabaseTree
               connKey={connKey}
@@ -42,15 +59,15 @@ export function WorkspaceSidebar(_props: WorkspaceSidebarProps) {
           </ScrollArea>
         </TabsContent>
 
-        <TabsContent value="queries" className="flex-1 m-0">
-          <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
-            Query files coming in Phase 5
+        <TabsContent value="queries" className="flex-1 m-0 mt-0">
+          <div className="flex items-center justify-center h-32 text-xs text-muted-foreground">
+            Coming soon
           </div>
         </TabsContent>
 
-        <TabsContent value="history" className="flex-1 m-0">
-          <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
-            Query history coming in Phase 8
+        <TabsContent value="history" className="flex-1 m-0 mt-0">
+          <div className="flex items-center justify-center h-32 text-xs text-muted-foreground">
+            Coming soon
           </div>
         </TabsContent>
       </Tabs>

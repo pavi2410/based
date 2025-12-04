@@ -1,4 +1,4 @@
-import { CircleCheckIcon, CircleXIcon, CircleDotIcon, UnplugIcon } from "lucide-react";
+import { CircleIcon, UnplugIcon } from "lucide-react";
 import { useStore } from "@nanostores/react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -10,41 +10,24 @@ import {
 import { Button } from "@/components/ui/button";
 import { ConnectionSelector } from "./connection-selector";
 
-function getStatusIcon(status: string) {
-  switch (status) {
-    case "connected":
-      return <CircleCheckIcon className="size-3 text-green-500" />;
-    case "error":
-      return <CircleXIcon className="size-3 text-destructive" />;
-    case "connecting":
-      return <CircleDotIcon className="size-3 text-yellow-500 animate-pulse" />;
-    default:
-      return <CircleDotIcon className="size-3 text-muted-foreground" />;
-  }
-}
+function StatusDot({ status }: { status: string }) {
+  const colorClass = {
+    connected: "fill-emerald-500 text-emerald-500",
+    error: "fill-red-500 text-red-500",
+    connecting: "fill-amber-500 text-amber-500 animate-pulse",
+    disconnected: "fill-muted-foreground/50 text-muted-foreground/50",
+  }[status] || "fill-muted-foreground/50 text-muted-foreground/50";
 
-function getStatusLabel(status: string) {
-  switch (status) {
-    case "connected":
-      return "Connected";
-    case "error":
-      return "Error";
-    case "connecting":
-      return "Connecting...";
-    default:
-      return "Disconnected";
-  }
+  return <CircleIcon className={`size-1.5 ${colorClass}`} />;
 }
 
 function formatConnectionTime(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
-  return `${(ms / 1000).toFixed(2)}s`;
+  return `${(ms / 1000).toFixed(1)}s`;
 }
 
 interface StatusBarProps {
-  /** Called when user disconnects - for navigation */
   onDisconnect?: () => void;
-  /** Called when user changes connection */
   onConnectionChange?: (connKey: string) => void;
 }
 
@@ -57,81 +40,63 @@ export function StatusBar({ onDisconnect, onConnectionChange }: StatusBarProps =
     ? projectConfig.connection[connKey]
     : null;
 
-  const statusContent = (
-    <div className="flex items-center gap-2">
-      {getStatusIcon(connectionStatus)}
-      <span className="text-muted-foreground">{getStatusLabel(connectionStatus)}</span>
-    </div>
-  );
-
   return (
-    <div className="border-t bg-muted/30 px-4 py-1.5 flex items-center justify-between text-xs">
-      {/* Left: Connection Status */}
-      <div className="flex items-center gap-4">
-        {connectionStatus === "connected" && connectionStats ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button className="flex items-center gap-2 hover:bg-muted/50 rounded px-1 -mx-1 transition-colors">
-                {getStatusIcon(connectionStatus)}
-                <span className="text-muted-foreground">{getStatusLabel(connectionStatus)}</span>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="space-y-1">
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-muted-foreground">Connection time:</span>
-                <span className="font-medium">{formatConnectionTime(connectionStats.connectionTimeMs)}</span>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-muted-foreground">Connected at:</span>
-                <span className="font-medium">
+    <div className="h-7 border-t bg-muted/20 px-2 flex items-center justify-between text-[11px]">
+      {/* Left: Status + Connection */}
+      <div className="flex items-center gap-2">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex items-center gap-1.5 px-1 rounded hover:bg-muted/50 transition-colors cursor-default">
+              <StatusDot status={connectionStatus} />
+              <span className="text-muted-foreground capitalize">{connectionStatus}</span>
+            </div>
+          </TooltipTrigger>
+          {connectionStatus === "connected" && connectionStats && (
+            <TooltipContent side="top" className="text-xs">
+              <div className="space-y-0.5">
+                <div>Connected in {formatConnectionTime(connectionStats.connectionTimeMs)}</div>
+                <div className="text-muted-foreground">
                   {new Date(connectionStats.connectedAt).toLocaleTimeString()}
-                </span>
+                </div>
               </div>
             </TooltipContent>
-          </Tooltip>
-        ) : (
-          statusContent
-        )}
+          )}
+        </Tooltip>
 
         {connKey && connectionConfig && projectConfig && (
           <>
-            <span className="text-muted-foreground">|</span>
+            <span className="text-border">•</span>
             <ConnectionSelector
               connections={projectConfig.connection}
               connKey={connKey}
-              onConnectionChange={(connKey) => onConnectionChange?.(connKey)}
+              onConnectionChange={(key) => onConnectionChange?.(key)}
               compact
             />
             <Popover>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <PopoverTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-5"
-                    >
+                    <button className="p-0.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors">
                       <UnplugIcon className="size-3" />
-                    </Button>
+                    </button>
                   </PopoverTrigger>
                 </TooltipTrigger>
                 <TooltipContent side="top">Disconnect</TooltipContent>
               </Tooltip>
-              <PopoverContent side="top" className="w-auto p-3">
+              <PopoverContent side="top" className="w-auto p-2">
                 <div className="flex flex-col gap-2">
-                  <p className="text-sm">Disconnect from this database?</p>
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={async () => {
-                        await disconnectConnection();
-                        onDisconnect?.();
-                      }}
-                    >
-                      Disconnect
-                    </Button>
-                  </div>
+                  <p className="text-xs">Disconnect?</p>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={async () => {
+                      await disconnectConnection();
+                      onDisconnect?.();
+                    }}
+                  >
+                    Disconnect
+                  </Button>
                 </div>
               </PopoverContent>
             </Popover>
@@ -139,12 +104,12 @@ export function StatusBar({ onDisconnect, onConnectionChange }: StatusBarProps =
         )}
       </div>
 
-      {/* Right: Additional Info */}
-      <div className="flex items-center gap-2 text-muted-foreground">
-        {connectionConfig?.group && (
-          <span className="capitalize">{connectionConfig.group}</span>
-        )}
-      </div>
+      {/* Right: Group badge */}
+      {connectionConfig?.group && (
+        <span className="text-muted-foreground/70 capitalize px-1.5 py-0.5 rounded bg-muted/30">
+          {connectionConfig.group}
+        </span>
+      )}
     </div>
   );
 }

@@ -71,7 +71,7 @@ function ConnectionLayout() {
   if (!ctx || !projectPath || !projectId) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2Icon className="size-8 animate-spin text-muted-foreground" />
+        <Loader2Icon className="size-5 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -93,9 +93,9 @@ function ConnectionLayout() {
   if (connectionStatus === "connecting") {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2Icon className="size-8 animate-spin text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Connecting to database...</p>
+        <div className="flex flex-col items-center gap-3">
+          <Loader2Icon className="size-5 animate-spin text-muted-foreground" />
+          <p className="text-xs text-muted-foreground">Connecting...</p>
         </div>
       </div>
     );
@@ -105,10 +105,10 @@ function ConnectionLayout() {
   if (!connectionConfig) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="flex flex-col items-center gap-4 max-w-md">
-          <h2 className="text-lg font-semibold text-destructive">Connection not found</h2>
-          <p className="text-sm text-muted-foreground text-center">
-            Connection "{connKey}" is not defined in the project config.
+        <div className="flex flex-col items-center gap-2 max-w-sm">
+          <h2 className="text-sm font-medium text-destructive">Connection not found</h2>
+          <p className="text-xs text-muted-foreground text-center">
+            "{connKey}" is not defined in the project config.
           </p>
         </div>
       </div>

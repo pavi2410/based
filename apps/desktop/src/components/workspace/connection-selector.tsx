@@ -21,16 +21,17 @@ interface ConnectionSelectorProps {
   compact?: boolean;
 }
 
-function getEngineIcon(engine: string) {
+function getEngineIcon(engine: string, compact = false) {
+  const size = compact ? "size-3" : "size-4";
   switch (engine) {
     case "sqlite":
-      return <DeviconSqlite className="size-4" />;
+      return <DeviconSqlite className={size} />;
     case "mongodb":
-      return <DeviconMongodb className="size-4" />;
+      return <DeviconMongodb className={size} />;
     case "postgres":
-      return <DeviconPostgresql className="size-4" />;
+      return <DeviconPostgresql className={size} />;
     default:
-      return <CircleDotIcon className="size-4" />;
+      return <CircleDotIcon className={size} />;
   }
 }
 
@@ -62,11 +63,11 @@ export function ConnectionSelector({
 
   return (
     <Select value={connKey || undefined} onValueChange={onConnectionChange}>
-      <SelectTrigger className={compact ? "h-6 text-xs gap-1 border-none bg-transparent [--spacing:3px]" : "w-[280px]"}>
+      <SelectTrigger size="sm" className={compact ? "h-auto! py-0! px-1 text-[11px] gap-1 border-none bg-transparent shadow-none hover:bg-muted/50 [&_svg:last-child]:size-3" : "w-[280px]"}>
         <SelectValue placeholder="Select connection">
           {activeConnConfig && (
-            <div className="flex items-center gap-1.5">
-              {getEngineIcon(activeConnConfig.engine)}
+            <div className="flex items-center gap-1">
+              {getEngineIcon(activeConnConfig.engine, compact)}
               <span>{activeConnConfig.label || connKey}</span>
             </div>
           )}

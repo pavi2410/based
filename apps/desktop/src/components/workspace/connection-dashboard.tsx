@@ -1,9 +1,9 @@
 import { useMemo } from "react";
-import { DatabaseIcon, HardDriveIcon, CloudIcon, Loader2Icon } from "lucide-react";
+import { DatabaseIcon, HardDriveIcon, CloudIcon, Loader2Icon, ChevronRightIcon } from "lucide-react";
+import DeviconSqlite from "~icons/devicon/sqlite";
+import DeviconMongodb from "~icons/devicon/mongodb";
+import DeviconPostgresql from "~icons/devicon/postgresql";
 import { useStore } from "@nanostores/react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import type { ProjectConfig, ConnectionConfig, Engine } from "@/types/project";
 import { switchConnection, $connectionStatus } from "@/stores/project-state";
 
@@ -11,22 +11,10 @@ interface ConnectionDashboardProps {
   config: ProjectConfig;
 }
 
-const ENGINE_INFO: Record<Engine, { icon: React.ReactNode; label: string; color: string }> = {
-  sqlite: {
-    icon: <DatabaseIcon className="size-6" />,
-    label: "SQLite",
-    color: "text-blue-500",
-  },
-  postgres: {
-    icon: <DatabaseIcon className="size-6" />,
-    label: "PostgreSQL",
-    color: "text-sky-500",
-  },
-  mongodb: {
-    icon: <DatabaseIcon className="size-6" />,
-    label: "MongoDB",
-    color: "text-green-500",
-  },
+const ENGINE_ICONS: Record<Engine, React.ReactNode> = {
+  sqlite: <DeviconSqlite className="size-6" />,
+  postgres: <DeviconPostgresql className="size-6" />,
+  mongodb: <DeviconMongodb className="size-6" />,
 };
 
 const GROUP_INFO: Record<string, { icon: React.ReactNode; label: string }> = {
@@ -40,51 +28,38 @@ const GROUP_INFO: Record<string, { icon: React.ReactNode; label: string }> = {
   },
 };
 
-interface ConnectionCardProps {
+interface ConnectionRowProps {
   connKey: string;
   config: ConnectionConfig;
   onConnect: (connKey: string) => void;
   isConnecting: boolean;
 }
 
-function ConnectionCard({ connKey, config, onConnect, isConnecting }: ConnectionCardProps) {
-  const engineInfo = ENGINE_INFO[config.engine];
-  
+function ConnectionRow({ connKey, config, onConnect, isConnecting }: ConnectionRowProps) {
+  const engineIcon = ENGINE_ICONS[config.engine] || <DatabaseIcon className="size-6" />;
+
   return (
-    <Card className="group hover:border-primary/50 transition-colors">
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <div className={`${engineInfo.color}`}>
-            {engineInfo.icon}
-          </div>
-          <Badge variant="secondary" className="text-xs">
-            {engineInfo.label}
-          </Badge>
-        </div>
-        <CardTitle className="text-base mt-2">
+    <button
+      type="button"
+      className="w-full flex items-center gap-4 px-4 py-3 rounded-lg border bg-muted/50 hover:bg-muted hover:border-primary/50 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
+      onClick={() => onConnect(connKey)}
+      disabled={isConnecting || config.disabled}
+    >
+      {engineIcon}
+      <div className="flex-1 min-w-0">
+        <div className="font-medium truncate">
           {config.label || connKey}
-        </CardTitle>
-        <CardDescription className="text-xs font-mono">
+        </div>
+        <div className="text-xs text-muted-foreground font-mono truncate">
           {connKey}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <Button
-          className="w-full"
-          onClick={() => onConnect(connKey)}
-          disabled={isConnecting || config.disabled}
-        >
-          {isConnecting ? (
-            <>
-              <Loader2Icon className="size-4 mr-2 animate-spin" />
-              Connecting...
-            </>
-          ) : (
-            "Connect"
-          )}
-        </Button>
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+      {isConnecting ? (
+        <Loader2Icon className="size-4 animate-spin text-muted-foreground shrink-0" />
+      ) : (
+        <ChevronRightIcon className="size-4 text-muted-foreground shrink-0" />
+      )}
+    </button>
   );
 }
 
@@ -108,9 +83,9 @@ function ConnectionGroup({ groupKey, connections, onConnect, connectingKey }: Co
         <span className="font-medium">{groupInfo.label}</span>
         <span className="text-xs">({connections.length})</span>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
         {connections.map(({ key, config }) => (
-          <ConnectionCard
+          <ConnectionRow
             key={key}
             connKey={key}
             config={config}

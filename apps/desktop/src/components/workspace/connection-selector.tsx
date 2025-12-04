@@ -38,27 +38,22 @@ export function ConnectionSelector({
   onConnectionChange,
 }: ConnectionSelectorProps) {
   // Group connections by group field, then by engine if no group
-  const groupedConnections = Object.entries(connections).reduce(
-    (acc, [key, conn]) => {
-      // Skip disabled connections
-      if (conn.disabled) {
-        return acc;
-      }
+  const enabledConnections = Object.entries(connections)
+    .filter(([, conn]) => !conn.disabled)
+    .map(([key, conn]) => ({ key, ...conn }));
 
-      const groupKey = conn.group || conn.engine;
-      if (!acc[groupKey]) {
-        acc[groupKey] = [];
-      }
-      acc[groupKey].push({ key, ...conn });
-      return acc;
-    },
-    {} as Record<string, Array<{ key: string } & ConnectionConfig>>,
+  const groupedConnections = Object.groupBy(
+    enabledConnections,
+    (conn) => conn.group || conn.engine,
   );
 
-  // Sort connections within each group by order field
-  Object.values(groupedConnections).forEach((group) => {
-    group.sort((a, b) => (a.order || 0) - (b.order || 0));
-  });
+  // Sort group names and connections within each group
+  const sortedGroups = Object.entries(groupedConnections)
+    .toSorted(([a], [b]) => a.localeCompare(b))
+    .map(([groupKey, conns]) => ([
+      groupKey,
+      conns!.toSorted((a, b) => (a.order || 0) - (b.order || 0) || a.key.localeCompare(b.key)),
+    ] as const));
 
   const activeConnConfig = activeConnection ? connections[activeConnection] : null;
 
@@ -75,11 +70,10 @@ export function ConnectionSelector({
         </SelectValue>
       </SelectTrigger>
       <SelectContent>
-        {Object.entries(groupedConnections).map(([groupKey, conns]) => (
+        {sortedGroups.map(([groupKey, conns]) => (
           <SelectGroup key={groupKey}>
-            <SelectLabel className="flex items-center gap-2 text-xs">
-              <CircleDotIcon className="size-3" />
-              {groupKey.charAt(0).toUpperCase() + groupKey.slice(1)}
+            <SelectLabel className="flex items-center gap-2 text-xs capitalize">
+              {groupKey}
             </SelectLabel>
             {conns.map((conn) => (
               <SelectItem key={conn.key} value={conn.key}>

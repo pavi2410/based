@@ -165,19 +165,23 @@ function ProjectWorkspace() {
 
       {/* Main Content Area with Resizable Panels */}
       <ResizablePanelGroup direction="horizontal" className="flex-1">
-        {/* Sidebar */}
-        <ResizablePanel defaultSize={20} minSize={15} maxSize={40}>
-          <WorkspaceSidebar
-            activeConnection={activeConnection}
-            connectionConfig={activeConnectionConfig}
-            projectPath={projectPath}
-          />
-        </ResizablePanel>
+        {/* Sidebar - only show when a connection is selected */}
+        {activeConnection && (
+          <>
+            <ResizablePanel defaultSize={20} minSize={15} maxSize={40}>
+              <WorkspaceSidebar
+                activeConnection={activeConnection}
+                connectionConfig={activeConnectionConfig}
+                projectPath={projectPath}
+              />
+            </ResizablePanel>
 
-        <ResizableHandle />
+            <ResizableHandle />
+          </>
+        )}
 
         {/* Main Content */}
-        <ResizablePanel defaultSize={80}>
+        <ResizablePanel defaultSize={activeConnection ? 80 : 100}>
           <DataViewer />
         </ResizablePanel>
       </ResizablePanelGroup>

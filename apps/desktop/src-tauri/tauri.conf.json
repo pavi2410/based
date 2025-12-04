@@ -31,5 +31,17 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "cli": {
+      "description": "Based - Git-Friendly Database Client",
+      "args": [
+        {
+          "name": "path",
+          "index": 1,
+          "takesValue": true
+        }
+      ]
+    }
   }
 }

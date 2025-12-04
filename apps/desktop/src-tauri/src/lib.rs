@@ -13,9 +13,9 @@ use crate::connection_pool::ConnectionPool;
 use crate::error::Error;
 use crate::file_watcher::{watch_project_config, unwatch_project_config, FileWatcherState};
 use crate::project_commands::{
-    delete_query_file, initialize_project, list_query_files, load_env_file_command,
-    read_project_config, read_query_file, resolve_connection_config_command,
-    write_project_config, write_query_file,
+    delete_query_file, find_based_project, initialize_project, list_query_files,
+    load_env_file_command, read_project_config, read_query_file,
+    resolve_connection_config_command, write_project_config, write_query_file,
 };
 use crate::project_db_commands::{
     get_sqlite_objects, get_mongodb_collections, close_project_connections,
@@ -32,6 +32,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_cli::init())
         .manage(DbInstances::default())
         .manage(FileWatcherState::default())
         .invoke_handler(tauri::generate_handler![
@@ -40,6 +41,7 @@ pub fn run() {
             close,
             query,
             // Project commands
+            find_based_project,
             initialize_project,
             read_project_config,
             write_project_config,

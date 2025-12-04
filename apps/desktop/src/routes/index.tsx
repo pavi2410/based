@@ -1,20 +1,45 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button.tsx";
-import { StarIcon } from "lucide-react";
+import { StarIcon, Loader2Icon } from "lucide-react";
 import { RecentProjects } from "@/components/welcome/recent-projects";
 import { ActionButtons } from "@/components/welcome/action-buttons";
+import { useCliArgs } from "@/hooks/use-cli-args";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export const Route = createFileRoute("/")({
   component: Index,
 });
 
 function Index() {
+  const { isProcessing, error } = useCliArgs();
+
+  if (isProcessing) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2Icon className="size-8 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Processing CLI arguments...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       {/* Header */}
       <div className="flex justify-between items-center border-b p-4">
         <Branding />
       </div>
+
+      {/* CLI Error Alert */}
+      {error && (
+        <div className="p-4">
+          <Alert variant="destructive">
+            <AlertTitle>Failed to open project from CLI</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        </div>
+      )}
 
       {/* Welcome Content */}
       <div className="flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto">

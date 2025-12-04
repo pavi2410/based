@@ -27,6 +27,51 @@ pub enum ProjectError {
     InvalidFrontmatter(String),
 }
 
+/// Find the Based project directory from a given path
+/// Searches upward from the given path to find a .based directory
+#[command]
+pub async fn find_based_project(start_path: String) -> Result<String, String> {
+    let mut current_path = Path::new(&start_path);
+
+    // If the path is a file, start from its parent directory
+    if current_path.is_file() {
+        current_path = current_path
+            .parent()
+            .ok_or_else(|| "Failed to get parent directory".to_string())?;
+    }
+
+    // Make path absolute
+    let current_path = current_path
+        .canonicalize()
+        .map_err(|e| format!("Failed to canonicalize path: {}", e))?;
+
+    // Search upward for .based directory
+    let mut search_path = current_path.as_path();
+    loop {
+        let based_dir = search_path.join(".based");
+        let config_file = based_dir.join("config.toml");
+
+        if config_file.exists() {
+            // Found it! Return the project root (parent of .based)
+            return Ok(search_path
+                .to_str()
+                .ok_or_else(|| "Invalid path".to_string())?
+                .to_string());
+        }
+
+        // Move up one directory
+        match search_path.parent() {
+            Some(parent) => search_path = parent,
+            None => {
+                return Err(format!(
+                    "No .based directory found in '{}' or any parent directories",
+                    start_path
+                ));
+            }
+        }
+    }
+}
+
 /// Initialize a new Based project in the given directory
 #[command]
 pub async fn initialize_project(project_path: String) -> Result<(), String> {

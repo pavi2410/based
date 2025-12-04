@@ -17,6 +17,13 @@ export async function getConnectionInfo(connId: string): Promise<ConnectionInfo>
 }
 
 /**
+ * Close a specific connection.
+ */
+export async function closeConnection(projectPath: string, connKey: string): Promise<void> {
+  return await invoke<void>('close_connection', { projectPath, connKey });
+}
+
+/**
  * Close all connections for a project.
  */
 export async function closeProjectConnections(projectPath: string): Promise<void> {

@@ -1,10 +1,12 @@
-import { CircleCheckIcon, CircleXIcon, CircleDotIcon } from "lucide-react";
+import { CircleCheckIcon, CircleXIcon, CircleDotIcon, UnplugIcon } from "lucide-react";
 import { useStore } from "@nanostores/react";
 import DeviconSqlite from "~icons/devicon/sqlite";
 import DeviconMongodb from "~icons/devicon/mongodb";
 import DeviconPostgresql from "~icons/devicon/postgresql";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { $connectionStats } from "@/stores/project-state";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { $connectionStats, disconnectConnection } from "@/stores/project-state";
+import { Button } from "@/components/ui/button";
 import type { ConnectionConfig } from "@/types/project";
 
 interface StatusBarProps {
@@ -101,11 +103,43 @@ export function StatusBar({
         )}
 
         {activeConnection && connectionConfig && (
-          <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">|</span>
-            {getEngineIcon(connectionConfig.engine)}
-            <span className="font-medium">{connectionConfig.label || activeConnection}</span>
-          </div>
+          <>
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">|</span>
+              {getEngineIcon(connectionConfig.engine)}
+              <span className="font-medium">{connectionConfig.label || activeConnection}</span>
+            </div>
+            <Popover>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-5"
+                    >
+                      <UnplugIcon className="size-3" />
+                    </Button>
+                  </PopoverTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="top">Disconnect</TooltipContent>
+              </Tooltip>
+              <PopoverContent side="top" className="w-auto p-3">
+                <div className="flex flex-col gap-2">
+                  <p className="text-sm">Disconnect from this database?</p>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={disconnectConnection}
+                    >
+                      Disconnect
+                    </Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </>
         )}
       </div>
 

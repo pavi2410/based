@@ -308,6 +308,18 @@ pub async fn get_postgres_tables(
     }
 }
 
+/// Close a specific connection by project path and connection key.
+#[tauri::command]
+pub async fn close_connection(
+    project_path: String,
+    conn_key: String,
+    registry: State<'_, ConnectionRegistry>,
+) -> Result<(), Error> {
+    let id = ConnectionRegistry::get_id(&project_path, &conn_key);
+    registry.close(&id).await;
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn close_project_connections(
     project_path: String,

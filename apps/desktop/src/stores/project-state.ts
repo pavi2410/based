@@ -1,7 +1,8 @@
 import { atom } from "nanostores";
 import { persistentAtom } from "@nanostores/persistent";
+import { toast } from "sonner";
 import type { ProjectConfig } from "@/types/project";
-import { connectProjectDb } from "@/commands";
+import { connectProjectDb, closeConnection } from "@/commands";
 
 /**
  * Per-project state management using nanostores
@@ -94,6 +95,33 @@ export function toggleSidebar() {
 
 export function selectObject(obj: SelectedObject | null) {
   $selectedObject.set(obj);
+}
+
+/**
+ * Disconnect the current connection and reset to empty state.
+ */
+export async function disconnectConnection() {
+  const projectPath = $projectPath.get();
+  const connKey = $activeConnection.get();
+
+  // Close the backend connection if we have one
+  if (projectPath && connKey) {
+    try {
+      await closeConnection(projectPath, connKey);
+    } catch (error) {
+      toast.error("Failed to disconnect", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+      return;
+    }
+  }
+
+  // Reset frontend state only on success
+  $activeConnection.set(null);
+  $activeConnectionId.set(null);
+  $connectionStatus.set("disconnected");
+  $connectionStats.set(null);
+  $selectedObject.set(null);
 }
 
 export function addRecentProject(project: RecentProject) {

@@ -3,9 +3,7 @@ import { useStore } from "@nanostores/react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import {
-  $connectionStats,
-  $connectionStatus,
-  $activeConnection,
+  $connection,
   $projectConfig,
   disconnectConnection,
 } from "@/stores/project-state";
@@ -51,13 +49,12 @@ interface StatusBarProps {
 }
 
 export function StatusBar({ onDisconnect, onConnectionChange }: StatusBarProps = {}) {
-  const connectionStats = useStore($connectionStats);
-  const connectionStatus = useStore($connectionStatus);
-  const activeConnection = useStore($activeConnection);
+  const connection = useStore($connection);
   const projectConfig = useStore($projectConfig);
 
-  const connectionConfig = activeConnection && projectConfig
-    ? projectConfig.connection[activeConnection]
+  const { connKey, status: connectionStatus, stats: connectionStats } = connection;
+  const connectionConfig = connKey && projectConfig
+    ? projectConfig.connection[connKey]
     : null;
 
   const statusContent = (
@@ -96,12 +93,12 @@ export function StatusBar({ onDisconnect, onConnectionChange }: StatusBarProps =
           statusContent
         )}
 
-        {activeConnection && connectionConfig && projectConfig && (
+        {connKey && connectionConfig && projectConfig && (
           <>
             <span className="text-muted-foreground">|</span>
             <ConnectionSelector
               connections={projectConfig.connection}
-              activeConnection={activeConnection}
+              connKey={connKey}
               onConnectionChange={(connKey) => onConnectionChange?.(connKey)}
               compact
             />

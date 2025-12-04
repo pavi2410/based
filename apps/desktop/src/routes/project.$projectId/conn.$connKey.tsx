@@ -14,7 +14,7 @@ import { ProjectContext } from "../project.$projectId";
 import {
   switchConnection,
   disconnectConnection,
-  $connectionStatus,
+  $connection,
 } from "@/stores/project-state";
 import type { ConnectionConfig } from "@/types/project";
 
@@ -53,7 +53,7 @@ function ConnectionLayout() {
   const navigate = useNavigate({ from: Route.fullPath });
   const ctx = useContext(ProjectContext);
 
-  const connectionStatus = useStore($connectionStatus);
+  const { status: connectionStatus } = useStore($connection);
 
   // Derived values (safe even if ctx is null)
   const config = ctx?.config;

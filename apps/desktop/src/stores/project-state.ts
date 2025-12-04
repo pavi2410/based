@@ -23,23 +23,29 @@ export interface ConnectionStats {
   connectionTimeMs: number; // Time taken to establish connection
 }
 
-// Active connection key for the current project (config key like "dev", "prod")
-export const $activeConnection = atom<string | null>(null);
+// Grouped connection state
+export interface ConnectionState {
+  connKey: string | null;      // Config key like "dev", "prod"
+  connId: string | null;       // Backend connection ID (stable hash)
+  status: ConnectionStatus;
+  stats: ConnectionStats | null;
+}
 
-// Active connection ID (stable hash-based ID from backend)
-export const $activeConnectionId = atom<string | null>(null);
+const initialConnectionState: ConnectionState = {
+  connKey: null,
+  connId: null,
+  status: "disconnected",
+  stats: null,
+};
+
+// Connection state (grouped)
+export const $connection = atom<ConnectionState>(initialConnectionState);
 
 // Current project path
 export const $projectPath = atom<string | null>(null);
 
 // Current project configuration
 export const $projectConfig = atom<ProjectConfig | null>(null);
-
-// Connection status for the active connection
-export const $connectionStatus = atom<ConnectionStatus>("disconnected");
-
-// Connection stats (timing info)
-export const $connectionStats = atom<ConnectionStats | null>(null);
 
 // Sidebar visibility
 export const $sidebarVisible = atom<boolean>(true);
@@ -55,30 +61,12 @@ export const $recentProjects = persistentAtom<RecentProject[]>(
 );
 
 // Actions
-export function setActiveConnection(connKey: string) {
-  $activeConnection.set(connKey);
-  $activeConnectionId.set(null); // Reset ID until connected
-  $connectionStatus.set("disconnected");
-}
-
-export function setActiveConnectionId(connId: string) {
-  $activeConnectionId.set(connId);
-}
-
 export function setProjectPath(path: string) {
   $projectPath.set(path);
 }
 
 export function setProjectConfig(config: ProjectConfig | null) {
   $projectConfig.set(config);
-}
-
-export function setConnectionStatus(status: ConnectionStatus) {
-  $connectionStatus.set(status);
-}
-
-export function setConnectionStats(stats: ConnectionStats | null) {
-  $connectionStats.set(stats);
 }
 
 export function toggleSidebar() {
@@ -90,7 +78,7 @@ export function toggleSidebar() {
  */
 export async function disconnectConnection() {
   const projectPath = $projectPath.get();
-  const connKey = $activeConnection.get();
+  const { connKey } = $connection.get();
 
   // Close the backend connection if we have one
   if (projectPath && connKey) {
@@ -104,11 +92,8 @@ export async function disconnectConnection() {
     }
   }
 
-  // Reset frontend state only on success
-  $activeConnection.set(null);
-  $activeConnectionId.set(null);
-  $connectionStatus.set("disconnected");
-  $connectionStats.set(null);
+  // Reset connection state
+  $connection.set(initialConnectionState);
 }
 
 export function addRecentProject(project: RecentProject) {
@@ -135,9 +120,13 @@ export async function switchConnection(connKey: string): Promise<string | null> 
     return null;
   }
 
-  setActiveConnection(connKey);
-  setConnectionStatus("connecting");
-  setConnectionStats(null);
+  // Set connecting state
+  $connection.set({
+    connKey,
+    connId: null,
+    status: "connecting",
+    stats: null,
+  });
 
   const startTime = performance.now();
 
@@ -145,17 +134,25 @@ export async function switchConnection(connKey: string): Promise<string | null> 
     const connId = await connectProjectDb(projectPath, connKey);
     const connectionTimeMs = Math.round(performance.now() - startTime);
     
-    setActiveConnectionId(connId);
-    setConnectionStatus("connected");
-    setConnectionStats({
-      connectedAt: new Date().toISOString(),
-      connectionTimeMs,
+    // Set connected state atomically
+    $connection.set({
+      connKey,
+      connId,
+      status: "connected",
+      stats: {
+        connectedAt: new Date().toISOString(),
+        connectionTimeMs,
+      },
     });
     return connId;
   } catch (error) {
     console.error("Failed to connect:", error);
-    setConnectionStatus("error");
-    setConnectionStats(null);
+    $connection.set({
+      connKey,
+      connId: null,
+      status: "error",
+      stats: null,
+    });
     return null;
   }
 }

@@ -15,7 +15,7 @@ import type { ConnectionConfig } from "@/types/project";
 
 interface ConnectionSelectorProps {
   connections: Record<string, ConnectionConfig>;
-  activeConnection: string | null;
+  connKey: string | null;
   onConnectionChange: (connKey: string) => void;
   /** Compact mode for status bar */
   compact?: boolean;
@@ -36,7 +36,7 @@ function getEngineIcon(engine: string) {
 
 export function ConnectionSelector({
   connections,
-  activeConnection,
+  connKey,
   onConnectionChange,
   compact = false,
 }: ConnectionSelectorProps) {
@@ -58,16 +58,16 @@ export function ConnectionSelector({
       conns!.toSorted((a, b) => (a.order || 0) - (b.order || 0) || a.key.localeCompare(b.key)),
     ] as const));
 
-  const activeConnConfig = activeConnection ? connections[activeConnection] : null;
+  const activeConnConfig = connKey ? connections[connKey] : null;
 
   return (
-    <Select value={activeConnection || undefined} onValueChange={onConnectionChange}>
+    <Select value={connKey || undefined} onValueChange={onConnectionChange}>
       <SelectTrigger className={compact ? "h-6 text-xs gap-1 border-none bg-transparent [--spacing:3px]" : "w-[280px]"}>
         <SelectValue placeholder="Select connection">
           {activeConnConfig && (
             <div className="flex items-center gap-1.5">
               {getEngineIcon(activeConnConfig.engine)}
-              <span>{activeConnConfig.label || activeConnection}</span>
+              <span>{activeConnConfig.label || connKey}</span>
             </div>
           )}
         </SelectValue>

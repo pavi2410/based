@@ -20,13 +20,27 @@ use crate::project_db_commands::{
     get_postgres_tables, close_connection, close_project_connections, get_connection_info,
     query_sqlite_table, query_postgres_table, query_mongodb_collection,
 };
+use tauri::Manager;
+use tauri_plugin_decorum::WebviewWindowExt;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_decorum::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
+        .setup(|app| {
+            let main_window = app.get_webview_window("main").unwrap();
+            main_window.create_overlay_titlebar().unwrap();
+
+            #[cfg(target_os = "macos")]
+            {
+                main_window.set_traffic_lights_inset(16.0, 24.0).unwrap();
+            }
+
+            Ok(())
+        })
         .manage(ConnectionRegistry::new())
         .manage(FileWatcherState::default())
         .invoke_handler(tauri::generate_handler![

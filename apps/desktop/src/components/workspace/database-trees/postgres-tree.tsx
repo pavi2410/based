@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useQuery } from "@tanstack/react-query";
-import { useStore } from "@nanostores/react";
 import { DatabaseIcon, TableIcon, ChevronRightIcon } from "lucide-react";
 import {
   Collapsible,
@@ -11,12 +10,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ConnectionConfig } from "@/types/project";
-import { selectObject, $selectedObject } from "@/stores/project-state";
 
 interface PostgresDatabaseTreeProps {
   connKey: string;
   connConfig: ConnectionConfig;
   projectPath: string;
+  onSelectTable?: (tableName: string, schema?: string) => void;
+  selectedTable?: string;
+  selectedSchema?: string;
 }
 
 interface PostgresSchema {
@@ -31,6 +32,9 @@ interface PostgresTable {
 export function PostgresDatabaseTree({
   connKey,
   projectPath,
+  onSelectTable,
+  selectedTable,
+  selectedSchema,
 }: PostgresDatabaseTreeProps) {
   const [isOpen, setIsOpen] = useState(true);
 
@@ -87,6 +91,9 @@ export function PostgresDatabaseTree({
                 schema={schema.name}
                 connKey={connKey}
                 projectPath={projectPath}
+                onSelectTable={onSelectTable}
+                selectedTable={selectedTable}
+                selectedSchema={selectedSchema}
               />
             ))}
         </CollapsibleContent>
@@ -99,15 +106,20 @@ interface PostgresSchemaGroupProps {
   schema: string;
   connKey: string;
   projectPath: string;
+  onSelectTable?: (tableName: string, schema?: string) => void;
+  selectedTable?: string;
+  selectedSchema?: string;
 }
 
 function PostgresSchemaGroup({
   schema,
   connKey,
   projectPath,
+  onSelectTable,
+  selectedTable,
+  selectedSchema,
 }: PostgresSchemaGroupProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const selectedObject = useStore($selectedObject);
 
   const tablesQuery = useQuery({
     queryKey: ["project-pg-tables", projectPath, connKey, schema],
@@ -123,11 +135,7 @@ function PostgresSchemaGroup({
   });
 
   const handleTableClick = (tableName: string) => {
-    selectObject({
-      type: "table",
-      name: tableName,
-      schema,
-    });
+    onSelectTable?.(tableName, schema);
   };
 
   return (
@@ -165,7 +173,7 @@ function PostgresSchemaGroup({
         )}
         {tablesQuery.isSuccess &&
           tablesQuery.data.map((table) => {
-            const isSelected = selectedObject?.name === table.name && selectedObject?.schema === schema;
+            const isSelected = selectedTable === table.name && selectedSchema === schema;
             return (
               <Button
                 key={table.name}

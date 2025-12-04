@@ -11,10 +11,15 @@ export const Route = createFileRoute("/")({
 function Index() {
   return (
     <div className="flex flex-col h-screen overflow-hidden">
-      {/* Header */}
-      <div className="flex justify-between items-center border-b p-4">
-        <Branding />
-      </div>
+      {/* Header - Custom Titlebar */}
+      <header
+        data-tauri-drag-region
+        className="h-12 flex items-center border-b bg-background/80 backdrop-blur-sm select-none"
+      >
+        <div data-tauri-drag-region className="pl-20">
+          <Branding />
+        </div>
+      </header>
 
       {/* Welcome Content */}
       <div className="flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto">

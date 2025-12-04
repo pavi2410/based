@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useQuery } from "@tanstack/react-query";
-import { useStore } from "@nanostores/react";
 import { DatabaseIcon, ChevronRightIcon } from "lucide-react";
 import {
   Collapsible,
@@ -11,12 +10,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ConnectionConfig } from "@/types/project";
-import { selectObject, $selectedObject } from "@/stores/project-state";
 
 interface MongoDBDatabaseTreeProps {
   connKey: string;
   connConfig: ConnectionConfig;
   projectPath: string;
+  onSelectTable?: (tableName: string, schema?: string) => void;
+  selectedTable?: string;
 }
 
 interface MongoCollection {
@@ -26,9 +26,10 @@ interface MongoCollection {
 export function MongoDBDatabaseTree({
   connKey,
   projectPath,
+  onSelectTable,
+  selectedTable,
 }: MongoDBDatabaseTreeProps) {
   const [isOpen, setIsOpen] = useState(true);
-  const selectedObject = useStore($selectedObject);
 
   const collectionsQuery = useQuery({
     queryKey: ["project-db-collections", projectPath, connKey],
@@ -43,10 +44,7 @@ export function MongoDBDatabaseTree({
   });
 
   const handleCollectionClick = (name: string) => {
-    selectObject({
-      type: "collection",
-      name,
-    });
+    onSelectTable?.(name);
   };
 
   return (
@@ -85,7 +83,7 @@ export function MongoDBDatabaseTree({
           )}
           {collectionsQuery.isSuccess &&
             collectionsQuery.data.map((collection) => {
-              const isSelected = selectedObject?.name === collection.name && selectedObject?.type === "collection";
+              const isSelected = selectedTable === collection.name;
               return (
                 <Button
                   key={collection.name}

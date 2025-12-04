@@ -1,4 +1,3 @@
-import { useStore } from "@nanostores/react";
 import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
@@ -13,14 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/data-table";
-import { ConnectionDashboard } from "@/components/workspace/connection-dashboard";
-import {
-  $selectedObject,
-  $activeConnection,
-  $projectPath,
-  $projectConfig,
-  $connectionStatus,
-} from "@/stores/project-state";
+import { useConnection } from "@/routes/project.$projectId/conn.$connKey";
 import type { ColumnDef } from "@tanstack/react-table";
 
 interface QueryResult {
@@ -32,34 +24,28 @@ interface QueryResult {
 const PAGE_SIZE = 100;
 
 export function DataViewer() {
-  const selectedObject = useStore($selectedObject);
-  const activeConnection = useStore($activeConnection);
-  const projectPath = useStore($projectPath);
-  const projectConfig = useStore($projectConfig);
-  const connectionStatus = useStore($connectionStatus);
+  const { connKey, connectionConfig, projectPath, selectedTable, selectedSchema } = useConnection();
 
   const [page, setPage] = useState(0);
 
   // Reset page when object changes
-  const objectKey = selectedObject
-    ? `${selectedObject.schema || ""}.${selectedObject.name}`
+  const objectKey = selectedTable
+    ? `${selectedSchema || ""}.${selectedTable}`
     : null;
 
-  const engine = activeConnection && projectConfig
-    ? projectConfig.connection[activeConnection]?.engine
-    : null;
+  const engine = connectionConfig.engine;
 
   const dataQuery = useQuery({
     queryKey: [
       "table-data",
       projectPath,
-      activeConnection,
+      connKey,
       objectKey,
       page,
     ],
     queryFn: async () => {
-      if (!projectPath || !activeConnection || !selectedObject) {
-        throw new Error("Missing required parameters");
+      if (!selectedTable) {
+        throw new Error("No table selected");
       }
 
       const offset = page * PAGE_SIZE;
@@ -68,8 +54,8 @@ export function DataViewer() {
         case "sqlite":
           return await invoke<QueryResult>("query_sqlite_table", {
             projectPath,
-            connKey: activeConnection,
-            tableName: selectedObject.name,
+            connKey,
+            tableName: selectedTable,
             limit: PAGE_SIZE,
             offset,
           });
@@ -77,9 +63,9 @@ export function DataViewer() {
         case "postgres":
           return await invoke<QueryResult>("query_postgres_table", {
             projectPath,
-            connKey: activeConnection,
-            schema: selectedObject.schema || "public",
-            tableName: selectedObject.name,
+            connKey,
+            schema: selectedSchema || "public",
+            tableName: selectedTable,
             limit: PAGE_SIZE,
             offset,
           });
@@ -87,8 +73,8 @@ export function DataViewer() {
         case "mongodb":
           return await invoke<QueryResult>("query_mongodb_collection", {
             projectPath,
-            connKey: activeConnection,
-            collectionName: selectedObject.name,
+            connKey,
+            collectionName: selectedTable,
             limit: PAGE_SIZE,
             offset,
           });
@@ -97,28 +83,11 @@ export function DataViewer() {
           throw new Error(`Unsupported engine: ${engine}`);
       }
     },
-    enabled: !!projectPath && !!activeConnection && !!selectedObject && !!engine,
+    enabled: !!selectedTable,
   });
 
-  // Show connection dashboard when no connection is active
-  if (!activeConnection && projectConfig) {
-    return <ConnectionDashboard config={projectConfig} />;
-  }
-
-  // Show connecting state
-  if (connectionStatus === "connecting") {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2Icon className="size-8 animate-spin text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Connecting to database...</p>
-        </div>
-      </div>
-    );
-  }
-
   // Show empty state with actions when connected but no table selected
-  if (!selectedObject) {
+  if (!selectedTable) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center space-y-6 max-w-md">
@@ -127,7 +96,7 @@ export function DataViewer() {
             <p className="text-muted-foreground">
               You're connected to{" "}
               <span className="font-medium text-foreground">
-                {activeConnection && projectConfig?.connection[activeConnection]?.label || activeConnection}
+                {connectionConfig.label || connKey}
               </span>
             </p>
           </div>
@@ -224,11 +193,11 @@ export function DataViewer() {
       <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
         <div className="flex items-center gap-2">
           <h2 className="font-semibold">
-            {selectedObject.schema ? `${selectedObject.schema}.` : ""}
-            {selectedObject.name}
+            {selectedSchema ? `${selectedSchema}.` : ""}
+            {selectedTable}
           </h2>
           <span className="text-xs text-muted-foreground">
-            ({selectedObject.type})
+            ({engine === "mongodb" ? "collection" : "table"})
           </span>
         </div>
         <div className="flex items-center gap-2">

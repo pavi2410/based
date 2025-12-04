@@ -1,19 +1,16 @@
 import { CircleCheckIcon, CircleXIcon, CircleDotIcon, UnplugIcon } from "lucide-react";
 import { useStore } from "@nanostores/react";
-import DeviconSqlite from "~icons/devicon/sqlite";
-import DeviconMongodb from "~icons/devicon/mongodb";
-import DeviconPostgresql from "~icons/devicon/postgresql";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { $connectionStats, disconnectConnection } from "@/stores/project-state";
+import {
+  $connectionStats,
+  $connectionStatus,
+  $activeConnection,
+  $projectConfig,
+  disconnectConnection,
+} from "@/stores/project-state";
 import { Button } from "@/components/ui/button";
-import type { ConnectionConfig } from "@/types/project";
-
-interface StatusBarProps {
-  activeConnection: string | null;
-  connectionConfig: ConnectionConfig | null;
-  connectionStatus: "connected" | "disconnected" | "connecting" | "error";
-}
+import { ConnectionSelector } from "./connection-selector";
 
 function getStatusIcon(status: string) {
   switch (status) {
@@ -41,30 +38,27 @@ function getStatusLabel(status: string) {
   }
 }
 
-function getEngineIcon(engine: string) {
-  switch (engine) {
-    case "sqlite":
-      return <DeviconSqlite className="size-4" />;
-    case "mongodb":
-      return <DeviconMongodb className="size-4" />;
-    case "postgres":
-      return <DeviconPostgresql className="size-4" />;
-    default:
-      return null;
-  }
-}
-
 function formatConnectionTime(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   return `${(ms / 1000).toFixed(2)}s`;
 }
 
-export function StatusBar({
-  activeConnection,
-  connectionConfig,
-  connectionStatus,
-}: StatusBarProps) {
+interface StatusBarProps {
+  /** Called when user disconnects - for navigation */
+  onDisconnect?: () => void;
+  /** Called when user changes connection */
+  onConnectionChange?: (connKey: string) => void;
+}
+
+export function StatusBar({ onDisconnect, onConnectionChange }: StatusBarProps = {}) {
   const connectionStats = useStore($connectionStats);
+  const connectionStatus = useStore($connectionStatus);
+  const activeConnection = useStore($activeConnection);
+  const projectConfig = useStore($projectConfig);
+
+  const connectionConfig = activeConnection && projectConfig
+    ? projectConfig.connection[activeConnection]
+    : null;
 
   const statusContent = (
     <div className="flex items-center gap-2">
@@ -102,13 +96,15 @@ export function StatusBar({
           statusContent
         )}
 
-        {activeConnection && connectionConfig && (
+        {activeConnection && connectionConfig && projectConfig && (
           <>
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground">|</span>
-              {getEngineIcon(connectionConfig.engine)}
-              <span className="font-medium">{connectionConfig.label || activeConnection}</span>
-            </div>
+            <span className="text-muted-foreground">|</span>
+            <ConnectionSelector
+              connections={projectConfig.connection}
+              activeConnection={activeConnection}
+              onConnectionChange={(connKey) => onConnectionChange?.(connKey)}
+              compact
+            />
             <Popover>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -131,7 +127,10 @@ export function StatusBar({
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={disconnectConnection}
+                      onClick={async () => {
+                        await disconnectConnection();
+                        onDisconnect?.();
+                      }}
                     >
                       Disconnect
                     </Button>

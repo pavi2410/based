@@ -2,19 +2,15 @@ import { DatabaseIcon, HistoryIcon, FileTextIcon } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DatabaseTree } from "./database-tree";
-import type { ConnectionConfig } from "@/types/project";
+import { useConnection } from "@/routes/project.$projectId/conn.$connKey";
 
 interface WorkspaceSidebarProps {
-  activeConnection: string | null;
-  connectionConfig: ConnectionConfig | null;
-  projectPath: string;
+  onDisconnect?: () => void;
 }
 
-export function WorkspaceSidebar({
-  activeConnection,
-  connectionConfig,
-  projectPath,
-}: WorkspaceSidebarProps) {
+export function WorkspaceSidebar(_props: WorkspaceSidebarProps) {
+  const { connKey, connectionConfig, projectPath, onSelectTable, selectedTable, selectedSchema } = useConnection();
+
   return (
     <div className="flex flex-col h-full border-r bg-background">
       <Tabs defaultValue="database" className="flex flex-col h-full">
@@ -35,17 +31,14 @@ export function WorkspaceSidebar({
 
         <TabsContent value="database" className="flex-1 m-0">
           <ScrollArea className="h-full">
-            {activeConnection && connectionConfig ? (
-              <DatabaseTree
-                connKey={activeConnection}
-                connConfig={connectionConfig}
-                projectPath={projectPath}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
-                Select a connection to explore
-              </div>
-            )}
+            <DatabaseTree
+              connKey={connKey}
+              connConfig={connectionConfig}
+              projectPath={projectPath}
+              onSelectTable={onSelectTable}
+              selectedTable={selectedTable}
+              selectedSchema={selectedSchema}
+            />
           </ScrollArea>
         </TabsContent>
 

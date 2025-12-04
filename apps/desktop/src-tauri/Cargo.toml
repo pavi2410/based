@@ -37,4 +37,4 @@ notify = "6.1"
 async-trait = "0.1"
 futures = "0.3"
 chrono = { version = "0.4", features = ["serde"] }
-
+tauri-plugin-decorum = "1"

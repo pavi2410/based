@@ -17,6 +17,8 @@ interface ConnectionSelectorProps {
   connections: Record<string, ConnectionConfig>;
   activeConnection: string | null;
   onConnectionChange: (connKey: string) => void;
+  /** Compact mode for status bar */
+  compact?: boolean;
 }
 
 function getEngineIcon(engine: string) {
@@ -36,6 +38,7 @@ export function ConnectionSelector({
   connections,
   activeConnection,
   onConnectionChange,
+  compact = false,
 }: ConnectionSelectorProps) {
   // Group connections by group field, then by engine if no group
   const enabledConnections = Object.entries(connections)
@@ -59,10 +62,10 @@ export function ConnectionSelector({
 
   return (
     <Select value={activeConnection || undefined} onValueChange={onConnectionChange}>
-      <SelectTrigger className="w-[280px]">
+      <SelectTrigger className={compact ? "h-6 text-xs gap-1 border-none bg-transparent [--spacing:3px]" : "w-[280px]"}>
         <SelectValue placeholder="Select connection">
           {activeConnConfig && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               {getEngineIcon(activeConnConfig.engine)}
               <span>{activeConnConfig.label || activeConnection}</span>
             </div>

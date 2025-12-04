@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useQuery } from "@tanstack/react-query";
-import { useStore } from "@nanostores/react";
 import { TableIcon, Table2Icon, ListOrderedIcon, RefreshCcwIcon, ChevronRightIcon } from "lucide-react";
 import {
   Collapsible,
@@ -11,12 +10,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ConnectionConfig } from "@/types/project";
-import { selectObject, $selectedObject } from "@/stores/project-state";
 
 interface SQLiteDatabaseTreeProps {
   connKey: string;
   connConfig: ConnectionConfig;
   projectPath: string;
+  onSelectTable?: (tableName: string, schema?: string) => void;
+  selectedTable?: string;
 }
 
 interface SQLiteObject {
@@ -27,6 +27,8 @@ export function SQLiteDatabaseTree({
   connKey,
   connConfig,
   projectPath,
+  onSelectTable,
+  selectedTable,
 }: SQLiteDatabaseTreeProps) {
   return (
     <div className="p-2 space-y-2">
@@ -37,6 +39,8 @@ export function SQLiteDatabaseTree({
         type="table"
         label="Tables"
         icon={<TableIcon className="size-4" />}
+        onSelectTable={onSelectTable}
+        selectedTable={selectedTable}
       />
       <SQLiteObjectGroup
         connKey={connKey}
@@ -45,6 +49,8 @@ export function SQLiteDatabaseTree({
         type="view"
         label="Views"
         icon={<Table2Icon className="size-4" />}
+        onSelectTable={onSelectTable}
+        selectedTable={selectedTable}
       />
       <SQLiteObjectGroup
         connKey={connKey}
@@ -73,6 +79,8 @@ interface SQLiteObjectGroupProps {
   type: string;
   label: string;
   icon: React.ReactNode;
+  onSelectTable?: (tableName: string, schema?: string) => void;
+  selectedTable?: string;
 }
 
 function SQLiteObjectGroup({
@@ -81,9 +89,10 @@ function SQLiteObjectGroup({
   type,
   label,
   icon,
+  onSelectTable,
+  selectedTable,
 }: SQLiteObjectGroupProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const selectedObject = useStore($selectedObject);
 
   const objectQuery = useQuery({
     queryKey: ["project-db-objects", projectPath, connKey, type],
@@ -100,10 +109,7 @@ function SQLiteObjectGroup({
   });
 
   const handleObjectClick = (name: string) => {
-    selectObject({
-      type: type === "table" ? "table" : "view",
-      name,
-    });
+    onSelectTable?.(name);
   };
 
   return (
@@ -141,7 +147,7 @@ function SQLiteObjectGroup({
         )}
         {objectQuery.isSuccess &&
           objectQuery.data.map((obj) => {
-            const isSelected = selectedObject?.name === obj.name && !selectedObject?.schema;
+            const isSelected = selectedTable === obj.name;
             return (
               <Button
                 key={obj.name}

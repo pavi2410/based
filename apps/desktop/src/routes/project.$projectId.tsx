@@ -1,64 +1,64 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState, useEffectEvent } from "react";
-import { useStore } from "@nanostores/react";
+import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
+import { createContext, useContext, useEffect, useState, useEffectEvent } from "react";
 import { readProjectConfig } from "@/stores/projects";
 import {
   addRecentProject,
   setProjectConfig,
   setProjectPath,
-  switchConnection,
-  $activeConnection,
-  $connectionStatus,
 } from "@/stores/project-state";
 import type { ProjectConfig } from "@/types/project";
 import { Loader2Icon } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { TopBar } from "@/components/workspace/top-bar";
-import { WorkspaceSidebar } from "@/components/workspace/workspace-sidebar";
 import { StatusBar } from "@/components/workspace/status-bar";
-import { DataViewer } from "@/components/workspace/data-viewer";
+
+// Context to share project data with child routes
+interface ProjectContextValue {
+  config: ProjectConfig;
+  projectPath: string;
+  projectId: string;
+  reloadConfig: () => void;
+}
+
+export const ProjectContext = createContext<ProjectContextValue | null>(null);
+
+export function useProject() {
+  const ctx = useContext(ProjectContext);
+  if (!ctx) throw new Error("useProject must be used within ProjectContext");
+  return ctx;
+}
 
 export const Route = createFileRoute("/project/$projectId")({
-  component: ProjectWorkspace,
+  component: ProjectLayout,
 });
 
-function ProjectWorkspace() {
+function ProjectLayout() {
   const { projectId } = Route.useParams();
+  const navigate = useNavigate();
   const [config, setConfig] = useState<ProjectConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Get reactive state from stores
-  const activeConnection = useStore($activeConnection);
-  const connectionStatus = useStore($connectionStatus);
-
   // Decode project path from Base64
   const projectPath = atob(projectId);
-
-  // Get active connection config
-  const activeConnectionConfig =
-    config && activeConnection ? config.connection[activeConnection] : null;
 
   // useEffectEvent allows us to use latest values without being part of dependencies
   const loadProject = useEffectEvent(async (showToast = false) => {
     const doLoad = async () => {
       setLoading(true);
-      setProjectPath(projectPath); // Set project path for connection management
+      setProjectPath(projectPath);
       const projectConfig = await readProjectConfig(projectPath);
       setConfig(projectConfig);
       setProjectConfig(projectConfig);
 
-      // Add to recent projects
       addRecentProject({
         path: projectPath,
         name: projectConfig.name,
         lastOpened: new Date().toISOString(),
       });
 
-      // Don't auto-connect - let user choose from the connection dashboard
       setError(null);
       setLoading(false);
     };
@@ -84,16 +84,10 @@ function ProjectWorkspace() {
     let unlisten: (() => void) | undefined;
 
     async function init() {
-      // Initial load
       await loadProject(false);
 
       try {
-        // Start file watcher
-        await invoke("watch_project_config", {
-          projectPath,
-        });
-
-        // Listen for config changes
+        await invoke("watch_project_config", { projectPath });
         unlisten = await listen("config-changed", async () => {
           await loadProject(true);
         });
@@ -104,19 +98,15 @@ function ProjectWorkspace() {
 
     init();
 
-    // Cleanup
     return () => {
-      if (unlisten) {
-        unlisten();
-      }
+      unlisten?.();
       invoke("unwatch_project_config").catch(console.error);
       invoke("close_project_connections", { projectPath }).catch(console.error);
     };
-  }, [projectPath]); // Only depends on projectPath, loadProject is stable via useEffectEvent
+  }, [projectPath]);
 
-  // Handlers for selectors
   const handleConnectionChange = (connKey: string) => {
-    switchConnection(connKey);
+    navigate({ to: "/project/$projectId/conn/$connKey", params: { projectId, connKey } });
   };
 
   const handleReloadConfig = () => {
@@ -125,10 +115,16 @@ function ProjectWorkspace() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2Icon className="size-8 animate-spin text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Loading project...</p>
+      <div className="flex flex-col h-screen">
+        <header
+          data-tauri-drag-region
+          className="h-12 border-b bg-background/80 backdrop-blur-sm select-none"
+        />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2Icon className="size-8 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Loading project...</p>
+          </div>
         </div>
       </div>
     );
@@ -136,13 +132,19 @@ function ProjectWorkspace() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="flex flex-col items-center gap-4 max-w-md">
-          <h2 className="text-lg font-semibold text-destructive">Failed to load project</h2>
-          <p className="text-sm text-muted-foreground text-center">{error}</p>
-          <p className="text-xs text-muted-foreground font-mono bg-muted p-2 rounded">
-            {projectPath}
-          </p>
+      <div className="flex flex-col h-screen">
+        <header
+          data-tauri-drag-region
+          className="h-12 border-b bg-background/80 backdrop-blur-sm select-none"
+        />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4 max-w-md">
+            <h2 className="text-lg font-semibold text-destructive">Failed to load project</h2>
+            <p className="text-sm text-muted-foreground text-center">{error}</p>
+            <p className="text-xs text-muted-foreground font-mono bg-muted p-2 rounded">
+              {projectPath}
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -152,46 +154,28 @@ function ProjectWorkspace() {
     return null;
   }
 
+  const handleDisconnect = () => {
+    navigate({ to: "/project/$projectId", params: { projectId } });
+  };
+
   return (
-    <div className="flex flex-col h-screen">
-      {/* Top Bar */}
-      <TopBar
-        config={config}
-        projectPath={projectPath}
-        activeConnection={activeConnection}
-        onConnectionChange={handleConnectionChange}
-        onReloadConfig={handleReloadConfig}
-      />
+    <ProjectContext.Provider value={{ config, projectPath, projectId, reloadConfig: handleReloadConfig }}>
+      <div className="flex flex-col h-screen">
+        <TopBar
+          config={config}
+          onReloadConfig={handleReloadConfig}
+        />
 
-      {/* Main Content Area with Resizable Panels */}
-      <ResizablePanelGroup direction="horizontal" className="flex-1">
-        {/* Sidebar - only show when a connection is selected */}
-        {activeConnection && (
-          <>
-            <ResizablePanel defaultSize={20} minSize={15} maxSize={40}>
-              <WorkspaceSidebar
-                activeConnection={activeConnection}
-                connectionConfig={activeConnectionConfig}
-                projectPath={projectPath}
-              />
-            </ResizablePanel>
+        {/* Child routes render here */}
+        <div className="flex-1 overflow-hidden">
+          <Outlet />
+        </div>
 
-            <ResizableHandle />
-          </>
-        )}
-
-        {/* Main Content */}
-        <ResizablePanel defaultSize={activeConnection ? 80 : 100}>
-          <DataViewer />
-        </ResizablePanel>
-      </ResizablePanelGroup>
-
-      {/* Status Bar */}
-      <StatusBar
-        activeConnection={activeConnection}
-        connectionConfig={activeConnectionConfig}
-        connectionStatus={connectionStatus}
-      />
-    </div>
+        <StatusBar
+          onConnectionChange={handleConnectionChange}
+          onDisconnect={handleDisconnect}
+        />
+      </div>
+    </ProjectContext.Provider>
   );
 }

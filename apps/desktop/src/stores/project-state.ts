@@ -44,14 +44,6 @@ export const $connectionStats = atom<ConnectionStats | null>(null);
 // Sidebar visibility
 export const $sidebarVisible = atom<boolean>(true);
 
-// Selected table/collection for data viewing
-export interface SelectedObject {
-  type: "table" | "view" | "collection";
-  name: string;
-  schema?: string; // For PostgreSQL
-}
-export const $selectedObject = atom<SelectedObject | null>(null);
-
 // Recent projects (persisted to localStorage)
 export const $recentProjects = persistentAtom<RecentProject[]>(
   "based:recent-projects",
@@ -93,10 +85,6 @@ export function toggleSidebar() {
   $sidebarVisible.set(!$sidebarVisible.get());
 }
 
-export function selectObject(obj: SelectedObject | null) {
-  $selectedObject.set(obj);
-}
-
 /**
  * Disconnect the current connection and reset to empty state.
  */
@@ -121,7 +109,6 @@ export async function disconnectConnection() {
   $activeConnectionId.set(null);
   $connectionStatus.set("disconnected");
   $connectionStats.set(null);
-  $selectedObject.set(null);
 }
 
 export function addRecentProject(project: RecentProject) {

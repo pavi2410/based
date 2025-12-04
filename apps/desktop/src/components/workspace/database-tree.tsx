@@ -7,12 +7,18 @@ interface DatabaseTreeProps {
   connKey: string;
   connConfig: ConnectionConfig;
   projectPath: string;
+  onSelectTable?: (tableName: string, schema?: string) => void;
+  selectedTable?: string;
+  selectedSchema?: string;
 }
 
 export function DatabaseTree({
   connKey,
   connConfig,
   projectPath,
+  onSelectTable,
+  selectedTable,
+  selectedSchema,
 }: DatabaseTreeProps) {
   switch (connConfig.engine) {
     case "sqlite":
@@ -21,6 +27,8 @@ export function DatabaseTree({
           connKey={connKey}
           connConfig={connConfig}
           projectPath={projectPath}
+          onSelectTable={onSelectTable}
+          selectedTable={selectedTable}
         />
       );
     case "mongodb":
@@ -29,6 +37,8 @@ export function DatabaseTree({
           connKey={connKey}
           connConfig={connConfig}
           projectPath={projectPath}
+          onSelectTable={onSelectTable}
+          selectedTable={selectedTable}
         />
       );
     case "postgres":
@@ -37,6 +47,9 @@ export function DatabaseTree({
           connKey={connKey}
           connConfig={connConfig}
           projectPath={projectPath}
+          onSelectTable={onSelectTable}
+          selectedTable={selectedTable}
+          selectedSchema={selectedSchema}
         />
       );
     default:

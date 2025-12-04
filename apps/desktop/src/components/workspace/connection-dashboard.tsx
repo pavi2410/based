@@ -3,12 +3,11 @@ import { DatabaseIcon, HardDriveIcon, CloudIcon, Loader2Icon, ChevronRightIcon }
 import DeviconSqlite from "~icons/devicon/sqlite";
 import DeviconMongodb from "~icons/devicon/mongodb";
 import DeviconPostgresql from "~icons/devicon/postgresql";
-import { useStore } from "@nanostores/react";
 import type { ProjectConfig, ConnectionConfig, Engine } from "@/types/project";
-import { switchConnection, $connectionStatus } from "@/stores/project-state";
 
 interface ConnectionDashboardProps {
   config: ProjectConfig;
+  onConnect: (connKey: string) => void;
 }
 
 const ENGINE_ICONS: Record<Engine, React.ReactNode> = {
@@ -98,11 +97,7 @@ function ConnectionGroup({ groupKey, connections, onConnect, connectingKey }: Co
   );
 }
 
-export function ConnectionDashboard({ config }: ConnectionDashboardProps) {
-  const connectionStatus = useStore($connectionStatus);
-  
-  // Track which connection is being connected
-  const isConnecting = connectionStatus === "connecting";
+export function ConnectionDashboard({ config, onConnect }: ConnectionDashboardProps) {
 
   // Group connections by their group field
   const groupedConnections = useMemo(() => {
@@ -142,8 +137,8 @@ export function ConnectionDashboard({ config }: ConnectionDashboardProps) {
     return sortedGroups;
   }, [config.connection]);
 
-  const handleConnect = async (connKey: string) => {
-    await switchConnection(connKey);
+  const handleConnect = (connKey: string) => {
+    onConnect(connKey);
   };
 
   const totalConnections = Object.keys(config.connection).length;
@@ -170,7 +165,7 @@ export function ConnectionDashboard({ config }: ConnectionDashboardProps) {
               groupKey={groupKey}
               connections={connections}
               onConnect={handleConnect}
-              connectingKey={isConnecting ? null : null} // TODO: track specific key
+              connectingKey={null} // TODO: track specific key
             />
           ))}
         </div>

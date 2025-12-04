@@ -58,13 +58,7 @@ function ProjectWorkspace() {
         lastOpened: new Date().toISOString(),
       });
 
-      // Set first connection as active and connect
-      const firstConnKey = Object.keys(projectConfig.connection)[0];
-      if (firstConnKey) {
-        // Use switchConnection to both set active and establish connection
-        await switchConnection(firstConnKey);
-      }
-
+      // Don't auto-connect - let user choose from the connection dashboard
       setError(null);
       setLoading(false);
     };

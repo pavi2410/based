@@ -16,6 +16,12 @@ export interface RecentProject {
 
 export type ConnectionStatus = "connected" | "disconnected" | "connecting" | "error";
 
+// Connection stats for timing info
+export interface ConnectionStats {
+  connectedAt: string; // ISO timestamp
+  connectionTimeMs: number; // Time taken to establish connection
+}
+
 // Active connection key for the current project (config key like "dev", "prod")
 export const $activeConnection = atom<string | null>(null);
 
@@ -30,6 +36,9 @@ export const $projectConfig = atom<ProjectConfig | null>(null);
 
 // Connection status for the active connection
 export const $connectionStatus = atom<ConnectionStatus>("disconnected");
+
+// Connection stats (timing info)
+export const $connectionStats = atom<ConnectionStats | null>(null);
 
 // Sidebar visibility
 export const $sidebarVisible = atom<boolean>(true);
@@ -75,6 +84,10 @@ export function setConnectionStatus(status: ConnectionStatus) {
   $connectionStatus.set(status);
 }
 
+export function setConnectionStats(stats: ConnectionStats | null) {
+  $connectionStats.set(stats);
+}
+
 export function toggleSidebar() {
   $sidebarVisible.set(!$sidebarVisible.get());
 }
@@ -109,15 +122,25 @@ export async function switchConnection(connKey: string): Promise<string | null> 
 
   setActiveConnection(connKey);
   setConnectionStatus("connecting");
+  setConnectionStats(null);
+
+  const startTime = performance.now();
 
   try {
     const connId = await connectProjectDb(projectPath, connKey);
+    const connectionTimeMs = Math.round(performance.now() - startTime);
+    
     setActiveConnectionId(connId);
     setConnectionStatus("connected");
+    setConnectionStats({
+      connectedAt: new Date().toISOString(),
+      connectionTimeMs,
+    });
     return connId;
   } catch (error) {
     console.error("Failed to connect:", error);
     setConnectionStatus("error");
+    setConnectionStats(null);
     return null;
   }
 }

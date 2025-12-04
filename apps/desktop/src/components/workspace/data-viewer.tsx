@@ -2,14 +2,24 @@ import { useStore } from "@nanostores/react";
 import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
-import { Loader2Icon, RefreshCwIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import {
+  Loader2Icon,
+  RefreshCwIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  TableIcon,
+  TerminalIcon,
+  SearchIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/data-table";
+import { ConnectionDashboard } from "@/components/workspace/connection-dashboard";
 import {
   $selectedObject,
   $activeConnection,
   $projectPath,
   $projectConfig,
+  $connectionStatus,
 } from "@/stores/project-state";
 import type { ColumnDef } from "@tanstack/react-table";
 
@@ -26,6 +36,7 @@ export function DataViewer() {
   const activeConnection = useStore($activeConnection);
   const projectPath = useStore($projectPath);
   const projectConfig = useStore($projectConfig);
+  const connectionStatus = useStore($connectionStatus);
 
   const [page, setPage] = useState(0);
 
@@ -89,14 +100,59 @@ export function DataViewer() {
     enabled: !!projectPath && !!activeConnection && !!selectedObject && !!engine,
   });
 
+  // Show connection dashboard when no connection is active
+  if (!activeConnection && projectConfig) {
+    return <ConnectionDashboard config={projectConfig} />;
+  }
+
+  // Show connecting state
+  if (connectionStatus === "connecting") {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2Icon className="size-8 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Connecting to database...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show empty state with actions when connected but no table selected
   if (!selectedObject) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-center space-y-4">
-          <h2 className="text-2xl font-bold">Welcome to Your Project</h2>
-          <p className="text-muted-foreground">
-            Select a table or collection from the sidebar to explore
-          </p>
+        <div className="text-center space-y-6 max-w-md">
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold">Connected</h2>
+            <p className="text-muted-foreground">
+              You're connected to{" "}
+              <span className="font-medium text-foreground">
+                {activeConnection && projectConfig?.connection[activeConnection]?.label || activeConnection}
+              </span>
+            </p>
+          </div>
+
+          <div className="grid gap-3">
+            <ActionCard
+              icon={<TableIcon className="size-5" />}
+              title="Browse Tables"
+              description="Select a table or collection from the sidebar to explore its data"
+            />
+            <ActionCard
+              icon={<TerminalIcon className="size-5" />}
+              title="Run a Query"
+              description="Execute custom SQL or MongoDB queries"
+              disabled
+              comingSoon
+            />
+            <ActionCard
+              icon={<SearchIcon className="size-5" />}
+              title="Search Data"
+              description="Search across all tables and collections"
+              disabled
+              comingSoon
+            />
+          </div>
         </div>
       </div>
     );
@@ -229,6 +285,43 @@ export function DataViewer() {
         />
       </div>
     </div>
+  );
+}
+
+// Action card for the connected empty state
+interface ActionCardProps {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  disabled?: boolean;
+  comingSoon?: boolean;
+  onClick?: () => void;
+}
+
+function ActionCard({ icon, title, description, disabled, comingSoon, onClick }: ActionCardProps) {
+  return (
+    <button
+      className={`flex items-start gap-4 p-4 rounded-lg border text-left transition-colors ${
+        disabled
+          ? "opacity-60 cursor-not-allowed bg-muted/30"
+          : "hover:bg-muted/50 hover:border-primary/50"
+      }`}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <div className="text-muted-foreground mt-0.5">{icon}</div>
+      <div className="flex-1">
+        <div className="flex items-center gap-2">
+          <span className="font-medium">{title}</span>
+          {comingSoon && (
+            <span className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+              Coming soon
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-muted-foreground mt-0.5">{description}</p>
+      </div>
+    </button>
   );
 }
 

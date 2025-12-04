@@ -40,7 +40,7 @@ function ProjectCard({ project }: { project: RecentProject }) {
       params={{ projectId }}
       className="group relative"
     >
-      <div className="flex flex-col gap-2 p-4 rounded-lg border hover:bg-accent hover:text-accent-foreground transition-colors">
+      <div className="flex flex-col gap-2 p-4 rounded-lg border bg-muted/50 hover:bg-muted hover:border-primary/50 transition-colors">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
             <FolderIcon className="size-5 text-muted-foreground" />

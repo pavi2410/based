@@ -173,3 +173,22 @@
     @apply bg-background text-foreground;
   }
 }
+
+html,
+body {
+  overscroll-behavior: none;
+
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+html,
+body,
+div {
+  cursor: default;
+}
+
+a,
+button:enabled {
+  cursor: pointer;
+}

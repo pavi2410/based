@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Loader2Icon,
   RefreshCwIcon,
@@ -19,6 +19,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
+import { DataTableFilter } from "@/components/data-table-filter/components/data-table-filter";
+import { useDataTableFilters } from "@/components/data-table-filter/hooks/use-data-table-filters";
+import type { ColumnConfig, FiltersState } from "@/components/data-table-filter/core/types";
+import { dbTypeToFilterType, getFilterTypeIcon, type FilterParam } from "@/lib/filter-utils";
 
 interface QueryResult {
   columns: { name: string; data_type: string }[];
@@ -33,12 +37,19 @@ export function DataViewer() {
 
   const [page, setPage] = useState(0);
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [filters, setFilters] = useState<FiltersState>([]);
 
-  // Reset page and sorting when table changes
+  // Reset page, sorting, and filters when table changes
   useEffect(() => {
     setPage(0);
     setSorting([]);
+    setFilters([]);
   }, [selectedTable, selectedSchema]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(0);
+  }, [filters]);
 
   // Reset page when object changes
   const objectKey = selectedTable
@@ -46,6 +57,17 @@ export function DataViewer() {
     : null;
 
   const engine = connectionConfig.engine;
+
+  // Convert filters to backend format
+  const filterParams: FilterParam[] = useMemo(() => 
+    filters.map((f) => ({
+      columnId: f.columnId,
+      type: f.type,
+      operator: f.operator,
+      values: f.values as (string | number | boolean | null)[],
+    })),
+    [filters]
+  );
 
   const dataQuery = useQuery({
     queryKey: [
@@ -55,6 +77,7 @@ export function DataViewer() {
       objectKey,
       page,
       sorting,
+      filterParams,
     ],
     queryFn: async () => {
       if (!selectedTable) {
@@ -73,6 +96,7 @@ export function DataViewer() {
             offset,
             orderByColumn: sorting[0]?.id,
             orderByDirection: sorting[0]?.desc ? "desc" : "asc",
+            filters: filterParams.length > 0 ? JSON.stringify(filterParams) : undefined,
           });
 
         case "postgres":
@@ -85,6 +109,7 @@ export function DataViewer() {
             offset,
             orderByColumn: sorting[0]?.id,
             orderByDirection: sorting[0]?.desc ? "desc" : "asc",
+            filters: filterParams.length > 0 ? JSON.stringify(filterParams) : undefined,
           });
 
         case "mongodb":
@@ -96,6 +121,7 @@ export function DataViewer() {
             offset,
             orderByColumn: sorting[0]?.id,
             orderByDirection: sorting[0]?.desc ? "desc" : "asc",
+            filters: filterParams.length > 0 ? JSON.stringify(filterParams) : undefined,
           });
 
         default:
@@ -103,6 +129,32 @@ export function DataViewer() {
       }
     },
     enabled: !!selectedTable,
+  });
+
+  // Build filter column configs from query result
+  // Use empty array when no data yet - this is safe because columnsConfig can be empty
+  const filterColumnConfigs: ColumnConfig<Record<string, unknown>>[] = useMemo(() => {
+    if (!dataQuery.data) return [];
+    return dataQuery.data.columns.map((col) => {
+      const filterType = dbTypeToFilterType(col.data_type);
+      const Icon = getFilterTypeIcon(filterType);
+      return {
+        id: col.name,
+        type: filterType,
+        displayName: col.name,
+        icon: Icon,
+        accessor: (row: Record<string, unknown>) => row[col.name] as string | number | Date,
+      } as ColumnConfig<Record<string, unknown>>;
+    });
+  }, [dataQuery.data]);
+
+  // Initialize filter hook with server strategy - must be called unconditionally
+  const filterInstance = useDataTableFilters({
+    strategy: "server",
+    data: [], // Empty for server-side
+    columnsConfig: filterColumnConfigs,
+    filters,
+    onFiltersChange: setFilters,
   });
 
   // Show empty state when connected but no table selected
@@ -216,6 +268,18 @@ export function DataViewer() {
           </Button>
         </div>
       </div>
+
+      {/* Filters */}
+      {filterColumnConfigs.length > 0 && (
+        <div className="px-3 py-1.5 border-b">
+          <DataTableFilter
+            columns={filterInstance.columns}
+            filters={filterInstance.filters}
+            actions={filterInstance.actions}
+            strategy={filterInstance.strategy}
+          />
+        </div>
+      )}
 
       {/* Data Table */}
       <div className="flex-1 min-h-0">

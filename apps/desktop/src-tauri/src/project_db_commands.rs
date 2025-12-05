@@ -347,6 +347,265 @@ pub struct ColumnInfo {
     pub data_type: String,
 }
 
+/// Filter parameter from frontend
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct FilterParam {
+    pub column_id: String,
+    #[serde(rename = "type")]
+    pub column_type: String,
+    pub operator: String,
+    pub values: Vec<serde_json::Value>,
+}
+
+/// Build SQL WHERE clause from filters
+fn build_sql_where_clause(filters: &[FilterParam]) -> String {
+    if filters.is_empty() {
+        return String::new();
+    }
+
+    let conditions: Vec<String> = filters
+        .iter()
+        .filter_map(|f| build_sql_condition(f))
+        .collect();
+
+    if conditions.is_empty() {
+        return String::new();
+    }
+
+    format!(" WHERE {}", conditions.join(" AND "))
+}
+
+/// Build a single SQL condition from a filter
+fn build_sql_condition(filter: &FilterParam) -> Option<String> {
+    let col = format!(r#""{}""#, filter.column_id);
+    
+    match filter.operator.as_str() {
+        // Text operators
+        "contains" => {
+            let val = filter.values.first()?.as_str()?;
+            Some(format!("{} LIKE '%{}%'", col, escape_sql_like(val)))
+        }
+        "does not contain" => {
+            let val = filter.values.first()?.as_str()?;
+            Some(format!("{} NOT LIKE '%{}%'", col, escape_sql_like(val)))
+        }
+        // Number/Date operators
+        "is" => {
+            let val = &filter.values.first()?;
+            Some(format!("{} = {}", col, sql_value(val)))
+        }
+        "is not" => {
+            let val = &filter.values.first()?;
+            Some(format!("{} != {}", col, sql_value(val)))
+        }
+        "is less than" | "is before" => {
+            let val = &filter.values.first()?;
+            Some(format!("{} < {}", col, sql_value(val)))
+        }
+        "is less than or equal to" | "is on or before" => {
+            let val = &filter.values.first()?;
+            Some(format!("{} <= {}", col, sql_value(val)))
+        }
+        "is greater than" | "is after" => {
+            let val = &filter.values.first()?;
+            Some(format!("{} > {}", col, sql_value(val)))
+        }
+        "is greater than or equal to" | "is on or after" => {
+            let val = &filter.values.first()?;
+            Some(format!("{} >= {}", col, sql_value(val)))
+        }
+        "is between" => {
+            if filter.values.len() >= 2 {
+                let v1 = sql_value(&filter.values[0]);
+                let v2 = sql_value(&filter.values[1]);
+                Some(format!("{} BETWEEN {} AND {}", col, v1, v2))
+            } else {
+                None
+            }
+        }
+        "is not between" => {
+            if filter.values.len() >= 2 {
+                let v1 = sql_value(&filter.values[0]);
+                let v2 = sql_value(&filter.values[1]);
+                Some(format!("{} NOT BETWEEN {} AND {}", col, v1, v2))
+            } else {
+                None
+            }
+        }
+        // Option operators
+        "is any of" => {
+            let vals: Vec<String> = filter.values.iter().map(sql_value).collect();
+            if vals.is_empty() {
+                None
+            } else {
+                Some(format!("{} IN ({})", col, vals.join(", ")))
+            }
+        }
+        "is none of" => {
+            let vals: Vec<String> = filter.values.iter().map(sql_value).collect();
+            if vals.is_empty() {
+                None
+            } else {
+                Some(format!("{} NOT IN ({})", col, vals.join(", ")))
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Escape special characters for SQL LIKE
+fn escape_sql_like(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
+        .replace('\'', "''")
+}
+
+/// Convert JSON value to SQL literal
+fn sql_value(val: &serde_json::Value) -> String {
+    match val {
+        serde_json::Value::Null => "NULL".to_string(),
+        serde_json::Value::Bool(b) => if *b { "1" } else { "0" }.to_string(),
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::String(s) => format!("'{}'", s.replace('\'', "''")),
+        _ => "NULL".to_string(),
+    }
+}
+
+/// Build MongoDB filter document from filters
+fn build_mongodb_filter(filters: &[FilterParam]) -> mongodb::bson::Document {
+    use mongodb::bson::{doc, Bson, Regex};
+
+    if filters.is_empty() {
+        return doc! {};
+    }
+
+    let conditions: Vec<mongodb::bson::Document> = filters
+        .iter()
+        .filter_map(|f| build_mongodb_condition(f))
+        .collect();
+
+    if conditions.is_empty() {
+        return doc! {};
+    }
+
+    doc! { "$and": conditions }
+}
+
+/// Build a single MongoDB condition from a filter
+fn build_mongodb_condition(filter: &FilterParam) -> Option<mongodb::bson::Document> {
+    use mongodb::bson::{doc, Bson, Regex};
+
+    let col = &filter.column_id;
+    
+    match filter.operator.as_str() {
+        // Text operators
+        "contains" => {
+            let val = filter.values.first()?.as_str()?;
+            let regex = Regex { pattern: regex::escape(val), options: "i".to_string() };
+            Some(doc! { col: { "$regex": regex } })
+        }
+        "does not contain" => {
+            let val = filter.values.first()?.as_str()?;
+            let regex = Regex { pattern: regex::escape(val), options: "i".to_string() };
+            Some(doc! { col: { "$not": { "$regex": regex } } })
+        }
+        // Equality operators
+        "is" => {
+            let val = json_to_bson(filter.values.first()?);
+            Some(doc! { col: { "$eq": val } })
+        }
+        "is not" => {
+            let val = json_to_bson(filter.values.first()?);
+            Some(doc! { col: { "$ne": val } })
+        }
+        // Comparison operators
+        "is less than" | "is before" => {
+            let val = json_to_bson(filter.values.first()?);
+            Some(doc! { col: { "$lt": val } })
+        }
+        "is less than or equal to" | "is on or before" => {
+            let val = json_to_bson(filter.values.first()?);
+            Some(doc! { col: { "$lte": val } })
+        }
+        "is greater than" | "is after" => {
+            let val = json_to_bson(filter.values.first()?);
+            Some(doc! { col: { "$gt": val } })
+        }
+        "is greater than or equal to" | "is on or after" => {
+            let val = json_to_bson(filter.values.first()?);
+            Some(doc! { col: { "$gte": val } })
+        }
+        "is between" => {
+            if filter.values.len() >= 2 {
+                let v1 = json_to_bson(&filter.values[0]);
+                let v2 = json_to_bson(&filter.values[1]);
+                Some(doc! { col: { "$gte": v1, "$lte": v2 } })
+            } else {
+                None
+            }
+        }
+        "is not between" => {
+            if filter.values.len() >= 2 {
+                let v1 = json_to_bson(&filter.values[0]);
+                let v2 = json_to_bson(&filter.values[1]);
+                Some(doc! { "$or": [{ col: { "$lt": v1 } }, { col: { "$gt": v2 } }] })
+            } else {
+                None
+            }
+        }
+        // Array operators
+        "is any of" => {
+            let vals: Vec<Bson> = filter.values.iter().map(json_to_bson).collect();
+            if vals.is_empty() {
+                None
+            } else {
+                Some(doc! { col: { "$in": vals } })
+            }
+        }
+        "is none of" => {
+            let vals: Vec<Bson> = filter.values.iter().map(json_to_bson).collect();
+            if vals.is_empty() {
+                None
+            } else {
+                Some(doc! { col: { "$nin": vals } })
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Convert JSON value to BSON
+fn json_to_bson(val: &serde_json::Value) -> mongodb::bson::Bson {
+    use mongodb::bson::Bson;
+    
+    match val {
+        serde_json::Value::Null => Bson::Null,
+        serde_json::Value::Bool(b) => Bson::Boolean(*b),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Bson::Int64(i)
+            } else if let Some(f) = n.as_f64() {
+                Bson::Double(f)
+            } else {
+                Bson::Null
+            }
+        }
+        serde_json::Value::String(s) => Bson::String(s.clone()),
+        serde_json::Value::Array(arr) => {
+            Bson::Array(arr.iter().map(json_to_bson).collect())
+        }
+        serde_json::Value::Object(obj) => {
+            let doc: mongodb::bson::Document = obj
+                .iter()
+                .map(|(k, v)| (k.clone(), json_to_bson(v)))
+                .collect();
+            Bson::Document(doc)
+        }
+    }
+}
+
 /// Query data from a SQLite table
 #[tauri::command]
 pub async fn query_sqlite_table(
@@ -357,6 +616,7 @@ pub async fn query_sqlite_table(
     offset: Option<i64>,
     order_by_column: Option<String>,
     order_by_direction: Option<String>,
+    filters: Option<String>,
     registry: State<'_, ConnectionRegistry>,
     app: tauri::AppHandle,
 ) -> Result<QueryResult, Error> {
@@ -381,12 +641,19 @@ pub async fn query_sqlite_table(
                 })
                 .collect();
 
-            // Get total count
-            let count_query = format!("SELECT COUNT(*) as cnt FROM \"{}\"", table_name);
+            // Parse filters
+            let filter_params: Vec<FilterParam> = filters
+                .as_ref()
+                .and_then(|f| serde_json::from_str(f).ok())
+                .unwrap_or_default();
+            let where_clause = build_sql_where_clause(&filter_params);
+
+            // Get total count (with filters)
+            let count_query = format!("SELECT COUNT(*) as cnt FROM \"{}\"{}", table_name, where_clause);
             let count_row = sqlx::query(&count_query).fetch_one(pool).await?;
             let total_count: i64 = count_row.get("cnt");
 
-            // Query data with pagination and sorting
+            // Query data with pagination, sorting, and filters
             let limit_val = limit.unwrap_or(100);
             let offset_val = offset.unwrap_or(0);
             let order_clause = match (&order_by_column, &order_by_direction) {
@@ -397,8 +664,8 @@ pub async fn query_sqlite_table(
                 _ => String::new(),
             };
             let data_query = format!(
-                "SELECT * FROM \"{}\"{} LIMIT {} OFFSET {}",
-                table_name, order_clause, limit_val, offset_val
+                "SELECT * FROM \"{}\"{}{} LIMIT {} OFFSET {}",
+                table_name, where_clause, order_clause, limit_val, offset_val
             );
             
             let data_rows = sqlx::query(&data_query).fetch_all(pool).await?;
@@ -465,6 +732,7 @@ pub async fn query_postgres_table(
     offset: Option<i64>,
     order_by_column: Option<String>,
     order_by_direction: Option<String>,
+    filters: Option<String>,
     registry: State<'_, ConnectionRegistry>,
     app: tauri::AppHandle,
 ) -> Result<QueryResult, Error> {
@@ -498,8 +766,15 @@ pub async fn query_postgres_table(
                 })
                 .collect();
 
-            // Get total count
-            let count_query = format!("SELECT COUNT(*) as cnt FROM \"{}\".\"{}\"", schema, table_name);
+            // Parse filters
+            let filter_params: Vec<FilterParam> = filters
+                .as_ref()
+                .and_then(|f| serde_json::from_str(f).ok())
+                .unwrap_or_default();
+            let where_clause = build_sql_where_clause(&filter_params);
+
+            // Get total count (with filters)
+            let count_query = format!("SELECT COUNT(*) as cnt FROM \"{}\".\"{}\"{}", schema, table_name, where_clause);
             let count_row = sqlx::query(&count_query).fetch_one(pool).await?;
             let total_count: i64 = count_row.get("cnt");
 
@@ -514,8 +789,8 @@ pub async fn query_postgres_table(
                 _ => String::new(),
             };
             let data_query = format!(
-                "SELECT * FROM \"{}\".\"{}\"{} LIMIT {} OFFSET {}",
-                schema, table_name, order_clause, limit_val, offset_val
+                "SELECT * FROM \"{}\".\"{}\"{}{} LIMIT {} OFFSET {}",
+                schema, table_name, where_clause, order_clause, limit_val, offset_val
             );
             
             let data_rows = sqlx::query(&data_query).fetch_all(pool).await?;
@@ -591,6 +866,7 @@ pub async fn query_mongodb_collection(
     offset: Option<i64>,
     order_by_column: Option<String>,
     order_by_direction: Option<String>,
+    filters: Option<String>,
     registry: State<'_, ConnectionRegistry>,
     app: tauri::AppHandle,
 ) -> Result<QueryResult, Error> {
@@ -608,8 +884,15 @@ pub async fn query_mongodb_collection(
         ConnectionPool::Mongo(db) => {
             let collection = db.collection::<mongodb::bson::Document>(&collection_name);
             
-            // Get total count
-            let total_count = collection.count_documents(doc! {}, None).await? as i64;
+            // Parse filters and build MongoDB query
+            let filter_params: Vec<FilterParam> = filters
+                .as_ref()
+                .and_then(|f| serde_json::from_str(f).ok())
+                .unwrap_or_default();
+            let query_doc = build_mongodb_filter(&filter_params);
+
+            // Get total count (with filters)
+            let total_count = collection.count_documents(query_doc.clone(), None).await? as i64;
 
             // Query data with pagination
             let limit_val = limit.unwrap_or(100);
@@ -628,7 +911,7 @@ pub async fn query_mongodb_collection(
                 .sort(sort_doc)
                 .build();
             
-            let mut cursor = collection.find(doc! {}, find_options).await?;
+            let mut cursor = collection.find(query_doc, find_options).await?;
             
             let mut documents: Vec<mongodb::bson::Document> = Vec::new();
             while let Some(doc) = cursor.try_next().await? {

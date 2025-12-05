@@ -1,5 +1,4 @@
-'use client'
-
+import type React from 'react'
 import { useMemo, useState } from 'react'
 import { createColumns } from '../core/filters'
 import { DEFAULT_OPERATORS, determineNewOperator } from '../core/operators'
@@ -11,6 +10,7 @@ import type {
   FilterModel,
   FilterStrategy,
   FiltersState,
+  NumberColumnIds,
   OptionBasedColumnDataType,
   OptionColumnIds,
 } from '../core/types'
@@ -21,6 +21,7 @@ import {
   createNumberFilterValue,
   isColumnOptionArray,
   isColumnOptionMap,
+  isMinMaxTuple,
 } from '../lib/helpers'
 
 export interface DataTableFiltersOptions<
@@ -31,15 +32,15 @@ export interface DataTableFiltersOptions<
   strategy: TStrategy
   data: TData[]
   columnsConfig: TColumns
-  controlledState?:
-    | [FiltersState, React.Dispatch<React.SetStateAction<FiltersState>>]
-    | undefined
+  defaultFilters?: FiltersState
+  filters?: FiltersState
+  onFiltersChange?: React.Dispatch<React.SetStateAction<FiltersState>>
   options?: Partial<
-    Record<
-      OptionColumnIds<TColumns>,
-      | ColumnOption[]
-      | [ColumnOption[] | undefined, Map<string, number> | undefined]
-    >
+    Record<OptionColumnIds<TColumns>, ColumnOption[] | undefined>
+  >
+  faceted?: Partial<
+    | Record<OptionColumnIds<TColumns>, Map<string, number> | undefined>
+    | Record<NumberColumnIds<TColumns>, [number, number] | undefined>
   >
 }
 
@@ -51,46 +52,74 @@ export function useDataTableFilters<
   strategy,
   data,
   columnsConfig,
-  controlledState,
+  defaultFilters,
+  filters: externalFilters,
+  onFiltersChange,
   options,
+  faceted,
 }: DataTableFiltersOptions<TData, TColumns, TStrategy>) {
-  const [internalFilters, setInternalFilters] = useState<FiltersState>([])
-  const [filters, setFilters] = controlledState ?? [
-    internalFilters,
-    setInternalFilters,
-  ]
+  const [internalFilters, setInternalFilters] = useState<FiltersState>(
+    defaultFilters ?? [],
+  )
+
+  if (
+    (externalFilters && !onFiltersChange) ||
+    (!externalFilters && onFiltersChange)
+  ) {
+    throw new Error(
+      'If using controlled state, you must specify both filters and onFiltersChange.',
+    )
+  }
+
+  const filters = externalFilters ?? internalFilters
+  const setFilters = onFiltersChange ?? setInternalFilters
 
   // Convert ColumnConfig to Column, applying options and faceted options if provided
   const columns = useMemo(() => {
     const enhancedConfigs = columnsConfig.map((config) => {
+      let final = config
+
+      // Set options, if exists
       if (
         options &&
         (config.type === 'option' || config.type === 'multiOption')
       ) {
         const optionsInput = options[config.id as OptionColumnIds<TColumns>]
+        if (!optionsInput || !isColumnOptionArray(optionsInput)) return config
 
-        if (!optionsInput) return config
+        final = { ...final, options: optionsInput }
+      }
 
-        if (isColumnOptionArray(optionsInput)) {
-          return { ...config, options: optionsInput }
-        }
+      // Set faceted options, if exists
+      if (
+        faceted &&
+        (config.type === 'option' || config.type === 'multiOption')
+      ) {
+        const facetedOptionsInput =
+          faceted[config.id as OptionColumnIds<TColumns>]
+        if (!facetedOptionsInput || !isColumnOptionMap(facetedOptionsInput))
+          return config
 
-        if (
-          isColumnOptionArray(optionsInput[0]) &&
-          isColumnOptionMap(optionsInput[1])
-        ) {
-          return {
-            ...config,
-            options: optionsInput[0],
-            facetedOptions: optionsInput[1],
-          }
+        final = { ...final, facetedOptions: facetedOptionsInput }
+      }
+
+      // Set faceted min/max values, if exists
+      if (config.type === 'number' && faceted) {
+        const minMaxTuple = faceted[config.id as NumberColumnIds<TColumns>]
+        if (!minMaxTuple || !isMinMaxTuple(minMaxTuple)) return config
+
+        final = {
+          ...final,
+          min: minMaxTuple[0],
+          max: minMaxTuple[1],
         }
       }
 
-      return config
+      return final
     })
+
     return createColumns(data, enhancedConfigs, strategy)
-  }, [data, columnsConfig, options, strategy])
+  }, [data, columnsConfig, options, faceted, strategy])
 
   const actions: DataTableFilterActions = useMemo(
     () => ({
@@ -107,6 +136,7 @@ export function useDataTableFilters<
                 ...prev,
                 {
                   columnId: column.id,
+                  type: column.type,
                   operator:
                     values.length > 1
                       ? DEFAULT_OPERATORS[column.type].multiple
@@ -127,6 +157,7 @@ export function useDataTableFilters<
               f.columnId === column.id
                 ? {
                     columnId: column.id,
+                    type: column.type,
                     operator: newOperator,
                     values: newValues,
                   }
@@ -144,6 +175,7 @@ export function useDataTableFilters<
                 ...prev,
                 {
                   columnId: column.id,
+                  type: column.type,
                   operator:
                     values.length > 1
                       ? DEFAULT_OPERATORS[column.type].multiple
@@ -167,6 +199,7 @@ export function useDataTableFilters<
               f.columnId === column.id
                 ? {
                     columnId: column.id,
+                    type: column.type,
                     operator: newOperator,
                     values: newValues,
                   }
@@ -205,6 +238,7 @@ export function useDataTableFilters<
               f.columnId === column.id
                 ? {
                     columnId: column.id,
+                    type: column.type,
                     operator: newOperator,
                     values: newValues,
                   }
@@ -235,6 +269,7 @@ export function useDataTableFilters<
               f.columnId === column.id
                 ? {
                     columnId: column.id,
+                    type: column.type,
                     operator: newOperator,
                     values: newValues,
                   }
@@ -268,6 +303,7 @@ export function useDataTableFilters<
               ...prev,
               {
                 columnId: column.id,
+                type: column.type,
                 operator:
                   values.length > 1
                     ? DEFAULT_OPERATORS[column.type].multiple
@@ -285,6 +321,7 @@ export function useDataTableFilters<
           )
           const newFilter = {
             columnId: column.id,
+            type: column.type,
             operator: newOperator,
             values: newValues as any,
           } satisfies FilterModel<TType>

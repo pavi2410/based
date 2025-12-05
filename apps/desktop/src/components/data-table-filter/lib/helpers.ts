@@ -73,9 +73,27 @@ export function isStringArray(value: unknown): value is string[] {
 export function isColumnOptionMap(
   value: unknown,
 ): value is Map<string, number> {
+  if (!(value instanceof Map)) {
+    return false
+  }
+  for (const key of value.keys()) {
+    if (typeof key !== 'string') {
+      return false
+    }
+  }
+  for (const val of value.values()) {
+    if (typeof val !== 'number') {
+      return false
+    }
+  }
+  return true
+}
+
+export function isMinMaxTuple(value: unknown): value is [number, number] {
   return (
-    value instanceof Map &&
-    value.keys().every((k) => typeof k === 'string') &&
-    value.values().every((v) => typeof v === 'number')
+    Array.isArray(value) &&
+    value.length === 2 &&
+    typeof value[0] === 'number' &&
+    typeof value[1] === 'number'
   )
 }

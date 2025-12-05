@@ -1,9 +1,12 @@
 import {
   type ColumnDef,
+  type SortingState,
+  type OnChangeFn,
   flexRender,
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
+import { ArrowUpIcon, ArrowDownIcon, ArrowUpDownIcon } from "lucide-react";
 
 import {
   Table,
@@ -17,21 +20,30 @@ import {
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  sorting?: SortingState;
+  onSortingChange?: OnChangeFn<SortingState>;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
+  sorting,
+  onSortingChange,
 }: DataTableProps<TData, TValue>) {
   const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    manualSorting: true,
+    state: {
+      sorting,
+    },
+    onSortingChange,
   });
 
   return (
     <Table>
-      <TableHeader className="bg-muted/40 sticky top-0">
+      <TableHeader className="bg-muted/40 sticky top-0 z-10">
         {table.getHeaderGroups().map((headerGroup) => (
           <TableRow key={headerGroup.id} className="hover:bg-transparent">
             {headerGroup.headers.map((header) => (
@@ -39,12 +51,34 @@ export function DataTable<TData, TValue>({
                 key={header.id}
                 className="h-8 px-2 text-xs border-b border-r last:border-r-0"
               >
-                {header.isPlaceholder
-                  ? null
-                  : flexRender(
+                {header.isPlaceholder ? null : (
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer select-none"
+                    onClick={() => {
+                      const isSorted = header.column.getIsSorted();
+                      if (isSorted === "asc") {
+                        header.column.toggleSorting(true);
+                      } else if (isSorted === "desc") {
+                        header.column.clearSorting();
+                      } else {
+                        header.column.toggleSorting(false);
+                      }
+                    }}
+                  >
+                    {flexRender(
                       header.column.columnDef.header,
                       header.getContext(),
                     )}
+                    {header.column.getIsSorted() === "asc" ? (
+                      <ArrowUpIcon className="size-3" />
+                    ) : header.column.getIsSorted() === "desc" ? (
+                      <ArrowDownIcon className="size-3" />
+                    ) : (
+                      <ArrowUpDownIcon className="size-3 opacity-30" />
+                    )}
+                  </button>
+                )}
               </TableHead>
             ))}
           </TableRow>

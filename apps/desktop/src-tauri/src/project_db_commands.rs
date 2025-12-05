@@ -355,6 +355,8 @@ pub async fn query_sqlite_table(
     table_name: String,
     limit: Option<i64>,
     offset: Option<i64>,
+    order_by_column: Option<String>,
+    order_by_direction: Option<String>,
     registry: State<'_, ConnectionRegistry>,
     app: tauri::AppHandle,
 ) -> Result<QueryResult, Error> {
@@ -384,12 +386,19 @@ pub async fn query_sqlite_table(
             let count_row = sqlx::query(&count_query).fetch_one(pool).await?;
             let total_count: i64 = count_row.get("cnt");
 
-            // Query data with pagination
+            // Query data with pagination and sorting
             let limit_val = limit.unwrap_or(100);
             let offset_val = offset.unwrap_or(0);
+            let order_clause = match (&order_by_column, &order_by_direction) {
+                (Some(col), Some(dir)) => {
+                    let direction = if dir.to_lowercase() == "desc" { "DESC" } else { "ASC" };
+                    format!(" ORDER BY \"{}\" {}", col, direction)
+                }
+                _ => String::new(),
+            };
             let data_query = format!(
-                "SELECT * FROM \"{}\" LIMIT {} OFFSET {}",
-                table_name, limit_val, offset_val
+                "SELECT * FROM \"{}\"{} LIMIT {} OFFSET {}",
+                table_name, order_clause, limit_val, offset_val
             );
             
             let data_rows = sqlx::query(&data_query).fetch_all(pool).await?;
@@ -454,6 +463,8 @@ pub async fn query_postgres_table(
     table_name: String,
     limit: Option<i64>,
     offset: Option<i64>,
+    order_by_column: Option<String>,
+    order_by_direction: Option<String>,
     registry: State<'_, ConnectionRegistry>,
     app: tauri::AppHandle,
 ) -> Result<QueryResult, Error> {
@@ -492,12 +503,19 @@ pub async fn query_postgres_table(
             let count_row = sqlx::query(&count_query).fetch_one(pool).await?;
             let total_count: i64 = count_row.get("cnt");
 
-            // Query data with pagination
+            // Query data with pagination and sorting
             let limit_val = limit.unwrap_or(100);
             let offset_val = offset.unwrap_or(0);
+            let order_clause = match (&order_by_column, &order_by_direction) {
+                (Some(col), Some(dir)) => {
+                    let direction = if dir.to_lowercase() == "desc" { "DESC" } else { "ASC" };
+                    format!(" ORDER BY \"{}\" {}", col, direction)
+                }
+                _ => String::new(),
+            };
             let data_query = format!(
-                "SELECT * FROM \"{}\".\"{}\" LIMIT {} OFFSET {}",
-                schema, table_name, limit_val, offset_val
+                "SELECT * FROM \"{}\".\"{}\"{} LIMIT {} OFFSET {}",
+                schema, table_name, order_clause, limit_val, offset_val
             );
             
             let data_rows = sqlx::query(&data_query).fetch_all(pool).await?;
@@ -571,6 +589,8 @@ pub async fn query_mongodb_collection(
     collection_name: String,
     limit: Option<i64>,
     offset: Option<i64>,
+    order_by_column: Option<String>,
+    order_by_direction: Option<String>,
     registry: State<'_, ConnectionRegistry>,
     app: tauri::AppHandle,
 ) -> Result<QueryResult, Error> {
@@ -595,9 +615,17 @@ pub async fn query_mongodb_collection(
             let limit_val = limit.unwrap_or(100);
             let offset_val = offset.unwrap_or(0);
             
+            let sort_doc = match (&order_by_column, &order_by_direction) {
+                (Some(col), Some(dir)) => {
+                    let direction = if dir.to_lowercase() == "desc" { -1 } else { 1 };
+                    Some(doc! { col.as_str(): direction })
+                }
+                _ => None,
+            };
             let find_options = mongodb::options::FindOptions::builder()
                 .limit(limit_val)
                 .skip(offset_val as u64)
+                .sort(sort_doc)
                 .build();
             
             let mut cursor = collection.find(doc! {}, find_options).await?;

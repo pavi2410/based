@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Loader2Icon,
   RefreshCwIcon,
@@ -18,7 +18,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, SortingState } from "@tanstack/react-table";
 
 interface QueryResult {
   columns: { name: string; data_type: string }[];
@@ -32,6 +32,13 @@ export function DataViewer() {
   const { connKey, connectionConfig, projectPath, selectedTable, selectedSchema } = useConnection();
 
   const [page, setPage] = useState(0);
+  const [sorting, setSorting] = useState<SortingState>([]);
+
+  // Reset page and sorting when table changes
+  useEffect(() => {
+    setPage(0);
+    setSorting([]);
+  }, [selectedTable, selectedSchema]);
 
   // Reset page when object changes
   const objectKey = selectedTable
@@ -47,6 +54,7 @@ export function DataViewer() {
       connKey,
       objectKey,
       page,
+      sorting,
     ],
     queryFn: async () => {
       if (!selectedTable) {
@@ -63,6 +71,8 @@ export function DataViewer() {
             tableName: selectedTable,
             limit: PAGE_SIZE,
             offset,
+            orderByColumn: sorting[0]?.id,
+            orderByDirection: sorting[0]?.desc ? "desc" : "asc",
           });
 
         case "postgres":
@@ -73,6 +83,8 @@ export function DataViewer() {
             tableName: selectedTable,
             limit: PAGE_SIZE,
             offset,
+            orderByColumn: sorting[0]?.id,
+            orderByDirection: sorting[0]?.desc ? "desc" : "asc",
           });
 
         case "mongodb":
@@ -82,6 +94,8 @@ export function DataViewer() {
             collectionName: selectedTable,
             limit: PAGE_SIZE,
             offset,
+            orderByColumn: sorting[0]?.id,
+            orderByDirection: sorting[0]?.desc ? "desc" : "asc",
           });
 
         default:
@@ -204,8 +218,8 @@ export function DataViewer() {
       </div>
 
       {/* Data Table */}
-      <div className="flex-1 overflow-auto">
-        <DataTable columns={columns} data={data} />
+      <div className="flex-1 min-h-0">
+        <DataTable columns={columns} data={data} sorting={sorting} onSortingChange={setSorting} />
       </div>
 
       {/* Footer pagination */}

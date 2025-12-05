@@ -32,8 +32,49 @@ interface QueryResult {
 
 const PAGE_SIZE = 100;
 
+/**
+ * Main DataViewer - splits by selectedTable condition
+ */
 export function DataViewer() {
-  const { connKey, connectionConfig, projectPath, selectedTable, selectedSchema } = useConnection();
+  const { selectedTable } = useConnection();
+
+  if (!selectedTable) {
+    return <NoTableSelected />;
+  }
+
+  return <TableDataViewer selectedTable={selectedTable} />;
+}
+
+/**
+ * Empty state when no table is selected
+ */
+function NoTableSelected() {
+  const { connKey, connectionConfig } = useConnection();
+
+  return (
+    <div className="flex items-center justify-center h-full overflow-hidden">
+      <div className="text-center space-y-3">
+        <div className="space-y-1">
+          <p className="text-sm text-muted-foreground">
+            Connected to{" "}
+            <span className="font-medium text-foreground">
+              {connectionConfig.label || connKey}
+            </span>
+          </p>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Select a table from the sidebar to view data
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Table data viewer - handles data fetching and display
+ */
+function TableDataViewer({ selectedTable }: { selectedTable: string }) {
+  const { connKey, connectionConfig, projectPath, selectedSchema } = useConnection();
 
   const [page, setPage] = useState(0);
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -51,11 +92,7 @@ export function DataViewer() {
     setPage(0);
   }, [filters]);
 
-  // Reset page when object changes
-  const objectKey = selectedTable
-    ? `${selectedSchema || ""}.${selectedTable}`
-    : null;
-
+  const objectKey = `${selectedSchema || ""}.${selectedTable}`;
   const engine = connectionConfig.engine;
 
   // Convert filters to backend format
@@ -70,20 +107,8 @@ export function DataViewer() {
   );
 
   const dataQuery = useQuery({
-    queryKey: [
-      "table-data",
-      projectPath,
-      connKey,
-      objectKey,
-      page,
-      sorting,
-      filterParams,
-    ],
+    queryKey: ["table-data", projectPath, connKey, objectKey, page, sorting, filterParams],
     queryFn: async () => {
-      if (!selectedTable) {
-        throw new Error("No table selected");
-      }
-
       const offset = page * PAGE_SIZE;
 
       switch (engine) {
@@ -128,13 +153,11 @@ export function DataViewer() {
           throw new Error(`Unsupported engine: ${engine}`);
       }
     },
-    enabled: !!selectedTable,
   });
 
   // Build filter column configs from query result
-  // Use empty array when no data yet - this is safe because columnsConfig can be empty
   const filterColumnConfigs: ColumnConfig<Record<string, unknown>>[] = useMemo(() => {
-    if (!dataQuery.data) return [];
+    if (dataQuery.status !== "success") return [];
     return dataQuery.data.columns.map((col) => {
       const filterType = dbTypeToFilterType(col.data_type);
       const Icon = getFilterTypeIcon(filterType);
@@ -146,68 +169,51 @@ export function DataViewer() {
         accessor: (row: Record<string, unknown>) => row[col.name] as string | number | Date,
       } as ColumnConfig<Record<string, unknown>>;
     });
-  }, [dataQuery.data]);
+  }, [dataQuery.status, dataQuery.data]);
 
-  // Initialize filter hook with server strategy - must be called unconditionally
+  // Initialize filter hook with server strategy
   const filterInstance = useDataTableFilters({
     strategy: "server",
-    data: [], // Empty for server-side
+    data: [],
     columnsConfig: filterColumnConfigs,
     filters,
     onFiltersChange: setFilters,
   });
 
-  // Show empty state when connected but no table selected
-  if (!selectedTable) {
-    return (
-      <div className="flex items-center justify-center h-full overflow-hidden">
-        <div className="text-center space-y-3">
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">
-              Connected to{" "}
-              <span className="font-medium text-foreground">
-                {connectionConfig.label || connKey}
-              </span>
-            </p>
+  // Use status for type narrowing
+  switch (dataQuery.status) {
+    case "pending":
+      return (
+        <div className="flex items-center justify-center h-full">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2Icon className="size-5 animate-spin text-muted-foreground" />
+            <p className="text-xs text-muted-foreground">Loading...</p>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Select a table from the sidebar to view data
-          </p>
         </div>
-      </div>
-    );
+      );
+
+    case "error":
+      return (
+        <div className="flex items-center justify-center h-full">
+          <div className="flex flex-col items-center gap-3 max-w-sm">
+            <h2 className="text-sm font-medium text-destructive">Failed to load data</h2>
+            <p className="text-xs text-muted-foreground text-center">
+              {dataQuery.error instanceof Error ? dataQuery.error.message : "Unknown error"}
+            </p>
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => dataQuery.refetch()}>
+              <RefreshCwIcon className="size-3 mr-1.5" />
+              Retry
+            </Button>
+          </div>
+        </div>
+      );
+
+    case "success":
+      break; // Continue to render
   }
 
-  if (dataQuery.isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2Icon className="size-5 animate-spin text-muted-foreground" />
-          <p className="text-xs text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (dataQuery.isError) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="flex flex-col items-center gap-3 max-w-sm">
-          <h2 className="text-sm font-medium text-destructive">Failed to load data</h2>
-          <p className="text-xs text-muted-foreground text-center">
-            {dataQuery.error instanceof Error ? dataQuery.error.message : "Unknown error"}
-          </p>
-          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => dataQuery.refetch()}>
-            <RefreshCwIcon className="size-3 mr-1.5" />
-            Retry
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
+  // At this point, dataQuery.data is guaranteed to exist
   const result = dataQuery.data;
-  if (!result) return null;
 
   // Build columns for the data table
   const columns: ColumnDef<Record<string, unknown>>[] = result.columns.map((col) => ({

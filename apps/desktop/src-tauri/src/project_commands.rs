@@ -156,16 +156,16 @@ pub async fn resolve_connection_config_command(
     Ok(conn_config.clone())
 }
 
-/// List all query files in the project
+/// List all saved queries in the project with summary info
 #[command]
-pub async fn list_query_files(project_path: String) -> Result<Vec<String>, String> {
+pub async fn list_saved_queries(project_path: String) -> Result<Vec<QuerySummary>, String> {
     let queries_path = Path::new(&project_path).join(".based/queries");
 
     if !queries_path.exists() {
         return Ok(Vec::new());
     }
 
-    let mut files = Vec::new();
+    let mut queries = Vec::new();
 
     for entry in WalkDir::new(&queries_path)
         .into_iter()
@@ -173,89 +173,100 @@ pub async fn list_query_files(project_path: String) -> Result<Vec<String>, Strin
     {
         if entry.file_type().is_file() {
             let path = entry.path();
-            let ext = path.extension().and_then(|e| e.to_str());
-
-            // Only include .sqlx and .mongox files
-            if ext == Some("sqlx") || ext == Some("mongox") {
-                if let Ok(relative_path) = path.strip_prefix(&queries_path) {
-                    if let Some(path_str) = relative_path.to_str() {
-                        files.push(path_str.to_string());
+            let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            
+            // Only include .query.toml files
+            if filename.ends_with(".query.toml") {
+                if let Ok(content) = fs::read_to_string(path) {
+                    if let Ok(query) = toml::from_str::<SavedQuery>(&content) {
+                        queries.push(QuerySummary {
+                            filename: filename.to_string(),
+                            name: query.name,
+                            connection: query.connection,
+                            description: query.description,
+                            tags: query.tags,
+                            favorite: query.favorite,
+                        });
                     }
                 }
             }
         }
     }
 
-    files.sort();
-    Ok(files)
+    // Sort by name
+    queries.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(queries)
 }
 
-/// Read a query file and parse its metadata
+/// Read a saved query file
 #[command]
-pub async fn read_query_file(
+pub async fn get_saved_query(
     project_path: String,
-    query_path: String,
-) -> Result<QueryFile, String> {
+    filename: String,
+) -> Result<SavedQuery, String> {
     let file_path = Path::new(&project_path)
         .join(".based/queries")
-        .join(&query_path);
+        .join(&filename);
 
     let content = fs::read_to_string(&file_path)
         .map_err(|e| format!("Failed to read query file: {}", e))?;
 
-    // Parse YAML frontmatter
-    let (metadata, query_content) = parse_query_frontmatter(&content)
-        .map_err(|e| format!("Failed to parse query frontmatter: {}", e))?;
+    let mut query: SavedQuery = toml::from_str(&content)
+        .map_err(|e| format!("Failed to parse query file: {}", e))?;
+    
+    // Set filename (not in TOML)
+    query.filename = filename;
 
-    Ok(QueryFile {
-        path: query_path.clone(),
-        name: metadata.name.clone(),
-        connection: metadata.connection.clone(),
-        content: query_content,
-        metadata,
-    })
+    Ok(query)
 }
 
-/// Write a query file with metadata
+/// Save a query file (create or update)
 #[command]
-pub async fn write_query_file(
+pub async fn save_query(
     project_path: String,
-    query_path: String,
-    metadata: QueryMetadata,
-    content: String,
+    filename: String,
+    query: SavedQuery,
 ) -> Result<(), String> {
-    let file_path = Path::new(&project_path)
-        .join(".based/queries")
-        .join(&query_path);
-
-    // Ensure parent directory exists
-    if let Some(parent) = file_path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create directory: {}", e))?;
+    // Validate filename
+    if filename.is_empty() {
+        return Err("Filename cannot be empty".to_string());
+    }
+    if !filename.ends_with(".query.toml") {
+        return Err("Filename must end with .query.toml".to_string());
+    }
+    
+    let queries_dir = Path::new(&project_path).join(".based/queries");
+    
+    // Ensure queries directory exists
+    fs::create_dir_all(&queries_dir)
+        .map_err(|e| format!("Failed to create queries directory: {}", e))?;
+    
+    let file_path = queries_dir.join(&filename);
+    
+    // Make sure we're not writing to a directory
+    if file_path.is_dir() {
+        return Err(format!("Cannot write to directory: {}", file_path.display()));
     }
 
-    // Serialize metadata to YAML
-    let yaml_metadata = serde_yaml::to_string(&metadata)
-        .map_err(|e| format!("Failed to serialize metadata: {}", e))?;
+    // Serialize to TOML
+    let content = toml::to_string_pretty(&query)
+        .map_err(|e| format!("Failed to serialize query: {}", e))?;
 
-    // Combine frontmatter and content
-    let full_content = format!("---\n{}---\n\n{}", yaml_metadata, content);
-
-    fs::write(&file_path, full_content)
-        .map_err(|e| format!("Failed to write query file: {}", e))?;
+    fs::write(&file_path, content)
+        .map_err(|e| format!("Failed to write query file '{}': {}", filename, e))?;
 
     Ok(())
 }
 
-/// Delete a query file
+/// Delete a saved query file
 #[command]
-pub async fn delete_query_file(
+pub async fn delete_saved_query(
     project_path: String,
-    query_path: String,
+    filename: String,
 ) -> Result<(), String> {
     let file_path = Path::new(&project_path)
         .join(".based/queries")
-        .join(&query_path);
+        .join(&filename);
 
     fs::remove_file(&file_path)
         .map_err(|e| format!("Failed to delete query file: {}", e))?;
@@ -263,64 +274,32 @@ pub async fn delete_query_file(
     Ok(())
 }
 
-/// Parse YAML frontmatter from query file
-fn parse_query_frontmatter(content: &str) -> Result<(QueryMetadata, String), ProjectError> {
-    // Check if content starts with ---
-    if !content.starts_with("---") {
-        return Err(ProjectError::InvalidFrontmatter(
-            "Query file must start with YAML frontmatter (---)".to_string(),
-        ));
-    }
-
-    // Find the end of frontmatter
-    let lines: Vec<&str> = content.lines().collect();
-    let mut end_index = 0;
-
-    for (i, line) in lines.iter().enumerate().skip(1) {
-        if line.trim() == "---" {
-            end_index = i;
-            break;
-        }
-    }
-
-    if end_index == 0 {
-        return Err(ProjectError::InvalidFrontmatter(
-            "Could not find end of YAML frontmatter (---)".to_string(),
-        ));
-    }
-
-    // Extract frontmatter (excluding the --- delimiters)
-    let frontmatter = lines[1..end_index].join("\n");
-
-    // Extract query content (everything after the second ---)
-    let query_content = lines[end_index + 1..].join("\n").trim().to_string();
-
-    // Parse YAML frontmatter
-    let metadata: QueryMetadata = serde_yaml::from_str(&frontmatter)?;
-
-    Ok((metadata, query_content))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_query_frontmatter() {
-        let content = r#"---
-name: Test Query
-database: main
-description: A test query
-tags: [test, example]
-favorite: false
----
+    fn test_saved_query_toml_parsing() {
+        let content = r#"
+name = "Recent Orders"
+connection = "northwind"
+description = "Get orders from the last N days"
+tags = ["orders", "reports"]
+favorite = true
 
-SELECT * FROM users;
+[params.days]
+type = "number"
+default = 7
+description = "Number of days to look back"
+
+[sql]
+query = "SELECT * FROM orders WHERE order_date > date('now', '-' || $days || ' days')"
 "#;
 
-        let (metadata, query) = parse_query_frontmatter(content).unwrap();
-        assert_eq!(metadata.name, "Test Query");
-        assert_eq!(metadata.database, "main");
-        assert_eq!(query, "SELECT * FROM users;");
+        let query: SavedQuery = toml::from_str(content).unwrap();
+        assert_eq!(query.name, "Recent Orders");
+        assert_eq!(query.connection, "northwind");
+        assert!(query.sql.is_some());
+        assert!(query.params.is_some());
     }
 }

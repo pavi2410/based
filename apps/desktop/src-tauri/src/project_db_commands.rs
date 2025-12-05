@@ -4,7 +4,7 @@ use crate::error::Error;
 use crate::project_commands::read_project_config;
 use crate::project_types::{ConnectionConfig, Engine};
 use serde::{Deserialize, Serialize};
-use sqlx::Row;
+use sqlx::{Column, Row};
 use std::collections::HashMap;
 use tauri::State;
 
@@ -1036,4 +1036,217 @@ async fn ensure_connection(
     ).await;
 
     Ok(id.to_string())
+}
+
+// ============================================================================
+// Raw Query Execution Commands
+// ============================================================================
+
+/// Execute a raw SQL query (for SQLite and PostgreSQL)
+#[tauri::command]
+pub async fn execute_raw_sql(
+    project_path: String,
+    conn_key: String,
+    query: String,
+    registry: State<'_, ConnectionRegistry>,
+    app: tauri::AppHandle,
+) -> Result<QueryResult, Error> {
+    let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
+
+    let pools = registry.pools().await;
+    let pool = pools
+        .get(&conn_id)
+        .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
+
+    match pool {
+        ConnectionPool::Sqlite(pool) => {
+            execute_sqlite_raw(pool, &query).await
+        }
+        ConnectionPool::Postgres(pool) => {
+            execute_postgres_raw(pool, &query).await
+        }
+        ConnectionPool::Mongo(_) => {
+            Err(Error::InvalidDbUrl("Use execute_raw_mongo for MongoDB queries".to_string()))
+        }
+    }
+}
+
+/// Execute raw SQL on SQLite
+async fn execute_sqlite_raw(
+    pool: &sqlx::SqlitePool,
+    query: &str,
+) -> Result<QueryResult, Error> {
+    let rows = sqlx::query(query).fetch_all(pool).await?;
+    
+    if rows.is_empty() {
+        return Ok(QueryResult {
+            columns: vec![],
+            rows: vec![],
+            total_count: Some(0),
+        });
+    }
+
+    // Get column info from first row
+    let first_row = &rows[0];
+    let columns: Vec<ColumnInfo> = first_row
+        .columns()
+        .iter()
+        .map(|col| ColumnInfo {
+            name: col.name().to_string(),
+            data_type: col.type_info().to_string(),
+        })
+        .collect();
+
+    // Convert rows
+    let result_rows: Vec<Vec<serde_json::Value>> = rows
+        .iter()
+        .map(|row| {
+            columns
+                .iter()
+                .map(|col| sqlite_value_to_json(row, &col.name))
+                .collect()
+        })
+        .collect();
+
+    let row_count = result_rows.len() as i64;
+    Ok(QueryResult {
+        columns,
+        rows: result_rows,
+        total_count: Some(row_count),
+    })
+}
+
+/// Execute raw SQL on PostgreSQL
+async fn execute_postgres_raw(
+    pool: &sqlx::PgPool,
+    query: &str,
+) -> Result<QueryResult, Error> {
+    let rows = sqlx::query(query).fetch_all(pool).await?;
+    
+    if rows.is_empty() {
+        return Ok(QueryResult {
+            columns: vec![],
+            rows: vec![],
+            total_count: Some(0),
+        });
+    }
+
+    // Get column info from first row
+    let first_row = &rows[0];
+    let columns: Vec<ColumnInfo> = first_row
+        .columns()
+        .iter()
+        .map(|col| ColumnInfo {
+            name: col.name().to_string(),
+            data_type: col.type_info().to_string(),
+        })
+        .collect();
+
+    // Convert rows
+    let result_rows: Vec<Vec<serde_json::Value>> = rows
+        .iter()
+        .map(|row| {
+            columns
+                .iter()
+                .map(|col| postgres_value_to_json(row, &col.name))
+                .collect()
+        })
+        .collect();
+
+    let row_count = result_rows.len() as i64;
+    Ok(QueryResult {
+        columns,
+        rows: result_rows,
+        total_count: Some(row_count),
+    })
+}
+
+/// Execute a raw MongoDB query (find or aggregate)
+#[tauri::command]
+pub async fn execute_raw_mongo(
+    project_path: String,
+    conn_key: String,
+    collection: String,
+    query_type: String,  // "find" or "aggregate"
+    query: String,       // JSON string
+    registry: State<'_, ConnectionRegistry>,
+    app: tauri::AppHandle,
+) -> Result<QueryResult, Error> {
+    use futures::TryStreamExt;
+
+    let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
+
+    let pools = registry.pools().await;
+    let pool = pools
+        .get(&conn_id)
+        .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
+
+    match pool {
+        ConnectionPool::Mongo(db) => {
+            let coll = db.collection::<mongodb::bson::Document>(&collection);
+            
+            let documents: Vec<mongodb::bson::Document> = match query_type.as_str() {
+                "find" => {
+                    let filter: mongodb::bson::Document = serde_json::from_str(&query)
+                        .map_err(|e| Error::InvalidDbUrl(format!("Invalid JSON filter: {}", e)))?;
+                    
+                    let mut cursor = coll.find(filter, None).await?;
+                    let mut docs = Vec::new();
+                    while let Some(doc) = cursor.try_next().await? {
+                        docs.push(doc);
+                    }
+                    docs
+                }
+                "aggregate" => {
+                    let pipeline: Vec<mongodb::bson::Document> = serde_json::from_str(&query)
+                        .map_err(|e| Error::InvalidDbUrl(format!("Invalid JSON pipeline: {}", e)))?;
+                    
+                    let mut cursor = coll.aggregate(pipeline, None).await?;
+                    let mut docs = Vec::new();
+                    while let Some(doc) = cursor.try_next().await? {
+                        docs.push(doc);
+                    }
+                    docs
+                }
+                _ => {
+                    return Err(Error::InvalidDbUrl(format!("Unknown query type: {}. Use 'find' or 'aggregate'", query_type)));
+                }
+            };
+
+            // Extract columns from first document
+            let columns: Vec<ColumnInfo> = if let Some(first_doc) = documents.first() {
+                first_doc
+                    .keys()
+                    .map(|key| ColumnInfo {
+                        name: key.clone(),
+                        data_type: "mixed".to_string(),
+                    })
+                    .collect()
+            } else {
+                vec![]
+            };
+
+            // Convert documents to rows
+            let rows: Vec<Vec<serde_json::Value>> = documents
+                .iter()
+                .map(|doc| {
+                    columns
+                        .iter()
+                        .map(|col| {
+                            doc.get(&col.name)
+                                .map(|v| bson_to_json(v))
+                                .unwrap_or(serde_json::Value::Null)
+                        })
+                        .collect()
+                })
+                .collect();
+
+            Ok(QueryResult {
+                columns,
+                rows: rows.clone(),
+                total_count: Some(rows.len() as i64),
+            })
+        }
+        _ => Err(Error::InvalidDbUrl("Expected MongoDB connection".to_string())),
+    }
 }

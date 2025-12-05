@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/resizable";
 import { WorkspaceSidebar } from "@/components/workspace/workspace-sidebar";
 import { DataViewer } from "@/components/workspace/data-viewer";
+import { QueryEditor } from "@/components/workspace/query-editor";
 import { Loader2Icon } from "lucide-react";
 import { ProjectContext } from "../project.$projectId";
 import {
@@ -36,10 +37,12 @@ export function useConnection() {
   return ctx;
 }
 
-// Search params schema for table selection
+// Search params schema for table/query selection
 const searchSchema = z.object({
   table: z.string().optional(),
   schema: z.string().optional(),
+  query: z.string().optional(),     // Query filename
+  newQuery: z.boolean().optional(), // Creating new query
 });
 
 export const Route = createFileRoute("/project/$projectId/conn/$connKey")({
@@ -49,7 +52,7 @@ export const Route = createFileRoute("/project/$projectId/conn/$connKey")({
 
 function ConnectionLayout() {
   const { connKey } = Route.useParams();
-  const { table, schema } = Route.useSearch();
+  const { table, schema, query, newQuery } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const ctx = useContext(ProjectContext);
 
@@ -79,7 +82,28 @@ function ConnectionLayout() {
   // Navigate to select a table (called by tree components)
   const handleSelectTable = (tableName: string, tableSchema?: string) => {
     navigate({
-      search: (prev) => ({ ...prev, table: tableName, schema: tableSchema }),
+      search: { table: tableName, schema: tableSchema },
+    });
+  };
+
+  // Navigate to select a query
+  const handleSelectQuery = (filename: string) => {
+    navigate({
+      search: { query: filename },
+    });
+  };
+
+  // Navigate to create new query
+  const handleNewQuery = () => {
+    navigate({
+      search: { newQuery: true },
+    });
+  };
+
+  // Close query editor
+  const handleCloseQuery = () => {
+    navigate({
+      search: {},
     });
   };
 
@@ -130,13 +154,27 @@ function ConnectionLayout() {
         <ResizablePanel defaultSize={20} minSize={15} maxSize={40}>
           <WorkspaceSidebar
             onDisconnect={handleDisconnect}
+            onSelectQuery={handleSelectQuery}
+            onNewQuery={handleNewQuery}
+            selectedQuery={query}
           />
         </ResizablePanel>
 
         <ResizableHandle />
 
         <ResizablePanel defaultSize={80}>
-          <DataViewer />
+          {(query || newQuery) ? (
+            <QueryEditor
+              projectPath={projectPath}
+              connectionKey={connKey}
+              engine={connectionConfig.engine}
+              filename={query}
+              onClose={handleCloseQuery}
+              onSaved={handleSelectQuery}
+            />
+          ) : (
+            <DataViewer />
+          )}
         </ResizablePanel>
       </ResizablePanelGroup>
     </ConnectionContext.Provider>

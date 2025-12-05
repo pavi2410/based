@@ -1,54 +1,47 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { QueryFile, QueryMetadata } from "../types/project";
+import type { SavedQuery, QuerySummary } from "../types/project";
 
 /**
- * Query file store for managing saved queries (.sqlx, .mongox files)
+ * Query file store for managing saved queries (.query.toml files)
  * Handles listing, reading, writing, and deleting query files
  */
 
 /**
- * List all query files in the project
- * Returns relative paths from .based/queries/
+ * List all saved queries in the project with summary info
  */
-export async function listQueryFiles(
+export async function listSavedQueries(
   projectPath: string,
-): Promise<string[]> {
-  return await invoke("list_query_files", { projectPath });
+): Promise<QuerySummary[]> {
+  return await invoke("list_saved_queries", { projectPath });
 }
 
 /**
- * Read a query file and parse its YAML frontmatter
+ * Get a saved query by filename
  */
-export async function readQueryFile(
+export async function getSavedQuery(
   projectPath: string,
-  queryPath: string,
-): Promise<QueryFile> {
-  return await invoke("read_query_file", { projectPath, queryPath });
+  filename: string,
+): Promise<SavedQuery> {
+  return await invoke("get_saved_query", { projectPath, filename });
 }
 
 /**
- * Write a query file with YAML frontmatter
+ * Save a query (create or update)
  */
-export async function writeQueryFile(
+export async function saveQuery(
   projectPath: string,
-  queryPath: string,
-  metadata: QueryMetadata,
-  content: string,
+  filename: string,
+  query: SavedQuery,
 ): Promise<void> {
-  await invoke("write_query_file", {
-    projectPath,
-    queryPath,
-    metadata,
-    content,
-  });
+  await invoke("save_query", { projectPath, filename, query });
 }
 
 /**
- * Delete a query file
+ * Delete a saved query
  */
-export async function deleteQueryFile(
+export async function deleteSavedQuery(
   projectPath: string,
-  queryPath: string,
+  filename: string,
 ): Promise<void> {
-  await invoke("delete_query_file", { projectPath, queryPath });
+  await invoke("delete_saved_query", { projectPath, filename });
 }

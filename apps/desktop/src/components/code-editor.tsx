@@ -1,6 +1,7 @@
 import CodeMirror from '@uiw/react-codemirror';
 import { sql } from '@codemirror/lang-sql';
 import { json } from '@codemirror/lang-json';
+import { vscodeDark } from '@uiw/codemirror-theme-vscode';
 import { useTheme } from '@/components/theme-provider';
 
 export interface CodeEditorProps {
@@ -38,9 +39,10 @@ export function CodeEditor({
       value={value}
       onChange={onChange}
       extensions={[getLanguageExtension()]}
-      theme={isDark ? 'dark' : 'light'}
+      theme={isDark ? vscodeDark : 'light'}
       className={className}
       placeholder={placeholder}
+      style={{ fontSize: '13px' }}
       basicSetup={{
         lineNumbers: true,
         highlightActiveLine: true,

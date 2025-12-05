@@ -1,0 +1,20 @@
+name = "Recent Orders"
+connection = "northwind"
+description = "Get the most recent orders with customer details"
+tags = ["orders", "reports"]
+favorite = true
+
+[sql]
+query = """
+SELECT 
+    o.OrderID,
+    o.OrderDate,
+    c.CompanyName as Customer,
+    e.FirstName || ' ' || e.LastName as Employee,
+    o.ShipCountry
+FROM Orders o
+JOIN Customers c ON o.CustomerID = c.CustomerID  
+JOIN Employees e ON o.EmployeeID = e.EmployeeID
+ORDER BY o.OrderDate DESC
+LIMIT 50
+"""

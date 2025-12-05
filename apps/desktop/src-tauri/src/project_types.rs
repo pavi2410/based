@@ -88,31 +88,82 @@ pub struct ProjectSettings {
     pub cache_ttl: Option<u32>,
 }
 
+/// Saved query file (.query.toml) structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct QueryMetadata {
+pub struct SavedQuery {
+    /// Filename (not in TOML, added when reading)
+    #[serde(skip)]
+    pub filename: String,
+    
+    /// Display name
     pub name: String,
+    /// Connection key from config.toml
     pub connection: String,
+    /// Optional description
     pub description: Option<String>,
+    /// Tags for organization
     pub tags: Option<Vec<String>>,
-    pub parameters: Option<Vec<QueryParameter>>,
+    /// Whether this query is favorited
     pub favorite: Option<bool>,
+    
+    /// Query parameters
+    pub params: Option<std::collections::HashMap<String, QueryParameter>>,
+    
+    /// SQL query (for sqlite, postgres)
+    pub sql: Option<SqlQuery>,
+    /// MongoDB query
+    pub mongo: Option<MongoQuery>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SqlQuery {
+    pub query: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MongoQuery {
+    #[serde(rename = "type")]
+    pub query_type: MongoQueryType,
+    /// JSON string for find queries
+    pub filter: Option<String>,
+    /// JSON string for aggregation pipeline
+    pub pipeline: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MongoQueryType {
+    Find,
+    Aggregate,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QueryParameter {
-    pub name: String,
     #[serde(rename = "type")]
-    pub param_type: String,
+    pub param_type: QueryParamType,
     pub default: Option<serde_json::Value>,
     pub description: Option<String>,
+    /// Options for select type
     pub options: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct QueryFile {
-    pub path: String,
+#[serde(rename_all = "lowercase")]
+pub enum QueryParamType {
+    String,
+    Number,
+    Date,
+    Boolean,
+    Select,
+}
+
+/// Summary info for listing queries (without full content)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuerySummary {
+    pub filename: String,
     pub name: String,
     pub connection: String,
-    pub content: String,
-    pub metadata: QueryMetadata,
+    pub description: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub favorite: Option<bool>,
 }

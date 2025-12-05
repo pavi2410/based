@@ -7,13 +7,21 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { DatabaseTree } from "./database-tree";
+import { SavedQueriesList } from "./saved-queries-list";
 import { useConnection } from "@/routes/project.$projectId/conn.$connKey";
 
 interface WorkspaceSidebarProps {
   onDisconnect?: () => void;
+  onSelectQuery?: (filename: string) => void;
+  onNewQuery?: () => void;
+  selectedQuery?: string;
 }
 
-export function WorkspaceSidebar(_props: WorkspaceSidebarProps) {
+export function WorkspaceSidebar({ 
+  onSelectQuery, 
+  onNewQuery, 
+  selectedQuery 
+}: WorkspaceSidebarProps) {
   const { connKey, connectionConfig, projectPath, onSelectTable, selectedTable, selectedSchema } = useConnection();
 
   return (
@@ -30,11 +38,11 @@ export function WorkspaceSidebar(_props: WorkspaceSidebarProps) {
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <TabsTrigger value="queries" className="size-7 p-0 data-[state=active]:bg-muted" disabled>
+              <TabsTrigger value="queries" className="size-7 p-0 data-[state=active]:bg-muted">
                 <FileTextIcon className="size-4" />
               </TabsTrigger>
             </TooltipTrigger>
-            <TooltipContent side="bottom">Queries (coming soon)</TooltipContent>
+            <TooltipContent side="bottom">Saved Queries</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -60,9 +68,13 @@ export function WorkspaceSidebar(_props: WorkspaceSidebarProps) {
         </TabsContent>
 
         <TabsContent value="queries" className="flex-1 m-0 mt-0">
-          <div className="flex items-center justify-center h-32 text-xs text-muted-foreground">
-            Coming soon
-          </div>
+          <SavedQueriesList
+            projectPath={projectPath}
+            connectionKey={connKey}
+            selectedQuery={selectedQuery}
+            onSelectQuery={onSelectQuery ?? (() => {})}
+            onNewQuery={onNewQuery ?? (() => {})}
+          />
         </TabsContent>
 
         <TabsContent value="history" className="flex-1 m-0 mt-0">

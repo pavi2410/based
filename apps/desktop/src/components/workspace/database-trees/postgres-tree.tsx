@@ -7,8 +7,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import type { ConnectionConfig } from "@/types/project";
 
 interface PostgresDatabaseTreeProps {
@@ -51,37 +49,34 @@ export function PostgresDatabaseTree({
   });
 
   return (
-    <div className="p-2">
+    <div className="py-1 space-y-0.5">
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CollapsibleTrigger asChild>
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-2 px-2 h-8"
-          >
+          <button className="w-full flex items-center gap-1.5 px-2 h-7 text-xs hover:bg-muted/50 transition-colors">
             <ChevronRightIcon
-              className={`size-4 transition-transform ${isOpen ? "rotate-90" : ""}`}
+              className={`size-3 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`}
             />
-            <DatabaseIcon className="size-4" />
-            <span className="flex-1 text-left text-sm">Schemas</span>
-            <Badge variant="outline" className="text-xs">
-              {schemasQuery.isSuccess ? schemasQuery.data.length : 0}
-            </Badge>
-          </Button>
+            <DatabaseIcon className="size-3.5 text-muted-foreground" />
+            <span className="flex-1 text-left font-medium">Schemas</span>
+            <span className="text-[10px] text-muted-foreground tabular-nums">
+              {schemasQuery.isSuccess ? schemasQuery.data.length : "–"}
+            </span>
+          </button>
         </CollapsibleTrigger>
-        <CollapsibleContent className="ml-6 mt-1 space-y-1">
+        <CollapsibleContent className="ml-4 border-l border-border/50">
           {schemasQuery.isLoading && (
-            <div className="text-xs text-muted-foreground px-2 py-1">
-              Loading schemas...
+            <div className="text-[11px] text-muted-foreground px-3 py-1.5">
+              Loading...
             </div>
           )}
           {schemasQuery.isError && (
-            <div className="text-xs text-destructive px-2 py-1">
-              Failed to load schemas
+            <div className="text-[11px] text-destructive px-3 py-1.5">
+              Failed to load
             </div>
           )}
           {schemasQuery.isSuccess && schemasQuery.data.length === 0 && (
-            <div className="text-xs text-muted-foreground px-2 py-1">
-              No schemas found
+            <div className="text-[11px] text-muted-foreground px-3 py-1.5 italic">
+              None
             </div>
           )}
           {schemasQuery.isSuccess &&
@@ -141,50 +136,50 @@ function PostgresSchemaGroup({
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <CollapsibleTrigger asChild>
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-2 px-2 h-8"
-        >
+        <button className="w-full flex items-center gap-1.5 px-2 h-7 text-xs hover:bg-muted/50 transition-colors">
           <ChevronRightIcon
-            className={`size-4 transition-transform ${isOpen ? "rotate-90" : ""}`}
+            className={`size-3 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`}
           />
-          <DatabaseIcon className="size-4" />
-          <span className="flex-1 text-left text-sm">{schema}</span>
-          <Badge variant="outline" className="text-xs">
-            {tablesQuery.isSuccess ? tablesQuery.data.length : 0}
-          </Badge>
-        </Button>
+          <DatabaseIcon className="size-3.5 text-muted-foreground" />
+          <span className="flex-1 text-left font-medium">{schema}</span>
+          <span className="text-[10px] text-muted-foreground tabular-nums">
+            {tablesQuery.isSuccess ? tablesQuery.data.length : "–"}
+          </span>
+        </button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="ml-6 mt-1 space-y-1">
+      <CollapsibleContent className="ml-4 border-l border-border/50">
         {tablesQuery.isLoading && (
-          <div className="text-xs text-muted-foreground px-2 py-1">
-            Loading tables...
+          <div className="text-[11px] text-muted-foreground px-3 py-1.5">
+            Loading...
           </div>
         )}
         {tablesQuery.isError && (
-          <div className="text-xs text-destructive px-2 py-1">
-            Failed to load tables
+          <div className="text-[11px] text-destructive px-3 py-1.5">
+            Failed to load
           </div>
         )}
         {tablesQuery.isSuccess && tablesQuery.data.length === 0 && (
-          <div className="text-xs text-muted-foreground px-2 py-1">
-            No tables found
+          <div className="text-[11px] text-muted-foreground px-3 py-1.5 italic">
+            None
           </div>
         )}
         {tablesQuery.isSuccess &&
           tablesQuery.data.map((table) => {
             const isSelected = selectedTable === table.name && selectedSchema === schema;
             return (
-              <Button
+              <button
                 key={table.name}
-                variant={isSelected ? "secondary" : "ghost"}
-                className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal"
+                className={`w-full flex items-center gap-1.5 text-left h-6 px-3 text-[11px] truncate transition-colors ${
+                  isSelected
+                    ? "bg-primary/10 text-primary font-medium"
+                    : "text-foreground/80 hover:bg-muted/50"
+                }`}
                 title={table.name}
                 onClick={() => handleTableClick(table.name)}
               >
-                <TableIcon className="size-3" />
+                <TableIcon className="size-3 shrink-0" />
                 {table.name}
-              </Button>
+              </button>
             );
           })}
       </CollapsibleContent>

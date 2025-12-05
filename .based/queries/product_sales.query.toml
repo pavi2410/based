@@ -1,0 +1,19 @@
+name = "Product Sales Summary"
+connection = "northwind"
+description = "Summary of product sales by category"
+tags = ["products", "sales", "reports"]
+
+[sql]
+query = """
+SELECT 
+    c.CategoryName,
+    p.ProductName,
+    SUM(od.Quantity) as TotalQuantity,
+    ROUND(SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)), 2) as TotalRevenue
+FROM Products p
+JOIN Categories c ON p.CategoryID = c.CategoryID
+JOIN "Order Details" od ON p.ProductID = od.ProductID
+GROUP BY c.CategoryName, p.ProductName
+ORDER BY TotalRevenue DESC
+LIMIT 20
+"""

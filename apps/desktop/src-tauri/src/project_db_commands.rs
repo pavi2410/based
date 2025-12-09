@@ -38,8 +38,15 @@ fn build_connection_string(
                 .map_err(|e| Error::InvalidDbUrl(format!("Failed to resolve MongoDB URL: {}", e)))
         }
         Engine::Postgres => {
+            // Support URL-based connection (like MongoDB)
+            if let Some(url_secret) = &conn_config.url {
+                return url_secret.resolve(env_vars)
+                    .map_err(|e| Error::InvalidDbUrl(format!("Failed to resolve PostgreSQL URL: {}", e)));
+            }
+
+            // Fall back to individual fields
             let host = conn_config.host.as_ref()
-                .ok_or_else(|| Error::InvalidDbUrl("PostgreSQL connection missing 'host' field".to_string()))?;
+                .ok_or_else(|| Error::InvalidDbUrl("PostgreSQL connection missing 'host' field (or use 'url' for connection string)".to_string()))?;
             let port = conn_config.port.unwrap_or(5432);
             let database = conn_config.database.as_ref()
                 .ok_or_else(|| Error::InvalidDbUrl("PostgreSQL connection missing 'database' field".to_string()))?;

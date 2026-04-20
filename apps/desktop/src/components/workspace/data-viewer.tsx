@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { SchemaInspector } from "@/components/workspace/schema-inspector";
+import { CellDetailPanel } from "@/components/workspace/cell-detail-panel";
 import {
   RowEditorDialog,
   type EditorMode,
@@ -28,11 +29,19 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
 } from "@/components/ui/context-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { DownloadIcon } from "lucide-react";
+import { VirtualDataTable } from "@/components/virtual-data-table";
+import { exportAsCsv, exportAsJson } from "@/lib/export";
 import { useRowMutations, type RowMap } from "@/hooks/use-row-mutations";
 import { $undoStack } from "@/stores/row-mutations-store";
 import type { TableDescription } from "@/types/project";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/data-table";
 import { useConnection } from "@/routes/project.$projectId/conn.$connKey";
 import {
   Tooltip,
@@ -235,6 +244,11 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
   const canUndo = undoStack.length > 0;
 
   const [editorMode, setEditorMode] = useState<EditorMode | null>(null);
+  // Cell detail panel state: which cell is focused, or null.
+  const [detailCell, setDetailCell] = useState<{
+    columnId: string;
+    value: unknown;
+  } | null>(null);
 
   const description = descriptionQuery.data;
 
@@ -434,6 +448,46 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
             <PlusIcon className="size-3 mr-1" />
             New
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[11px]"
+                title="Export current page"
+                disabled={data.length === 0}
+              >
+                <DownloadIcon className="size-3 mr-1" />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="text-xs">
+              <DropdownMenuItem
+                className="text-xs"
+                onClick={() =>
+                  exportAsCsv(
+                    selectedTable,
+                    result.columns.map((c) => c.name),
+                    data as Record<string, unknown>[],
+                  )
+                }
+              >
+                Download CSV (current page)
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-xs"
+                onClick={() =>
+                  exportAsJson(
+                    selectedTable,
+                    result.columns.map((c) => c.name),
+                    data as Record<string, unknown>[],
+                  )
+                }
+              >
+                Download JSON (current page)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant="ghost"
             size="icon"
@@ -479,72 +533,86 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
             </div>
           )}
 
-          <div className="flex-1 min-h-0">
-            <DataTable
-              columns={columns}
-              data={data}
-              sorting={sorting}
-              onSortingChange={setSorting}
-              renderRowContextMenu={(row) => {
-                const pk = buildPkForRow(row);
-                const canMutate = !!pk;
-                return (
-                  <ContextMenuContent className="text-xs">
-                    <ContextMenuItem
-                      className="text-xs"
-                      disabled={!canMutate}
-                      onClick={() => {
-                        if (!pk) return;
-                        setEditorMode({
-                          kind: "edit",
-                          pk,
-                          originalRow: row,
-                        });
-                      }}
-                    >
-                      <PencilIcon className="size-3 mr-2" />
-                      Edit row...
-                    </ContextMenuItem>
-                    <ContextMenuItem
-                      className="text-xs"
-                      disabled={!description}
-                      onClick={() => {
-                        // Duplicate: open insert editor pre-populated
-                        // with the row's values minus its PKs (so the
-                        // database can assign fresh ones).
-                        if (!description) return;
-                        const clone: RowMap = { ...row };
-                        for (const c of description.columns) {
-                          if (c.isPrimaryKey) delete clone[c.name];
-                        }
-                        // Stash into editor state by temporarily
-                        // overriding "insert" mode with a seeded row.
-                        // We reuse edit mode internally by using a
-                        // synthetic originalRow path — simpler to
-                        // open a fresh insert and let the user paste.
-                        setEditorMode({ kind: "insert" });
-                        toast.message(
-                          "Duplicate: open insert with this row's non-PK fields (TODO)",
-                        );
-                        void clone;
-                      }}
-                    >
-                      <CopyIcon className="size-3 mr-2" />
-                      Duplicate
-                    </ContextMenuItem>
-                    <ContextMenuSeparator />
-                    <ContextMenuItem
-                      className="text-xs text-destructive focus:text-destructive"
-                      disabled={!canMutate}
-                      onClick={() => handleDelete(row)}
-                    >
-                      <TrashIcon className="size-3 mr-2" />
-                      Delete row
-                    </ContextMenuItem>
-                  </ContextMenuContent>
-                );
-              }}
-            />
+          <div className="flex-1 min-h-0 flex flex-col">
+            <div className={detailCell ? "flex-1 min-h-0" : "flex-1 min-h-0"}>
+              <VirtualDataTable
+                columns={columns}
+                data={data}
+                sorting={sorting}
+                onSortingChange={setSorting}
+                onCellClick={({ columnId, value }) =>
+                  setDetailCell({ columnId, value })
+                }
+                renderRowContextMenu={(row) => {
+                  const pk = buildPkForRow(row);
+                  const canMutate = !!pk;
+                  return (
+                    <ContextMenuContent className="text-xs">
+                      <ContextMenuItem
+                        className="text-xs"
+                        disabled={!canMutate}
+                        onClick={() => {
+                          if (!pk) return;
+                          setEditorMode({
+                            kind: "edit",
+                            pk,
+                            originalRow: row,
+                          });
+                        }}
+                      >
+                        <PencilIcon className="size-3 mr-2" />
+                        Edit row...
+                      </ContextMenuItem>
+                      <ContextMenuItem
+                        className="text-xs"
+                        disabled={!description}
+                        onClick={() => {
+                          // Duplicate: open insert editor pre-populated
+                          // with the row's values minus its PKs (so the
+                          // database can assign fresh ones).
+                          if (!description) return;
+                          const clone: RowMap = { ...row };
+                          for (const c of description.columns) {
+                            if (c.isPrimaryKey) delete clone[c.name];
+                          }
+                          // Stash into editor state by temporarily
+                          // overriding "insert" mode with a seeded row.
+                          // We reuse edit mode internally by using a
+                          // synthetic originalRow path — simpler to
+                          // open a fresh insert and let the user paste.
+                          setEditorMode({ kind: "insert" });
+                          toast.message(
+                            "Duplicate: open insert with this row's non-PK fields (TODO)",
+                          );
+                          void clone;
+                        }}
+                      >
+                        <CopyIcon className="size-3 mr-2" />
+                        Duplicate
+                      </ContextMenuItem>
+                      <ContextMenuSeparator />
+                      <ContextMenuItem
+                        className="text-xs text-destructive focus:text-destructive"
+                        disabled={!canMutate}
+                        onClick={() => handleDelete(row)}
+                      >
+                        <TrashIcon className="size-3 mr-2" />
+                        Delete row
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                  );
+                }}
+              />
+            </div>
+            {detailCell ? (
+              <div className="h-[30%] min-h-[120px] max-h-[50%] shrink-0">
+                <CellDetailPanel
+                  columnId={detailCell.columnId}
+                  value={detailCell.value}
+                  onClose={() => setDetailCell(null)}
+                />
+              </div>
+            ) : null}
           </div>
 
           {/* Footer pagination */}

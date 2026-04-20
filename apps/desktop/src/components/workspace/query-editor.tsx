@@ -21,6 +21,10 @@ import {
   $pendingDraftQuery,
   recordHistory,
 } from "@/stores/query-history-store";
+import {
+  markQueryEnd,
+  markQueryStart,
+} from "@/stores/query-registry-store";
 import { useUiMode } from "@/stores/user-prefs-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -206,6 +210,7 @@ export function QueryEditor({
     mutationFn: async (override?: { sql?: string; historyLabel?: string }) => {
       const token = crypto.randomUUID?.() ?? String(Math.random());
       activeTokenRef.current = token;
+      markQueryStart(token);
       const startedAt = performance.now();
       const timeoutArg = executionTimeoutMs > 0 ? executionTimeoutMs : null;
       const sqlToRun = override?.sql ?? substitutedQuery;
@@ -254,6 +259,7 @@ export function QueryEditor({
         });
         throw err;
       } finally {
+        markQueryEnd(token);
         activeTokenRef.current = null;
       }
     },

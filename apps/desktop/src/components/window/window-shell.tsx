@@ -8,6 +8,7 @@
  */
 import { useWindow } from "@/hooks/use-window";
 import { DetachedTableViewer } from "@/components/window/detached-table-viewer";
+import { SettingsPanel } from "@/components/window/settings-panel";
 
 function PlaceholderPanel({
   title,
@@ -65,10 +66,6 @@ export function WindowShell() {
         </PlaceholderPanel>
       );
     case "settings":
-      return (
-        <PlaceholderPanel title="Settings">
-          Settings window — implemented in Phase 3.
-        </PlaceholderPanel>
-      );
+      return <SettingsPanel />;
   }
 }

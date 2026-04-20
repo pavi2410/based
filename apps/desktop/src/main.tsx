@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { WindowShell } from "@/components/window/window-shell";
 import { CommandPalette } from "@/components/command-palette";
+import { ErrorBoundary } from "@/components/error-boundary";
 // Import the generated route tree
 import { routeTree } from "./routeTree.gen";
 import "./index.css";
@@ -36,12 +37,14 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
         {isChildWindow ? (
-          <WindowShell />
+          <ErrorBoundary label="This window crashed">
+            <WindowShell />
+          </ErrorBoundary>
         ) : (
-          <>
+          <ErrorBoundary label="Main window crashed">
             <RouterProvider router={router} />
             <CommandPalette />
-          </>
+          </ErrorBoundary>
         )}
         <Toaster />
       </ThemeProvider>

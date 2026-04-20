@@ -1,13 +1,13 @@
-import CodeMirror from '@uiw/react-codemirror';
-import { sql } from '@codemirror/lang-sql';
-import { json } from '@codemirror/lang-json';
-import { vscodeDark } from '@uiw/codemirror-theme-vscode';
-import { useTheme } from '@/components/theme-provider';
+import CodeMirror from "@uiw/react-codemirror";
+import { sql } from "@codemirror/lang-sql";
+import { json } from "@codemirror/lang-json";
+import { vscodeDark } from "@uiw/codemirror-theme-vscode";
+import { useTheme } from "@/components/theme-provider";
 
 export interface CodeEditorProps {
   value: string;
   onChange: (value: string) => void;
-  language: 'sql' | 'json';
+  language: "sql" | "json";
   className?: string;
   placeholder?: string;
 }
@@ -21,13 +21,16 @@ export function CodeEditor({
   ...props
 }: CodeEditorProps) {
   const { theme } = useTheme();
-  const isDark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const isDark =
+    theme === "dark" ||
+    (theme === "system" &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches);
 
   const getLanguageExtension = () => {
     switch (language) {
-      case 'sql':
+      case "sql":
         return sql();
-      case 'json':
+      case "json":
         return json();
       default:
         return sql();
@@ -39,10 +42,10 @@ export function CodeEditor({
       value={value}
       onChange={onChange}
       extensions={[getLanguageExtension()]}
-      theme={isDark ? vscodeDark : 'light'}
+      theme={isDark ? vscodeDark : "light"}
       className={className}
       placeholder={placeholder}
-      style={{ fontSize: '13px' }}
+      style={{ fontSize: "13px" }}
       basicSetup={{
         lineNumbers: true,
         highlightActiveLine: true,
@@ -52,4 +55,4 @@ export function CodeEditor({
       {...props}
     />
   );
-} 
+}

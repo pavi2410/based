@@ -1,5 +1,9 @@
 import { useStore } from "@nanostores/react";
-import { $recentProjects, removeRecentProject, type RecentProject } from "@/stores/project-state";
+import {
+  $recentProjects,
+  removeRecentProject,
+  type RecentProject,
+} from "@/stores/project-state";
 import { FolderIcon, XIcon } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -62,7 +66,10 @@ function ProjectCard({ project }: { project: RecentProject }) {
           </Button>
         </div>
         <span className="text-xs text-muted-foreground">
-          Opened {formatDistanceToNow(new Date(project.lastOpened), { addSuffix: true })}
+          Opened{" "}
+          {formatDistanceToNow(new Date(project.lastOpened), {
+            addSuffix: true,
+          })}
         </span>
       </div>
     </Link>

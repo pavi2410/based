@@ -1,5 +1,11 @@
 import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
-import { createContext, useContext, useEffect, useState, useEffectEvent } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useEffectEvent,
+} from "react";
 import { readProjectConfig } from "@/stores/projects";
 import {
   addRecentProject,
@@ -105,7 +111,10 @@ function ProjectLayout() {
   }, [projectPath]);
 
   const handleConnectionChange = (connKey: string) => {
-    navigate({ to: "/project/$projectId/conn/$connKey", params: { projectId, connKey } });
+    navigate({
+      to: "/project/$projectId/conn/$connKey",
+      params: { projectId, connKey },
+    });
   };
 
   const handleReloadConfig = () => {
@@ -138,7 +147,9 @@ function ProjectLayout() {
         />
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-3 max-w-md">
-            <h2 className="text-sm font-semibold text-destructive">Failed to load project</h2>
+            <h2 className="text-sm font-semibold text-destructive">
+              Failed to load project
+            </h2>
             <p className="text-xs text-muted-foreground text-center">{error}</p>
             <p className="text-xs text-muted-foreground font-mono bg-muted p-2 rounded">
               {projectPath}
@@ -158,7 +169,14 @@ function ProjectLayout() {
   };
 
   return (
-    <ProjectContext.Provider value={{ config, projectPath, projectId, reloadConfig: handleReloadConfig }}>
+    <ProjectContext.Provider
+      value={{
+        config,
+        projectPath,
+        projectId,
+        reloadConfig: handleReloadConfig,
+      }}
+    >
       <div className="flex flex-col h-screen">
         <TopBar
           config={config}

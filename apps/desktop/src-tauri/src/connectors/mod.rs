@@ -1,5 +1,5 @@
 //! Database connectors module.
-//! 
+//!
 //! This module provides a trait-based abstraction for connecting to different
 //! database engines, with separate implementations for SQLite, PostgreSQL, and MongoDB.
 
@@ -25,7 +25,7 @@ use async_trait::async_trait;
 pub trait DatabaseConnector: Send + Sync {
     /// Connect to the database using the provided URL.
     async fn connect(&self, url: &str) -> Result<ConnectionPool, Error>;
-    
+
     /// Validate the connection URL format without connecting.
     fn validate_url(&self, url: &str) -> Result<(), Error>;
 }
@@ -33,7 +33,7 @@ pub trait DatabaseConnector: Send + Sync {
 /// Get the appropriate connector for a database URL.
 pub fn get_connector(url: &str) -> Result<Box<dyn DatabaseConnector>, Error> {
     let db_url = parse_database_url(url)?;
-    
+
     match db_url {
         DatabaseUrl::Sqlite(_) => Ok(Box::new(SqliteConnector)),
         DatabaseUrl::Postgres(_) => Ok(Box::new(PostgresConnector)),

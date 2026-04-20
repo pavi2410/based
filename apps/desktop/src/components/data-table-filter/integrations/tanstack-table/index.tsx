@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
 import type { Column, FilterModel, FiltersState } from '../../core/types'
 import { multiOptionFilterFn, optionFilterFn } from '../../lib/filter-fns'

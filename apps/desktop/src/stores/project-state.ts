@@ -15,7 +15,11 @@ export interface RecentProject {
   lastOpened: string; // ISO timestamp
 }
 
-export type ConnectionStatus = "connected" | "disconnected" | "connecting" | "error";
+export type ConnectionStatus =
+  | "connected"
+  | "disconnected"
+  | "connecting"
+  | "error";
 
 // Connection stats for timing info
 export interface ConnectionStats {
@@ -25,8 +29,8 @@ export interface ConnectionStats {
 
 // Grouped connection state
 export interface ConnectionState {
-  connKey: string | null;      // Config key like "dev", "prod"
-  connId: string | null;       // Backend connection ID (stable hash)
+  connKey: string | null; // Config key like "dev", "prod"
+  connId: string | null; // Backend connection ID (stable hash)
   status: ConnectionStatus;
   stats: ConnectionStats | null;
 }
@@ -113,7 +117,9 @@ export function removeRecentProject(projectPath: string) {
  * Switch to a new connection and establish the connection.
  * Returns the connection ID on success.
  */
-export async function switchConnection(connKey: string): Promise<string | null> {
+export async function switchConnection(
+  connKey: string,
+): Promise<string | null> {
   const projectPath = $projectPath.get();
   if (!projectPath) {
     console.error("No project path set");
@@ -133,7 +139,7 @@ export async function switchConnection(connKey: string): Promise<string | null> 
   try {
     const connId = await cmd.connectProjectDb(projectPath, connKey);
     const connectionTimeMs = Math.round(performance.now() - startTime);
-    
+
     // Set connected state atomically
     $connection.set({
       connKey,

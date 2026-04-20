@@ -63,7 +63,9 @@ function Branding() {
           <span className="text-muted-foreground">pavi2410 / </span>
           <span className="text-foreground font-bold">based</span>
         </h1>
-        <em className="text-xs text-muted-foreground block">Git-Friendly Database Client</em>
+        <em className="text-xs text-muted-foreground block">
+          Git-Friendly Database Client
+        </em>
       </div>
     </div>
   );

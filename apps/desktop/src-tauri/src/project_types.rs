@@ -32,18 +32,14 @@ pub enum SecretValue {
 impl SecretValue {
     pub fn resolve(&self, env_vars: &HashMap<String, String>) -> Result<String, String> {
         match self {
-            SecretValue::Env { env } => {
-                env_vars
-                    .get(env)
-                    .cloned()
-                    .or_else(|| std::env::var(env).ok())
-                    .ok_or_else(|| format!("Environment variable not found: {}", env))
-            }
+            SecretValue::Env { env } => env_vars
+                .get(env)
+                .cloned()
+                .or_else(|| std::env::var(env).ok())
+                .ok_or_else(|| format!("Environment variable not found: {}", env)),
             SecretValue::Value { value } => Ok(value.clone()),
-            SecretValue::File { file } => {
-                std::fs::read_to_string(file)
-                    .map_err(|e| format!("Failed to read file {}: {}", file, e))
-            }
+            SecretValue::File { file } => std::fs::read_to_string(file)
+                .map_err(|e| format!("Failed to read file {}: {}", file, e)),
             SecretValue::Literal(s) => Ok(s.clone()),
         }
     }
@@ -95,7 +91,7 @@ pub struct SavedQuery {
     /// Filename (not in TOML, added when reading)
     #[serde(skip)]
     pub filename: String,
-    
+
     /// Display name
     pub name: String,
     /// Connection key from config.toml
@@ -106,10 +102,10 @@ pub struct SavedQuery {
     pub tags: Option<Vec<String>>,
     /// Whether this query is favorited
     pub favorite: Option<bool>,
-    
+
     /// Query parameters
     pub params: Option<std::collections::HashMap<String, QueryParameter>>,
-    
+
     /// SQL query (for sqlite, postgres)
     pub sql: Option<SqlQuery>,
     /// MongoDB query

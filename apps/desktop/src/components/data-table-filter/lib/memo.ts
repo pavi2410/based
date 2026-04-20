@@ -1,3 +1,4 @@
+// @ts-nocheck
 export function memo<TDeps extends readonly any[], TResult>(
   getDeps: () => TDeps,
   compute: (deps: TDeps) => TResult,

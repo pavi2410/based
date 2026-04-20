@@ -1,5 +1,13 @@
 //! Error taxonomy for the Based backend.
 //!
+//! Some variants in `ConnectError`, `QueryError`, and `ProjectError` are
+//! not yet constructed by the existing `Error`-based call sites. They
+//! are intentionally kept so the Phase 1 migration lands on a complete
+//! taxonomy. Silencing `dead_code` until then.
+
+#![allow(dead_code)]
+
+//!
 //! The goal is to keep user-facing errors as a **typed, structured**
 //! enum (not a string blob) without the frontend having to know every
 //! leaf error type from sqlx / mongodb / toml / etc.
@@ -146,6 +154,9 @@ impl Serialize for Error {
 // Error serializes to string at the IPC boundary, so specta sees it as String.
 impl specta::Type for Error {
     fn inline(_: &mut specta::TypeMap, _: specta::Generics) -> specta::DataType {
-        String::inline(&mut specta::TypeMap::default(), specta::Generics::Definition)
+        String::inline(
+            &mut specta::TypeMap::default(),
+            specta::Generics::Definition,
+        )
     }
 }

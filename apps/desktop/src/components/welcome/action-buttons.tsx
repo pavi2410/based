@@ -128,7 +128,8 @@ export function ActionButtons() {
           <DialogHeader>
             <DialogTitle>Initialize Based Project</DialogTitle>
             <DialogDescription>
-              This folder doesn't contain a Based project. Would you like to initialize one?
+              This folder doesn't contain a Based project. Would you like to
+              initialize one?
             </DialogDescription>
           </DialogHeader>
 

@@ -1,7 +1,7 @@
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 use std::path::Path;
-use std::sync::mpsc::channel;
 use std::sync::Arc;
+use std::sync::mpsc::channel;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Mutex;
 

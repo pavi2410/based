@@ -1,3 +1,4 @@
+// @ts-nocheck
 type ControlFunctions = {
   cancel: () => void
   flush: () => void

@@ -21,8 +21,15 @@ import {
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { DataTableFilter } from "@/components/data-table-filter/components/data-table-filter";
 import { useDataTableFilters } from "@/components/data-table-filter/hooks/use-data-table-filters";
-import type { ColumnConfig, FiltersState } from "@/components/data-table-filter/core/types";
-import { dbTypeToFilterType, getFilterTypeIcon, type FilterParam } from "@/lib/filter-utils";
+import type {
+  ColumnConfig,
+  FiltersState,
+} from "@/components/data-table-filter/core/types";
+import {
+  dbTypeToFilterType,
+  getFilterTypeIcon,
+  type FilterParam,
+} from "@/lib/filter-utils";
 
 const PAGE_SIZE = 100;
 
@@ -68,7 +75,8 @@ function NoTableSelected() {
  * Table data viewer - handles data fetching and display
  */
 function TableDataViewer({ selectedTable }: { selectedTable: string }) {
-  const { connKey, connectionConfig, projectPath, selectedSchema } = useConnection();
+  const { connKey, connectionConfig, projectPath, selectedSchema } =
+    useConnection();
 
   const [page, setPage] = useState(0);
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -90,30 +98,48 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
   const engine = connectionConfig.engine;
 
   // Convert filters to backend format
-  const filterParams: FilterParam[] = useMemo(() => 
-    filters.map((f) => ({
-      columnId: f.columnId,
-      type: f.type,
-      operator: f.operator,
-      values: f.values as (string | number | boolean | null)[],
-    })),
-    [filters]
+  const filterParams: FilterParam[] = useMemo(
+    () =>
+      filters.map((f) => ({
+        columnId: f.columnId,
+        type: f.type,
+        operator: f.operator,
+        values: f.values as (string | number | boolean | null)[],
+      })),
+    [filters],
   );
 
   const dataQuery = useQuery({
-    queryKey: ["table-data", projectPath, connKey, objectKey, page, sorting, filterParams],
+    queryKey: [
+      "table-data",
+      projectPath,
+      connKey,
+      objectKey,
+      page,
+      sorting,
+      filterParams,
+    ],
     queryFn: async () => {
       const options: BrowseOptions = {
         limit: PAGE_SIZE,
         offset: page * PAGE_SIZE,
         orderByColumn: sorting[0]?.id ?? null,
-        orderByDirection: sorting[0] ? (sorting[0].desc ? "desc" : "asc") : null,
+        orderByDirection: sorting[0]
+          ? sorting[0].desc
+            ? "desc"
+            : "asc"
+          : null,
         filters: filterParams.length > 0 ? JSON.stringify(filterParams) : null,
       };
 
       switch (engine) {
         case "sqlite":
-          return await cmd.querySqliteTable(projectPath, connKey, selectedTable, options);
+          return await cmd.querySqliteTable(
+            projectPath,
+            connKey,
+            selectedTable,
+            options,
+          );
 
         case "postgres":
           return await cmd.queryPostgresTable(
@@ -125,7 +151,12 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
           );
 
         case "mongodb":
-          return await cmd.queryMongodbCollection(projectPath, connKey, selectedTable, options);
+          return await cmd.queryMongodbCollection(
+            projectPath,
+            connKey,
+            selectedTable,
+            options,
+          );
 
         default:
           throw new Error(`Unsupported engine: ${engine}`);
@@ -134,20 +165,22 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
   });
 
   // Build filter column configs from query result
-  const filterColumnConfigs: ColumnConfig<Record<string, unknown>>[] = useMemo(() => {
-    if (dataQuery.status !== "success") return [];
-    return dataQuery.data.columns.map((col) => {
-      const filterType = dbTypeToFilterType(col.data_type);
-      const Icon = getFilterTypeIcon(filterType);
-      return {
-        id: col.name,
-        type: filterType,
-        displayName: col.name,
-        icon: Icon,
-        accessor: (row: Record<string, unknown>) => row[col.name] as string | number | Date,
-      } as ColumnConfig<Record<string, unknown>>;
-    });
-  }, [dataQuery.status, dataQuery.data]);
+  const filterColumnConfigs: ColumnConfig<Record<string, unknown>>[] =
+    useMemo(() => {
+      if (dataQuery.status !== "success") return [];
+      return dataQuery.data.columns.map((col) => {
+        const filterType = dbTypeToFilterType(col.data_type);
+        const Icon = getFilterTypeIcon(filterType);
+        return {
+          id: col.name,
+          type: filterType,
+          displayName: col.name,
+          icon: Icon,
+          accessor: (row: Record<string, unknown>) =>
+            row[col.name] as string | number | Date,
+        } as ColumnConfig<Record<string, unknown>>;
+      });
+    }, [dataQuery.status, dataQuery.data]);
 
   // Initialize filter hook with server strategy
   const filterInstance = useDataTableFilters({
@@ -174,11 +207,20 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
       return (
         <div className="flex items-center justify-center h-full">
           <div className="flex flex-col items-center gap-3 max-w-sm">
-            <h2 className="text-sm font-medium text-destructive">Failed to load data</h2>
+            <h2 className="text-sm font-medium text-destructive">
+              Failed to load data
+            </h2>
             <p className="text-xs text-muted-foreground text-center">
-              {dataQuery.error instanceof Error ? dataQuery.error.message : "Unknown error"}
+              {dataQuery.error instanceof Error
+                ? dataQuery.error.message
+                : "Unknown error"}
             </p>
-            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => dataQuery.refetch()}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => dataQuery.refetch()}
+            >
               <RefreshCwIcon className="size-3 mr-1.5" />
               Retry
             </Button>
@@ -194,23 +236,25 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
   const result = dataQuery.data;
 
   // Build columns for the data table
-  const columns: ColumnDef<Record<string, unknown>>[] = result.columns.map((col) => ({
-    accessorKey: col.name,
-    header: () => (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span className="font-medium cursor-default">{col.name}</span>
-        </TooltipTrigger>
-        <TooltipContent side="bottom" className="text-xs">
-          <span className="text-muted-foreground">Type:</span> {col.data_type}
-        </TooltipContent>
-      </Tooltip>
-    ),
-    cell: ({ getValue }) => {
-      const value = getValue();
-      return <CellValue value={value} />;
-    },
-  }));
+  const columns: ColumnDef<Record<string, unknown>>[] = result.columns.map(
+    (col) => ({
+      accessorKey: col.name,
+      header: () => (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="font-medium cursor-default">{col.name}</span>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="text-xs">
+            <span className="text-muted-foreground">Type:</span> {col.data_type}
+          </TooltipContent>
+        </Tooltip>
+      ),
+      cell: ({ getValue }) => {
+        const value = getValue();
+        return <CellValue value={value} />;
+      },
+    }),
+  );
 
   // Convert rows to objects
   const data: Record<string, unknown>[] = result.rows.map((row) => {
@@ -248,7 +292,9 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
             onClick={() => dataQuery.refetch()}
             disabled={dataQuery.isFetching}
           >
-            <RefreshCwIcon className={`size-3.5 ${dataQuery.isFetching ? "animate-spin" : ""}`} />
+            <RefreshCwIcon
+              className={`size-3.5 ${dataQuery.isFetching ? "animate-spin" : ""}`}
+            />
           </Button>
         </div>
       </div>
@@ -267,14 +313,20 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
 
       {/* Data Table */}
       <div className="flex-1 min-h-0">
-        <DataTable columns={columns} data={data} sorting={sorting} onSortingChange={setSorting} />
+        <DataTable
+          columns={columns}
+          data={data}
+          sorting={sorting}
+          onSortingChange={setSorting}
+        />
       </div>
 
       {/* Footer pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between px-3 py-1.5 border-t bg-muted/20 text-xs">
           <span className="text-muted-foreground tabular-nums">
-            {startRow.toLocaleString()}–{endRow.toLocaleString()} of {totalCount.toLocaleString()}
+            {startRow.toLocaleString()}–{endRow.toLocaleString()} of{" "}
+            {totalCount.toLocaleString()}
           </span>
           <div className="flex items-center gap-0.5">
             <Button
@@ -331,20 +383,30 @@ function CellValue({ value }: { value: unknown }) {
 
   if (typeof value === "boolean") {
     return (
-      <span className={value ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}>
+      <span
+        className={
+          value
+            ? "text-emerald-600 dark:text-emerald-400"
+            : "text-red-500 dark:text-red-400"
+        }
+      >
         {value.toString()}
       </span>
     );
   }
 
   if (typeof value === "number") {
-    return <span className="text-blue-600 dark:text-blue-400">{value.toLocaleString()}</span>;
+    return (
+      <span className="text-blue-600 dark:text-blue-400">
+        {value.toLocaleString()}
+      </span>
+    );
   }
 
   if (typeof value === "object") {
     const json = JSON.stringify(value);
     return (
-      <span 
+      <span
         className="text-amber-600 dark:text-amber-400 max-w-[200px] truncate inline-block align-bottom"
         title={json}
       >
@@ -356,7 +418,10 @@ function CellValue({ value }: { value: unknown }) {
   const strValue = String(value);
   if (strValue.length > 80) {
     return (
-      <span className="max-w-[300px] truncate inline-block align-bottom" title={strValue}>
+      <span
+        className="max-w-[300px] truncate inline-block align-bottom"
+        title={strValue}
+      >
         {strValue}
       </span>
     );

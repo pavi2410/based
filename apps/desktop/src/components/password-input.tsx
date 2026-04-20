@@ -1,12 +1,14 @@
-import { useState } from "react"
-import { EyeIcon, EyeOffIcon } from "lucide-react"
+import { useState } from "react";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
 
-import { Input } from "@/components/ui/input"
+import { Input } from "@/components/ui/input";
 
-export function PasswordInput({ ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
-  const [isVisible, setIsVisible] = useState<boolean>(false)
+export function PasswordInput({
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement>) {
+  const [isVisible, setIsVisible] = useState<boolean>(false);
 
-  const toggleVisibility = () => setIsVisible((prevState) => !prevState)
+  const toggleVisibility = () => setIsVisible((prevState) => !prevState);
 
   return (
     <div className="relative">
@@ -31,5 +33,5 @@ export function PasswordInput({ ...props }: React.InputHTMLAttributes<HTMLInputE
         )}
       </button>
     </div>
-  )
+  );
 }

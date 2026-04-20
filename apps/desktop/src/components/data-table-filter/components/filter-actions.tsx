@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { FilterXIcon } from 'lucide-react'

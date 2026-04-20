@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { cmd } from "@/commands";
 import { useQuery } from "@tanstack/react-query";
-import { TableIcon, Table2Icon, ListOrderedIcon, RefreshCcwIcon, ChevronRightIcon } from "lucide-react";
+import {
+  TableIcon,
+  Table2Icon,
+  ListOrderedIcon,
+  RefreshCcwIcon,
+  ChevronRightIcon,
+} from "lucide-react";
 import {
   Collapsible,
   CollapsibleContent,
@@ -106,9 +112,7 @@ function SQLiteObjectGroup({
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <CollapsibleTrigger asChild>
-        <button
-          className="w-full flex items-center gap-1.5 px-2 h-7 text-xs hover:bg-muted/50 transition-colors"
-        >
+        <button className="w-full flex items-center gap-1.5 px-2 h-7 text-xs hover:bg-muted/50 transition-colors">
           <ChevronRightIcon
             className={`size-3 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`}
           />

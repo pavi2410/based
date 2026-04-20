@@ -1,4 +1,13 @@
-import { SettingsIcon, RefreshCwIcon, FolderIcon, ChevronDownIcon, HomeIcon, FolderOpenIcon, CircleIcon, UnplugIcon } from "lucide-react";
+import {
+  SettingsIcon,
+  RefreshCwIcon,
+  FolderIcon,
+  ChevronDownIcon,
+  HomeIcon,
+  FolderOpenIcon,
+  CircleIcon,
+  UnplugIcon,
+} from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "@nanostores/react";
 import { Button } from "@/components/ui/button";
@@ -13,17 +22,23 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import type { ProjectConfig } from "@/types/project";
-import { $recentProjects, $connection, disconnectConnection, type RecentProject } from "@/stores/project-state";
+import {
+  $recentProjects,
+  $connection,
+  disconnectConnection,
+  type RecentProject,
+} from "@/stores/project-state";
 import { useTitlebar } from "@/hooks/use-titlebar";
 import { ConnectionSelector } from "./connection-selector";
 
 function StatusDot({ status }: { status: string }) {
-  const colorClass = {
-    connected: "fill-emerald-500 text-emerald-500",
-    error: "fill-red-500 text-red-500",
-    connecting: "fill-amber-500 text-amber-500 animate-pulse",
-    disconnected: "fill-muted-foreground/50 text-muted-foreground/50",
-  }[status] || "fill-muted-foreground/50 text-muted-foreground/50";
+  const colorClass =
+    {
+      connected: "fill-emerald-500 text-emerald-500",
+      error: "fill-red-500 text-red-500",
+      connecting: "fill-amber-500 text-amber-500 animate-pulse",
+      disconnected: "fill-muted-foreground/50 text-muted-foreground/50",
+    }[status] || "fill-muted-foreground/50 text-muted-foreground/50";
 
   return <CircleIcon className={`size-1.5 ${colorClass}`} />;
 }
@@ -50,7 +65,11 @@ export function TopBar({
   const recentProjects = useStore($recentProjects);
   const connection = useStore($connection);
 
-  const { connKey, status: connectionStatus, stats: connectionStats } = connection;
+  const {
+    connKey,
+    status: connectionStatus,
+    stats: connectionStats,
+  } = connection;
   const connectionConfig = connKey ? config.connection[connKey] : null;
 
   const handleGoHome = () => {
@@ -119,9 +138,14 @@ export function TopBar({
               {connectionStatus === "connected" && connectionStats && (
                 <TooltipContent side="bottom" className="text-xs">
                   <div className="space-y-0.5">
-                    <div>Connected in {formatConnectionTime(connectionStats.connectionTimeMs)}</div>
+                    <div>
+                      Connected in{" "}
+                      {formatConnectionTime(connectionStats.connectionTimeMs)}
+                    </div>
                     <div className="text-muted-foreground">
-                      {new Date(connectionStats.connectedAt).toLocaleTimeString()}
+                      {new Date(
+                        connectionStats.connectedAt,
+                      ).toLocaleTimeString()}
                     </div>
                   </div>
                 </TooltipContent>
@@ -146,7 +170,10 @@ export function TopBar({
               </Tooltip>
               <PopoverContent side="bottom" className="w-auto p-2">
                 <div className="flex flex-col gap-2 justify-end">
-                  <p className="text-xs max-w-3xs">Are you sure you want to disconnect from <b>{connectionConfig?.label || connKey}</b>?</p>
+                  <p className="text-xs max-w-3xs">
+                    Are you sure you want to disconnect from{" "}
+                    <b>{connectionConfig?.label || connKey}</b>?
+                  </p>
                   <Button
                     variant="destructive"
                     size="sm"
@@ -190,11 +217,7 @@ export function TopBar({
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7"
-            >
+            <Button variant="ghost" size="icon" className="size-7">
               <SettingsIcon className="size-3.5" />
             </Button>
           </TooltipTrigger>

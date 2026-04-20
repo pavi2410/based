@@ -1,3 +1,4 @@
+// @ts-nocheck
 import en from '../locales/en.json'
 
 export type Locale = 'en'

@@ -19,7 +19,10 @@ function ProjectDashboard() {
   const { config, projectId } = ctx;
 
   const handleConnect = (connKey: string) => {
-    navigate({ to: "/project/$projectId/conn/$connKey", params: { projectId, connKey } });
+    navigate({
+      to: "/project/$projectId/conn/$connKey",
+      params: { projectId, connKey },
+    });
   };
 
   return <ConnectionDashboard config={config} onConnect={handleConnect} />;

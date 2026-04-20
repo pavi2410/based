@@ -17,12 +17,19 @@ interface WorkspaceSidebarProps {
   selectedQuery?: string;
 }
 
-export function WorkspaceSidebar({ 
-  onSelectQuery, 
-  onNewQuery, 
-  selectedQuery 
+export function WorkspaceSidebar({
+  onSelectQuery,
+  onNewQuery,
+  selectedQuery,
 }: WorkspaceSidebarProps) {
-  const { connKey, connectionConfig, projectPath, onSelectTable, selectedTable, selectedSchema } = useConnection();
+  const {
+    connKey,
+    connectionConfig,
+    projectPath,
+    onSelectTable,
+    selectedTable,
+    selectedSchema,
+  } = useConnection();
 
   return (
     <div className="flex flex-col h-full border-r bg-background">
@@ -30,7 +37,10 @@ export function WorkspaceSidebar({
         <TabsList className="h-9 w-full justify-start rounded-none border-b bg-transparent px-1 gap-0">
           <Tooltip>
             <TooltipTrigger asChild>
-              <TabsTrigger value="database" className="size-7 p-0 data-[state=active]:bg-muted">
+              <TabsTrigger
+                value="database"
+                className="size-7 p-0 data-[state=active]:bg-muted"
+              >
                 <DatabaseIcon className="size-4" />
               </TabsTrigger>
             </TooltipTrigger>
@@ -38,7 +48,10 @@ export function WorkspaceSidebar({
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <TabsTrigger value="queries" className="size-7 p-0 data-[state=active]:bg-muted">
+              <TabsTrigger
+                value="queries"
+                className="size-7 p-0 data-[state=active]:bg-muted"
+              >
                 <FileTextIcon className="size-4" />
               </TabsTrigger>
             </TooltipTrigger>
@@ -46,7 +59,11 @@ export function WorkspaceSidebar({
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <TabsTrigger value="history" className="size-7 p-0 data-[state=active]:bg-muted" disabled>
+              <TabsTrigger
+                value="history"
+                className="size-7 p-0 data-[state=active]:bg-muted"
+                disabled
+              >
                 <HistoryIcon className="size-4" />
               </TabsTrigger>
             </TooltipTrigger>

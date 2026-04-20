@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { cmd } from "@/commands";
-import { 
-  FileTextIcon, 
-  PlusIcon, 
+import {
+  FileTextIcon,
+  PlusIcon,
   StarIcon,
   Loader2Icon,
   RefreshCwIcon,
@@ -57,9 +57,9 @@ export function SavedQueriesList({
         <p className="text-xs text-destructive text-center">
           Failed to load queries
         </p>
-        <Button 
-          variant="outline" 
-          size="sm" 
+        <Button
+          variant="outline"
+          size="sm"
           className="h-6 text-xs"
           onClick={() => queriesQuery.refetch()}
         >
@@ -164,7 +164,7 @@ function QueryItem({ query, isSelected, onSelect }: QueryItemProps) {
     <button
       className={cn(
         "w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-muted/50 transition-colors",
-        isSelected && "bg-muted"
+        isSelected && "bg-muted",
       )}
       onClick={onSelect}
     >

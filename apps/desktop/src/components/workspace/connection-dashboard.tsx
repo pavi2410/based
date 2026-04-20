@@ -1,5 +1,11 @@
 import { useMemo } from "react";
-import { DatabaseIcon, HardDriveIcon, CloudIcon, Loader2Icon, ChevronRightIcon } from "lucide-react";
+import {
+  DatabaseIcon,
+  HardDriveIcon,
+  CloudIcon,
+  Loader2Icon,
+  ChevronRightIcon,
+} from "lucide-react";
 import DeviconSqlite from "~icons/devicon/sqlite";
 import DeviconMongodb from "~icons/devicon/mongodb";
 import DeviconPostgresql from "~icons/devicon/postgresql";
@@ -34,8 +40,15 @@ interface ConnectionRowProps {
   isConnecting: boolean;
 }
 
-function ConnectionRow({ connKey, config, onConnect, isConnecting }: ConnectionRowProps) {
-  const engineIcon = ENGINE_ICONS[config.engine] || <DatabaseIcon className="size-6" />;
+function ConnectionRow({
+  connKey,
+  config,
+  onConnect,
+  isConnecting,
+}: ConnectionRowProps) {
+  const engineIcon = ENGINE_ICONS[config.engine] || (
+    <DatabaseIcon className="size-6" />
+  );
 
   return (
     <button
@@ -46,9 +59,7 @@ function ConnectionRow({ connKey, config, onConnect, isConnecting }: ConnectionR
     >
       {engineIcon}
       <div className="flex-1 min-w-0">
-        <div className="font-medium truncate">
-          {config.label || connKey}
-        </div>
+        <div className="font-medium truncate">{config.label || connKey}</div>
         <div className="text-xs text-muted-foreground font-mono truncate">
           {connKey}
         </div>
@@ -69,7 +80,12 @@ interface ConnectionGroupProps {
   connectingKey: string | null;
 }
 
-function ConnectionGroup({ groupKey, connections, onConnect, connectingKey }: ConnectionGroupProps) {
+function ConnectionGroup({
+  groupKey,
+  connections,
+  onConnect,
+  connectingKey,
+}: ConnectionGroupProps) {
   const groupInfo = GROUP_INFO[groupKey] || {
     icon: <DatabaseIcon className="size-4" />,
     label: groupKey.charAt(0).toUpperCase() + groupKey.slice(1),
@@ -97,12 +113,17 @@ function ConnectionGroup({ groupKey, connections, onConnect, connectingKey }: Co
   );
 }
 
-export function ConnectionDashboard({ config, onConnect }: ConnectionDashboardProps) {
-
+export function ConnectionDashboard({
+  config,
+  onConnect,
+}: ConnectionDashboardProps) {
   // Group connections by their group field
   const groupedConnections = useMemo(() => {
-    const groups: Record<string, Array<{ key: string; config: ConnectionConfig }>> = {};
-    
+    const groups: Record<
+      string,
+      Array<{ key: string; config: ConnectionConfig }>
+    > = {};
+
     for (const [key, connConfig] of Object.entries(config.connection)) {
       if (!connConfig) continue;
       const group = connConfig.group || "other";
@@ -154,7 +175,8 @@ export function ConnectionDashboard({ config, onConnect }: ConnectionDashboardPr
             Select a database connection to get started
           </p>
           <p className="text-sm text-muted-foreground">
-            {totalConnections} connection{totalConnections !== 1 ? "s" : ""} configured
+            {totalConnections} connection{totalConnections !== 1 ? "s" : ""}{" "}
+            configured
           </p>
         </div>
 
@@ -177,7 +199,9 @@ export function ConnectionDashboard({ config, onConnect }: ConnectionDashboardPr
             <DatabaseIcon className="size-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="font-medium mb-2">No connections configured</h3>
             <p className="text-sm text-muted-foreground">
-              Add connections to your <code className="bg-muted px-1 rounded">.based/config.toml</code> file
+              Add connections to your{" "}
+              <code className="bg-muted px-1 rounded">.based/config.toml</code>{" "}
+              file
             </p>
           </div>
         )}

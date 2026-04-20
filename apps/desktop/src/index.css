@@ -4,6 +4,49 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+  Compact density baseline.
+
+  The product identity is DataGrip-dense but Supabase-friendly. That means
+  *every* surface lives on a shared type + spacing scale that is tighter
+  than shadcn's defaults. Individual components should pick sizes from
+  these CSS variables rather than hardcoding text-sm / px-3 / h-9 so we
+  can dial the whole app up or down in one place (e.g. to hand "Beginner
+  mode" users a 2px looser baseline in Phase 3).
+
+  All values are in rem so they scale with the user's system font size.
+*/
+:root {
+  /* Body/default text in the workspace: just under 13px. */
+  --density-font-size: 0.8125rem;
+  --density-line-height: 1.35;
+
+  /* Table / tree row heights. Kept separate so the data grid can go
+     tighter than chrome without breaking tap targets on menus. */
+  --density-row-h: 1.5rem;        /* 24px */
+  --density-row-h-comfortable: 1.75rem; /* 28px */
+
+  /* Standard chrome control height (buttons, selects, inputs). */
+  --density-control-h: 1.75rem;   /* 28px */
+  --density-control-h-sm: 1.5rem; /* 24px */
+
+  /* Horizontal / vertical padding primitives. */
+  --density-pad-x: 0.5rem;        /* 8px */
+  --density-pad-y: 0.25rem;       /* 4px */
+  --density-gap: 0.375rem;        /* 6px */
+
+  /* Border radius baseline; overrides shadcn's default. */
+  --radius: 0.375rem;             /* 6px */
+}
+
+@layer base {
+  html,
+  body {
+    font-size: var(--density-font-size);
+    line-height: var(--density-line-height);
+  }
+}
+
 @theme inline {
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
@@ -108,7 +151,7 @@
   --chart-3: hsl(197 37% 24%);
   --chart-4: hsl(43 74% 66%);
   --chart-5: hsl(27 87% 67%);
-  --radius: 0.5rem;
+  /* --radius is set in the density baseline block above */
   --sidebar-background: hsl(0 0% 98%);
   --sidebar-foreground: hsl(240 5.3% 26.1%);
   --sidebar-primary: hsl(240 5.9% 10%);

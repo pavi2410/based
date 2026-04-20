@@ -1,12 +1,17 @@
 import { useRef, useLayoutEffect } from "react";
 
-function updateTitlebarBounds(leftEl: HTMLElement | null, rightEl: HTMLElement | null) {
+function updateTitlebarBounds(
+  leftEl: HTMLElement | null,
+  rightEl: HTMLElement | null,
+) {
   const titlebar = document.getElementById("titlebar");
   if (!titlebar) return;
-  
+
   const leftBound = leftEl ? leftEl.getBoundingClientRect().right : 80;
-  const rightBound = rightEl ? rightEl.getBoundingClientRect().left : window.innerWidth;
-  
+  const rightBound = rightEl
+    ? rightEl.getBoundingClientRect().left
+    : window.innerWidth;
+
   titlebar.style.left = `${leftBound}px`;
   titlebar.style.right = `${window.innerWidth - rightBound}px`;
   titlebar.style.pointerEvents = "auto";
@@ -23,11 +28,12 @@ export function useTitlebar(deps: unknown[] = []) {
 
   useLayoutEffect(() => {
     updateTitlebarBounds(leftRef.current, rightRef.current);
-    
-    const handleResize = () => updateTitlebarBounds(leftRef.current, rightRef.current);
+
+    const handleResize = () =>
+      updateTitlebarBounds(leftRef.current, rightRef.current);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
   return { leftRef, rightRef };

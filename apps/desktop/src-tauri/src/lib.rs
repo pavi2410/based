@@ -11,16 +11,16 @@ mod variables;
 mod window_manager;
 
 use crate::connection_id::ConnectionRegistry;
-use crate::file_watcher::{watch_project_config, unwatch_project_config, FileWatcherState};
+use crate::file_watcher::{FileWatcherState, unwatch_project_config, watch_project_config};
 use crate::project_commands::{
     delete_saved_query, get_saved_query, initialize_project, list_saved_queries,
     read_project_config, save_query, write_project_config,
 };
 use crate::project_db_commands::{
-    connect_project_db, get_sqlite_objects, get_mongodb_collections, get_postgres_schemas,
-    get_postgres_tables, close_connection, close_project_connections, get_connection_info,
-    query_sqlite_table, query_postgres_table, query_mongodb_collection,
-    execute_raw_sql, execute_raw_mongo,
+    close_connection, close_project_connections, connect_project_db, execute_raw_mongo,
+    execute_raw_sql, get_connection_info, get_mongodb_collections, get_postgres_schemas,
+    get_postgres_tables, get_sqlite_objects, query_mongodb_collection, query_postgres_table,
+    query_sqlite_table,
 };
 use crate::window_manager::{close_window, focus_window, open_window};
 use tauri::Manager;

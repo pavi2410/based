@@ -3,7 +3,7 @@
 use crate::error::Error;
 
 /// Validate a MongoDB database name.
-/// 
+///
 /// MongoDB database names have specific restrictions:
 /// - Cannot be empty
 /// - Cannot contain: / \ . " $ * < > : | ?
@@ -11,10 +11,10 @@ use crate::error::Error;
 pub fn validate_mongo_database_name(name: &str) -> Result<(), Error> {
     if name.trim().is_empty() {
         return Err(Error::InvalidDbUrl(
-            "MongoDB database name cannot be empty".to_string()
+            "MongoDB database name cannot be empty".to_string(),
         ));
     }
-    
+
     // Period is invalid
     if name.contains('.') {
         return Err(Error::InvalidDbUrl(format!(
@@ -22,7 +22,7 @@ pub fn validate_mongo_database_name(name: &str) -> Result<(), Error> {
             name
         )));
     }
-    
+
     // Other invalid characters
     let invalid_chars = ['/', '\\', ' ', '"', '$', '*', '<', '>', ':', '|', '?'];
     if let Some(c) = name.chars().find(|&c| invalid_chars.contains(&c)) {
@@ -31,7 +31,7 @@ pub fn validate_mongo_database_name(name: &str) -> Result<(), Error> {
             name, c
         )));
     }
-    
+
     Ok(())
 }
 
@@ -50,7 +50,7 @@ pub fn validate_mongo_url(url: &str) -> Result<(), Error> {
 pub fn classify_mongo_error(error_msg: &str) -> Option<Error> {
     if error_msg.contains("SCRAM failure") || error_msg.contains("Authentication failed") {
         Some(Error::MongoAuth(
-            "Authentication failed. Please check your username and password.".to_string()
+            "Authentication failed. Please check your username and password.".to_string(),
         ))
     } else if error_msg.contains("connection refused") || error_msg.contains("timed out") {
         Some(Error::MongoConnection(
@@ -58,7 +58,7 @@ pub fn classify_mongo_error(error_msg: &str) -> Option<Error> {
         ))
     } else if error_msg.contains("authorization") {
         Some(Error::MongoAuth(
-            "Authorization failed. User may not have access to this database.".to_string()
+            "Authorization failed. User may not have access to this database.".to_string(),
         ))
     } else {
         None

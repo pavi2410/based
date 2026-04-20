@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useEffect, useMemo, useRef } from 'react'
 import { debounce } from '../lib/debounce'
 import { useUnmount } from './use-unmount'

@@ -7,10 +7,10 @@ use crate::error::Error;
 pub enum DatabaseUrl {
     /// SQLite connection: `sqlite:/path/to/db.sqlite`
     Sqlite(String),
-    
+
     /// PostgreSQL connection: `postgresql://user:pass@host:port/db`
     Postgres(String),
-    
+
     /// MongoDB connection with extracted database name
     Mongo {
         /// Full connection URI
@@ -37,12 +37,12 @@ pub fn parse_database_url(url: &str) -> Result<DatabaseUrl, Error> {
         .split_once(':')
         .map(|(s, _)| s)
         .ok_or_else(|| Error::InvalidDbUrl(format!("No scheme found in URL: {}", url)))?;
-    
+
     match scheme {
         "sqlite" => Ok(DatabaseUrl::Sqlite(url.to_string())),
-        
+
         "postgresql" | "postgres" => Ok(DatabaseUrl::Postgres(url.to_string())),
-        
+
         "mongodb" | "mongodb+srv" => {
             let database = extract_mongo_database(url)?;
             Ok(DatabaseUrl::Mongo {
@@ -50,7 +50,7 @@ pub fn parse_database_url(url: &str) -> Result<DatabaseUrl, Error> {
                 database,
             })
         }
-        
+
         _ => Err(Error::InvalidDbUrl(format!(
             "Unsupported database scheme: {}",
             scheme
@@ -62,29 +62,28 @@ pub fn parse_database_url(url: &str) -> Result<DatabaseUrl, Error> {
 fn extract_mongo_database(url: &str) -> Result<String, Error> {
     // MongoDB URL format: mongodb://[user:pass@]host[:port]/database[?options]
     // or: mongodb+srv://[user:pass@]host/database[?options]
-    
-    let db_name = url
-        .split('/')
-        .last()
-        .ok_or_else(|| Error::InvalidDbUrl(format!(
+
+    let db_name = url.split('/').last().ok_or_else(|| {
+        Error::InvalidDbUrl(format!(
             "No database name found in MongoDB connection string: {}",
             url
-        )))?;
-    
+        ))
+    })?;
+
     // Remove query parameters if present
     let clean_db_name = if db_name.contains('?') {
         db_name.split('?').next().unwrap_or(db_name)
     } else {
         db_name
     };
-    
+
     if clean_db_name.trim().is_empty() {
         return Err(Error::InvalidDbUrl(format!(
             "Empty database name in MongoDB connection string: {}",
             url
         )));
     }
-    
+
     Ok(clean_db_name.to_string())
 }
 

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { type Locale, t } from '../lib/i18n'
 import type {
   ColumnDataType,

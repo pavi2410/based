@@ -6,7 +6,21 @@
     "useIgnoreFile": false
   },
   "files": {
-    "ignoreUnknown": false
+    "ignoreUnknown": false,
+    "includes": [
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.js",
+      "**/*.jsx",
+      "**/*.json",
+      "!**/dist/**",
+      "!**/node_modules/**",
+      "!**/gen/**",
+      "!src/routeTree.gen.ts",
+      "!src/bindings.ts",
+      "!src/components/ui/**",
+      "!src/components/data-table-filter/**"
+    ]
   },
   "formatter": {
     "enabled": true,

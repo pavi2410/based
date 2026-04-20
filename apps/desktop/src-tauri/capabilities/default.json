@@ -2,12 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capabilities shared by the main window and every child webview window (tab detach, result pop-out, settings).",
-  "windows": [
-    "main",
-    "settings",
-    "tab:*",
-    "result:*"
-  ],
+  "windows": ["main", "settings", "tab:*", "result:*"],
   "permissions": [
     "core:default",
     "core:window:allow-close",

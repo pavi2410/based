@@ -16,7 +16,7 @@ impl DatabaseConnector for SqliteConnector {
     async fn connect(&self, url: &str) -> Result<ConnectionPool, Error> {
         // Validate URL format
         self.validate_url(url)?;
-        
+
         // Check if database exists
         if !Sqlite::database_exists(url).await.unwrap_or(false) {
             return Err(Error::InvalidDbUrl(format!(
@@ -24,13 +24,13 @@ impl DatabaseConnector for SqliteConnector {
                 url
             )));
         }
-        
+
         // Connect to the database
         let pool = Pool::connect(url).await?;
-        
+
         Ok(ConnectionPool::Sqlite(pool))
     }
-    
+
     fn validate_url(&self, url: &str) -> Result<(), Error> {
         if !url.starts_with("sqlite:") {
             return Err(Error::InvalidDbUrl(format!(
@@ -49,7 +49,7 @@ mod tests {
     #[test]
     fn test_validate_sqlite_url() {
         let connector = SqliteConnector;
-        
+
         assert!(connector.validate_url("sqlite:/path/to/db.sqlite").is_ok());
         assert!(connector.validate_url("sqlite:memory:").is_ok());
         assert!(connector.validate_url("postgresql://localhost/db").is_err());

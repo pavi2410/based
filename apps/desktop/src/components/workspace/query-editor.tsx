@@ -1,13 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cmd } from "@/commands";
-import {
-  PlayIcon,
-  SaveIcon,
-  StarIcon,
-  Loader2Icon,
-  XIcon,
-} from "lucide-react";
+import { PlayIcon, SaveIcon, StarIcon, Loader2Icon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -55,12 +49,16 @@ export function QueryEditor({
   const [description, setDescription] = useState("");
   const [favorite, setFavorite] = useState(false);
   // TODO(phase2-params-history): surface param editor; currently defaults are captured but not used
-  const [, setParamValues] = useState<Record<string, string | number | boolean>>({});
+  const [, setParamValues] = useState<
+    Record<string, string | number | boolean>
+  >({});
   const [isDirty, setIsDirty] = useState(false);
 
   // For MongoDB
   const [mongoCollection, setMongoCollection] = useState("");
-  const [mongoQueryType, setMongoQueryType] = useState<"find" | "aggregate">("find");
+  const [mongoQueryType, setMongoQueryType] = useState<"find" | "aggregate">(
+    "find",
+  );
 
   // Load existing query if editing
   const savedQueryQuery = useQuery({
@@ -79,7 +77,7 @@ export function QueryEditor({
       setQueryName(q.name);
       setDescription(q.description ?? "");
       setFavorite(q.favorite ?? false);
-      
+
       if (q.sql) {
         setQueryContent(q.sql.query);
       } else if (q.mongo) {
@@ -113,7 +111,11 @@ export function QueryEditor({
         );
       } else {
         // TODO: Replace params in query
-        return await cmd.executeRawSql(projectPath, connectionKey, queryContent);
+        return await cmd.executeRawSql(
+          projectPath,
+          connectionKey,
+          queryContent,
+        );
       }
     },
     onError: (error) => {
@@ -159,7 +161,9 @@ export function QueryEditor({
     onSuccess: (savedFilename) => {
       toast.success("Query saved");
       setIsDirty(false);
-      queryClient.invalidateQueries({ queryKey: ["saved-queries", projectPath] });
+      queryClient.invalidateQueries({
+        queryKey: ["saved-queries", projectPath],
+      });
       onSaved?.(savedFilename);
     },
     onError: (error) => {
@@ -265,7 +269,12 @@ export function QueryEditor({
         </Button>
 
         {onClose && (
-          <Button variant="ghost" size="icon" className="size-7" onClick={onClose}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={onClose}
+          >
             <XIcon className="size-4" />
           </Button>
         )}
@@ -291,7 +300,9 @@ export function QueryEditor({
                   <Label className="text-xs">Type:</Label>
                   <Select
                     value={mongoQueryType}
-                    onValueChange={(v) => setMongoQueryType(v as "find" | "aggregate")}
+                    onValueChange={(v) =>
+                      setMongoQueryType(v as "find" | "aggregate")
+                    }
                   >
                     <SelectTrigger className="h-7 w-28 text-xs">
                       <SelectValue />

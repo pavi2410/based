@@ -147,7 +147,8 @@ function PostgresSchemaGroup({
         )}
         {tablesQuery.isSuccess &&
           tablesQuery.data.map((table) => {
-            const isSelected = selectedTable === table.name && selectedSchema === schema;
+            const isSelected =
+              selectedTable === table.name && selectedSchema === schema;
             return (
               <button
                 key={table.name}

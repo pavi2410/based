@@ -17,8 +17,9 @@ fn build_connection_string(
 ) -> Result<String, Error> {
     match conn_config.engine {
         Engine::Sqlite => {
-            let file = conn_config.file.as_ref()
-                .ok_or_else(|| Error::InvalidDbUrl("SQLite connection missing 'file' field".to_string()))?;
+            let file = conn_config.file.as_ref().ok_or_else(|| {
+                Error::InvalidDbUrl("SQLite connection missing 'file' field".to_string())
+            })?;
 
             // Make path absolute if relative
             let absolute_path = if std::path::Path::new(&file).is_relative() {
@@ -32,37 +33,50 @@ fn build_connection_string(
             Ok(format!("sqlite:{}", absolute_path))
         }
         Engine::MongoDB => {
-            let url_secret = conn_config.url.as_ref()
-                .ok_or_else(|| Error::InvalidDbUrl("MongoDB connection missing 'url' field".to_string()))?;
+            let url_secret = conn_config.url.as_ref().ok_or_else(|| {
+                Error::InvalidDbUrl("MongoDB connection missing 'url' field".to_string())
+            })?;
 
-            url_secret.resolve(env_vars)
+            url_secret
+                .resolve(env_vars)
                 .map_err(|e| Error::InvalidDbUrl(format!("Failed to resolve MongoDB URL: {}", e)))
         }
         Engine::Postgres => {
             // Support URL-based connection (like MongoDB)
             if let Some(url_secret) = &conn_config.url {
-                return url_secret.resolve(env_vars)
-                    .map_err(|e| Error::InvalidDbUrl(format!("Failed to resolve PostgreSQL URL: {}", e)));
+                return url_secret.resolve(env_vars).map_err(|e| {
+                    Error::InvalidDbUrl(format!("Failed to resolve PostgreSQL URL: {}", e))
+                });
             }
 
             // Fall back to individual fields
             let host = conn_config.host.as_ref()
                 .ok_or_else(|| Error::InvalidDbUrl("PostgreSQL connection missing 'host' field (or use 'url' for connection string)".to_string()))?;
             let port = conn_config.port.unwrap_or(5432);
-            let database = conn_config.database.as_ref()
-                .ok_or_else(|| Error::InvalidDbUrl("PostgreSQL connection missing 'database' field".to_string()))?;
-            let username = conn_config.username.as_ref()
-                .ok_or_else(|| Error::InvalidDbUrl("PostgreSQL connection missing 'username' field".to_string()))?;
+            let database = conn_config.database.as_ref().ok_or_else(|| {
+                Error::InvalidDbUrl("PostgreSQL connection missing 'database' field".to_string())
+            })?;
+            let username = conn_config.username.as_ref().ok_or_else(|| {
+                Error::InvalidDbUrl("PostgreSQL connection missing 'username' field".to_string())
+            })?;
 
             let password = if let Some(pass_secret) = &conn_config.password {
-                pass_secret.resolve(env_vars)
-                    .map_err(|e| Error::InvalidDbUrl(format!("Failed to resolve PostgreSQL password: {}", e)))?
+                pass_secret.resolve(env_vars).map_err(|e| {
+                    Error::InvalidDbUrl(format!("Failed to resolve PostgreSQL password: {}", e))
+                })?
             } else {
                 String::new()
             };
 
-            let ssl_mode = if conn_config.ssl.unwrap_or(false) { "require" } else { "disable" };
-            Ok(format!("postgresql://{}:{}@{}:{}/{}?sslmode={}", username, password, host, port, database, ssl_mode))
+            let ssl_mode = if conn_config.ssl.unwrap_or(false) {
+                "require"
+            } else {
+                "disable"
+            };
+            Ok(format!(
+                "postgresql://{}:{}@{}:{}/{}?sslmode={}",
+                username, password, host, port, database, ssl_mode
+            ))
         }
     }
 }
@@ -70,8 +84,7 @@ fn build_connection_string(
 /// Load environment variables from project's .env file.
 fn load_project_env(project_path: &str) -> HashMap<String, String> {
     // load_env_file expects the project root path and joins .based/.env internally
-    crate::variables::load_env_file(project_path)
-        .unwrap_or_else(|_| HashMap::new())
+    crate::variables::load_env_file(project_path).unwrap_or_else(|_| HashMap::new())
 }
 
 /// Connect to a project database and return its connection ID.
@@ -111,13 +124,15 @@ pub async fn connect_project_db(
     let pool = ConnectionPool::connect(&conn_string, &app).await?;
 
     // Register in the registry
-    let id = registry.register(
-        project_path,
-        conn_key,
-        conn_config.engine.clone(),
-        conn_config.label.clone(),
-        pool,
-    ).await;
+    let id = registry
+        .register(
+            project_path,
+            conn_key,
+            conn_config.engine.clone(),
+            conn_config.label.clone(),
+            pool,
+        )
+        .await;
 
     Ok(id.to_string())
 }
@@ -173,9 +188,7 @@ pub async fn get_sqlite_objects(
 
             let objects: Vec<SQLiteObject> = rows
                 .iter()
-                .map(|row| SQLiteObject {
-                    name: row.get(0),
-                })
+                .map(|row| SQLiteObject { name: row.get(0) })
                 .collect();
 
             Ok(objects)
@@ -257,9 +270,7 @@ pub async fn get_postgres_schemas(
 
             let schemas: Vec<PostgresSchema> = rows
                 .iter()
-                .map(|row| PostgresSchema {
-                    name: row.get(0),
-                })
+                .map(|row| PostgresSchema { name: row.get(0) })
                 .collect();
 
             Ok(schemas)
@@ -301,10 +312,7 @@ pub async fn get_postgres_tables(
                          WHERE table_schema = $1 AND table_type = 'BASE TABLE'
                          ORDER BY table_name";
 
-            let rows = sqlx::query(query)
-                .bind(&schema)
-                .fetch_all(pool)
-                .await?;
+            let rows = sqlx::query(query).bind(&schema).fetch_all(pool).await?;
 
             let tables: Vec<PostgresTable> = rows
                 .iter()
@@ -407,7 +415,7 @@ fn build_sql_where_clause(filters: &[FilterParam]) -> String {
 /// Build a single SQL condition from a filter
 fn build_sql_condition(filter: &FilterParam) -> Option<String> {
     let col = format!(r#""{}""#, filter.column_id);
-    
+
     match filter.operator.as_str() {
         // Text operators
         "contains" => {
@@ -503,7 +511,7 @@ fn sql_value(val: &serde_json::Value) -> String {
 
 /// Build MongoDB filter document from filters
 fn build_mongodb_filter(filters: &[FilterParam]) -> mongodb::bson::Document {
-    use mongodb::bson::{doc, Bson, Regex};
+    use mongodb::bson::{Bson, Regex, doc};
 
     if filters.is_empty() {
         return doc! {};
@@ -523,20 +531,26 @@ fn build_mongodb_filter(filters: &[FilterParam]) -> mongodb::bson::Document {
 
 /// Build a single MongoDB condition from a filter
 fn build_mongodb_condition(filter: &FilterParam) -> Option<mongodb::bson::Document> {
-    use mongodb::bson::{doc, Bson, Regex};
+    use mongodb::bson::{Bson, Regex, doc};
 
     let col = &filter.column_id;
-    
+
     match filter.operator.as_str() {
         // Text operators
         "contains" => {
             let val = filter.values.first()?.as_str()?;
-            let regex = Regex { pattern: regex::escape(val), options: "i".to_string() };
+            let regex = Regex {
+                pattern: regex::escape(val),
+                options: "i".to_string(),
+            };
             Some(doc! { col: { "$regex": regex } })
         }
         "does not contain" => {
             let val = filter.values.first()?.as_str()?;
-            let regex = Regex { pattern: regex::escape(val), options: "i".to_string() };
+            let regex = Regex {
+                pattern: regex::escape(val),
+                options: "i".to_string(),
+            };
             Some(doc! { col: { "$not": { "$regex": regex } } })
         }
         // Equality operators
@@ -607,7 +621,7 @@ fn build_mongodb_condition(filter: &FilterParam) -> Option<mongodb::bson::Docume
 /// Convert JSON value to BSON
 fn json_to_bson(val: &serde_json::Value) -> mongodb::bson::Bson {
     use mongodb::bson::Bson;
-    
+
     match val {
         serde_json::Value::Null => Bson::Null,
         serde_json::Value::Bool(b) => Bson::Boolean(*b),
@@ -621,9 +635,7 @@ fn json_to_bson(val: &serde_json::Value) -> mongodb::bson::Bson {
             }
         }
         serde_json::Value::String(s) => Bson::String(s.clone()),
-        serde_json::Value::Array(arr) => {
-            Bson::Array(arr.iter().map(json_to_bson).collect())
-        }
+        serde_json::Value::Array(arr) => Bson::Array(arr.iter().map(json_to_bson).collect()),
         serde_json::Value::Object(obj) => {
             let doc: mongodb::bson::Document = obj
                 .iter()
@@ -664,7 +676,7 @@ pub async fn query_sqlite_table(
             // Get column info
             let pragma_query = format!("PRAGMA table_info('{}')", table_name);
             let column_rows = sqlx::query(&pragma_query).fetch_all(pool).await?;
-            
+
             let columns: Vec<ColumnInfo> = column_rows
                 .iter()
                 .map(|row| ColumnInfo {
@@ -681,7 +693,10 @@ pub async fn query_sqlite_table(
             let where_clause = build_sql_where_clause(&filter_params);
 
             // Get total count (with filters)
-            let count_query = format!("SELECT COUNT(*) as cnt FROM \"{}\"{}", table_name, where_clause);
+            let count_query = format!(
+                "SELECT COUNT(*) as cnt FROM \"{}\"{}",
+                table_name, where_clause
+            );
             let count_row = sqlx::query(&count_query).fetch_one(pool).await?;
             let total_count: i64 = count_row.get("cnt");
 
@@ -690,7 +705,11 @@ pub async fn query_sqlite_table(
             let offset_val = offset.unwrap_or(0);
             let order_clause = match (&order_by_column, &order_by_direction) {
                 (Some(col), Some(dir)) => {
-                    let direction = if dir.to_lowercase() == "desc" { "DESC" } else { "ASC" };
+                    let direction = if dir.to_lowercase() == "desc" {
+                        "DESC"
+                    } else {
+                        "ASC"
+                    };
                     format!(" ORDER BY \"{}\" {}", col, direction)
                 }
                 _ => String::new(),
@@ -699,9 +718,9 @@ pub async fn query_sqlite_table(
                 "SELECT * FROM \"{}\"{}{} LIMIT {} OFFSET {}",
                 table_name, where_clause, order_clause, limit_val, offset_val
             );
-            
+
             let data_rows = sqlx::query(&data_query).fetch_all(pool).await?;
-            
+
             let rows: Vec<Vec<serde_json::Value>> = data_rows
                 .iter()
                 .map(|row| {
@@ -718,7 +737,9 @@ pub async fn query_sqlite_table(
                 total_count: Some(total_count),
             })
         }
-        _ => Err(Error::InvalidDbUrl("Expected SQLite connection".to_string())),
+        _ => Err(Error::InvalidDbUrl(
+            "Expected SQLite connection".to_string(),
+        )),
     }
 }
 
@@ -726,7 +747,7 @@ pub async fn query_sqlite_table(
 fn sqlite_value_to_json(row: &sqlx::sqlite::SqliteRow, column: &str) -> serde_json::Value {
     use sqlx::Row;
     use sqlx::ValueRef;
-    
+
     let value_ref = row.try_get_raw(column);
     match value_ref {
         Ok(val) if val.is_null() => serde_json::Value::Null,
@@ -793,7 +814,7 @@ pub async fn query_postgres_table(
                 .bind(&table_name)
                 .fetch_all(pool)
                 .await?;
-            
+
             let columns: Vec<ColumnInfo> = column_rows
                 .iter()
                 .map(|row| ColumnInfo {
@@ -810,7 +831,10 @@ pub async fn query_postgres_table(
             let where_clause = build_sql_where_clause(&filter_params);
 
             // Get total count (with filters)
-            let count_query = format!("SELECT COUNT(*) as cnt FROM \"{}\".\"{}\"{}", schema, table_name, where_clause);
+            let count_query = format!(
+                "SELECT COUNT(*) as cnt FROM \"{}\".\"{}\"{}",
+                schema, table_name, where_clause
+            );
             let count_row = sqlx::query(&count_query).fetch_one(pool).await?;
             let total_count: i64 = count_row.get("cnt");
 
@@ -819,7 +843,11 @@ pub async fn query_postgres_table(
             let offset_val = offset.unwrap_or(0);
             let order_clause = match (&order_by_column, &order_by_direction) {
                 (Some(col), Some(dir)) => {
-                    let direction = if dir.to_lowercase() == "desc" { "DESC" } else { "ASC" };
+                    let direction = if dir.to_lowercase() == "desc" {
+                        "DESC"
+                    } else {
+                        "ASC"
+                    };
                     format!(" ORDER BY \"{}\" {}", col, direction)
                 }
                 _ => String::new(),
@@ -828,9 +856,9 @@ pub async fn query_postgres_table(
                 "SELECT * FROM \"{}\".\"{}\"{}{} LIMIT {} OFFSET {}",
                 schema, table_name, where_clause, order_clause, limit_val, offset_val
             );
-            
+
             let data_rows = sqlx::query(&data_query).fetch_all(pool).await?;
-            
+
             let rows: Vec<Vec<serde_json::Value>> = data_rows
                 .iter()
                 .map(|row| {
@@ -847,7 +875,9 @@ pub async fn query_postgres_table(
                 total_count: Some(total_count),
             })
         }
-        _ => Err(Error::InvalidDbUrl("Expected PostgreSQL connection".to_string())),
+        _ => Err(Error::InvalidDbUrl(
+            "Expected PostgreSQL connection".to_string(),
+        )),
     }
 }
 
@@ -855,7 +885,7 @@ pub async fn query_postgres_table(
 fn postgres_value_to_json(row: &sqlx::postgres::PgRow, column: &str) -> serde_json::Value {
     use sqlx::Row;
     use sqlx::ValueRef;
-    
+
     let value_ref = row.try_get_raw(column);
     match value_ref {
         Ok(val) if val.is_null() => serde_json::Value::Null,
@@ -910,8 +940,8 @@ pub async fn query_mongodb_collection(
         order_by_direction,
         filters,
     } = options;
-    use mongodb::bson::doc;
     use futures::TryStreamExt;
+    use mongodb::bson::doc;
 
     let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
 
@@ -923,7 +953,7 @@ pub async fn query_mongodb_collection(
     match pool {
         ConnectionPool::Mongo(db) => {
             let collection = db.collection::<mongodb::bson::Document>(&collection_name);
-            
+
             // Parse filters and build MongoDB query
             let filter_params: Vec<FilterParam> = filters
                 .as_ref()
@@ -937,7 +967,7 @@ pub async fn query_mongodb_collection(
             // Query data with pagination
             let limit_val = limit.unwrap_or(100);
             let offset_val = offset.unwrap_or(0);
-            
+
             let sort_doc = match (&order_by_column, &order_by_direction) {
                 (Some(col), Some(dir)) => {
                     let direction = if dir.to_lowercase() == "desc" { -1 } else { 1 };
@@ -950,9 +980,9 @@ pub async fn query_mongodb_collection(
                 .skip(offset_val as u64)
                 .sort(sort_doc)
                 .build();
-            
+
             let mut cursor = collection.find(query_doc, find_options).await?;
-            
+
             let mut documents: Vec<mongodb::bson::Document> = Vec::new();
             while let Some(doc) = cursor.try_next().await? {
                 documents.push(doc);
@@ -992,14 +1022,16 @@ pub async fn query_mongodb_collection(
                 total_count: Some(total_count),
             })
         }
-        _ => Err(Error::InvalidDbUrl("Expected MongoDB connection".to_string())),
+        _ => Err(Error::InvalidDbUrl(
+            "Expected MongoDB connection".to_string(),
+        )),
     }
 }
 
 /// Convert BSON value to JSON
 fn bson_to_json(bson: &mongodb::bson::Bson) -> serde_json::Value {
     use mongodb::bson::Bson;
-    
+
     match bson {
         Bson::Null => serde_json::Value::Null,
         Bson::Boolean(b) => serde_json::Value::Bool(*b),
@@ -1011,9 +1043,7 @@ fn bson_to_json(bson: &mongodb::bson::Bson) -> serde_json::Value {
         Bson::String(s) => serde_json::Value::String(s.clone()),
         Bson::ObjectId(oid) => serde_json::Value::String(oid.to_hex()),
         Bson::DateTime(dt) => serde_json::Value::String(dt.to_string()),
-        Bson::Array(arr) => serde_json::Value::Array(
-            arr.iter().map(bson_to_json).collect()
-        ),
+        Bson::Array(arr) => serde_json::Value::Array(arr.iter().map(bson_to_json).collect()),
         Bson::Document(doc) => {
             let map: serde_json::Map<String, serde_json::Value> = doc
                 .iter()
@@ -1021,9 +1051,15 @@ fn bson_to_json(bson: &mongodb::bson::Bson) -> serde_json::Value {
                 .collect();
             serde_json::Value::Object(map)
         }
-        Bson::Binary(bin) => serde_json::Value::String(format!("[Binary: {} bytes]", bin.bytes.len())),
-        Bson::Timestamp(ts) => serde_json::Value::String(format!("Timestamp({}, {})", ts.time, ts.increment)),
-        Bson::RegularExpression(regex) => serde_json::Value::String(format!("/{}/{}", regex.pattern, regex.options)),
+        Bson::Binary(bin) => {
+            serde_json::Value::String(format!("[Binary: {} bytes]", bin.bytes.len()))
+        }
+        Bson::Timestamp(ts) => {
+            serde_json::Value::String(format!("Timestamp({}, {})", ts.time, ts.increment))
+        }
+        Bson::RegularExpression(regex) => {
+            serde_json::Value::String(format!("/{}/{}", regex.pattern, regex.options))
+        }
         _ => serde_json::Value::String(bson.to_string()),
     }
 }
@@ -1067,13 +1103,15 @@ async fn ensure_connection(
     let pool = ConnectionPool::connect(&conn_string, &app).await?;
 
     // Register in the registry
-    let id = registry.register(
-        project_path.to_string(),
-        conn_key.to_string(),
-        conn_config.engine.clone(),
-        conn_config.label.clone(),
-        pool,
-    ).await;
+    let id = registry
+        .register(
+            project_path.to_string(),
+            conn_key.to_string(),
+            conn_config.engine.clone(),
+            conn_config.label.clone(),
+            pool,
+        )
+        .await;
 
     Ok(id.to_string())
 }
@@ -1100,25 +1138,18 @@ pub async fn execute_raw_sql(
         .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
 
     match pool {
-        ConnectionPool::Sqlite(pool) => {
-            execute_sqlite_raw(pool, &query).await
-        }
-        ConnectionPool::Postgres(pool) => {
-            execute_postgres_raw(pool, &query).await
-        }
-        ConnectionPool::Mongo(_) => {
-            Err(Error::InvalidDbUrl("Use execute_raw_mongo for MongoDB queries".to_string()))
-        }
+        ConnectionPool::Sqlite(pool) => execute_sqlite_raw(pool, &query).await,
+        ConnectionPool::Postgres(pool) => execute_postgres_raw(pool, &query).await,
+        ConnectionPool::Mongo(_) => Err(Error::InvalidDbUrl(
+            "Use execute_raw_mongo for MongoDB queries".to_string(),
+        )),
     }
 }
 
 /// Execute raw SQL on SQLite
-async fn execute_sqlite_raw(
-    pool: &sqlx::SqlitePool,
-    query: &str,
-) -> Result<QueryResult, Error> {
+async fn execute_sqlite_raw(pool: &sqlx::SqlitePool, query: &str) -> Result<QueryResult, Error> {
     let rows = sqlx::query(query).fetch_all(pool).await?;
-    
+
     if rows.is_empty() {
         return Ok(QueryResult {
             columns: vec![],
@@ -1158,12 +1189,9 @@ async fn execute_sqlite_raw(
 }
 
 /// Execute raw SQL on PostgreSQL
-async fn execute_postgres_raw(
-    pool: &sqlx::PgPool,
-    query: &str,
-) -> Result<QueryResult, Error> {
+async fn execute_postgres_raw(pool: &sqlx::PgPool, query: &str) -> Result<QueryResult, Error> {
     let rows = sqlx::query(query).fetch_all(pool).await?;
-    
+
     if rows.is_empty() {
         return Ok(QueryResult {
             columns: vec![],
@@ -1209,8 +1237,8 @@ pub async fn execute_raw_mongo(
     project_path: String,
     conn_key: String,
     collection: String,
-    query_type: String,  // "find" or "aggregate"
-    query: String,       // JSON string
+    query_type: String, // "find" or "aggregate"
+    query: String,      // JSON string
     registry: State<'_, ConnectionRegistry>,
     app: tauri::AppHandle,
 ) -> Result<QueryResult, Error> {
@@ -1226,12 +1254,12 @@ pub async fn execute_raw_mongo(
     match pool {
         ConnectionPool::Mongo(db) => {
             let coll = db.collection::<mongodb::bson::Document>(&collection);
-            
+
             let documents: Vec<mongodb::bson::Document> = match query_type.as_str() {
                 "find" => {
                     let filter: mongodb::bson::Document = serde_json::from_str(&query)
                         .map_err(|e| Error::InvalidDbUrl(format!("Invalid JSON filter: {}", e)))?;
-                    
+
                     let mut cursor = coll.find(filter, None).await?;
                     let mut docs = Vec::new();
                     while let Some(doc) = cursor.try_next().await? {
@@ -1241,8 +1269,10 @@ pub async fn execute_raw_mongo(
                 }
                 "aggregate" => {
                     let pipeline: Vec<mongodb::bson::Document> = serde_json::from_str(&query)
-                        .map_err(|e| Error::InvalidDbUrl(format!("Invalid JSON pipeline: {}", e)))?;
-                    
+                        .map_err(|e| {
+                            Error::InvalidDbUrl(format!("Invalid JSON pipeline: {}", e))
+                        })?;
+
                     let mut cursor = coll.aggregate(pipeline, None).await?;
                     let mut docs = Vec::new();
                     while let Some(doc) = cursor.try_next().await? {
@@ -1251,7 +1281,10 @@ pub async fn execute_raw_mongo(
                     docs
                 }
                 _ => {
-                    return Err(Error::InvalidDbUrl(format!("Unknown query type: {}. Use 'find' or 'aggregate'", query_type)));
+                    return Err(Error::InvalidDbUrl(format!(
+                        "Unknown query type: {}. Use 'find' or 'aggregate'",
+                        query_type
+                    )));
                 }
             };
 
@@ -1289,6 +1322,8 @@ pub async fn execute_raw_mongo(
                 total_count: Some(rows.len() as i64),
             })
         }
-        _ => Err(Error::InvalidDbUrl("Expected MongoDB connection".to_string())),
+        _ => Err(Error::InvalidDbUrl(
+            "Expected MongoDB connection".to_string(),
+        )),
     }
 }

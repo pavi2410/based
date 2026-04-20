@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: frontend (typecheck + build)
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+
+      - name: Install dependencies
+        working-directory: .
+        run: bun install --frozen-lockfile
+
+      - name: Type check
+        run: bunx --bun tsc -p ./tsconfig.json --noEmit
+
+      - name: Build
+        run: bunx --bun vite build
+
+      # Phase 0 runs formatter-only Biome to keep CI green while Phase 1
+      # incrementally cleans up the pre-existing lint backlog (organizeImports,
+      # a11y/useButtonType, useExhaustiveDependencies). Switch back to
+      # `biome check .` once that backlog is zero.
+      - name: Format check
+        run: bunx --bun biome format .
+
+  rust:
+    name: rust (fmt + clippy + test)
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: apps/desktop/src-tauri
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cargo cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      # Non-fatal during Phase 0 — we have pre-existing warnings across
+      # connectors/ and file_watcher that Phase 1 will clean up. Flip to
+      # `-D warnings` once that refactor lands.
+      - name: Clippy
+        run: cargo clippy --lib --all-targets
+
+      - name: Tests (also regenerates src/bindings.ts)
+        run: cargo test --lib
+
+      - name: Ensure bindings.ts is up to date
+        working-directory: apps/desktop
+        run: git diff --exit-code -- src/bindings.ts

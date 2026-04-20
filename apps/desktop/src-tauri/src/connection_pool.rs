@@ -1,7 +1,7 @@
 //! Connection pool abstraction for different database types.
 
 use mongodb::Database;
-use sqlx::{Pool, Sqlite, Postgres};
+use sqlx::{Pool, Postgres, Sqlite};
 use tauri::{AppHandle, Runtime};
 
 use crate::connectors::get_connector;
@@ -15,7 +15,7 @@ pub enum ConnectionPool {
 
 impl ConnectionPool {
     /// Connect to a database using the provided URL.
-    /// 
+    ///
     /// The URL scheme determines which database connector to use:
     /// - `sqlite:` - SQLite database
     /// - `postgresql:` or `postgres:` - PostgreSQL database  

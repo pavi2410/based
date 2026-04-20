@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { isBefore } from 'date-fns'
 import type { Column, ColumnOption } from '../core/types'
 

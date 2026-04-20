@@ -91,8 +91,8 @@ pub async fn read_project_config(project_path: String) -> Result<ProjectConfig, 
     let content = fs::read_to_string(&config_path)
         .map_err(|e| format!("Failed to read config.toml: {}", e))?;
 
-    let config: ProjectConfig = toml::from_str(&content)
-        .map_err(|e| format!("Failed to parse config.toml: {}", e))?;
+    let config: ProjectConfig =
+        toml::from_str(&content).map_err(|e| format!("Failed to parse config.toml: {}", e))?;
 
     Ok(config)
 }
@@ -109,8 +109,7 @@ pub async fn write_project_config(
     let content = toml::to_string_pretty(&config)
         .map_err(|e| format!("Failed to serialize config: {}", e))?;
 
-    fs::write(&config_path, content)
-        .map_err(|e| format!("Failed to write config.toml: {}", e))?;
+    fs::write(&config_path, content).map_err(|e| format!("Failed to write config.toml: {}", e))?;
 
     Ok(())
 }
@@ -134,7 +133,7 @@ pub async fn list_saved_queries(project_path: String) -> Result<Vec<QuerySummary
         if entry.file_type().is_file() {
             let path = entry.path();
             let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            
+
             // Only include .query.toml files
             if filename.ends_with(".query.toml") {
                 if let Ok(content) = fs::read_to_string(path) {
@@ -161,20 +160,17 @@ pub async fn list_saved_queries(project_path: String) -> Result<Vec<QuerySummary
 /// Read a saved query file
 #[command]
 #[specta::specta]
-pub async fn get_saved_query(
-    project_path: String,
-    filename: String,
-) -> Result<SavedQuery, String> {
+pub async fn get_saved_query(project_path: String, filename: String) -> Result<SavedQuery, String> {
     let file_path = Path::new(&project_path)
         .join(".based/queries")
         .join(&filename);
 
-    let content = fs::read_to_string(&file_path)
-        .map_err(|e| format!("Failed to read query file: {}", e))?;
+    let content =
+        fs::read_to_string(&file_path).map_err(|e| format!("Failed to read query file: {}", e))?;
 
-    let mut query: SavedQuery = toml::from_str(&content)
-        .map_err(|e| format!("Failed to parse query file: {}", e))?;
-    
+    let mut query: SavedQuery =
+        toml::from_str(&content).map_err(|e| format!("Failed to parse query file: {}", e))?;
+
     // Set filename (not in TOML)
     query.filename = filename;
 
@@ -196,23 +192,26 @@ pub async fn save_query(
     if !filename.ends_with(".query.toml") {
         return Err("Filename must end with .query.toml".to_string());
     }
-    
+
     let queries_dir = Path::new(&project_path).join(".based/queries");
-    
+
     // Ensure queries directory exists
     fs::create_dir_all(&queries_dir)
         .map_err(|e| format!("Failed to create queries directory: {}", e))?;
-    
+
     let file_path = queries_dir.join(&filename);
-    
+
     // Make sure we're not writing to a directory
     if file_path.is_dir() {
-        return Err(format!("Cannot write to directory: {}", file_path.display()));
+        return Err(format!(
+            "Cannot write to directory: {}",
+            file_path.display()
+        ));
     }
 
     // Serialize to TOML
-    let content = toml::to_string_pretty(&query)
-        .map_err(|e| format!("Failed to serialize query: {}", e))?;
+    let content =
+        toml::to_string_pretty(&query).map_err(|e| format!("Failed to serialize query: {}", e))?;
 
     fs::write(&file_path, content)
         .map_err(|e| format!("Failed to write query file '{}': {}", filename, e))?;
@@ -223,16 +222,12 @@ pub async fn save_query(
 /// Delete a saved query file
 #[command]
 #[specta::specta]
-pub async fn delete_saved_query(
-    project_path: String,
-    filename: String,
-) -> Result<(), String> {
+pub async fn delete_saved_query(project_path: String, filename: String) -> Result<(), String> {
     let file_path = Path::new(&project_path)
         .join(".based/queries")
         .join(&filename);
 
-    fs::remove_file(&file_path)
-        .map_err(|e| format!("Failed to delete query file: {}", e))?;
+    fs::remove_file(&file_path).map_err(|e| format!("Failed to delete query file: {}", e))?;
 
     Ok(())
 }

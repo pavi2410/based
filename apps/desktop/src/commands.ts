@@ -38,12 +38,16 @@ function unwrap<T>(
  */
 export const cmd: Cmd = new Proxy({} as Cmd, {
   get(_, key: string) {
-    const fn = (raw as unknown as Record<
-      string,
-      (
-        ...a: unknown[]
-      ) => Promise<{ status: "ok"; data: unknown } | { status: "error"; error: string }>
-    >)[key];
+    const fn = (
+      raw as unknown as Record<
+        string,
+        (
+          ...a: unknown[]
+        ) => Promise<
+          { status: "ok"; data: unknown } | { status: "error"; error: string }
+        >
+      >
+    )[key];
     if (!fn) throw new Error(`Unknown command: ${key}`);
     return (...args: unknown[]) => unwrap(fn(...args));
   },

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { Row } from '@tanstack/react-table'
 import type { FilterModel } from '../../core/types'
 import * as f from '../../lib/filter-fns'

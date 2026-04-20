@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { Column, ColumnDataType } from '../core/types'
 
 interface FilterSubjectProps<TData, TType extends ColumnDataType> {

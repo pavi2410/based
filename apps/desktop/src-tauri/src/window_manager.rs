@@ -17,7 +17,7 @@
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use tauri::{command, AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, command};
 use tauri_plugin_decorum::WebviewWindowExt;
 
 use crate::address::TabAddress;
@@ -117,8 +117,8 @@ pub async fn open_window(app: AppHandle, kind: WindowKind) -> Result<String, Str
     }
 
     let (w, h) = kind.initial_size();
-    let payload = serde_json::to_string(&kind)
-        .map_err(|e| format!("Failed to encode window kind: {}", e))?;
+    let payload =
+        serde_json::to_string(&kind).map_err(|e| format!("Failed to encode window kind: {}", e))?;
     let encoded = urlencoding::encode(&payload).into_owned();
     let url = format!("index.html?window={}", encoded);
 
@@ -130,7 +130,9 @@ pub async fn open_window(app: AppHandle, kind: WindowKind) -> Result<String, Str
     #[cfg(target_os = "macos")]
     {
         use tauri::TitleBarStyle;
-        builder = builder.title_bar_style(TitleBarStyle::Overlay).hidden_title(true);
+        builder = builder
+            .title_bar_style(TitleBarStyle::Overlay)
+            .hidden_title(true);
     }
 
     let window = builder

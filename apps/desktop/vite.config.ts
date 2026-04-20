@@ -1,9 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { tanstackRouter } from '@tanstack/router-plugin/vite';
+import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import path from "node:path";
 import tailwindcss from "@tailwindcss/vite";
-import Icons from 'unplugin-icons/vite'
+import Icons from "unplugin-icons/vite";
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -11,17 +11,17 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(async () => ({
   plugins: [
     tanstackRouter({
-      autoCodeSplitting: true
+      autoCodeSplitting: true,
     }),
     tailwindcss(),
     react({
       babel: {
-        plugins: ['babel-plugin-react-compiler'],
+        plugins: ["babel-plugin-react-compiler"],
       },
     }),
     Icons({
-      compiler: 'jsx',
-      jsx: 'react',
+      compiler: "jsx",
+      jsx: "react",
     }),
   ],
 
@@ -42,10 +42,10 @@ export default defineConfig(async () => ({
     host: host || false,
     hmr: host
       ? {
-        protocol: "ws",
-        host,
-        port: 1421,
-      }
+          protocol: "ws",
+          host,
+          port: 1421,
+        }
       : undefined,
     watch: {
       // 3. tell vite to ignore watching `src-tauri`

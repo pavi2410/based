@@ -15,13 +15,13 @@ impl DatabaseConnector for PostgresConnector {
     async fn connect(&self, url: &str) -> Result<ConnectionPool, Error> {
         // Validate URL format
         self.validate_url(url)?;
-        
+
         // Connect to the database
         let pool = Pool::connect(url).await?;
-        
+
         Ok(ConnectionPool::Postgres(pool))
     }
-    
+
     fn validate_url(&self, url: &str) -> Result<(), Error> {
         if !url.starts_with("postgresql://") && !url.starts_with("postgres://") {
             return Err(Error::InvalidDbUrl(format!(
@@ -40,9 +40,17 @@ mod tests {
     #[test]
     fn test_validate_postgres_url() {
         let connector = PostgresConnector;
-        
-        assert!(connector.validate_url("postgresql://localhost:5432/db").is_ok());
-        assert!(connector.validate_url("postgres://user:pass@localhost/db").is_ok());
+
+        assert!(
+            connector
+                .validate_url("postgresql://localhost:5432/db")
+                .is_ok()
+        );
+        assert!(
+            connector
+                .validate_url("postgres://user:pass@localhost/db")
+                .is_ok()
+        );
         assert!(connector.validate_url("sqlite:/path/to/db").is_err());
     }
 }

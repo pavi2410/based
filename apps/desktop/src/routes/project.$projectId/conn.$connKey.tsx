@@ -29,11 +29,14 @@ interface ConnectionContextValue {
   onSelectTable: (tableName: string, tableSchema?: string) => void;
 }
 
-export const ConnectionContext = createContext<ConnectionContextValue | null>(null);
+export const ConnectionContext = createContext<ConnectionContextValue | null>(
+  null,
+);
 
 export function useConnection() {
   const ctx = useContext(ConnectionContext);
-  if (!ctx) throw new Error("useConnection must be used within ConnectionContext");
+  if (!ctx)
+    throw new Error("useConnection must be used within ConnectionContext");
   return ctx;
 }
 
@@ -41,7 +44,7 @@ export function useConnection() {
 const searchSchema = z.object({
   table: z.string().optional(),
   schema: z.string().optional(),
-  query: z.string().optional(),     // Query filename
+  query: z.string().optional(), // Query filename
   newQuery: z.boolean().optional(), // Creating new query
 });
 
@@ -130,7 +133,9 @@ function ConnectionLayout() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="flex flex-col items-center gap-2 max-w-sm">
-          <h2 className="text-sm font-medium text-destructive">Connection not found</h2>
+          <h2 className="text-sm font-medium text-destructive">
+            Connection not found
+          </h2>
           <p className="text-xs text-muted-foreground text-center">
             "{connKey}" is not defined in the project config.
           </p>
@@ -163,7 +168,7 @@ function ConnectionLayout() {
         <ResizableHandle />
 
         <ResizablePanel defaultSize={80}>
-          {(query || newQuery) ? (
+          {query || newQuery ? (
             <QueryEditor
               projectPath={projectPath}
               connectionKey={connKey}

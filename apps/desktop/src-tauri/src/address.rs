@@ -5,6 +5,11 @@
 //! (`(project_path, conn_key, ...)`) from leaking through every command,
 //! state map key, and React Query cache key, which is the main source of
 //! drift between the Rust and TS sides.
+//!
+//! The constructors and accessors are allowed to be unused during Phase 0
+//! — they are the canonical surface Phases 1-2 will migrate onto.
+
+#![allow(dead_code)]
 
 use serde::{Deserialize, Serialize};
 use specta::Type;

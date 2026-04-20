@@ -1,15 +1,16 @@
 {
   "name": "desktop",
-  "private": true,
   "version": "0.2.0",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "lint": "biome check .",
-    "format": "biome format --write .",
+    "lint": "oxlint .",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -60,7 +61,6 @@
     "zod": "^4.1.13"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.1.2",
     "@iconify-json/devicon": "^1.2.34",
     "@svgr/core": "^8.1.0",
     "@svgr/plugin-jsx": "^8.1.0",
@@ -74,6 +74,8 @@
     "@vitejs/plugin-react": "^4.7.0",
     "babel-plugin-react-compiler": "^1.0.0",
     "happy-dom": "^20.9.0",
+    "oxfmt": "^0.45.0",
+    "oxlint": "^1.60.0",
     "shadcn": "^2.9.3",
     "tailwindcss": "^4.1.11",
     "typescript": "^5.8.3",

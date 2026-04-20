@@ -37,12 +37,11 @@ jobs:
       - name: Unit tests
         run: bunx --bun vitest run
 
-      # Phase 0 runs formatter-only Biome to keep CI green while Phase 1
-      # incrementally cleans up the pre-existing lint backlog (organizeImports,
-      # a11y/useButtonType, useExhaustiveDependencies). Switch back to
-      # `biome check .` once that backlog is zero.
+      - name: Lint
+        run: bunx --bun oxlint .
+
       - name: Format check
-        run: bunx --bun biome format .
+        run: bunx --bun oxfmt --check .
 
   rust:
     name: rust (fmt + clippy + test)

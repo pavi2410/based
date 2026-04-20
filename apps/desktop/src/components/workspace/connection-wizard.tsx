@@ -158,7 +158,10 @@ export function ConnectionWizard({
         <div className="space-y-3 py-2">
           <div className="space-y-1.5">
             <Label>Engine</Label>
-            <Select value={engine} onValueChange={(v) => updateEngine(v as Engine)}>
+            <Select
+              value={engine}
+              onValueChange={(v) => updateEngine(v as Engine)}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -278,8 +281,8 @@ export function ConnectionWizard({
                   value={
                     typeof form.password === "string"
                       ? form.password
-                      : ((form.password as { value?: string } | null)
-                          ?.value ?? "")
+                      : ((form.password as { value?: string } | null)?.value ??
+                        "")
                   }
                   onChange={(e) =>
                     setForm((p) => ({

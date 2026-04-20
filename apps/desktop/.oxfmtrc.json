@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 80,
+  "tabWidth": 2,
+  "useTabs": false,
+  "singleQuote": false,
+  "ignorePatterns": [
+    "dist/**",
+    "**/node_modules/**",
+    "**/gen/**",
+    "**/target/**",
+    "src-tauri/**",
+    "README.md",
+    "index.html",
+    "src/routeTree.gen.ts",
+    "src/bindings.ts",
+    "src/components/ui/**",
+    "src/components/data-table-filter/**"
+  ]
+}

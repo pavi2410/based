@@ -47,10 +47,7 @@ export default defineConfig(async () => ({
             "@codemirror/view",
             "@uiw/codemirror-theme-vscode",
           ],
-          table: [
-            "@tanstack/react-table",
-            "@tanstack/react-virtual",
-          ],
+          table: ["@tanstack/react-table", "@tanstack/react-virtual"],
           radix: ["radix-ui"],
         },
       },

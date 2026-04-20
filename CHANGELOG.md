@@ -79,7 +79,7 @@ people on the team can kick the tires.
 - Vitest harness with happy-dom; 16 frontend unit tests cover the
   tabs, query-history, and running-query stores.
 - Tempfile-backed Rust tests for `create_sample_project`.
-- CI now runs `vitest run` alongside tsc/build/biome/fmt/clippy/test.
+- CI now runs `vitest run` alongside tsc/build/oxlint/oxfmt/clippy/test.
 
 ### Known gaps (targeted for 0.3.0)
 

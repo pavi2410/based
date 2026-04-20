@@ -40,7 +40,12 @@ export class ErrorBoundary extends Component<
   componentDidCatch(error: Error, info: ErrorInfo) {
     // One place for render-error logging; keep it noisy during dev so
     // we notice regressions instead of silently showing the fallback.
-    console.error("[ErrorBoundary]", this.props.label ?? "unknown", error, info);
+    console.error(
+      "[ErrorBoundary]",
+      this.props.label ?? "unknown",
+      error,
+      info,
+    );
   }
 
   reset = () => this.setState({ error: null });

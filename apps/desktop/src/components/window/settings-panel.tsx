@@ -45,10 +45,7 @@ export function SettingsPanel() {
             <h1 className="text-lg font-semibold">Settings</h1>
             <p className="text-xs text-muted-foreground">
               Device-scoped preferences. Project settings live in{" "}
-              <code className="bg-muted px-1 rounded">
-                .based/config.toml
-              </code>
-              .
+              <code className="bg-muted px-1 rounded">.based/config.toml</code>.
             </p>
           </header>
 
@@ -87,8 +84,8 @@ export function SettingsPanel() {
               <div>
                 <Label>Mode</Label>
                 <p className="text-xs text-muted-foreground">
-                  Beginner hides advanced actions (EXPLAIN, aggregate
-                  builder). Pro shows everything.
+                  Beginner hides advanced actions (EXPLAIN, aggregate builder).
+                  Pro shows everything.
                 </p>
               </div>
               <Select

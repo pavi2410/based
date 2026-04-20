@@ -85,7 +85,7 @@ export function ActionButtons() {
 
         const projectId = btoa(selected);
         navigate({ to: "/project/$projectId", params: { projectId } });
-      } catch (error) {
+      } catch {
         // Project not initialized, show init dialog
         setInitPath(selected);
         // Extract folder name for default project name

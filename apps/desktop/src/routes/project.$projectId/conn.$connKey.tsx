@@ -301,10 +301,7 @@ function ConnectionLayout() {
   return (
     <ConnectionContext.Provider value={connectionContextValue}>
       <div className="flex flex-col h-full">
-        <ResizablePanelGroup
-          direction="horizontal"
-          className="flex-1 min-h-0"
-        >
+        <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
           <ResizablePanel defaultSize={20} minSize={15} maxSize={40}>
             <WorkspaceSidebar
               onDisconnect={handleDisconnect}

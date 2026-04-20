@@ -1,4 +1,4 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 
 @import "tw-animate-css";
 
@@ -23,20 +23,20 @@
 
   /* Table / tree row heights. Kept separate so the data grid can go
      tighter than chrome without breaking tap targets on menus. */
-  --density-row-h: 1.5rem;        /* 24px */
+  --density-row-h: 1.5rem; /* 24px */
   --density-row-h-comfortable: 1.75rem; /* 28px */
 
   /* Standard chrome control height (buttons, selects, inputs). */
-  --density-control-h: 1.75rem;   /* 28px */
+  --density-control-h: 1.75rem; /* 28px */
   --density-control-h-sm: 1.5rem; /* 24px */
 
   /* Horizontal / vertical padding primitives. */
-  --density-pad-x: 0.5rem;        /* 8px */
-  --density-pad-y: 0.25rem;       /* 4px */
-  --density-gap: 0.375rem;        /* 6px */
+  --density-pad-x: 0.5rem; /* 8px */
+  --density-pad-y: 0.25rem; /* 4px */
+  --density-gap: 0.375rem; /* 6px */
 
   /* Border radius baseline; overrides shadcn's default. */
-  --radius: 0.375rem;             /* 6px */
+  --radius: 0.375rem; /* 6px */
 }
 
 @layer base {
@@ -119,10 +119,10 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
-  
+
   .no-scrollbar {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
   }
 }
 

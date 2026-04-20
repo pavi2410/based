@@ -1,3 +1,3 @@
 export function baseName(path: string) {
-  return path.replace(/^.+[\/\\]/, "");
+  return path.replace(/^.*[/\\]/, "");
 }

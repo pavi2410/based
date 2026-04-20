@@ -21,10 +21,7 @@ import {
   $pendingDraftQuery,
   recordHistory,
 } from "@/stores/query-history-store";
-import {
-  markQueryEnd,
-  markQueryStart,
-} from "@/stores/query-registry-store";
+import { markQueryEnd, markQueryStart } from "@/stores/query-registry-store";
 import { useUiMode } from "@/stores/user-prefs-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

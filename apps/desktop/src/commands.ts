@@ -9,13 +9,14 @@ import { commands as raw } from "./bindings";
 
 type RawCommands = typeof raw;
 
-type UnwrapResult<T> = T extends Promise<
-  { status: "ok"; data: infer D } | { status: "error"; error: unknown }
->
-  ? Promise<D>
-  : T extends Promise<{ status: "ok"; data: infer D }>
+type UnwrapResult<T> =
+  T extends Promise<
+    { status: "ok"; data: infer D } | { status: "error"; error: unknown }
+  >
     ? Promise<D>
-    : never;
+    : T extends Promise<{ status: "ok"; data: infer D }>
+      ? Promise<D>
+      : never;
 
 export type Cmd = {
   [K in keyof RawCommands]: (

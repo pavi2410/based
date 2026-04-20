@@ -1,0 +1,22 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "typescript"],
+  "env": {
+    "browser": true,
+    "es2022": true
+  },
+  "ignorePatterns": [
+    "dist/**",
+    "**/node_modules/**",
+    "**/gen/**",
+    "**/target/**",
+    "src-tauri/target/**",
+    "src/routeTree.gen.ts",
+    "src/bindings.ts",
+    "src/components/ui/**",
+    "src/components/data-table-filter/**"
+  ],
+  "rules": {
+    "react/react-in-jsx-scope": "off"
+  }
+}

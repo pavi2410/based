@@ -33,27 +33,3 @@ export async function writeProjectConfig(
   await invoke("write_project_config", { projectPath, config });
 }
 
-/**
- * Load environment variables from .based/.env file
- */
-export async function loadEnvFile(
-  projectPath: string,
-): Promise<Record<string, string>> {
-  return await invoke("load_env_file_command", { projectPath });
-}
-
-/**
- * Resolve connection config with environment overrides and variable interpolation
- * Merges base config + environment overrides, then resolves ${env:VAR} variables
- */
-export async function resolveConnectionConfig(
-  projectPath: string,
-  dbKey: string,
-  environment: string,
-) {
-  return await invoke("resolve_connection_config_command", {
-    projectPath,
-    dbKey,
-    environment,
-  });
-}

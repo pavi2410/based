@@ -1,5 +1,5 @@
 use crate::project_types::*;
-use crate::variables::{load_env_file, VariableError};
+use crate::variables::VariableError;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -127,33 +127,6 @@ pub async fn write_project_config(
         .map_err(|e| format!("Failed to write config.toml: {}", e))?;
 
     Ok(())
-}
-
-/// Load environment variables from .env file
-#[command]
-pub async fn load_env_file_command(project_path: String) -> Result<HashMap<String, String>, String> {
-    load_env_file(&project_path)
-        .map_err(|e| format!("Failed to load .env file: {}", e))
-}
-
-/// Resolve connection config with variable interpolation
-#[command]
-pub async fn resolve_connection_config_command(
-    project_path: String,
-    conn_key: String,
-) -> Result<ConnectionConfig, String> {
-    // Read project config
-    let config = read_project_config(project_path.clone()).await?;
-
-    // Get connection config
-    let conn_config = config
-        .connection
-        .get(&conn_key)
-        .ok_or_else(|| format!("Connection '{}' not found in config", conn_key))?;
-
-    // Connection config is already complete, just return it
-    // Secret resolution happens at connection time in project_db_commands
-    Ok(conn_config.clone())
 }
 
 /// List all saved queries in the project with summary info

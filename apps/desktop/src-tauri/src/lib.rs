@@ -12,8 +12,7 @@ use crate::connection_id::ConnectionRegistry;
 use crate::file_watcher::{watch_project_config, unwatch_project_config, FileWatcherState};
 use crate::project_commands::{
     delete_saved_query, get_saved_query, initialize_project, list_saved_queries,
-    load_env_file_command, read_project_config, resolve_connection_config_command,
-    save_query, write_project_config,
+    read_project_config, save_query, write_project_config,
 };
 use crate::project_db_commands::{
     connect_project_db, get_sqlite_objects, get_mongodb_collections, get_postgres_schemas, 
@@ -49,8 +48,6 @@ pub fn run() {
             initialize_project,
             read_project_config,
             write_project_config,
-            load_env_file_command,
-            resolve_connection_config_command,
             // Saved queries
             list_saved_queries,
             get_saved_query,

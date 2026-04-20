@@ -5,6 +5,46 @@ use std::path::Path;
 use tauri::command;
 use walkdir::WalkDir;
 
+// Seed SQL for the sample project. Kept as a single string so we can
+// ship one sqlx execute_many call. Small enough to be human-readable
+// but meaty enough that a new user can try joins, aggregations, and
+// filters without writing any inserts of their own.
+const SAMPLE_SEED_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS posts (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    published INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS comments (
+    id INTEGER PRIMARY KEY,
+    post_id INTEGER NOT NULL REFERENCES posts(id),
+    author TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+INSERT INTO users (id, name, email) VALUES
+    (1, 'Ada Lovelace', 'ada@example.com'),
+    (2, 'Alan Turing', 'alan@example.com'),
+    (3, 'Grace Hopper', 'grace@example.com');
+INSERT INTO posts (id, user_id, title, body, published) VALUES
+    (1, 1, 'Notes on the Analytical Engine', 'Sketches of what could be.', 1),
+    (2, 2, 'On Computable Numbers', 'A machine that computes anything computable.', 1),
+    (3, 3, 'COBOL is coming', 'English-like syntax for business computing.', 0);
+INSERT INTO comments (id, post_id, author, body) VALUES
+    (1, 1, 'Charles', 'Brilliant!'),
+    (2, 1, 'Mary', 'I agree.'),
+    (3, 2, 'Max', 'Decidable problems only?');
+"#;
+
 // Structured error types for project operations live in `crate::error`
 // (see `ProjectError` there). The commands below still return
 // `Result<T, String>` for IPC compatibility, but callers inside the
@@ -76,6 +116,82 @@ Thumbs.db
         .map_err(|e| format!("Failed to write .env.example: {}", e))?;
 
     Ok(())
+}
+
+/// Create a turnkey sample project at `{parent_dir}/{name}`.
+///
+/// Spins up a SQLite database seeded with a tiny users/posts/comments
+/// schema so new users can immediately browse, filter, run joins, and
+/// try EXPLAIN on realistic-shaped data without first standing up
+/// their own database.
+///
+/// Returns the absolute path of the newly-created project so the
+/// frontend can open it straight away.
+#[command]
+#[specta::specta]
+pub async fn create_sample_project(parent_dir: String, name: String) -> Result<String, String> {
+    let project_path = Path::new(&parent_dir).join(&name);
+    if project_path.exists() && project_path.read_dir().map(|mut d| d.next().is_some()).unwrap_or(false) {
+        return Err(format!(
+            "Destination {} is not empty; pick a different name.",
+            project_path.display()
+        ));
+    }
+    fs::create_dir_all(&project_path)
+        .map_err(|e| format!("Failed to create project dir: {}", e))?;
+
+    let project_path_str = project_path
+        .to_str()
+        .ok_or_else(|| "Project path is not valid UTF-8".to_string())?
+        .to_string();
+
+    // Delegate the scaffolding (dirs + gitignore + default config) to
+    // the existing initializer so there's one source of truth for
+    // project layout.
+    initialize_project(project_path_str.clone()).await?;
+
+    // Seed the SQLite sample database.
+    let db_path = project_path.join("sample.db");
+    let db_url = format!("sqlite:{}?mode=rwc", db_path.display());
+    let pool = sqlx::sqlite::SqlitePool::connect(&db_url)
+        .await
+        .map_err(|e| format!("Failed to create sample.db: {}", e))?;
+    {
+        use sqlx::Executor;
+        pool.execute(SAMPLE_SEED_SQL)
+            .await
+            .map_err(|e| format!("Failed to seed sample data: {}", e))?;
+    }
+    pool.close().await;
+
+    // Rewrite config.toml with a connection pointing to the new DB.
+    let mut config = read_project_config(project_path_str.clone()).await?;
+    config.name = name.clone();
+    config.description = Some("Sample project with a tiny blog-style SQLite dataset.".to_string());
+    config.connection.insert(
+        "sample".to_string(),
+        ConnectionConfig {
+            label: Some("Sample DB".to_string()),
+            engine: Engine::Sqlite,
+            group: Some("local".to_string()),
+            disabled: None,
+            order: Some(1),
+            color: None,
+            icon: None,
+            file: Some("sample.db".to_string()),
+            readonly: None,
+            url: None,
+            host: None,
+            port: None,
+            database: None,
+            username: None,
+            password: None,
+            ssl: None,
+        },
+    );
+    write_project_config(project_path_str.clone(), config).await?;
+
+    Ok(project_path_str)
 }
 
 /// Read and parse project config

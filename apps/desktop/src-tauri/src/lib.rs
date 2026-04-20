@@ -17,7 +17,7 @@ use crate::connection_id::ConnectionRegistry;
 use crate::file_watcher::{FileWatcherState, unwatch_project_config, watch_project_config};
 use crate::project_commands::{
     delete_saved_query, get_saved_query, initialize_project, list_saved_queries,
-    read_project_config, save_query, write_project_config,
+    create_sample_project, read_project_config, save_query, write_project_config,
 };
 use crate::project_db_commands::{
     cancel_query, close_connection, close_project_connections, connect_project_db,
@@ -25,8 +25,8 @@ use crate::project_db_commands::{
     describe_postgres_table, describe_sqlite_table, execute_raw_mongo, execute_raw_sql,
     get_connection_info, get_mongodb_collections, get_postgres_schemas, get_postgres_tables,
     get_sqlite_objects, insert_mongodb_document, insert_postgres_row, insert_sqlite_row,
-    query_mongodb_collection, query_postgres_table, query_sqlite_table, update_mongodb_document,
-    update_postgres_row, update_sqlite_row,
+    query_mongodb_collection, query_postgres_table, query_sqlite_table, test_connection,
+    update_mongodb_document, update_postgres_row, update_sqlite_row,
 };
 use crate::query_registry::QueryRegistry;
 use crate::schema_cache::SchemaCache;
@@ -58,6 +58,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .typ::<crate::address::TabAddress>()
         .commands(tauri_specta::collect_commands![
             initialize_project,
+            create_sample_project,
             read_project_config,
             write_project_config,
             list_saved_queries,
@@ -67,6 +68,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             watch_project_config,
             unwatch_project_config,
             connect_project_db,
+            test_connection,
             get_connection_info,
             get_sqlite_objects,
             get_mongodb_collections,

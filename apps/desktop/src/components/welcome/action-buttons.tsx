@@ -1,11 +1,12 @@
 import { Button } from "@/components/ui/button";
-import { FolderOpenIcon, BookOpenIcon } from "lucide-react";
+import { FolderOpenIcon, SparklesIcon } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { readProjectConfig, initializeProject } from "@/stores/projects";
 import { addRecentProject } from "@/stores/project-state";
 import { toast } from "sonner";
+import { cmd } from "@/commands";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,41 @@ export function ActionButtons() {
   const [initPath, setInitPath] = useState("");
   const [projectName, setProjectName] = useState("");
   const [isInitializing, setIsInitializing] = useState(false);
+  const [isCreatingSample, setIsCreatingSample] = useState(false);
+
+  const handleCreateSample = async () => {
+    try {
+      const parentDir = await open({
+        directory: true,
+        multiple: false,
+        title: "Where should we create the sample project?",
+      });
+      if (!parentDir || typeof parentDir !== "string") return;
+
+      setIsCreatingSample(true);
+      // Unique-ish default name — the backend rejects non-empty dirs,
+      // so a timestamp suffix is a cheap way to avoid a second prompt
+      // when the user creates multiple samples side-by-side.
+      const suffix = new Date().toISOString().slice(0, 10);
+      const name = `based-sample-${suffix}`;
+      const projectPath = await cmd.createSampleProject(parentDir, name);
+      const config = await readProjectConfig(projectPath);
+      addRecentProject({
+        path: projectPath,
+        name: config.name,
+        lastOpened: new Date().toISOString(),
+      });
+      toast.success("Sample project ready");
+      const projectId = btoa(projectPath);
+      navigate({ to: "/project/$projectId", params: { projectId } });
+    } catch (error) {
+      toast.error("Failed to create sample project", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setIsCreatingSample(false);
+    }
+  };
 
   const handleOpenFolder = async () => {
     try {
@@ -116,10 +152,11 @@ export function ActionButtons() {
           size="lg"
           variant="outline"
           className="w-full sm:w-auto"
-          disabled
+          onClick={handleCreateSample}
+          disabled={isCreatingSample}
         >
-          <BookOpenIcon className="mr-2 size-5" />
-          Example Projects
+          <SparklesIcon className="mr-2 size-5" />
+          {isCreatingSample ? "Creating..." : "Try Sample Project"}
         </Button>
       </div>
 

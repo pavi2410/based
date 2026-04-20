@@ -21,6 +21,7 @@ import {
   $pendingDraftQuery,
   recordHistory,
 } from "@/stores/query-history-store";
+import { useUiMode } from "@/stores/user-prefs-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -119,6 +120,8 @@ export function QueryEditor({
 }: QueryEditorProps) {
   const queryClient = useQueryClient();
   const isNewQuery = !filename;
+  const uiMode = useUiMode();
+  const isPro = uiMode === "pro";
 
   // Local state
   const [queryName, setQueryName] = useState("");
@@ -517,7 +520,7 @@ export function QueryEditor({
           Save{isDirty ? " •" : ""}
         </Button>
 
-        {engine !== "mongodb" ? (
+        {engine !== "mongodb" && isPro ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -647,7 +650,7 @@ export function QueryEditor({
                     </SelectContent>
                   </Select>
                 </div>
-                {mongoQueryType === "aggregate" && (
+                {mongoQueryType === "aggregate" && isPro && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button

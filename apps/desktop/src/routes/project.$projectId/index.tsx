@@ -16,7 +16,7 @@ function ProjectDashboard() {
     return null;
   }
 
-  const { config, projectId } = ctx;
+  const { config, projectId, projectPath, reloadConfig } = ctx;
 
   const handleConnect = (connKey: string) => {
     navigate({
@@ -25,5 +25,17 @@ function ProjectDashboard() {
     });
   };
 
-  return <ConnectionDashboard config={config} onConnect={handleConnect} />;
+  const handleConnectionAdded = (connKey: string) => {
+    reloadConfig();
+    handleConnect(connKey);
+  };
+
+  return (
+    <ConnectionDashboard
+      config={config}
+      projectPath={projectPath}
+      onConnect={handleConnect}
+      onConnectionAdded={handleConnectionAdded}
+    />
+  );
 }

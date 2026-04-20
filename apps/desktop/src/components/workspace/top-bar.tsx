@@ -7,6 +7,8 @@ import {
   FolderOpenIcon,
   CircleIcon,
   UnplugIcon,
+  GraduationCapIcon,
+  WrenchIcon,
 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "@nanostores/react";
@@ -29,6 +31,7 @@ import {
   type RecentProject,
 } from "@/stores/project-state";
 import { useTitlebar } from "@/hooks/use-titlebar";
+import { setUiMode, useUiMode } from "@/stores/user-prefs-store";
 import { ConnectionSelector } from "./connection-selector";
 
 function StatusDot({ status }: { status: string }) {
@@ -64,6 +67,7 @@ export function TopBar({
   const navigate = useNavigate();
   const recentProjects = useStore($recentProjects);
   const connection = useStore($connection);
+  const uiMode = useUiMode();
 
   const {
     connKey,
@@ -202,6 +206,29 @@ export function TopBar({
             {connectionConfig.group}
           </span>
         )}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              onClick={() =>
+                setUiMode(uiMode === "beginner" ? "pro" : "beginner")
+              }
+            >
+              {uiMode === "beginner" ? (
+                <GraduationCapIcon className="size-3.5" />
+              ) : (
+                <WrenchIcon className="size-3.5" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            {uiMode === "beginner"
+              ? "Beginner mode — switch to Pro"
+              : "Pro mode — switch to Beginner"}
+          </TooltipContent>
+        </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button

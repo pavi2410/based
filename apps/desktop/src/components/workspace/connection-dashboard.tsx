@@ -10,10 +10,13 @@ import DeviconSqlite from "~icons/devicon/sqlite";
 import DeviconMongodb from "~icons/devicon/mongodb";
 import DeviconPostgresql from "~icons/devicon/postgresql";
 import type { ProjectConfig, ConnectionConfig, Engine } from "@/types/project";
+import { ConnectionWizard } from "@/components/workspace/connection-wizard";
 
 interface ConnectionDashboardProps {
   config: ProjectConfig;
+  projectPath: string;
   onConnect: (connKey: string) => void;
+  onConnectionAdded: (connKey: string) => void;
 }
 
 const ENGINE_ICONS: Record<Engine, React.ReactNode> = {
@@ -115,7 +118,9 @@ function ConnectionGroup({
 
 export function ConnectionDashboard({
   config,
+  projectPath,
   onConnect,
+  onConnectionAdded,
 }: ConnectionDashboardProps) {
   // Group connections by their group field
   const groupedConnections = useMemo(() => {
@@ -178,6 +183,13 @@ export function ConnectionDashboard({
             {totalConnections} connection{totalConnections !== 1 ? "s" : ""}{" "}
             configured
           </p>
+          <div className="flex justify-center pt-2">
+            <ConnectionWizard
+              projectPath={projectPath}
+              config={config}
+              onSaved={onConnectionAdded}
+            />
+          </div>
         </div>
 
         {/* Connection Groups */}
@@ -195,14 +207,25 @@ export function ConnectionDashboard({
 
         {/* Empty state if no connections */}
         {totalConnections === 0 && (
-          <div className="text-center py-12 border-2 border-dashed rounded-lg">
-            <DatabaseIcon className="size-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="font-medium mb-2">No connections configured</h3>
-            <p className="text-sm text-muted-foreground">
-              Add connections to your{" "}
-              <code className="bg-muted px-1 rounded">.based/config.toml</code>{" "}
-              file
-            </p>
+          <div className="text-center py-12 border-2 border-dashed rounded-lg space-y-4">
+            <DatabaseIcon className="size-12 mx-auto text-muted-foreground" />
+            <div>
+              <h3 className="font-medium mb-1">No connections yet</h3>
+              <p className="text-sm text-muted-foreground">
+                Add one below, or hand-edit{" "}
+                <code className="bg-muted px-1 rounded">
+                  .based/config.toml
+                </code>
+                .
+              </p>
+            </div>
+            <div className="flex justify-center">
+              <ConnectionWizard
+                projectPath={projectPath}
+                config={config}
+                onSaved={onConnectionAdded}
+              />
+            </div>
           </div>
         )}
       </div>

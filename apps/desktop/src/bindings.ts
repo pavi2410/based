@@ -19,6 +19,25 @@ async initializeProject(projectPath: string) : Promise<Result<null, string>> {
 }
 },
 /**
+ * Create a turnkey sample project at `{parent_dir}/{name}`.
+ * 
+ * Spins up a SQLite database seeded with a tiny users/posts/comments
+ * schema so new users can immediately browse, filter, run joins, and
+ * try EXPLAIN on realistic-shaped data without first standing up
+ * their own database.
+ * 
+ * Returns the absolute path of the newly-created project so the
+ * frontend can open it straight away.
+ */
+async createSampleProject(parentDir: string, name: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_sample_project", { parentDir, name }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Read and parse project config
  */
 async readProjectConfig(projectPath: string) : Promise<Result<ProjectConfig, string>> {
@@ -109,6 +128,24 @@ async unwatchProjectConfig() : Promise<Result<null, string>> {
 async connectProjectDb(projectPath: string, connKey: string) : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("connect_project_db", { projectPath, connKey }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Probe a connection config without registering it anywhere.
+ * 
+ * The connection wizard uses this for its "Test connection" button
+ * so the user gets immediate feedback before committing the config
+ * to `config.toml`. We intentionally do not cache or pool the
+ * resulting connection: the probe runs, we drop the pool, and a
+ * subsequent regular `connect_project_db` re-establishes a pool we
+ * actually track.
+ */
+async testConnection(projectPath: string, connConfig: ConnectionConfig) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("test_connection", { projectPath, connConfig }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

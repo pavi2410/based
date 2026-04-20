@@ -150,6 +150,45 @@ fn expected(engine: &str) -> Error {
     Error::InvalidDbUrl(format!("Expected {} connection", engine))
 }
 
+/// Probe a connection config without registering it anywhere.
+///
+/// The connection wizard uses this for its "Test connection" button
+/// so the user gets immediate feedback before committing the config
+/// to `config.toml`. We intentionally do not cache or pool the
+/// resulting connection: the probe runs, we drop the pool, and a
+/// subsequent regular `connect_project_db` re-establishes a pool we
+/// actually track.
+#[tauri::command]
+#[specta::specta]
+pub async fn test_connection(
+    project_path: String,
+    conn_config: ConnectionConfig,
+    app: tauri::AppHandle,
+) -> Result<(), Error> {
+    let env_vars = load_project_env(&project_path);
+    let conn_string = build_connection_string(&conn_config, &project_path, &env_vars)?;
+    let pool = ConnectionPool::connect(&conn_string, &app).await?;
+    // A one-shot roundtrip to fail fast on credential errors that
+    // connect() might miss (e.g. lazy-connecting drivers).
+    match pool {
+        ConnectionPool::Sqlite(ref p) => {
+            sqlx::query("SELECT 1").execute(p).await?;
+        }
+        ConnectionPool::Postgres(ref p) => {
+            sqlx::query("SELECT 1").execute(p).await?;
+        }
+        ConnectionPool::Mongo(ref db) => {
+            // MongoDB doesn't do a single-statement ping through our
+            // abstraction; listing collection names is cheap and
+            // equally diagnostic.
+            use mongodb::bson::doc;
+            db.run_command(doc! {"ping": 1}, None).await?;
+        }
+    }
+    drop(pool);
+    Ok(())
+}
+
 /// Refuse any write operation against a connection flagged as readonly
 /// in `config.toml`. This is a UI safeguard — the DB-level flag (e.g.
 /// opening SQLite with `mode=ro`) is the real enforcement; this stops

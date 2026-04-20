@@ -8,7 +8,15 @@ import {
   Loader2Icon,
   XIcon,
   SquareIcon,
+  GaugeIcon,
+  ChevronDownIcon,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   $pendingDraftQuery,
   recordHistory,
@@ -34,6 +42,63 @@ import { toast } from "sonner";
 import type { SavedQuery, Engine } from "@/types/project";
 import { queryKeys } from "@/lib/query-keys";
 import type { ColumnDef } from "@tanstack/react-table";
+
+/**
+ * Canned pipeline stages that cover the 80% of aggregate usage. These
+ * are string templates rather than structured objects so hitting "Add
+ * stage" produces a starting point the user edits directly in the
+ * editor — a full visual pipeline builder is planned for Phase 3 once
+ * the base UX is in place.
+ */
+const AGGREGATE_STAGES: Array<{ op: string; template: string }> = [
+  { op: "$match", template: '{ "$match": { "field": "value" } }' },
+  {
+    op: "$group",
+    template: '{ "$group": { "_id": "$field", "count": { "$sum": 1 } } }',
+  },
+  { op: "$project", template: '{ "$project": { "field": 1 } }' },
+  { op: "$sort", template: '{ "$sort": { "field": -1 } }' },
+  { op: "$limit", template: '{ "$limit": 100 }' },
+  { op: "$skip", template: '{ "$skip": 0 }' },
+  {
+    op: "$lookup",
+    template:
+      '{ "$lookup": { "from": "other", "localField": "fk", "foreignField": "_id", "as": "joined" } }',
+  },
+  { op: "$unwind", template: '{ "$unwind": "$field" }' },
+  {
+    op: "$addFields",
+    template: '{ "$addFields": { "newField": "expression" } }',
+  },
+];
+
+/**
+ * Append a new stage to a pipeline. Parses the current content as an
+ * array and re-serialises with 2-space indent; falls back to plain
+ * concatenation if the content isn't a valid array yet (e.g. a fresh
+ * "New query" tab).
+ */
+function appendAggregateStage(current: string, stageJson: string): string {
+  const trimmed = current.trim();
+  let arr: unknown[] = [];
+  if (trimmed) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) arr = parsed;
+    } catch {
+      // Non-JSON or malformed — just append textually. The editor
+      // will highlight the mismatch.
+      return `${trimmed.replace(/,?\s*$/, "")}${trimmed ? ",\n" : ""}${stageJson}`;
+    }
+  }
+  try {
+    const stage = JSON.parse(stageJson);
+    arr.push(stage);
+    return JSON.stringify(arr, null, 2);
+  } catch {
+    return current;
+  }
+}
 
 interface QueryEditorProps {
   projectPath: string;
@@ -129,13 +194,19 @@ export function QueryEditor({
   const activeTokenRef = useRef<string | null>(null);
   const [executionTimeoutMs, setExecutionTimeoutMs] = useState<number>(0);
 
-  // Execute query mutation
+  // Execute query mutation.
+  //
+  // The mutationFn takes an optional override so callers (Run, Explain,
+  // Explain Analyze) can reuse the exact same cancellation / history /
+  // timeout pipeline without each having its own mutation.
   const executeMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (override?: { sql?: string; historyLabel?: string }) => {
       const token = crypto.randomUUID?.() ?? String(Math.random());
       activeTokenRef.current = token;
       const startedAt = performance.now();
       const timeoutArg = executionTimeoutMs > 0 ? executionTimeoutMs : null;
+      const sqlToRun = override?.sql ?? substitutedQuery;
+      const historyText = override?.historyLabel ?? queryContent;
       try {
         const result =
           engine === "mongodb"
@@ -144,14 +215,14 @@ export function QueryEditor({
                 connectionKey,
                 mongoCollection,
                 mongoQueryType,
-                queryContent,
+                override?.sql ?? queryContent,
                 token,
                 timeoutArg,
               )
             : await cmd.executeRawSql(
                 projectPath,
                 connectionKey,
-                substitutedQuery,
+                sqlToRun,
                 token,
                 timeoutArg,
               );
@@ -159,7 +230,7 @@ export function QueryEditor({
         recordHistory({
           projectPath,
           connKey: connectionKey,
-          query: queryContent,
+          query: historyText,
           ranAt: Date.now(),
           durationMs: duration,
           rowCount: result.total_count ?? result.rows.length,
@@ -169,7 +240,7 @@ export function QueryEditor({
         recordHistory({
           projectPath,
           connKey: connectionKey,
-          query: queryContent,
+          query: historyText,
           ranAt: Date.now(),
           durationMs: null,
           rowCount: null,
@@ -279,7 +350,38 @@ export function QueryEditor({
   }, [queryContent, paramValues, savedQueryQuery.data?.params]);
 
   const handleExecute = () => {
-    executeMutation.mutate();
+    executeMutation.mutate(undefined);
+  };
+
+  /**
+   * Wrap the current statement in an EXPLAIN. We target the most
+   * useful flavour per engine:
+   *   - Postgres: `EXPLAIN (ANALYZE, FORMAT JSON) <sql>` when
+   *     `analyze=true`, else a plain text `EXPLAIN`. ANALYZE
+   *     actually executes the query, so we surface it as a separate
+   *     menu item rather than the default.
+   *   - SQLite: `EXPLAIN QUERY PLAN <sql>` — the ANALYZE variant
+   *     isn't a first-class SQLite concept.
+   *   - MongoDB: not supported here; the explain path for mongo
+   *     aggregates goes through a dedicated command in a follow-up.
+   */
+  const handleExplain = (analyze: boolean) => {
+    if (engine === "mongodb") {
+      toast.message("Explain is only available for SQL engines right now.");
+      return;
+    }
+    const stripped = substitutedQuery.trim().replace(/;$/, "");
+    if (!stripped) return;
+    const prefix =
+      engine === "postgres"
+        ? analyze
+          ? "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) "
+          : "EXPLAIN "
+        : "EXPLAIN QUERY PLAN ";
+    executeMutation.mutate({
+      sql: prefix + stripped,
+      historyLabel: `-- ${analyze ? "EXPLAIN ANALYZE" : "EXPLAIN"}\n${queryContent}`,
+    });
   };
 
   const handleSave = () => {
@@ -415,6 +517,33 @@ export function QueryEditor({
           Save{isDirty ? " •" : ""}
         </Button>
 
+        {engine !== "mongodb" ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                disabled={executeMutation.isPending || !queryContent.trim()}
+              >
+                <GaugeIcon className="size-3 mr-1" />
+                Explain
+                <ChevronDownIcon className="size-3 ml-1 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleExplain(false)}>
+                {engine === "sqlite" ? "EXPLAIN QUERY PLAN" : "EXPLAIN"}
+              </DropdownMenuItem>
+              {engine === "postgres" ? (
+                <DropdownMenuItem onClick={() => handleExplain(true)}>
+                  EXPLAIN ANALYZE (runs query)
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
+
         {executeMutation.isPending ? (
           <Button
             size="sm"
@@ -518,6 +647,35 @@ export function QueryEditor({
                     </SelectContent>
                   </Select>
                 </div>
+                {mongoQueryType === "aggregate" && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                      >
+                        Add stage
+                        <ChevronDownIcon className="size-3 ml-1 opacity-60" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      {AGGREGATE_STAGES.map((stage) => (
+                        <DropdownMenuItem
+                          key={stage.op}
+                          onClick={() =>
+                            setQueryContent((prev) =>
+                              appendAggregateStage(prev, stage.template),
+                            )
+                          }
+                          className="font-mono text-xs"
+                        >
+                          {stage.op}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
             )}
 

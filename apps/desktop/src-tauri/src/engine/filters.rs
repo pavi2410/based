@@ -232,7 +232,7 @@ where
     }
 }
 
-fn push_json_bind<'a, DB>(qb: &mut QueryBuilder<'a, DB>, val: &serde_json::Value)
+pub fn push_json_bind<'a, DB>(qb: &mut QueryBuilder<'a, DB>, val: &serde_json::Value)
 where
     DB: SupportsBinds,
     for<'q> i64: Encode<'q, DB> + Type<DB>,
@@ -378,7 +378,7 @@ fn build_mongodb_condition(f: &FilterParam, op: FilterOp) -> Option<Document> {
     }
 }
 
-fn json_to_bson(val: &serde_json::Value) -> Bson {
+pub fn json_to_bson(val: &serde_json::Value) -> Bson {
     match val {
         serde_json::Value::Null => Bson::Null,
         serde_json::Value::Bool(b) => Bson::Boolean(*b),

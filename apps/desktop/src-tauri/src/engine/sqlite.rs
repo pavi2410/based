@@ -127,7 +127,9 @@ pub async fn describe_table(
                 name: row.get("name"),
                 data_type: row.get("type"),
                 nullable: notnull == 0,
-                default: row.try_get::<Option<String>, _>("dflt_value").unwrap_or(None),
+                default: row
+                    .try_get::<Option<String>, _>("dflt_value")
+                    .unwrap_or(None),
                 is_primary_key: pk > 0,
                 position: cid + 1,
             }

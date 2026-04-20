@@ -122,7 +122,10 @@ pub async fn describe_collection(
         .enumerate()
         .map(|(i, name)| ColumnDescription {
             name: name.clone(),
-            data_type: seen_types.get(name).cloned().unwrap_or_else(|| "mixed".into()),
+            data_type: seen_types
+                .get(name)
+                .cloned()
+                .unwrap_or_else(|| "mixed".into()),
             nullable: true,
             default: None,
             // `_id` is the only guaranteed PK in a Mongo collection.

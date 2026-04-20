@@ -18,6 +18,7 @@
 
 pub mod filters;
 pub mod mongo;
+pub mod mutations;
 pub mod postgres;
 pub mod sqlite;
 pub mod types;

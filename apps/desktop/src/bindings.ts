@@ -229,6 +229,83 @@ async describeMongodbCollection(projectPath: string, connKey: string, collection
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Update a single SQLite row. `pk` must identify exactly one row; we
+ * return the number of rows actually changed so the UI can catch the
+ * "someone else deleted it between browse and edit" case.
+ */
+async updateSqliteRow(projectPath: string, connKey: string, tableName: string, pk: Partial<{ [key in string]: JsonValue }>, changes: Partial<{ [key in string]: JsonValue }>) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_sqlite_row", { projectPath, connKey, tableName, pk, changes }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async insertSqliteRow(projectPath: string, connKey: string, tableName: string, values: Partial<{ [key in string]: JsonValue }>) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("insert_sqlite_row", { projectPath, connKey, tableName, values }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteSqliteRow(projectPath: string, connKey: string, tableName: string, pk: Partial<{ [key in string]: JsonValue }>) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_sqlite_row", { projectPath, connKey, tableName, pk }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updatePostgresRow(projectPath: string, connKey: string, schema: string, tableName: string, pk: Partial<{ [key in string]: JsonValue }>, changes: Partial<{ [key in string]: JsonValue }>) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_postgres_row", { projectPath, connKey, schema, tableName, pk, changes }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async insertPostgresRow(projectPath: string, connKey: string, schema: string, tableName: string, values: Partial<{ [key in string]: JsonValue }>) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("insert_postgres_row", { projectPath, connKey, schema, tableName, values }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deletePostgresRow(projectPath: string, connKey: string, schema: string, tableName: string, pk: Partial<{ [key in string]: JsonValue }>) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_postgres_row", { projectPath, connKey, schema, tableName, pk }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updateMongodbDocument(projectPath: string, connKey: string, collectionName: string, pk: Partial<{ [key in string]: JsonValue }>, changes: Partial<{ [key in string]: JsonValue }>) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_mongodb_document", { projectPath, connKey, collectionName, pk, changes }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async insertMongodbDocument(projectPath: string, connKey: string, collectionName: string, values: Partial<{ [key in string]: JsonValue }>) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("insert_mongodb_document", { projectPath, connKey, collectionName, values }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteMongodbDocument(projectPath: string, connKey: string, collectionName: string, pk: Partial<{ [key in string]: JsonValue }>) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_mongodb_document", { projectPath, connKey, collectionName, pk }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async executeRawSql(projectPath: string, connKey: string, query: string) : Promise<Result<QueryResult, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("execute_raw_sql", { projectPath, connKey, query }) };

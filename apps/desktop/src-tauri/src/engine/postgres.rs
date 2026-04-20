@@ -180,7 +180,9 @@ pub async fn describe_table(
                 name: row.get("column_name"),
                 data_type: row.get("data_type"),
                 nullable: nullable == "YES",
-                default: row.try_get::<Option<String>, _>("column_default").unwrap_or(None),
+                default: row
+                    .try_get::<Option<String>, _>("column_default")
+                    .unwrap_or(None),
                 is_primary_key: row.get("is_pk"),
                 position,
             }

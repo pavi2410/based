@@ -148,6 +148,29 @@ fn expected(engine: &str) -> Error {
     Error::InvalidDbUrl(format!("Expected {} connection", engine))
 }
 
+/// Refuse any write operation against a connection flagged as readonly
+/// in `config.toml`. This is a UI safeguard — the DB-level flag (e.g.
+/// opening SQLite with `mode=ro`) is the real enforcement; this stops
+/// mutations from even being issued, so users who flip the switch get
+/// an immediate, understandable error instead of whatever the driver
+/// would surface several layers later.
+async fn ensure_writable(project_path: &str, conn_key: &str) -> Result<(), Error> {
+    let config = read_project_config(project_path.to_string())
+        .await
+        .map_err(Error::InvalidDbUrl)?;
+    let conn_config = config
+        .connection
+        .get(conn_key)
+        .ok_or_else(|| Error::InvalidDbUrl(format!("Connection key not found: {}", conn_key)))?;
+    if conn_config.readonly.unwrap_or(false) {
+        return Err(Error::InvalidDbUrl(format!(
+            "Connection '{}' is marked readonly in config.toml",
+            conn_key
+        )));
+    }
+    Ok(())
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn connect_project_db(
@@ -414,9 +437,7 @@ pub async fn describe_mongodb_collection(
         .get(&conn_id)
         .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
     match pool {
-        ConnectionPool::Mongo(db) => {
-            engine::mongo::describe_collection(db, &collection_name).await
-        }
+        ConnectionPool::Mongo(db) => engine::mongo::describe_collection(db, &collection_name).await,
         _ => Err(expected("MongoDB")),
     }
 }
@@ -467,6 +488,244 @@ pub async fn execute_raw_mongo(
     match pool {
         ConnectionPool::Mongo(db) => {
             engine::mongo::execute_raw(db, &collection, &query_type, &query).await
+        }
+        _ => Err(expected("MongoDB")),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Row-level mutation commands (update / insert / delete)
+// ---------------------------------------------------------------------------
+//
+// The frontend sends primary-key predicates and change sets as
+// `Record<string, JsonValue>`, which round-trips to
+// `serde_json::Map<String, Value>`. That shape is intentionally
+// schemaless: the UI infers which columns are primary keys from the
+// `describe_*` result and bundles them into `pk`, so the backend
+// doesn't need its own PK discovery step here.
+
+type RowMap = serde_json::Map<String, serde_json::Value>;
+
+/// Update a single SQLite row. `pk` must identify exactly one row; we
+/// return the number of rows actually changed so the UI can catch the
+/// "someone else deleted it between browse and edit" case.
+#[tauri::command]
+#[specta::specta]
+pub async fn update_sqlite_row(
+    project_path: String,
+    conn_key: String,
+    table_name: String,
+    pk: RowMap,
+    changes: RowMap,
+    registry: State<'_, ConnectionRegistry>,
+    app: tauri::AppHandle,
+) -> Result<u64, Error> {
+    ensure_writable(&project_path, &conn_key).await?;
+    let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
+    let pools = registry.pools().await;
+    let pool = pools
+        .get(&conn_id)
+        .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
+    match pool {
+        ConnectionPool::Sqlite(p) => {
+            engine::mutations::sqlite_update_row(p, &table_name, &pk, &changes).await
+        }
+        _ => Err(expected("SQLite")),
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn insert_sqlite_row(
+    project_path: String,
+    conn_key: String,
+    table_name: String,
+    values: RowMap,
+    registry: State<'_, ConnectionRegistry>,
+    app: tauri::AppHandle,
+) -> Result<u64, Error> {
+    ensure_writable(&project_path, &conn_key).await?;
+    let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
+    let pools = registry.pools().await;
+    let pool = pools
+        .get(&conn_id)
+        .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
+    match pool {
+        ConnectionPool::Sqlite(p) => {
+            engine::mutations::sqlite_insert_row(p, &table_name, &values).await
+        }
+        _ => Err(expected("SQLite")),
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_sqlite_row(
+    project_path: String,
+    conn_key: String,
+    table_name: String,
+    pk: RowMap,
+    registry: State<'_, ConnectionRegistry>,
+    app: tauri::AppHandle,
+) -> Result<u64, Error> {
+    ensure_writable(&project_path, &conn_key).await?;
+    let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
+    let pools = registry.pools().await;
+    let pool = pools
+        .get(&conn_id)
+        .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
+    match pool {
+        ConnectionPool::Sqlite(p) => {
+            engine::mutations::sqlite_delete_row(p, &table_name, &pk).await
+        }
+        _ => Err(expected("SQLite")),
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn update_postgres_row(
+    project_path: String,
+    conn_key: String,
+    schema: String,
+    table_name: String,
+    pk: RowMap,
+    changes: RowMap,
+    registry: State<'_, ConnectionRegistry>,
+    app: tauri::AppHandle,
+) -> Result<u64, Error> {
+    ensure_writable(&project_path, &conn_key).await?;
+    let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
+    let pools = registry.pools().await;
+    let pool = pools
+        .get(&conn_id)
+        .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
+    match pool {
+        ConnectionPool::Postgres(p) => {
+            engine::mutations::postgres_update_row(p, &schema, &table_name, &pk, &changes).await
+        }
+        _ => Err(expected("PostgreSQL")),
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn insert_postgres_row(
+    project_path: String,
+    conn_key: String,
+    schema: String,
+    table_name: String,
+    values: RowMap,
+    registry: State<'_, ConnectionRegistry>,
+    app: tauri::AppHandle,
+) -> Result<u64, Error> {
+    ensure_writable(&project_path, &conn_key).await?;
+    let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
+    let pools = registry.pools().await;
+    let pool = pools
+        .get(&conn_id)
+        .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
+    match pool {
+        ConnectionPool::Postgres(p) => {
+            engine::mutations::postgres_insert_row(p, &schema, &table_name, &values).await
+        }
+        _ => Err(expected("PostgreSQL")),
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_postgres_row(
+    project_path: String,
+    conn_key: String,
+    schema: String,
+    table_name: String,
+    pk: RowMap,
+    registry: State<'_, ConnectionRegistry>,
+    app: tauri::AppHandle,
+) -> Result<u64, Error> {
+    ensure_writable(&project_path, &conn_key).await?;
+    let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
+    let pools = registry.pools().await;
+    let pool = pools
+        .get(&conn_id)
+        .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
+    match pool {
+        ConnectionPool::Postgres(p) => {
+            engine::mutations::postgres_delete_row(p, &schema, &table_name, &pk).await
+        }
+        _ => Err(expected("PostgreSQL")),
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn update_mongodb_document(
+    project_path: String,
+    conn_key: String,
+    collection_name: String,
+    pk: RowMap,
+    changes: RowMap,
+    registry: State<'_, ConnectionRegistry>,
+    app: tauri::AppHandle,
+) -> Result<u64, Error> {
+    ensure_writable(&project_path, &conn_key).await?;
+    let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
+    let pools = registry.pools().await;
+    let pool = pools
+        .get(&conn_id)
+        .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
+    match pool {
+        ConnectionPool::Mongo(db) => {
+            engine::mutations::mongodb_update_document(db, &collection_name, &pk, &changes).await
+        }
+        _ => Err(expected("MongoDB")),
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn insert_mongodb_document(
+    project_path: String,
+    conn_key: String,
+    collection_name: String,
+    values: RowMap,
+    registry: State<'_, ConnectionRegistry>,
+    app: tauri::AppHandle,
+) -> Result<u64, Error> {
+    ensure_writable(&project_path, &conn_key).await?;
+    let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
+    let pools = registry.pools().await;
+    let pool = pools
+        .get(&conn_id)
+        .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
+    match pool {
+        ConnectionPool::Mongo(db) => {
+            engine::mutations::mongodb_insert_document(db, &collection_name, &values).await
+        }
+        _ => Err(expected("MongoDB")),
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_mongodb_document(
+    project_path: String,
+    conn_key: String,
+    collection_name: String,
+    pk: RowMap,
+    registry: State<'_, ConnectionRegistry>,
+    app: tauri::AppHandle,
+) -> Result<u64, Error> {
+    ensure_writable(&project_path, &conn_key).await?;
+    let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
+    let pools = registry.pools().await;
+    let pool = pools
+        .get(&conn_id)
+        .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
+    match pool {
+        ConnectionPool::Mongo(db) => {
+            engine::mutations::mongodb_delete_document(db, &collection_name, &pk).await
         }
         _ => Err(expected("MongoDB")),
     }

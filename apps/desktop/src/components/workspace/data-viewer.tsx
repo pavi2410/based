@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
+import { useStore } from "@nanostores/react";
 import { cmd, type BrowseOptions } from "@/commands";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Loader2Icon,
   RefreshCwIcon,
@@ -10,8 +11,26 @@ import {
   ChevronsRightIcon,
   TableIcon,
   DatabaseIcon,
+  PencilIcon,
+  TrashIcon,
+  CopyIcon,
+  PlusIcon,
+  UndoIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 import { SchemaInspector } from "@/components/workspace/schema-inspector";
+import {
+  RowEditorDialog,
+  type EditorMode,
+} from "@/components/workspace/row-editor-dialog";
+import {
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+} from "@/components/ui/context-menu";
+import { useRowMutations, type RowMap } from "@/hooks/use-row-mutations";
+import { $undoStack } from "@/stores/row-mutations-store";
+import type { TableDescription } from "@/types/project";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/data-table";
 import { useConnection } from "@/routes/project.$projectId/conn.$connKey";
@@ -170,6 +189,118 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
     },
   });
 
+  // We piggy-back on the existing describe_* command so the editor
+  // and context-menu can know which columns are primary keys. This is
+  // deliberately a separate query from the browse data so it stays
+  // cached across pagination.
+  const descriptionQuery = useQuery({
+    queryKey: [
+      "describe",
+      projectPath,
+      connKey,
+      engine,
+      selectedSchema || null,
+      selectedTable,
+    ],
+    queryFn: async (): Promise<TableDescription> => {
+      switch (engine) {
+        case "sqlite":
+          return await cmd.describeSqliteTable(
+            projectPath,
+            connKey,
+            selectedTable,
+          );
+        case "postgres":
+          return await cmd.describePostgresTable(
+            projectPath,
+            connKey,
+            selectedSchema || "public",
+            selectedTable,
+          );
+        case "mongodb":
+          return await cmd.describeMongodbCollection(
+            projectPath,
+            connKey,
+            selectedTable,
+          );
+        default:
+          throw new Error(`Unsupported engine: ${engine}`);
+      }
+    },
+    staleTime: 30_000,
+  });
+
+  const mutations = useRowMutations(selectedTable);
+  const undoStack = useStore($undoStack);
+  const canUndo = undoStack.length > 0;
+
+  const [editorMode, setEditorMode] = useState<EditorMode | null>(null);
+
+  const description = descriptionQuery.data;
+
+  // Helper: build a pk payload from a row using the table's description.
+  const buildPkForRow = useCallback(
+    (row: RowMap): RowMap | null => {
+      if (!description) return null;
+      const pkCols = description.columns.filter((c) => c.isPrimaryKey);
+      // For Mongo collections we fall back to `_id` even if the
+      // sampler didn't flag it as PK — every document has one.
+      if (pkCols.length === 0 && engine === "mongodb" && "_id" in row) {
+        return { _id: row._id };
+      }
+      if (pkCols.length === 0) return null;
+      const pk: RowMap = {};
+      for (const c of pkCols) {
+        pk[c.name] = row[c.name] ?? null;
+      }
+      return pk;
+    },
+    [description, engine],
+  );
+
+  const handleUndo = useCallback(async () => {
+    try {
+      await mutations.undo();
+      toast.success("Undone");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : `Undo failed: ${String(e)}`);
+    }
+  }, [mutations]);
+
+  const handleDelete = useCallback(
+    async (row: RowMap) => {
+      const pk = buildPkForRow(row);
+      if (!pk) {
+        toast.error("Cannot delete: this table has no primary key");
+        return;
+      }
+      try {
+        await mutations.deleteRow({ pk, originalRow: row });
+        toast.success("Row deleted");
+      } catch (e) {
+        toast.error(
+          e instanceof Error ? e.message : `Delete failed: ${String(e)}`,
+        );
+      }
+    },
+    [buildPkForRow, mutations],
+  );
+
+  // Keyboard undo: Cmd/Ctrl+Z. Scoped to the main window only so
+  // detached child windows don't fire twice once pop-out lands.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const meta = e.metaKey || e.ctrlKey;
+      if (meta && e.key.toLowerCase() === "z" && !e.shiftKey) {
+        if ($undoStack.get().length === 0) return;
+        e.preventDefault();
+        handleUndo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [handleUndo]);
+
   // Build filter column configs from query result
   const filterColumnConfigs: ColumnConfig<Record<string, unknown>>[] =
     useMemo(() => {
@@ -294,6 +425,31 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
           </span>
           <Button
             variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-[11px]"
+            onClick={() => setEditorMode({ kind: "insert" })}
+            disabled={!description}
+            title="Insert new row"
+          >
+            <PlusIcon className="size-3 mr-1" />
+            New
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-6"
+            onClick={handleUndo}
+            disabled={!canUndo}
+            title={
+              canUndo
+                ? `Undo: ${undoStack[undoStack.length - 1]?.label}`
+                : "Nothing to undo"
+            }
+          >
+            <UndoIcon className="size-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
             size="icon"
             className="size-6"
             onClick={() => dataQuery.refetch()}
@@ -329,6 +485,65 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
               data={data}
               sorting={sorting}
               onSortingChange={setSorting}
+              renderRowContextMenu={(row) => {
+                const pk = buildPkForRow(row);
+                const canMutate = !!pk;
+                return (
+                  <ContextMenuContent className="text-xs">
+                    <ContextMenuItem
+                      className="text-xs"
+                      disabled={!canMutate}
+                      onClick={() => {
+                        if (!pk) return;
+                        setEditorMode({
+                          kind: "edit",
+                          pk,
+                          originalRow: row,
+                        });
+                      }}
+                    >
+                      <PencilIcon className="size-3 mr-2" />
+                      Edit row...
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                      className="text-xs"
+                      disabled={!description}
+                      onClick={() => {
+                        // Duplicate: open insert editor pre-populated
+                        // with the row's values minus its PKs (so the
+                        // database can assign fresh ones).
+                        if (!description) return;
+                        const clone: RowMap = { ...row };
+                        for (const c of description.columns) {
+                          if (c.isPrimaryKey) delete clone[c.name];
+                        }
+                        // Stash into editor state by temporarily
+                        // overriding "insert" mode with a seeded row.
+                        // We reuse edit mode internally by using a
+                        // synthetic originalRow path — simpler to
+                        // open a fresh insert and let the user paste.
+                        setEditorMode({ kind: "insert" });
+                        toast.message(
+                          "Duplicate: open insert with this row's non-PK fields (TODO)",
+                        );
+                        void clone;
+                      }}
+                    >
+                      <CopyIcon className="size-3 mr-2" />
+                      Duplicate
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem
+                      className="text-xs text-destructive focus:text-destructive"
+                      disabled={!canMutate}
+                      onClick={() => handleDelete(row)}
+                    >
+                      <TrashIcon className="size-3 mr-2" />
+                      Delete row
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                );
+              }}
             />
           </div>
 
@@ -386,6 +601,18 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
           )}
         </>
       )}
+
+      {description && editorMode ? (
+        <RowEditorDialog
+          open={!!editorMode}
+          onOpenChange={(o) => {
+            if (!o) setEditorMode(null);
+          }}
+          selectedTable={selectedTable}
+          description={description}
+          mode={editorMode}
+        />
+      ) : null}
     </div>
   );
 }

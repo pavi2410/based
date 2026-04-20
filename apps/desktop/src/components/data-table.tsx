@@ -16,12 +16,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   sorting?: SortingState;
   onSortingChange?: OnChangeFn<SortingState>;
+  /**
+   * Optional row-level context menu content. When provided, each
+   * `<TableRow>` is wrapped in a `<ContextMenu>`; the render prop
+   * receives the row's original data so the caller can decide what
+   * actions to offer (e.g. Edit / Duplicate / Delete) per row.
+   */
+  renderRowContextMenu?: (row: TData) => React.ReactNode;
 }
 
 export function DataTable<TData, TValue>({
@@ -29,6 +37,7 @@ export function DataTable<TData, TValue>({
   data,
   sorting,
   onSortingChange,
+  renderRowContextMenu,
 }: DataTableProps<TData, TValue>) {
   const table = useReactTable({
     data,
@@ -86,22 +95,31 @@ export function DataTable<TData, TValue>({
       </TableHeader>
       <TableBody>
         {table.getRowModel().rows?.length ? (
-          table.getRowModel().rows.map((row) => (
-            <TableRow
-              key={row.id}
-              data-state={row.getIsSelected() && "selected"}
-              className="hover:bg-muted/30"
-            >
-              {row.getVisibleCells().map((cell) => (
-                <TableCell
-                  key={cell.id}
-                  className="h-7 px-2 py-0 text-xs text-nowrap border-r last:border-r-0 tabular-nums font-mono"
-                >
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </TableCell>
-              ))}
-            </TableRow>
-          ))
+          table.getRowModel().rows.map((row) => {
+            const rowEl = (
+              <TableRow
+                key={row.id}
+                data-state={row.getIsSelected() && "selected"}
+                className="hover:bg-muted/30"
+              >
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell
+                    key={cell.id}
+                    className="h-7 px-2 py-0 text-xs text-nowrap border-r last:border-r-0 tabular-nums font-mono"
+                  >
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
+              </TableRow>
+            );
+            if (!renderRowContextMenu) return rowEl;
+            return (
+              <ContextMenu key={row.id}>
+                <ContextMenuTrigger asChild>{rowEl}</ContextMenuTrigger>
+                {renderRowContextMenu(row.original)}
+              </ContextMenu>
+            );
+          })
         ) : (
           <TableRow>
             <TableCell

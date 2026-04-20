@@ -1,5 +1,5 @@
 name = "List Postgres Tables"
-connection = "railway_pg"
+connection = "local_postgres"
 favorite = false
 
 [sql]

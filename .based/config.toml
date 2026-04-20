@@ -6,24 +6,24 @@ description = "A new Based project"
 label = "Northwind Database"
 engine = "sqlite"
 group = "local"
-file = "/Users/pavi2410/Downloads/northwind.db"
+file = "data/northwind.db"
+
+[connection.local_postgres]
+label = "Local PostgreSQL (Docker)"
+engine = "postgres"
+group = "local"
+host = "localhost"
+port = 5432
+database = "based"
+username = "based"
+password = "based"
+ssl = false
 
 [connection.test_mongo]
-label = "Test MongoDB"
+label = "Local MongoDB (Docker)"
 engine = "mongodb"
-group = "remote"
+group = "local"
 url = { env = "MONGO_URL" }
-
-[connection.railway_pg]
-label = "Railway PostgreSQL"
-engine = "postgres"
-group = "remote"
-host = "caboose.proxy.rlwy.net"
-port = 34306
-database = "railway"
-username = "postgres"
-password = { env = "RAILWAY_PG_PASSWORD" }
-ssl = true
 
 [settings]
 queryTimeout = 30000

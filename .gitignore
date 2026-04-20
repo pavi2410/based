@@ -27,6 +27,9 @@ Thumbs.db
 *.local
 .env
 
+# Large sample DB (copy from Downloads or your source)
+data/northwind.db
+
 # Cache
 .cache
 .temp

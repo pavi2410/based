@@ -1,4 +1,4 @@
-import { store, STORE_KEYS } from "./store-config";
+import { STORE_KEYS, store } from "./store-config";
 
 export type QueryHistoryItem = {
   id: string;

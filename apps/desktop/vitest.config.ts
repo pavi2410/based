@@ -1,5 +1,5 @@
-import { defineConfig } from "vitest/config";
 import path from "node:path";
+import { defineConfig } from "vitest/config";
 
 // We only run "pure" JS tests for now — no React component rendering,
 // no Tauri APIs. Tests that need the browser get happy-dom as a

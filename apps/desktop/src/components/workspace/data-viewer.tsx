@@ -12,54 +12,60 @@
  * own file. Adding a new DataViewer action is now a one-prop change
  * on `DataViewerHeader`, not a scroll through a 700-LOC file.
  */
-import { useQuery } from "@tanstack/react-query";
+
 import { useStore } from "@nanostores/react";
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { Loader2Icon, PencilIcon, TrashIcon, CopyIcon } from "lucide-react";
-import { toast } from "sonner";
-import { cmd, type BrowseOptions } from "@/commands";
-import { SchemaInspector } from "@/components/workspace/schema-inspector";
-import { CellDetailPanel } from "@/components/workspace/cell-detail-panel";
-import { CellValue } from "@/components/workspace/cell-value";
-import { DataViewerHeader } from "@/components/workspace/data-viewer-header";
-import { TablePaginationFooter } from "@/components/workspace/table-pagination-footer";
-import type { TableView } from "@/components/workspace/view-toggle";
+import { useQuery } from "@tanstack/react-query";
+import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import {
-  RowEditorDialog,
-  type EditorMode,
-} from "@/components/workspace/row-editor-dialog";
+  CopyIcon,
+  Loader2Icon,
+  PencilIcon,
+  RefreshCwIcon,
+  TrashIcon,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { type BrowseOptions, cmd } from "@/commands";
+import { DataTableFilter } from "@/components/data-table-filter/components/data-table-filter";
+import type {
+  ColumnConfig,
+  FiltersState,
+} from "@/components/data-table-filter/core/types";
+import { useDataTableFilters } from "@/components/data-table-filter/hooks/use-data-table-filters";
+import { Button } from "@/components/ui/button";
 import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
 } from "@/components/ui/context-menu";
-import { VirtualDataTable } from "@/components/virtual-data-table";
-import { exportAsCsv, exportAsJson } from "@/lib/export";
-import { useRowMutations, type RowMap } from "@/hooks/use-row-mutations";
-import { useWindow } from "@/hooks/use-window";
-import { useWorkspace } from "@/hooks/use-workspace";
-import { queryKeys } from "@/lib/query-keys";
-import { $undoStack } from "@/stores/row-mutations-store";
-import type { TableDescription } from "@/types/project";
-import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { RefreshCwIcon } from "lucide-react";
-import type { ColumnDef, SortingState } from "@tanstack/react-table";
-import { DataTableFilter } from "@/components/data-table-filter/components/data-table-filter";
-import { useDataTableFilters } from "@/components/data-table-filter/hooks/use-data-table-filters";
-import type {
-  ColumnConfig,
-  FiltersState,
-} from "@/components/data-table-filter/core/types";
+import { VirtualDataTable } from "@/components/virtual-data-table";
+import { CellDetailPanel } from "@/components/workspace/cell-detail-panel";
+import { CellValue } from "@/components/workspace/cell-value";
+import { DataViewerHeader } from "@/components/workspace/data-viewer-header";
+import {
+  type EditorMode,
+  RowEditorDialog,
+} from "@/components/workspace/row-editor-dialog";
+import { SchemaInspector } from "@/components/workspace/schema-inspector";
+import { TablePaginationFooter } from "@/components/workspace/table-pagination-footer";
+import type { TableView } from "@/components/workspace/view-toggle";
+import { type RowMap, useRowMutations } from "@/hooks/use-row-mutations";
+import { useWindow } from "@/hooks/use-window";
+import { useWorkspace } from "@/hooks/use-workspace";
+import { exportAsCsv, exportAsJson } from "@/lib/export";
 import {
   dbTypeToFilterType,
-  getFilterTypeIcon,
   type FilterParam,
+  getFilterTypeIcon,
 } from "@/lib/filter-utils";
+import { queryKeys } from "@/lib/query-keys";
+import { $undoStack } from "@/stores/row-mutations-store";
+import type { TableDescription } from "@/types/project";
 
 const PAGE_SIZE = 100;
 
@@ -383,9 +389,11 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
       accessorKey: col.name,
       header: () => (
         <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="font-medium cursor-default">{col.name}</span>
-          </TooltipTrigger>
+          <TooltipTrigger
+            render={
+              <span className="font-medium cursor-default">{col.name}</span>
+            }
+          />
           <TooltipContent side="bottom" className="text-xs">
             <span className="text-muted-foreground">Type:</span> {col.data_type}
           </TooltipContent>

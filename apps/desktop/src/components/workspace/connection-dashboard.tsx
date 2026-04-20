@@ -1,16 +1,16 @@
-import { useMemo } from "react";
 import {
+  ChevronRightIcon,
+  CloudIcon,
   DatabaseIcon,
   HardDriveIcon,
-  CloudIcon,
   Loader2Icon,
-  ChevronRightIcon,
 } from "lucide-react";
-import DeviconSqlite from "~icons/devicon/sqlite";
+import { useMemo } from "react";
+import { ConnectionWizard } from "@/components/workspace/connection-wizard";
+import type { ConnectionConfig, Engine, ProjectConfig } from "@/types/project";
 import DeviconMongodb from "~icons/devicon/mongodb";
 import DeviconPostgresql from "~icons/devicon/postgresql";
-import type { ProjectConfig, ConnectionConfig, Engine } from "@/types/project";
-import { ConnectionWizard } from "@/components/workspace/connection-wizard";
+import DeviconSqlite from "~icons/devicon/sqlite";
 
 interface ConnectionDashboardProps {
   config: ProjectConfig;

@@ -22,7 +22,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ViewToggle, type TableView } from "@/components/workspace/view-toggle";
+import { type TableView, ViewToggle } from "@/components/workspace/view-toggle";
 
 export interface DataViewerHeaderProps {
   selectedTable: string;
@@ -89,18 +89,20 @@ export function DataViewerHeader(props: DataViewerHeaderProps) {
           New
         </Button>
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-[11px]"
-              title="Export current page"
-              disabled={!canExport}
-            >
-              <DownloadIcon className="size-3 mr-1" />
-              Export
-            </Button>
-          </DropdownMenuTrigger>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[11px]"
+                title="Export current page"
+                disabled={!canExport}
+              >
+                <DownloadIcon className="size-3 mr-1" />
+                Export
+              </Button>
+            }
+          />
           <DropdownMenuContent align="end" className="text-xs">
             <DropdownMenuItem className="text-xs" onClick={onExportCsv}>
               Download CSV (current page)

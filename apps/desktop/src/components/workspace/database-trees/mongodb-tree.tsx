@@ -1,14 +1,14 @@
+import { useQuery } from "@tanstack/react-query";
+import { ChevronRightIcon, DatabaseIcon } from "lucide-react";
 import { useState } from "react";
 import { cmd } from "@/commands";
-import { useQuery } from "@tanstack/react-query";
-import { DatabaseIcon, ChevronRightIcon } from "lucide-react";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import type { ConnectionConfig } from "@/types/project";
 import { queryKeys } from "@/lib/query-keys";
+import type { ConnectionConfig } from "@/types/project";
 
 interface MongoDBDatabaseTreeProps {
   connKey: string;
@@ -41,18 +41,25 @@ export function MongoDBDatabaseTree({
   return (
     <div className="py-1 space-y-0.5">
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CollapsibleTrigger asChild>
-          <button className="w-full flex items-center gap-1.5 px-2 h-7 text-xs hover:bg-muted/50 transition-colors">
-            <ChevronRightIcon
-              className={`size-3 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`}
-            />
-            <DatabaseIcon className="size-3.5 text-muted-foreground" />
-            <span className="flex-1 text-left font-medium">Collections</span>
-            <span className="text-[10px] text-muted-foreground tabular-nums">
-              {collectionsQuery.isSuccess ? collectionsQuery.data.length : "–"}
-            </span>
-          </button>
-        </CollapsibleTrigger>
+        <CollapsibleTrigger
+          render={
+            <button
+              type="button"
+              className="w-full flex items-center gap-1.5 px-2 h-7 text-xs hover:bg-muted/50 transition-colors"
+            >
+              <ChevronRightIcon
+                className={`size-3 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`}
+              />
+              <DatabaseIcon className="size-3.5 text-muted-foreground" />
+              <span className="flex-1 text-left font-medium">Collections</span>
+              <span className="text-[10px] text-muted-foreground tabular-nums">
+                {collectionsQuery.isSuccess
+                  ? collectionsQuery.data.length
+                  : "–"}
+              </span>
+            </button>
+          }
+        />
         <CollapsibleContent className="ml-4 border-l border-border/50">
           {collectionsQuery.isLoading && (
             <div className="text-[11px] text-muted-foreground px-3 py-1.5">
@@ -74,6 +81,7 @@ export function MongoDBDatabaseTree({
               const isSelected = selectedTable === collection.name;
               return (
                 <button
+                  type="button"
                   key={collection.name}
                   className={`w-full text-left h-6 px-3 text-[11px] truncate transition-colors ${
                     isSelected

@@ -6,9 +6,10 @@
  * settings) renders a tiny shell that reads the current `WindowKind`
  * from `useWindow()` and dispatches to the appropriate panel.
  */
-import { useWindow } from "@/hooks/use-window";
+
 import { DetachedTableViewer } from "@/components/window/detached-table-viewer";
 import { SettingsPanel } from "@/components/window/settings-panel";
+import { useWindow } from "@/hooks/use-window";
 
 function PlaceholderPanel({
   title,

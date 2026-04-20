@@ -22,16 +22,18 @@
  */
 import {
   type ColumnDef,
-  type SortingState,
-  type OnChangeFn,
   flexRender,
   getCoreRowModel,
+  type OnChangeFn,
+  type SortingState,
   useReactTable,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon } from "lucide-react";
+import * as React from "react";
 import { useRef } from "react";
-import { ArrowUpIcon, ArrowDownIcon, ArrowUpDownIcon } from "lucide-react";
 import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { cn } from "@/lib/utils";
 
 interface Props<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -206,9 +208,37 @@ export function VirtualDataTable<TData, TValue>({
             if (!renderRowContextMenu) {
               return <div key={row.id}>{rowEl}</div>;
             }
+
+            const rowStyle = rowEl.props.style as React.CSSProperties | undefined;
             return (
               <ContextMenu key={row.id}>
-                <ContextMenuTrigger asChild>{rowEl}</ContextMenuTrigger>
+                <ContextMenuTrigger
+                  render={(triggerProps) => {
+                    const { ref: triggerRef, style: triggerStyle, ...rest } =
+                      triggerProps;
+                    return React.cloneElement(rowEl, {
+                      ...rest,
+                      ref: (node: HTMLDivElement | null) => {
+                        rowVirtualizer.measureElement(node);
+                        if (typeof triggerRef === "function") {
+                          triggerRef(node);
+                        } else if (triggerRef && "current" in triggerRef) {
+                          (
+                            triggerRef as React.MutableRefObject<HTMLDivElement | null>
+                          ).current = node;
+                        }
+                      },
+                      className: cn(
+                        rowEl.props.className,
+                        triggerProps.className,
+                      ),
+                      style: {
+                        ...(triggerStyle as React.CSSProperties | undefined),
+                        ...rowStyle,
+                      },
+                    });
+                  }}
+                />
                 {renderRowContextMenu(row.original)}
               </ContextMenu>
             );

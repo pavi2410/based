@@ -9,8 +9,9 @@
  * Kept deliberately small (MAX_ENTRIES per connection) to keep the
  * localStorage payload tiny. Eviction is LRU by timestamp.
  */
-import { atom } from "nanostores";
+
 import { persistentAtom } from "@nanostores/persistent";
+import { atom } from "nanostores";
 
 export interface HistoryEntry {
   /** UUID so history entries can be deleted individually. */

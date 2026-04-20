@@ -1,8 +1,8 @@
-import { atom } from "nanostores";
 import { persistentAtom } from "@nanostores/persistent";
+import { atom } from "nanostores";
 import { toast } from "sonner";
-import type { ProjectConfig } from "@/types/project";
 import { cmd } from "@/commands";
+import type { ProjectConfig } from "@/types/project";
 
 /**
  * Per-project state management using nanostores

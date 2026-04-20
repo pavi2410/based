@@ -1,16 +1,21 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { cmd } from "@/commands";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 import {
+  ChevronDownIcon,
+  GaugeIcon,
+  Loader2Icon,
   PlayIcon,
   SaveIcon,
-  StarIcon,
-  Loader2Icon,
-  XIcon,
   SquareIcon,
-  GaugeIcon,
-  ChevronDownIcon,
+  StarIcon,
+  XIcon,
 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import { cmd } from "@/commands";
+import { CodeEditor, type SqlSchema } from "@/components/code-editor";
+import { DataTable } from "@/components/data-table";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,9 +28,13 @@ import {
 } from "@/stores/query-history-store";
 import { markQueryEnd, markQueryStart } from "@/stores/query-registry-store";
 import { useUiMode } from "@/stores/user-prefs-store";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
 import {
   Select,
   SelectContent,
@@ -33,17 +42,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CodeEditor, type SqlSchema } from "@/components/code-editor";
-import { DataTable } from "@/components/data-table";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable";
-import { toast } from "sonner";
-import type { SavedQuery, Engine } from "@/types/project";
 import { queryKeys } from "@/lib/query-keys";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { Engine, SavedQuery } from "@/types/project";
 
 /**
  * Canned pipeline stages that cover the 80% of aggregate usage. These
@@ -525,18 +525,20 @@ export function QueryEditor({
 
         {engine !== "mongodb" && isPro ? (
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs"
-                disabled={executeMutation.isPending || !queryContent.trim()}
-              >
-                <GaugeIcon className="size-3 mr-1" />
-                Explain
-                <ChevronDownIcon className="size-3 ml-1 opacity-60" />
-              </Button>
-            </DropdownMenuTrigger>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  disabled={executeMutation.isPending || !queryContent.trim()}
+                >
+                  <GaugeIcon className="size-3 mr-1" />
+                  Explain
+                  <ChevronDownIcon className="size-3 ml-1 opacity-60" />
+                </Button>
+              }
+            />
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => handleExplain(false)}>
                 {engine === "sqlite" ? "EXPLAIN QUERY PLAN" : "EXPLAIN"}
@@ -585,8 +587,8 @@ export function QueryEditor({
       </div>
 
       {/* Main content */}
-      <ResizablePanelGroup direction="vertical" className="flex-1">
-        <ResizablePanel defaultSize={50} minSize={20}>
+      <ResizablePanelGroup orientation="vertical" className="flex-1">
+        <ResizablePanel defaultSize="50%" minSize="20%">
           <div className="flex flex-col h-full">
             {/* Params panel — only shown when the saved query
                 declares params. Values default to whatever the
@@ -655,16 +657,18 @@ export function QueryEditor({
                 </div>
                 {mongoQueryType === "aggregate" && isPro && (
                   <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-xs"
-                      >
-                        Add stage
-                        <ChevronDownIcon className="size-3 ml-1 opacity-60" />
-                      </Button>
-                    </DropdownMenuTrigger>
+                    <DropdownMenuTrigger
+                      render={
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                        >
+                          Add stage
+                          <ChevronDownIcon className="size-3 ml-1 opacity-60" />
+                        </Button>
+                      }
+                    />
                     <DropdownMenuContent align="start">
                       {AGGREGATE_STAGES.map((stage) => (
                         <DropdownMenuItem
@@ -710,7 +714,7 @@ export function QueryEditor({
 
         <ResizableHandle />
 
-        <ResizablePanel defaultSize={50} minSize={20}>
+        <ResizablePanel defaultSize="50%" minSize="20%">
           {/* Results */}
           <div className="flex flex-col h-full">
             <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted/20">

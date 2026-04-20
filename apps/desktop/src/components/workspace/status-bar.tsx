@@ -19,13 +19,13 @@ import {
   Loader2Icon,
   WrenchIcon,
 } from "lucide-react";
-import DeviconSqlite from "~icons/devicon/sqlite";
-import DeviconMongodb from "~icons/devicon/mongodb";
-import DeviconPostgresql from "~icons/devicon/postgresql";
 import { $connection } from "@/stores/project-state";
 import { $runningQueries } from "@/stores/query-registry-store";
 import { useUiMode } from "@/stores/user-prefs-store";
 import type { ConnectionConfig, Engine } from "@/types/project";
+import DeviconMongodb from "~icons/devicon/mongodb";
+import DeviconPostgresql from "~icons/devicon/postgresql";
+import DeviconSqlite from "~icons/devicon/sqlite";
 
 function engineIcon(engine: Engine) {
   switch (engine) {

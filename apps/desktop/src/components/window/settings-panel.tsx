@@ -8,7 +8,10 @@
  * formatting, etc.) they should go in a project-scoped panel; this
  * one is for the device.
  */
+
+import { useStore } from "@nanostores/react";
 import { useTheme } from "@/components/theme-provider";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -16,14 +19,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 import {
   $userPrefs,
-  type UiMode,
   setUiMode,
+  type UiMode,
   useUiMode,
 } from "@/stores/user-prefs-store";
-import { useStore } from "@nanostores/react";
 
 export function SettingsPanel() {
   const { theme, setTheme } = useTheme();

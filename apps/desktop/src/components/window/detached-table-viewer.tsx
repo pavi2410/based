@@ -14,11 +14,11 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { Loader2Icon } from "lucide-react";
+import type { TabAddress } from "@/bindings";
 import { cmd } from "@/commands";
 import { DataViewer } from "@/components/workspace/data-viewer";
 import { queryKeys } from "@/lib/query-keys";
 import { ConnectionContext } from "@/routes/project.$projectId/conn.$connKey";
-import type { TabAddress } from "@/bindings";
 
 export function DetachedTableViewer({ address }: { address: TabAddress }) {
   // Only table addresses are currently detachable; the Inspector kind

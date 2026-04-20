@@ -1,9 +1,9 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import path from "node:path";
 import tailwindcss from "@tailwindcss/vite";
+import { tanstackRouter } from "@tanstack/router-plugin/vite";
+import react from "@vitejs/plugin-react";
 import Icons from "unplugin-icons/vite";
+import { defineConfig } from "vite";
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -33,7 +33,7 @@ export default defineConfig(async () => ({
 
   build: {
     // The default single-chunk output balloons when CodeMirror, table
-    // virtualization, and the Radix primitives all land together. A
+    // virtualization, and the Base UI primitives all land together. A
     // handful of manual chunks buys us parallel fetches, better cache
     // hits between versions, and sub-500KB chunks. Grouping is by
     // "cost to bring in" rather than strict package boundaries.
@@ -48,7 +48,7 @@ export default defineConfig(async () => ({
             "@uiw/codemirror-theme-vscode",
           ],
           table: ["@tanstack/react-table", "@tanstack/react-virtual"],
-          radix: ["radix-ui"],
+          baseUi: ["@base-ui/react"],
         },
       },
     },

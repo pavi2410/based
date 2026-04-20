@@ -8,7 +8,7 @@
  * This is the "long TEXT column that the grid truncates" escape hatch
  * — a staple of every DataGrip-style client.
  */
-import { XIcon, CopyIcon, CheckIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 

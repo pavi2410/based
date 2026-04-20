@@ -1,13 +1,13 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createRouter, RouterProvider } from "@tanstack/react-router";
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { Toaster } from "@/components/ui/sonner";
-import { ThemeProvider } from "@/components/theme-provider";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-
-import { RouterProvider, createRouter } from "@tanstack/react-router";
-import { WindowShell } from "@/components/window/window-shell";
 import { CommandPalette } from "@/components/command-palette";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { WindowShell } from "@/components/window/window-shell";
 // Import the generated route tree
 import { routeTree } from "./routeTree.gen";
 import "./index.css";
@@ -36,17 +36,19 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-        {isChildWindow ? (
-          <ErrorBoundary label="This window crashed">
-            <WindowShell />
-          </ErrorBoundary>
-        ) : (
-          <ErrorBoundary label="Main window crashed">
-            <RouterProvider router={router} />
-            <CommandPalette />
-          </ErrorBoundary>
-        )}
-        <Toaster />
+        <TooltipProvider>
+          {isChildWindow ? (
+            <ErrorBoundary label="This window crashed">
+              <WindowShell />
+            </ErrorBoundary>
+          ) : (
+            <ErrorBoundary label="Main window crashed">
+              <RouterProvider router={router} />
+              <CommandPalette />
+            </ErrorBoundary>
+          )}
+          <Toaster />
+        </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
   </React.StrictMode>,

@@ -1,37 +1,37 @@
+import { useStore } from "@nanostores/react";
+import { useNavigate } from "@tanstack/react-router";
 import {
-  SettingsIcon,
-  RefreshCwIcon,
-  FolderIcon,
   ChevronDownIcon,
-  HomeIcon,
-  FolderOpenIcon,
   CircleIcon,
-  UnplugIcon,
+  FolderIcon,
+  FolderOpenIcon,
   GraduationCapIcon,
+  HomeIcon,
+  RefreshCwIcon,
+  SettingsIcon,
+  UnplugIcon,
   WrenchIcon,
 } from "lucide-react";
-import { useNavigate } from "@tanstack/react-router";
-import { useStore } from "@nanostores/react";
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import type { ProjectConfig } from "@/types/project";
 import {
-  $recentProjects,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useTitlebar } from "@/hooks/use-titlebar";
+import {
   $connection,
+  $recentProjects,
   disconnectConnection,
   type RecentProject,
 } from "@/stores/project-state";
-import { useTitlebar } from "@/hooks/use-titlebar";
 import { setUiMode, useUiMode } from "@/stores/user-prefs-store";
+import type { ProjectConfig } from "@/types/project";
 import { ConnectionSelector } from "./connection-selector";
 
 function StatusDot({ status }: { status: string }) {
@@ -95,15 +95,21 @@ export function TopBar({
       {/* Left: Traffic lights space + Project switcher */}
       <div ref={leftRef} className="flex items-center pl-20 pr-4">
         <Popover>
-          <PopoverTrigger asChild>
-            <button className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-muted/50 transition-colors">
-              <FolderIcon className="size-3.5 text-muted-foreground" />
-              <span className="text-xs font-medium">{config.name}</span>
-              <ChevronDownIcon className="size-3 text-muted-foreground" />
-            </button>
-          </PopoverTrigger>
+          <PopoverTrigger
+            render={
+              <button
+                type="button"
+                className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-muted/50 transition-colors"
+              >
+                <FolderIcon className="size-3.5 text-muted-foreground" />
+                <span className="text-xs font-medium">{config.name}</span>
+                <ChevronDownIcon className="size-3 text-muted-foreground" />
+              </button>
+            }
+          />
           <PopoverContent align="start" className="w-56 p-1">
             <button
+              type="button"
               onClick={handleGoHome}
               className="flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-muted transition-colors"
             >
@@ -118,6 +124,7 @@ export function TopBar({
                 </div>
                 {otherProjects.slice(0, 5).map((project) => (
                   <button
+                    type="button"
                     key={project.path}
                     onClick={() => handleSwitchProject(project)}
                     className="flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-muted transition-colors"
@@ -134,11 +141,13 @@ export function TopBar({
         {connKey && connectionConfig && (
           <>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex items-center gap-1.5 px-1 rounded cursor-default">
-                  <StatusDot status={connectionStatus} />
-                </div>
-              </TooltipTrigger>
+              <TooltipTrigger
+                render={
+                  <div className="flex items-center gap-1.5 px-1 rounded cursor-default">
+                    <StatusDot status={connectionStatus} />
+                  </div>
+                }
+              />
               {connectionStatus === "connected" && connectionStats && (
                 <TooltipContent side="bottom" className="text-xs">
                   <div className="space-y-0.5">
@@ -162,16 +171,17 @@ export function TopBar({
               compact
             />
             <Popover>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <PopoverTrigger asChild>
-                    <button className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors">
-                      <UnplugIcon className="size-3" />
-                    </button>
-                  </PopoverTrigger>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Disconnect</TooltipContent>
-              </Tooltip>
+              <PopoverTrigger
+                title="Disconnect"
+                render={
+                  <button
+                    type="button"
+                    className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <UnplugIcon className="size-3" />
+                  </button>
+                }
+              />
               <PopoverContent side="bottom" className="w-auto p-2">
                 <div className="flex flex-col gap-2 justify-end">
                   <p className="text-xs max-w-3xs">
@@ -207,22 +217,24 @@ export function TopBar({
           </span>
         )}
         <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7"
-              onClick={() =>
-                setUiMode(uiMode === "beginner" ? "pro" : "beginner")
-              }
-            >
-              {uiMode === "beginner" ? (
-                <GraduationCapIcon className="size-3.5" />
-              ) : (
-                <WrenchIcon className="size-3.5" />
-              )}
-            </Button>
-          </TooltipTrigger>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                onClick={() =>
+                  setUiMode(uiMode === "beginner" ? "pro" : "beginner")
+                }
+              >
+                {uiMode === "beginner" ? (
+                  <GraduationCapIcon className="size-3.5" />
+                ) : (
+                  <WrenchIcon className="size-3.5" />
+                )}
+              </Button>
+            }
+          />
           <TooltipContent side="bottom">
             {uiMode === "beginner"
               ? "Beginner mode — switch to Pro"
@@ -230,24 +242,28 @@ export function TopBar({
           </TooltipContent>
         </Tooltip>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7"
-              onClick={onReloadConfig}
-            >
-              <RefreshCwIcon className="size-3.5" />
-            </Button>
-          </TooltipTrigger>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                onClick={onReloadConfig}
+              >
+                <RefreshCwIcon className="size-3.5" />
+              </Button>
+            }
+          />
           <TooltipContent side="bottom">Reload config</TooltipContent>
         </Tooltip>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" className="size-7">
-              <SettingsIcon className="size-3.5" />
-            </Button>
-          </TooltipTrigger>
+          <TooltipTrigger
+            render={
+              <Button variant="ghost" size="icon" className="size-7">
+                <SettingsIcon className="size-3.5" />
+              </Button>
+            }
+          />
           <TooltipContent side="bottom">Settings</TooltipContent>
         </Tooltip>
       </div>

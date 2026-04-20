@@ -1,16 +1,16 @@
-import { DatabaseIcon, HistoryIcon, FileTextIcon } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DatabaseIcon, FileTextIcon, HistoryIcon } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { DatabaseTree } from "./database-tree";
-import { SavedQueriesList } from "./saved-queries-list";
-import { QueryHistoryList } from "./query-history-list";
-import { $pendingDraftQuery } from "@/stores/query-history-store";
 import { useConnection } from "@/routes/project.$projectId/conn.$connKey";
+import { $pendingDraftQuery } from "@/stores/query-history-store";
+import { DatabaseTree } from "./database-tree";
+import { QueryHistoryList } from "./query-history-list";
+import { SavedQueriesList } from "./saved-queries-list";
 
 interface WorkspaceSidebarProps {
   onDisconnect?: () => void;
@@ -38,36 +38,42 @@ export function WorkspaceSidebar({
       <Tabs defaultValue="database" className="flex flex-col h-full">
         <TabsList className="h-9 w-full justify-start rounded-none border-b bg-transparent px-1 gap-0">
           <Tooltip>
-            <TooltipTrigger asChild>
-              <TabsTrigger
-                value="database"
-                className="size-7 p-0 data-[state=active]:bg-muted"
-              >
-                <DatabaseIcon className="size-4" />
-              </TabsTrigger>
-            </TooltipTrigger>
+            <TooltipTrigger
+              render={
+                <TabsTrigger
+                  value="database"
+                  className="size-7 p-0 data-[state=active]:bg-muted"
+                >
+                  <DatabaseIcon className="size-4" />
+                </TabsTrigger>
+              }
+            />
             <TooltipContent side="bottom">Database</TooltipContent>
           </Tooltip>
           <Tooltip>
-            <TooltipTrigger asChild>
-              <TabsTrigger
-                value="queries"
-                className="size-7 p-0 data-[state=active]:bg-muted"
-              >
-                <FileTextIcon className="size-4" />
-              </TabsTrigger>
-            </TooltipTrigger>
+            <TooltipTrigger
+              render={
+                <TabsTrigger
+                  value="queries"
+                  className="size-7 p-0 data-[state=active]:bg-muted"
+                >
+                  <FileTextIcon className="size-4" />
+                </TabsTrigger>
+              }
+            />
             <TooltipContent side="bottom">Saved Queries</TooltipContent>
           </Tooltip>
           <Tooltip>
-            <TooltipTrigger asChild>
-              <TabsTrigger
-                value="history"
-                className="size-7 p-0 data-[state=active]:bg-muted"
-              >
-                <HistoryIcon className="size-4" />
-              </TabsTrigger>
-            </TooltipTrigger>
+            <TooltipTrigger
+              render={
+                <TabsTrigger
+                  value="history"
+                  className="size-7 p-0 data-[state=active]:bg-muted"
+                >
+                  <HistoryIcon className="size-4" />
+                </TabsTrigger>
+              }
+            />
             <TooltipContent side="bottom">History</TooltipContent>
           </Tooltip>
         </TabsList>

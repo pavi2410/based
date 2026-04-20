@@ -14,8 +14,9 @@
  *     browse/filter/edit.
  *   - "pro": DataGrip-density, every feature visible.
  */
-import { useStore } from "@nanostores/react";
+
 import { persistentAtom } from "@nanostores/persistent";
+import { useStore } from "@nanostores/react";
 
 export type UiMode = "beginner" | "pro";
 

@@ -14,17 +14,17 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import {
-  Loader2Icon,
+  ColumnsIcon,
   KeyIcon,
   LinkIcon,
-  ColumnsIcon,
+  Loader2Icon,
   RefreshCwIcon,
   RowsIcon,
 } from "lucide-react";
 import { cmd } from "@/commands";
 import { Button } from "@/components/ui/button";
-import { queryKeys } from "@/lib/query-keys";
 import { useWorkspace } from "@/hooks/use-workspace";
+import { queryKeys } from "@/lib/query-keys";
 import type { TableDescription } from "@/types/project";
 
 export function SchemaInspector({ selectedTable }: { selectedTable: string }) {

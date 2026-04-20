@@ -22,6 +22,7 @@ import {
   XCircleIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { useTheme } from "@/components/theme-provider";
 import {
   CommandDialog,
   CommandEmpty,
@@ -30,7 +31,6 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { useTheme } from "@/components/theme-provider";
 import { useWindow } from "@/hooks/use-window";
 
 export function CommandPalette() {

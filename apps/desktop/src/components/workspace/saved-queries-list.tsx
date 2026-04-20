@@ -1,16 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
-import { cmd } from "@/commands";
 import {
   FileTextIcon,
-  PlusIcon,
-  StarIcon,
   Loader2Icon,
+  PlusIcon,
   RefreshCwIcon,
+  StarIcon,
 } from "lucide-react";
+import { cmd } from "@/commands";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
 import { queryKeys } from "@/lib/query-keys";
+import { cn } from "@/lib/utils";
 import type { QuerySummary } from "@/types/project";
 
 interface SavedQueriesListProps {

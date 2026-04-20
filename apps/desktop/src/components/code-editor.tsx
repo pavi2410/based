@@ -1,8 +1,8 @@
-import CodeMirror from "@uiw/react-codemirror";
-import { sql, PostgreSQL, SQLite, StandardSQL } from "@codemirror/lang-sql";
 import { json } from "@codemirror/lang-json";
+import { PostgreSQL, SQLite, StandardSQL, sql } from "@codemirror/lang-sql";
 import { keymap } from "@codemirror/view";
 import { vscodeDark } from "@uiw/codemirror-theme-vscode";
+import CodeMirror from "@uiw/react-codemirror";
 import { useMemo } from "react";
 import { useTheme } from "@/components/theme-provider";
 import type { Engine } from "@/types/project";

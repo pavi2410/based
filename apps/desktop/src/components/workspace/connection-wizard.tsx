@@ -140,12 +140,14 @@ export function ConnectionWizard({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline" className="h-8">
-          <PlusIcon className="size-4 mr-1" />
-          Add connection
-        </Button>
-      </DialogTrigger>
+      <DialogTrigger
+        render={
+          <Button size="sm" variant="outline" className="h-8">
+            <PlusIcon className="size-4 mr-1" />
+            Add connection
+          </Button>
+        }
+      />
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>New connection</DialogTitle>

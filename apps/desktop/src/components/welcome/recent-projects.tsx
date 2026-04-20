@@ -1,13 +1,13 @@
 import { useStore } from "@nanostores/react";
+import { Link } from "@tanstack/react-router";
+import { formatDistanceToNow } from "date-fns";
+import { FolderIcon, XIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   $recentProjects,
-  removeRecentProject,
   type RecentProject,
+  removeRecentProject,
 } from "@/stores/project-state";
-import { FolderIcon, XIcon } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import { Button } from "@/components/ui/button";
-import { Link } from "@tanstack/react-router";
 
 export function RecentProjects() {
   const recentProjects = useStore($recentProjects);

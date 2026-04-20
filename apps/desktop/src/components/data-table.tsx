@@ -1,13 +1,14 @@
 import {
   type ColumnDef,
-  type SortingState,
-  type OnChangeFn,
   flexRender,
   getCoreRowModel,
+  type OnChangeFn,
+  type SortingState,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowUpIcon, ArrowDownIcon, ArrowUpDownIcon } from "lucide-react";
-
+import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon } from "lucide-react";
+import * as React from "react";
+import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
 import {
   Table,
   TableBody,
@@ -16,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { cn } from "@/lib/utils";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -115,7 +116,14 @@ export function DataTable<TData, TValue>({
             if (!renderRowContextMenu) return rowEl;
             return (
               <ContextMenu key={row.id}>
-                <ContextMenuTrigger asChild>{rowEl}</ContextMenuTrigger>
+                <ContextMenuTrigger
+                  render={(props) =>
+                    React.cloneElement(rowEl, {
+                      ...props,
+                      className: cn(rowEl.props.className, props.className),
+                    })
+                  }
+                />
                 {renderRowContextMenu(row.original)}
               </ContextMenu>
             );

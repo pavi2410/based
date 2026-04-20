@@ -1,23 +1,23 @@
 import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
+import { listen } from "@tauri-apps/api/event";
+import { Loader2Icon } from "lucide-react";
 import {
   createContext,
   useContext,
   useEffect,
-  useState,
   useEffectEvent,
+  useState,
 } from "react";
-import { readProjectConfig } from "@/stores/projects";
+import { toast } from "sonner";
+import { cmd } from "@/commands";
+import { TopBar } from "@/components/workspace/top-bar";
 import {
   addRecentProject,
   setProjectConfig,
   setProjectPath,
 } from "@/stores/project-state";
+import { readProjectConfig } from "@/stores/projects";
 import type { ProjectConfig } from "@/types/project";
-import { Loader2Icon } from "lucide-react";
-import { cmd } from "@/commands";
-import { listen } from "@tauri-apps/api/event";
-import { toast } from "sonner";
-import { TopBar } from "@/components/workspace/top-bar";
 
 // Context to share project data with child routes
 export interface ProjectContextValue {

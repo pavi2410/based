@@ -1,10 +1,10 @@
-import type { ColumnDataType } from "@/components/data-table-filter/core/types";
 import {
-  TextIcon,
-  HashIcon,
   CalendarIcon,
+  HashIcon,
   type LucideIcon,
+  TextIcon,
 } from "lucide-react";
+import type { ColumnDataType } from "@/components/data-table-filter/core/types";
 
 /**
  * Map database column types to filter data types

@@ -1,12 +1,10 @@
-import { Button } from "@/components/ui/button";
-import { FolderOpenIcon, SparklesIcon } from "lucide-react";
-import { open } from "@tauri-apps/plugin-dialog";
-import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { readProjectConfig, initializeProject } from "@/stores/projects";
-import { addRecentProject } from "@/stores/project-state";
+import { open } from "@tauri-apps/plugin-dialog";
+import { FolderOpenIcon, SparklesIcon } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { cmd } from "@/commands";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +15,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { addRecentProject } from "@/stores/project-state";
+import { initializeProject, readProjectConfig } from "@/stores/projects";
 
 export function ActionButtons() {
   const navigate = useNavigate();

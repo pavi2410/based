@@ -19,10 +19,10 @@
  */
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { cmd } from "@/commands";
 import type { JsonValue } from "@/bindings";
-import { queryKeys } from "@/lib/query-keys";
+import { cmd } from "@/commands";
 import { useWorkspace } from "@/hooks/use-workspace";
+import { queryKeys } from "@/lib/query-keys";
 import {
   $undoStack,
   pushUndoEntry,

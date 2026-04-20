@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Button } from "@/components/ui/button.tsx";
 import { StarIcon } from "lucide-react";
-import { RecentProjects } from "@/components/welcome/recent-projects";
+import { Button } from "@/components/ui/button.tsx";
 import { ActionButtons } from "@/components/welcome/action-buttons";
+import { RecentProjects } from "@/components/welcome/recent-projects";
 import { useTitlebar } from "@/hooks/use-titlebar";
 
 export const Route = createFileRoute("/")({
@@ -25,17 +25,18 @@ function Index() {
             className="shadow-none text-muted-foreground hover:text-foreground hover:bg-yellow-500/10 group"
             variant="outline"
             size="sm"
-            asChild
-          >
-            <a
-              href="https://github.com/pavi2410/based"
-              target="_blank"
-              rel="noreferrer"
-            >
-              <StarIcon className="mr-1 h-3.5 w-3.5 group-hover:text-yellow-400 group-hover:fill-yellow-400 transition-colors" />
-              Star on GitHub
-            </a>
-          </Button>
+            nativeButton={false}
+            render={
+              <a
+                href="https://github.com/pavi2410/based"
+                target="_blank"
+                rel="noreferrer"
+              >
+                <StarIcon className="mr-1 h-3.5 w-3.5 group-hover:text-yellow-400 group-hover:fill-yellow-400 transition-colors" />
+                Star on GitHub
+              </a>
+            }
+          />
         </div>
       </header>
 

@@ -14,8 +14,9 @@
  * the simplest way to cover MongoDB's nested documents alongside
  * scalar SQL columns without building a dedicated per-type editor.
  */
-import { useState, useMemo } from "react";
+
 import { KeyIcon, Loader2Icon } from "lucide-react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,8 +29,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { type RowMap, useRowMutations } from "@/hooks/use-row-mutations";
 import type { ColumnDescription, TableDescription } from "@/types/project";
-import { useRowMutations, type RowMap } from "@/hooks/use-row-mutations";
 
 export type EditorMode =
   | { kind: "insert" }

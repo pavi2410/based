@@ -11,12 +11,7 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command'
-import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Slider } from '@/components/ui/slider'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
@@ -67,24 +62,25 @@ function __FilterValue<TData, TType extends ColumnDataType>({
 }: FilterValueProps<TData, TType>) {
   return (
     <Popover>
-      <PopoverAnchor className="h-full" />
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          className="m-0 h-full w-fit whitespace-nowrap rounded-none p-0 px-2 text-xs"
-        >
-          <FilterValueDisplay
-            filter={filter}
-            column={column}
-            actions={actions}
-            locale={locale}
-          />
-        </Button>
-      </PopoverTrigger>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="ghost"
+            className="m-0 h-full w-fit whitespace-nowrap rounded-none p-0 px-2 text-xs"
+          >
+            <FilterValueDisplay
+              filter={filter}
+              column={column}
+              actions={actions}
+              locale={locale}
+            />
+          </Button>
+        }
+      />
       <PopoverContent
         align="start"
         side="bottom"
-        className="w-fit p-0 origin-(--radix-popover-content-transform-origin)"
+        className="w-fit p-0 origin-(--transform-origin)"
       >
         <FilterValueController
           filter={filter}

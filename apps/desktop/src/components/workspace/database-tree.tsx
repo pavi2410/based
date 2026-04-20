@@ -1,7 +1,7 @@
 import type { ConnectionConfig } from "@/types/project";
-import { SQLiteDatabaseTree } from "./database-trees/sqlite-tree";
 import { MongoDBDatabaseTree } from "./database-trees/mongodb-tree";
 import { PostgresDatabaseTree } from "./database-trees/postgres-tree";
+import { SQLiteDatabaseTree } from "./database-trees/sqlite-tree";
 
 interface DatabaseTreeProps {
   connKey: string;

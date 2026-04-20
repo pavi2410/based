@@ -11,9 +11,10 @@
  * Phase 4. The important thing today is to stop a busted CodeMirror /
  * mongo parser / stale binding from turning into a blank screen.
  */
+
+import { AlertTriangleIcon } from "lucide-react";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { AlertTriangleIcon } from "lucide-react";
 
 interface ErrorBoundaryProps {
   /** Shown in the fallback header. */

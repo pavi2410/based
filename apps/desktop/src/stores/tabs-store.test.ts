@@ -5,9 +5,9 @@ import {
   closeTab,
   savedQueryTabId,
   setActiveTab,
+  type TabScope,
   tableTabId,
   upsertTab,
-  type TabScope,
 } from "./tabs-store";
 
 const scope: TabScope = { projectPath: "/p", connKey: "conn" };

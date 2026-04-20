@@ -1,7 +1,4 @@
 import { CircleDotIcon } from "lucide-react";
-import DeviconSqlite from "~icons/devicon/sqlite";
-import DeviconMongodb from "~icons/devicon/mongodb";
-import DeviconPostgresql from "~icons/devicon/postgresql";
 import {
   Select,
   SelectContent,
@@ -12,6 +9,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { ConnectionConfig } from "@/types/project";
+import DeviconMongodb from "~icons/devicon/mongodb";
+import DeviconPostgresql from "~icons/devicon/postgresql";
+import DeviconSqlite from "~icons/devicon/sqlite";
 
 interface ConnectionSelectorProps {
   connections: Partial<Record<string, ConnectionConfig>>;
@@ -71,7 +71,14 @@ export function ConnectionSelector({
   const activeConnConfig = connKey ? connections[connKey] : null;
 
   return (
-    <Select value={connKey || undefined} onValueChange={onConnectionChange}>
+    <Select
+      value={connKey || undefined}
+      onValueChange={(value) => {
+        if (value !== null) {
+          onConnectionChange(value);
+        }
+      }}
+    >
       <SelectTrigger
         size="sm"
         className={

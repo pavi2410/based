@@ -1,36 +1,36 @@
+import { useStore } from "@nanostores/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Loader2Icon } from "lucide-react";
 import { createContext, useContext, useEffect, useMemo } from "react";
 import { z } from "zod";
-import { useStore } from "@nanostores/react";
+import { ErrorBoundary } from "@/components/error-boundary";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { WorkspaceSidebar } from "@/components/workspace/workspace-sidebar";
-import { WorkspaceTabs } from "@/components/workspace/workspace-tabs";
-import { StatusBar } from "@/components/workspace/status-bar";
-import { ErrorBoundary } from "@/components/error-boundary";
 import { DataViewer } from "@/components/workspace/data-viewer";
 import { QueryEditor } from "@/components/workspace/query-editor";
-import { Loader2Icon } from "lucide-react";
-import { ProjectContext } from "../project.$projectId";
+import { StatusBar } from "@/components/workspace/status-bar";
+import { WorkspaceSidebar } from "@/components/workspace/workspace-sidebar";
+import { WorkspaceTabs } from "@/components/workspace/workspace-tabs";
 import {
-  switchConnection,
-  disconnectConnection,
   $connection,
+  disconnectConnection,
+  switchConnection,
 } from "@/stores/project-state";
-import type { ConnectionConfig } from "@/types/project";
 import {
   $tabs,
   closeTab,
+  type OpenTab,
   savedQueryTabId,
   setActiveTab,
+  type TabScope,
   tableTabId,
   upsertTab,
-  type OpenTab,
-  type TabScope,
 } from "@/stores/tabs-store";
+import type { ConnectionConfig } from "@/types/project";
+import { ProjectContext } from "../project.$projectId";
 
 // Context to share connection state with child components
 interface ConnectionContextValue {
@@ -301,8 +301,11 @@ function ConnectionLayout() {
   return (
     <ConnectionContext.Provider value={connectionContextValue}>
       <div className="flex flex-col h-full">
-        <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
-          <ResizablePanel defaultSize={20} minSize={15} maxSize={40}>
+        <ResizablePanelGroup
+          orientation="horizontal"
+          className="flex-1 min-h-0"
+        >
+          <ResizablePanel defaultSize="20%" minSize="15%" maxSize="40%">
             <WorkspaceSidebar
               onDisconnect={handleDisconnect}
               onSelectQuery={handleSelectQuery}
@@ -313,7 +316,7 @@ function ConnectionLayout() {
 
           <ResizableHandle />
 
-          <ResizablePanel defaultSize={80}>
+          <ResizablePanel defaultSize="80%">
             <div className="flex flex-col h-full">
               {scope ? (
                 <WorkspaceTabs

@@ -14,8 +14,8 @@
  * for call sites.
  */
 import { useMemo } from "react";
-import { cmd } from "@/commands";
 import type { TabAddress, WindowKind } from "@/bindings";
+import { cmd } from "@/commands";
 
 export type { WindowKind } from "@/bindings";
 

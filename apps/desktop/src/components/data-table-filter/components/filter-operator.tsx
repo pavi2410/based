@@ -53,21 +53,23 @@ export function FilterOperator<TData, TType extends ColumnDataType>({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          className="m-0 h-full w-fit whitespace-nowrap rounded-none p-0 px-2 text-xs"
-        >
-          <FilterOperatorDisplay
-            filter={filter}
-            columnType={column.type}
-            locale={locale}
-          />
-        </Button>
-      </PopoverTrigger>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="ghost"
+            className="m-0 h-full w-fit whitespace-nowrap rounded-none p-0 px-2 text-xs"
+          >
+            <FilterOperatorDisplay
+              filter={filter}
+              columnType={column.type}
+              locale={locale}
+            />
+          </Button>
+        }
+      />
       <PopoverContent
         align="start"
-        className="w-fit p-0 origin-(--radix-popover-content-transform-origin)"
+        className="w-fit p-0 origin-(--transform-origin)"
       >
         <Command loop>
           <CommandInput placeholder={t('search', locale)} />

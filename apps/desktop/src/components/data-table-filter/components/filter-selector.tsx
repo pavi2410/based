@@ -138,19 +138,21 @@ function __FilterSelector<TData>({
         if (!value) setTimeout(() => setProperty(undefined), 100)
       }}
     >
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          className={cn('h-7', hasFilters && 'w-fit !px-2')}
-        >
-          <FilterIcon className="size-4" />
-          {!hasFilters && <span>{t('filter', locale)}</span>}
-        </Button>
-      </PopoverTrigger>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="outline"
+            className={cn('h-7', hasFilters && 'w-fit !px-2')}
+          >
+            <FilterIcon className="size-4" />
+            {!hasFilters && <span>{t('filter', locale)}</span>}
+          </Button>
+        }
+      />
       <PopoverContent
         align="start"
         side="bottom"
-        className="w-fit p-0 origin-(--radix-popover-content-transform-origin)"
+        className="w-fit p-0 origin-(--transform-origin)"
       >
         {content}
       </PopoverContent>

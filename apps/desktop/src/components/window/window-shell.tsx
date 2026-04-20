@@ -4,10 +4,10 @@
  * Main-window rendering (the full router / project workspace) is
  * unaffected. Every other OS window (detached tab, result pop-out,
  * settings) renders a tiny shell that reads the current `WindowKind`
- * from `useWindow()` and dispatches to a stub. Phase 1-3 implement the
- * real UI; Phase 0 just proves the multi-window plumbing end to end.
+ * from `useWindow()` and dispatches to the appropriate panel.
  */
 import { useWindow } from "@/hooks/use-window";
+import { DetachedTableViewer } from "@/components/window/detached-table-viewer";
 
 function PlaceholderPanel({
   title,
@@ -44,15 +44,17 @@ export function WindowShell() {
   switch (current.kind) {
     case "tab": {
       const { address } = current;
+      if (address.kind === "table") {
+        return <DetachedTableViewer address={address} />;
+      }
       const summary =
         address.kind === "query"
           ? `Query tab ${address.id}`
-          : address.kind === "table"
-            ? `Table ${address.schema ? `${address.schema}.` : ""}${address.name}`
-            : `Inspector ${address.name}`;
+          : `Inspector ${address.name}`;
       return (
         <PlaceholderPanel title={summary}>
-          Detached tab — rendering TBD (see Phase 2 tabs work).
+          Detached {address.kind} tab — rendering lands with the Phase 2 tabbed
+          workspace.
         </PlaceholderPanel>
       );
     }

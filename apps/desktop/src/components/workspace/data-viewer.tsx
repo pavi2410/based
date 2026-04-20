@@ -16,6 +16,7 @@ import {
   CopyIcon,
   PlusIcon,
   UndoIcon,
+  ExternalLinkIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { SchemaInspector } from "@/components/workspace/schema-inspector";
@@ -39,6 +40,7 @@ import { DownloadIcon } from "lucide-react";
 import { VirtualDataTable } from "@/components/virtual-data-table";
 import { exportAsCsv, exportAsJson } from "@/lib/export";
 import { useRowMutations, type RowMap } from "@/hooks/use-row-mutations";
+import { useWindow } from "@/hooks/use-window";
 import { $undoStack } from "@/stores/row-mutations-store";
 import type { TableDescription } from "@/types/project";
 import { Button } from "@/components/ui/button";
@@ -242,6 +244,27 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
   const mutations = useRowMutations(selectedTable);
   const undoStack = useStore($undoStack);
   const canUndo = undoStack.length > 0;
+
+  const { isMain, openTab } = useWindow();
+
+  const handlePopOut = useCallback(async () => {
+    // Only makes sense from the main window — the button is hidden in
+    // detached windows, but guard anyway so a keybind in the future
+    // can't accidentally spawn nested pop-outs.
+    if (!isMain) return;
+    try {
+      await openTab({
+        kind: "table",
+        connection: { project: projectPath, conn_key: connKey },
+        schema: selectedSchema ?? null,
+        name: selectedTable,
+      });
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? `Couldn't open window: ${e.message}` : String(e),
+      );
+    }
+  }, [isMain, openTab, projectPath, connKey, selectedSchema, selectedTable]);
 
   const [editorMode, setEditorMode] = useState<EditorMode | null>(null);
   // Cell detail panel state: which cell is focused, or null.
@@ -502,6 +525,17 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
           >
             <UndoIcon className="size-3.5" />
           </Button>
+          {isMain ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-6"
+              onClick={handlePopOut}
+              title="Open in new window"
+            >
+              <ExternalLinkIcon className="size-3.5" />
+            </Button>
+          ) : null}
           <Button
             variant="ghost"
             size="icon"

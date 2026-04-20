@@ -7,7 +7,10 @@ use specta::Type;
 use sqlx::{Column, QueryBuilder, Row, Sqlite, SqlitePool, TypeInfo, ValueRef};
 
 use super::filters::{parse_filters, push_sql_order, push_sql_where, quote_ident};
-use super::types::{BrowseOptions, ColumnInfo, QueryResult};
+use super::types::{
+    BrowseOptions, ColumnDescription, ColumnInfo, ForeignKeyDescription, IndexDescription,
+    QueryResult, TableDescription,
+};
 use super::values::{blob_marker, f64_to_json};
 
 /// User-visible SQLite object (table, view, index...).
@@ -87,6 +90,115 @@ pub async fn browse_table(
         columns,
         rows,
         total_count: Some(total_count),
+    })
+}
+
+/// Describe a SQLite table using the `pragma_*` table-valued functions
+/// (available since SQLite 3.16). This is a single round-trip per
+/// catalog (columns, indexes, foreign keys).
+pub async fn describe_table(
+    pool: &SqlitePool,
+    table_name: &str,
+) -> Result<TableDescription, Error> {
+    // Whether the object is a table or a view.
+    let kind: String = sqlx::query_scalar(
+        "SELECT type FROM sqlite_schema WHERE name = ? AND type IN ('table','view')",
+    )
+    .bind(table_name)
+    .fetch_optional(pool)
+    .await?
+    .unwrap_or_else(|| "table".to_string());
+
+    let column_rows = sqlx::query(
+        "SELECT cid, name, type, \"notnull\", dflt_value, pk \
+         FROM pragma_table_info(?) ORDER BY cid",
+    )
+    .bind(table_name)
+    .fetch_all(pool)
+    .await?;
+
+    let columns: Vec<ColumnDescription> = column_rows
+        .iter()
+        .map(|row| {
+            let pk: i32 = row.get("pk");
+            let notnull: i32 = row.get("notnull");
+            let cid: i32 = row.get("cid");
+            ColumnDescription {
+                name: row.get("name"),
+                data_type: row.get("type"),
+                nullable: notnull == 0,
+                default: row.try_get::<Option<String>, _>("dflt_value").unwrap_or(None),
+                is_primary_key: pk > 0,
+                position: cid + 1,
+            }
+        })
+        .collect();
+
+    // Indexes, then the columns in each index.
+    let index_rows = sqlx::query(
+        "SELECT name, \"unique\" as uniq, origin FROM pragma_index_list(?) ORDER BY seq",
+    )
+    .bind(table_name)
+    .fetch_all(pool)
+    .await?;
+
+    let mut indexes: Vec<IndexDescription> = Vec::new();
+    for row in index_rows {
+        let name: String = row.get("name");
+        let uniq: i32 = row.get("uniq");
+        let origin: String = row.get("origin");
+        let col_rows = sqlx::query("SELECT name FROM pragma_index_info(?) ORDER BY seqno")
+            .bind(&name)
+            .fetch_all(pool)
+            .await?;
+        let cols: Vec<String> = col_rows.iter().map(|r| r.get("name")).collect();
+        indexes.push(IndexDescription {
+            name,
+            columns: cols,
+            unique: uniq != 0,
+            primary: origin == "pk",
+        });
+    }
+
+    let fk_rows = sqlx::query(
+        "SELECT id, seq, \"table\" as ref_table, \"from\" as from_col, \"to\" as to_col \
+         FROM pragma_foreign_key_list(?) ORDER BY id, seq",
+    )
+    .bind(table_name)
+    .fetch_all(pool)
+    .await?;
+
+    // Group foreign key rows by `id`, preserving insertion order.
+    let mut fks: Vec<ForeignKeyDescription> = Vec::new();
+    let mut current_id: Option<i32> = None;
+    for row in fk_rows {
+        let id: i32 = row.get("id");
+        let from_col: String = row.get("from_col");
+        let to_col: String = row.get("to_col");
+        let ref_table: String = row.get("ref_table");
+        if Some(id) != current_id {
+            current_id = Some(id);
+            fks.push(ForeignKeyDescription {
+                name: None,
+                columns: vec![from_col],
+                referenced_schema: None,
+                referenced_table: ref_table,
+                referenced_columns: vec![to_col],
+            });
+        } else if let Some(last) = fks.last_mut() {
+            last.columns.push(from_col);
+            last.referenced_columns.push(to_col);
+        }
+    }
+
+    Ok(TableDescription {
+        name: table_name.to_string(),
+        schema: None,
+        kind,
+        columns,
+        indexes,
+        foreign_keys: fks,
+        row_count: None,
     })
 }
 

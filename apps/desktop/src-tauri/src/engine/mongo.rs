@@ -10,7 +10,9 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use super::filters::{build_mongodb_filter, parse_filters};
-use super::types::{BrowseOptions, ColumnInfo, QueryResult};
+use super::types::{
+    BrowseOptions, ColumnDescription, ColumnInfo, IndexDescription, QueryResult, TableDescription,
+};
 
 #[derive(Debug, Serialize, Deserialize, Type)]
 pub struct MongoDBCollection {
@@ -64,6 +66,114 @@ pub async fn browse_collection(
     }
 
     Ok(documents_to_result(documents, Some(total_count)))
+}
+
+/// Describe a MongoDB collection by sampling a handful of documents
+/// and unioning their top-level fields. This is the best we can do in
+/// a schemaless store — there is no catalog to ask.
+///
+/// Indexes are reported from `listIndexes` so users can at least see
+/// what's there even though the column list is sampled.
+pub async fn describe_collection(
+    db: &Database,
+    collection_name: &str,
+) -> Result<TableDescription, Error> {
+    let collection = db.collection::<Document>(collection_name);
+
+    const SAMPLE_SIZE: i64 = 100;
+
+    // Count is cheap enough on a typical collection; this is for the
+    // inspector header, not the browse pagination, so we can eat the
+    // cost.
+    let row_count = collection
+        .estimated_document_count(None)
+        .await
+        .ok()
+        .map(|c| c as i64);
+
+    // Sample the first N documents to derive columns. Using
+    // `find().limit()` rather than `$sample` so small collections
+    // deterministically show every field.
+    let find_options = FindOptions::builder().limit(SAMPLE_SIZE).build();
+    let mut cursor = collection.find(doc! {}, find_options).await?;
+    let mut seen_types: std::collections::BTreeMap<String, String> =
+        std::collections::BTreeMap::new();
+    let mut order: Vec<String> = Vec::new();
+
+    while let Some(d) = cursor.try_next().await? {
+        for (k, v) in d.iter() {
+            if !seen_types.contains_key(k) {
+                order.push(k.clone());
+            }
+            let ty = bson_type_name(v);
+            seen_types
+                .entry(k.clone())
+                .and_modify(|existing| {
+                    if existing != &ty && existing != "mixed" {
+                        *existing = "mixed".to_string();
+                    }
+                })
+                .or_insert(ty);
+        }
+    }
+
+    let columns: Vec<ColumnDescription> = order
+        .iter()
+        .enumerate()
+        .map(|(i, name)| ColumnDescription {
+            name: name.clone(),
+            data_type: seen_types.get(name).cloned().unwrap_or_else(|| "mixed".into()),
+            nullable: true,
+            default: None,
+            // `_id` is the only guaranteed PK in a Mongo collection.
+            is_primary_key: name == "_id",
+            position: (i + 1) as i32,
+        })
+        .collect();
+
+    let mut indexes: Vec<IndexDescription> = Vec::new();
+    let mut idx_cursor = collection.list_indexes(None).await?;
+    while let Some(idx) = idx_cursor.try_next().await? {
+        let opts = idx.options.unwrap_or_default();
+        let name = opts.name.unwrap_or_default();
+        let key_cols: Vec<String> = idx.keys.keys().cloned().collect();
+        indexes.push(IndexDescription {
+            unique: opts.unique.unwrap_or(false),
+            primary: name == "_id_",
+            name,
+            columns: key_cols,
+        });
+    }
+
+    Ok(TableDescription {
+        name: collection_name.to_string(),
+        schema: None,
+        kind: "collection".to_string(),
+        columns,
+        indexes,
+        foreign_keys: Vec::new(),
+        row_count,
+    })
+}
+
+fn bson_type_name(v: &Bson) -> String {
+    match v {
+        Bson::Null => "null",
+        Bson::Boolean(_) => "bool",
+        Bson::Int32(_) => "int32",
+        Bson::Int64(_) => "int64",
+        Bson::Double(_) => "double",
+        Bson::String(_) => "string",
+        Bson::ObjectId(_) => "objectId",
+        Bson::DateTime(_) => "datetime",
+        Bson::Array(_) => "array",
+        Bson::Document(_) => "document",
+        Bson::Binary(_) => "binary",
+        Bson::Timestamp(_) => "timestamp",
+        Bson::RegularExpression(_) => "regex",
+        _ => "mixed",
+    }
+    .to_string()
 }
 
 pub async fn execute_raw(

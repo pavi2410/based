@@ -7,7 +7,10 @@ use specta::Type;
 use sqlx::{Column, PgPool, Postgres, QueryBuilder, Row, TypeInfo, ValueRef};
 
 use super::filters::{parse_filters, push_sql_order, push_sql_where, quote_ident};
-use super::types::{BrowseOptions, ColumnInfo, QueryResult};
+use super::types::{
+    BrowseOptions, ColumnDescription, ColumnInfo, ForeignKeyDescription, IndexDescription,
+    QueryResult, TableDescription,
+};
 use super::values::f64_to_json;
 
 #[derive(Debug, Serialize, Deserialize, Type)]
@@ -112,6 +115,187 @@ pub async fn browse_table(
         columns,
         rows,
         total_count: Some(total_count),
+    })
+}
+
+/// Describe a PostgreSQL table: columns, indexes, and foreign keys.
+/// Uses `information_schema` + `pg_catalog`; all predicates are bound
+/// to prevent identifier injection.
+pub async fn describe_table(
+    pool: &PgPool,
+    schema: &str,
+    table_name: &str,
+) -> Result<TableDescription, Error> {
+    let kind: String = sqlx::query_scalar(
+        "SELECT CASE WHEN table_type = 'BASE TABLE' THEN 'table' \
+                     WHEN table_type = 'VIEW' THEN 'view' \
+                     ELSE lower(table_type) END \
+         FROM information_schema.tables \
+         WHERE table_schema = $1 AND table_name = $2",
+    )
+    .bind(schema)
+    .bind(table_name)
+    .fetch_optional(pool)
+    .await?
+    .unwrap_or_else(|| "table".to_string());
+
+    // Columns, including primary-key membership from the
+    // information_schema key-column-usage / table-constraints join.
+    let column_rows = sqlx::query(
+        r#"
+        SELECT
+            c.column_name,
+            c.data_type,
+            c.is_nullable,
+            c.column_default,
+            c.ordinal_position,
+            COALESCE(pk.is_pk, false) AS is_pk
+        FROM information_schema.columns c
+        LEFT JOIN (
+            SELECT kcu.column_name, true AS is_pk
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+              ON tc.constraint_name = kcu.constraint_name
+             AND tc.table_schema = kcu.table_schema
+             AND tc.table_name = kcu.table_name
+            WHERE tc.constraint_type = 'PRIMARY KEY'
+              AND tc.table_schema = $1
+              AND tc.table_name = $2
+        ) pk ON pk.column_name = c.column_name
+        WHERE c.table_schema = $1 AND c.table_name = $2
+        ORDER BY c.ordinal_position
+        "#,
+    )
+    .bind(schema)
+    .bind(table_name)
+    .fetch_all(pool)
+    .await?;
+
+    let columns: Vec<ColumnDescription> = column_rows
+        .iter()
+        .map(|row| {
+            let nullable: String = row.get("is_nullable");
+            let position: i32 = row.get::<i32, _>("ordinal_position");
+            ColumnDescription {
+                name: row.get("column_name"),
+                data_type: row.get("data_type"),
+                nullable: nullable == "YES",
+                default: row.try_get::<Option<String>, _>("column_default").unwrap_or(None),
+                is_primary_key: row.get("is_pk"),
+                position,
+            }
+        })
+        .collect();
+
+    // Indexes via pg_index; one row per index, columns aggregated.
+    let index_rows = sqlx::query(
+        r#"
+        SELECT
+            i.relname                                             AS index_name,
+            ix.indisunique                                        AS is_unique,
+            ix.indisprimary                                       AS is_primary,
+            ARRAY(
+                SELECT a.attname
+                FROM pg_attribute a
+                WHERE a.attrelid = t.oid
+                  AND a.attnum = ANY(ix.indkey)
+                ORDER BY array_position(ix.indkey, a.attnum)
+            )                                                     AS column_names
+        FROM pg_class t
+        JOIN pg_index ix           ON t.oid = ix.indrelid
+        JOIN pg_class i            ON i.oid = ix.indexrelid
+        JOIN pg_namespace n        ON n.oid = t.relnamespace
+        WHERE n.nspname = $1 AND t.relname = $2
+        ORDER BY i.relname
+        "#,
+    )
+    .bind(schema)
+    .bind(table_name)
+    .fetch_all(pool)
+    .await?;
+
+    let indexes: Vec<IndexDescription> = index_rows
+        .iter()
+        .map(|row| IndexDescription {
+            name: row.get("index_name"),
+            columns: row
+                .try_get::<Vec<String>, _>("column_names")
+                .unwrap_or_default(),
+            unique: row.get("is_unique"),
+            primary: row.get("is_primary"),
+        })
+        .collect();
+
+    // Foreign keys: aggregate referencing/referenced columns per
+    // constraint so multi-column FKs come out as a single row.
+    let fk_rows = sqlx::query(
+        r#"
+        SELECT
+            tc.constraint_name                                         AS name,
+            ccu.table_schema                                           AS ref_schema,
+            ccu.table_name                                             AS ref_table,
+            ARRAY_AGG(kcu.column_name  ORDER BY kcu.ordinal_position)  AS columns,
+            ARRAY_AGG(ccu.column_name  ORDER BY kcu.ordinal_position)  AS ref_columns
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON tc.constraint_name = kcu.constraint_name
+         AND tc.table_schema = kcu.table_schema
+        JOIN information_schema.constraint_column_usage ccu
+          ON ccu.constraint_name = tc.constraint_name
+         AND ccu.table_schema = tc.table_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND tc.table_schema = $1
+          AND tc.table_name   = $2
+        GROUP BY tc.constraint_name, ccu.table_schema, ccu.table_name
+        ORDER BY tc.constraint_name
+        "#,
+    )
+    .bind(schema)
+    .bind(table_name)
+    .fetch_all(pool)
+    .await?;
+
+    let foreign_keys: Vec<ForeignKeyDescription> = fk_rows
+        .iter()
+        .map(|row| ForeignKeyDescription {
+            name: row.try_get::<String, _>("name").ok(),
+            columns: row.try_get::<Vec<String>, _>("columns").unwrap_or_default(),
+            referenced_schema: row.try_get::<String, _>("ref_schema").ok(),
+            referenced_table: row.get("ref_table"),
+            referenced_columns: row
+                .try_get::<Vec<String>, _>("ref_columns")
+                .unwrap_or_default(),
+        })
+        .collect();
+
+    // Postgres exposes an estimated row count via pg_class.reltuples;
+    // treat negative / stale values as "unknown" rather than misleading.
+    let est_rows: Option<f64> = sqlx::query_scalar(
+        "SELECT c.reltuples::float8 FROM pg_class c \
+         JOIN pg_namespace n ON n.oid = c.relnamespace \
+         WHERE n.nspname = $1 AND c.relname = $2",
+    )
+    .bind(schema)
+    .bind(table_name)
+    .fetch_optional(pool)
+    .await?;
+
+    let row_count = est_rows.and_then(|v| {
+        if v.is_finite() && v >= 0.0 {
+            Some(v as i64)
+        } else {
+            None
+        }
+    });
+
+    Ok(TableDescription {
+        name: table_name.to_string(),
+        schema: Some(schema.to_string()),
+        kind,
+        columns,
+        indexes,
+        foreign_keys,
+        row_count,
     })
 }
 

@@ -18,10 +18,10 @@ use crate::project_commands::{
     read_project_config, save_query, write_project_config,
 };
 use crate::project_db_commands::{
-    close_connection, close_project_connections, connect_project_db, execute_raw_mongo,
-    execute_raw_sql, get_connection_info, get_mongodb_collections, get_postgres_schemas,
-    get_postgres_tables, get_sqlite_objects, query_mongodb_collection, query_postgres_table,
-    query_sqlite_table,
+    close_connection, close_project_connections, connect_project_db, describe_mongodb_collection,
+    describe_postgres_table, describe_sqlite_table, execute_raw_mongo, execute_raw_sql,
+    get_connection_info, get_mongodb_collections, get_postgres_schemas, get_postgres_tables,
+    get_sqlite_objects, query_mongodb_collection, query_postgres_table, query_sqlite_table,
 };
 use crate::window_manager::{close_window, focus_window, open_window};
 use tauri::Manager;
@@ -70,6 +70,9 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             query_sqlite_table,
             query_postgres_table,
             query_mongodb_collection,
+            describe_sqlite_table,
+            describe_postgres_table,
+            describe_mongodb_collection,
             execute_raw_sql,
             execute_raw_mongo,
             open_window,

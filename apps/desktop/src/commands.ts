@@ -77,4 +77,8 @@ export type {
   ProjectAddress,
   ConnectionAddress,
   TabAddress,
+  TableDescription,
+  ColumnDescription,
+  IndexDescription,
+  ForeignKeyDescription,
 } from "./bindings";

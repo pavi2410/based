@@ -194,6 +194,41 @@ async queryMongodbCollection(projectPath: string, connKey: string, collectionNam
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Describe a SQLite table (columns, indexes, foreign keys).
+ */
+async describeSqliteTable(projectPath: string, connKey: string, tableName: string) : Promise<Result<TableDescription, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("describe_sqlite_table", { projectPath, connKey, tableName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Describe a PostgreSQL table (columns, indexes, foreign keys,
+ * reltuples estimate).
+ */
+async describePostgresTable(projectPath: string, connKey: string, schema: string, tableName: string) : Promise<Result<TableDescription, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("describe_postgres_table", { projectPath, connKey, schema, tableName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Describe a MongoDB collection (sampled columns + real indexes +
+ * estimated row count).
+ */
+async describeMongodbCollection(projectPath: string, connKey: string, collectionName: string) : Promise<Result<TableDescription, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("describe_mongodb_collection", { projectPath, connKey, collectionName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async executeRawSql(projectPath: string, connKey: string, query: string) : Promise<Result<QueryResult, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("execute_raw_sql", { projectPath, connKey, query }) };
@@ -269,6 +304,11 @@ export type BrowseOptions = { limit: number | null; offset: number | null; order
  * replaces this with a proper `FilterAst` type.
  */
 filters: string | null }
+export type ColumnDescription = { name: string; dataType: string; nullable: boolean; default: string | null; isPrimaryKey: boolean; 
+/**
+ * Ordinal position (1-indexed) in the original CREATE TABLE.
+ */
+position: number }
 export type ColumnInfo = { name: string; data_type: string }
 /**
  * Identifies a specific connection inside a project (by the user-visible
@@ -286,6 +326,8 @@ export type ConnectionId = string
  */
 export type ConnectionInfo = { id: ConnectionId; project_path: string; conn_key: string; engine: Engine; label: string | null }
 export type Engine = "sqlite" | "mongodb" | "postgres"
+export type ForeignKeyDescription = { name: string | null; columns: string[]; referencedSchema: string | null; referencedTable: string; referencedColumns: string[] }
+export type IndexDescription = { name: string; columns: string[]; unique: boolean; primary: boolean }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 export type MongoDBCollection = { name: string }
 export type MongoQuery = { type: MongoQueryType; 
@@ -381,6 +423,26 @@ export type TabAddress =
  * A schema-inspector tab for a single object.
  */
 { kind: "inspector"; connection: ConnectionAddress; schema: string | null; name: string }
+/**
+ * Detailed description of a table or collection, rendered by the
+ * schema inspector panel.
+ */
+export type TableDescription = { name: string; 
+/**
+ * Schema name for Postgres; `None` for SQLite and MongoDB where
+ * schemas don't apply.
+ */
+schema: string | null; 
+/**
+ * Engine-reported kind: `"table"`, `"view"`, `"collection"`, ...
+ */
+kind: string; columns: ColumnDescription[]; indexes: IndexDescription[]; foreignKeys: ForeignKeyDescription[]; 
+/**
+ * Estimated row count when the engine exposes one cheaply; `None`
+ * otherwise. We never issue `SELECT COUNT(*)` just to fill this
+ * in — the inspector is meant to be fast.
+ */
+rowCount: number | null }
 /**
  * The kinds of windows the app can spawn. Encoded as a tagged enum so
  * the frontend can pattern-match in its router.

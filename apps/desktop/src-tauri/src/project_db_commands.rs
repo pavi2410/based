@@ -15,6 +15,7 @@ use crate::connection_pool::ConnectionPool;
 use crate::engine::mongo::MongoDBCollection;
 use crate::engine::postgres::{PostgresSchema, PostgresTable};
 use crate::engine::sqlite::SQLiteObject;
+use crate::engine::types::TableDescription;
 use crate::engine::{self, BrowseOptions, QueryResult};
 use crate::error::Error;
 use crate::project_commands::read_project_config;
@@ -341,6 +342,80 @@ pub async fn query_mongodb_collection(
     match pool {
         ConnectionPool::Mongo(db) => {
             engine::mongo::browse_collection(db, &collection_name, &options).await
+        }
+        _ => Err(expected("MongoDB")),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Schema inspector commands
+// ---------------------------------------------------------------------------
+
+/// Describe a SQLite table (columns, indexes, foreign keys).
+#[tauri::command]
+#[specta::specta]
+pub async fn describe_sqlite_table(
+    project_path: String,
+    conn_key: String,
+    table_name: String,
+    registry: State<'_, ConnectionRegistry>,
+    app: tauri::AppHandle,
+) -> Result<TableDescription, Error> {
+    let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
+    let pools = registry.pools().await;
+    let pool = pools
+        .get(&conn_id)
+        .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
+    match pool {
+        ConnectionPool::Sqlite(p) => engine::sqlite::describe_table(p, &table_name).await,
+        _ => Err(expected("SQLite")),
+    }
+}
+
+/// Describe a PostgreSQL table (columns, indexes, foreign keys,
+/// reltuples estimate).
+#[tauri::command]
+#[specta::specta]
+pub async fn describe_postgres_table(
+    project_path: String,
+    conn_key: String,
+    schema: String,
+    table_name: String,
+    registry: State<'_, ConnectionRegistry>,
+    app: tauri::AppHandle,
+) -> Result<TableDescription, Error> {
+    let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
+    let pools = registry.pools().await;
+    let pool = pools
+        .get(&conn_id)
+        .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
+    match pool {
+        ConnectionPool::Postgres(p) => {
+            engine::postgres::describe_table(p, &schema, &table_name).await
+        }
+        _ => Err(expected("PostgreSQL")),
+    }
+}
+
+/// Describe a MongoDB collection (sampled columns + real indexes +
+/// estimated row count).
+#[tauri::command]
+#[specta::specta]
+pub async fn describe_mongodb_collection(
+    project_path: String,
+    conn_key: String,
+    collection_name: String,
+    registry: State<'_, ConnectionRegistry>,
+    app: tauri::AppHandle,
+) -> Result<TableDescription, Error> {
+    let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
+    let pools = registry.pools().await;
+    let pool = pools
+        .get(&conn_id)
+        .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
+    match pool {
+        ConnectionPool::Mongo(db) => {
+            engine::mongo::describe_collection(db, &collection_name).await
         }
         _ => Err(expected("MongoDB")),
     }

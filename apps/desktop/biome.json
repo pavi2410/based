@@ -16,6 +16,8 @@
       "!**/dist/**",
       "!**/node_modules/**",
       "!**/gen/**",
+      "!**/target/**",
+      "!src-tauri/target/**",
       "!src/routeTree.gen.ts",
       "!src/bindings.ts",
       "!src/components/ui/**",

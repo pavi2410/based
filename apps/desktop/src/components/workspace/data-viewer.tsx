@@ -9,7 +9,9 @@ import {
   ChevronsLeftIcon,
   ChevronsRightIcon,
   TableIcon,
+  DatabaseIcon,
 } from "lucide-react";
+import { SchemaInspector } from "@/components/workspace/schema-inspector";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/data-table";
 import { useConnection } from "@/routes/project.$projectId/conn.$connKey";
@@ -81,12 +83,16 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
   const [page, setPage] = useState(0);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [filters, setFilters] = useState<FiltersState>([]);
+  // UI-only view toggle: the browse grid or the schema inspector. Reset
+  // when the user navigates to a different table/collection so people
+  // don't land on Structure for a row-oriented workflow.
+  const [view, setView] = useState<"data" | "structure">("data");
 
-  // Reset page, sorting, and filters when table changes
   useEffect(() => {
     setPage(0);
     setSorting([]);
     setFilters([]);
+    setView("data");
   }, [selectedTable, selectedSchema]);
 
   // Reset page when filters change
@@ -282,7 +288,8 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
           </h2>
         </div>
         <div className="flex items-center gap-1">
-          <span className="text-xs text-muted-foreground tabular-nums">
+          <ViewToggle view={view} onChange={setView} />
+          <span className="text-xs text-muted-foreground tabular-nums ml-2">
             {totalCount.toLocaleString()} rows
           </span>
           <Button
@@ -299,78 +306,137 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
         </div>
       </div>
 
-      {/* Filters */}
-      {filterColumnConfigs.length > 0 && (
-        <div className="px-3 py-1.5 border-b">
-          <DataTableFilter
-            columns={filterInstance.columns}
-            filters={filterInstance.filters}
-            actions={filterInstance.actions}
-            strategy={filterInstance.strategy}
-          />
+      {view === "structure" ? (
+        <div className="flex-1 min-h-0">
+          <SchemaInspector selectedTable={selectedTable} />
         </div>
-      )}
+      ) : (
+        <>
+          {filterColumnConfigs.length > 0 && (
+            <div className="px-3 py-1.5 border-b">
+              <DataTableFilter
+                columns={filterInstance.columns}
+                filters={filterInstance.filters}
+                actions={filterInstance.actions}
+                strategy={filterInstance.strategy}
+              />
+            </div>
+          )}
 
-      {/* Data Table */}
-      <div className="flex-1 min-h-0">
-        <DataTable
-          columns={columns}
-          data={data}
-          sorting={sorting}
-          onSortingChange={setSorting}
-        />
-      </div>
-
-      {/* Footer pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between px-3 py-1.5 border-t bg-muted/20 text-xs">
-          <span className="text-muted-foreground tabular-nums">
-            {startRow.toLocaleString()}–{endRow.toLocaleString()} of{" "}
-            {totalCount.toLocaleString()}
-          </span>
-          <div className="flex items-center gap-0.5">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-6"
-              onClick={() => setPage(0)}
-              disabled={page === 0}
-            >
-              <ChevronsLeftIcon className="size-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-6"
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              disabled={page === 0}
-            >
-              <ChevronLeftIcon className="size-3.5" />
-            </Button>
-            <span className="px-2 text-muted-foreground tabular-nums min-w-[60px] text-center">
-              {page + 1} / {totalPages}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-6"
-              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-              disabled={page >= totalPages - 1}
-            >
-              <ChevronRightIcon className="size-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-6"
-              onClick={() => setPage(totalPages - 1)}
-              disabled={page >= totalPages - 1}
-            >
-              <ChevronsRightIcon className="size-3.5" />
-            </Button>
+          <div className="flex-1 min-h-0">
+            <DataTable
+              columns={columns}
+              data={data}
+              sorting={sorting}
+              onSortingChange={setSorting}
+            />
           </div>
-        </div>
+
+          {/* Footer pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-3 py-1.5 border-t bg-muted/20 text-xs">
+              <span className="text-muted-foreground tabular-nums">
+                {startRow.toLocaleString()}–{endRow.toLocaleString()} of{" "}
+                {totalCount.toLocaleString()}
+              </span>
+              <div className="flex items-center gap-0.5">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-6"
+                  onClick={() => setPage(0)}
+                  disabled={page === 0}
+                >
+                  <ChevronsLeftIcon className="size-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-6"
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                >
+                  <ChevronLeftIcon className="size-3.5" />
+                </Button>
+                <span className="px-2 text-muted-foreground tabular-nums min-w-[60px] text-center">
+                  {page + 1} / {totalPages}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-6"
+                  onClick={() =>
+                    setPage((p) => Math.min(totalPages - 1, p + 1))
+                  }
+                  disabled={page >= totalPages - 1}
+                >
+                  <ChevronRightIcon className="size-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-6"
+                  onClick={() => setPage(totalPages - 1)}
+                  disabled={page >= totalPages - 1}
+                >
+                  <ChevronsRightIcon className="size-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Segmented toggle between the data grid and the schema inspector.
+ * Mirrors the Data/Structure tabs you'd expect from DataGrip/TablePlus
+ * but kept inside the viewer so we don't fight the outer workspace
+ * router yet (see Phase 2 tabs todo for the real tabbed workspace).
+ */
+function ViewToggle({
+  view,
+  onChange,
+}: {
+  view: "data" | "structure";
+  onChange: (v: "data" | "structure") => void;
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label="Table view"
+      className="inline-flex items-center rounded-md border bg-background p-0.5"
+    >
+      <button
+        type="button"
+        role="tab"
+        aria-selected={view === "data"}
+        onClick={() => onChange("data")}
+        className={`flex items-center gap-1 px-2 h-5 text-[11px] rounded-sm transition-colors ${
+          view === "data"
+            ? "bg-muted text-foreground"
+            : "text-muted-foreground hover:text-foreground"
+        }`}
+      >
+        <TableIcon className="size-3" />
+        Data
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={view === "structure"}
+        onClick={() => onChange("structure")}
+        className={`flex items-center gap-1 px-2 h-5 text-[11px] rounded-sm transition-colors ${
+          view === "structure"
+            ? "bg-muted text-foreground"
+            : "text-muted-foreground hover:text-foreground"
+        }`}
+      >
+        <DatabaseIcon className="size-3" />
+        Structure
+      </button>
     </div>
   );
 }

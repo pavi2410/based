@@ -8,6 +8,7 @@ mod project_commands;
 mod project_db_commands;
 mod project_types;
 mod variables;
+mod window_manager;
 
 use crate::connection_id::ConnectionRegistry;
 use crate::file_watcher::{watch_project_config, unwatch_project_config, FileWatcherState};
@@ -21,6 +22,7 @@ use crate::project_db_commands::{
     query_sqlite_table, query_postgres_table, query_mongodb_collection,
     execute_raw_sql, execute_raw_mongo,
 };
+use crate::window_manager::{close_window, focus_window, open_window};
 use tauri::Manager;
 use tauri_plugin_decorum::WebviewWindowExt;
 
@@ -69,6 +71,9 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             query_mongodb_collection,
             execute_raw_sql,
             execute_raw_mongo,
+            open_window,
+            focus_window,
+            close_window,
         ])
 }
 

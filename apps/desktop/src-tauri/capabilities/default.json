@@ -1,9 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
+  "description": "Capabilities shared by the main window and every child webview window (tab detach, result pop-out, settings).",
   "windows": [
-    "main"
+    "main",
+    "settings",
+    "tab:*",
+    "result:*"
   ],
   "permissions": [
     "core:default",
@@ -13,9 +16,11 @@
     "core:window:allow-maximize",
     "core:window:allow-set-size",
     "core:window:allow-set-focus",
+    "core:window:allow-set-title",
     "core:window:allow-is-maximized",
     "core:window:allow-start-dragging",
     "core:window:allow-toggle-maximize",
+    "core:webview:allow-create-webview-window",
     "decorum:allow-show-snap-overlay",
     "shell:allow-open",
     "dialog:default",

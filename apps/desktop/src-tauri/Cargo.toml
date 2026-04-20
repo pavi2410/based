@@ -41,3 +41,4 @@ tauri-plugin-decorum = "1"
 specta = { version = "=2.0.0-rc.22", features = ["serde_json"] }
 specta-typescript = "0.0.9"
 tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
+urlencoding = "2"

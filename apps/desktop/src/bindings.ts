@@ -234,6 +234,40 @@ async executeRawMongo(projectPath: string, connKey: string, collection: string, 
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Open (or refocus, if already open) a child window.
+ */
+async openWindow(kind: WindowKind) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("open_window", { kind }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Focus the window with the given label. No-op if it does not exist.
+ */
+async focusWindow(label: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("focus_window", { label }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Close the window with the given label. No-op if it does not exist.
+ * Refuses to close the `"main"` label to avoid killing the app.
+ */
+async closeWindow(label: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("close_window", { label }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -363,6 +397,23 @@ export type TabAddress =
  * A schema-inspector tab for a single object.
  */
 { kind: "inspector"; connection: ConnectionAddress; schema: string | null; name: string }
+/**
+ * The kinds of windows the app can spawn. Encoded as a tagged enum so
+ * the frontend can pattern-match in its router.
+ */
+export type WindowKind = 
+/**
+ * Detached workspace tab (query editor or table browser).
+ */
+{ kind: "tab"; address: TabAddress } | 
+/**
+ * Pop-out for a query result set.
+ */
+{ kind: "result_viewer"; title: string } | 
+/**
+ * App settings window.
+ */
+{ kind: "settings" }
 
 /** tauri-specta globals **/
 

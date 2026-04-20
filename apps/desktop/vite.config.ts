@@ -7,6 +7,25 @@ import { defineConfig } from "vite";
 
 const host = process.env.TAURI_DEV_HOST;
 
+/** Rolldown (Vite 8) requires `manualChunks` as a function, not a record. */
+function manualChunks(id: string): string | undefined {
+  if (
+    id.includes("@uiw/react-codemirror") ||
+    id.includes("@uiw/codemirror-theme-vscode") ||
+    id.includes("@codemirror/") ||
+    id.includes("@codemirror+")
+  ) {
+    return "codemirror";
+  }
+  if (id.includes("@tanstack/react-table") || id.includes("@tanstack/react-virtual")) {
+    return "table";
+  }
+  if (id.includes("@base-ui/react")) {
+    return "baseUi";
+  }
+  return undefined;
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({
   plugins: [
@@ -39,17 +58,7 @@ export default defineConfig(async () => ({
     // "cost to bring in" rather than strict package boundaries.
     rollupOptions: {
       output: {
-        manualChunks: {
-          codemirror: [
-            "@uiw/react-codemirror",
-            "@codemirror/lang-sql",
-            "@codemirror/lang-json",
-            "@codemirror/view",
-            "@uiw/codemirror-theme-vscode",
-          ],
-          table: ["@tanstack/react-table", "@tanstack/react-virtual"],
-          baseUi: ["@base-ui/react"],
-        },
+        manualChunks,
       },
     },
     chunkSizeWarningLimit: 900,

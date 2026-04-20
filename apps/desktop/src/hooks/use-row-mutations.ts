@@ -19,7 +19,7 @@
  */
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
-import type { JsonValue } from "@/bindings";
+import type { Cmd } from "@/commands";
 import { cmd } from "@/commands";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { queryKeys } from "@/lib/query-keys";
@@ -31,16 +31,9 @@ import {
 
 export type RowMap = Record<string, unknown>;
 
-/**
- * The generated Rust bindings type each payload as
- * `Partial<{ [key in string]: JsonValue }>`. `RowMap` uses `unknown`
- * so the UI doesn't have to enforce JsonValue at every call site;
- * we pass it through `asJson()` at the IPC boundary. Values that
- * aren't JSON-serialisable (e.g. Date) will surface as a clear error
- * when the Rust side deserialises.
- */
-function asJson(row: RowMap): Partial<{ [key in string]: JsonValue }> {
-  return row as Partial<{ [key in string]: JsonValue }>;
+/** Cast UI row maps to the exact specta-generated payload types expected by `cmd`. */
+function asCmdFields<T>(row: RowMap): T {
+  return row as unknown as T;
 }
 
 export interface RowMutations {
@@ -206,8 +199,8 @@ async function dispatchUpdate(engine: Engine, a: UpdateArgs): Promise<number> {
         a.projectPath,
         a.connKey,
         a.table,
-        asJson(a.pk),
-        asJson(a.changes),
+        asCmdFields<Parameters<Cmd["updateSqliteRow"]>[3]>(a.pk),
+        asCmdFields<Parameters<Cmd["updateSqliteRow"]>[4]>(a.changes),
       );
     case "postgres":
       return await cmd.updatePostgresRow(
@@ -215,16 +208,16 @@ async function dispatchUpdate(engine: Engine, a: UpdateArgs): Promise<number> {
         a.connKey,
         a.schema ?? "public",
         a.table,
-        asJson(a.pk),
-        asJson(a.changes),
+        asCmdFields<Parameters<Cmd["updatePostgresRow"]>[4]>(a.pk),
+        asCmdFields<Parameters<Cmd["updatePostgresRow"]>[5]>(a.changes),
       );
     case "mongodb":
       return await cmd.updateMongodbDocument(
         a.projectPath,
         a.connKey,
         a.table,
-        asJson(a.pk),
-        asJson(a.changes),
+        asCmdFields<Parameters<Cmd["updateMongodbDocument"]>[3]>(a.pk),
+        asCmdFields<Parameters<Cmd["updateMongodbDocument"]>[4]>(a.changes),
       );
   }
 }
@@ -236,7 +229,7 @@ async function dispatchInsert(engine: Engine, a: InsertArgs): Promise<number> {
         a.projectPath,
         a.connKey,
         a.table,
-        asJson(a.values),
+        asCmdFields<Parameters<Cmd["insertSqliteRow"]>[3]>(a.values),
       );
     case "postgres":
       return await cmd.insertPostgresRow(
@@ -244,14 +237,14 @@ async function dispatchInsert(engine: Engine, a: InsertArgs): Promise<number> {
         a.connKey,
         a.schema ?? "public",
         a.table,
-        asJson(a.values),
+        asCmdFields<Parameters<Cmd["insertPostgresRow"]>[4]>(a.values),
       );
     case "mongodb":
       return await cmd.insertMongodbDocument(
         a.projectPath,
         a.connKey,
         a.table,
-        asJson(a.values),
+        asCmdFields<Parameters<Cmd["insertMongodbDocument"]>[3]>(a.values),
       );
   }
 }
@@ -263,7 +256,7 @@ async function dispatchDelete(engine: Engine, a: DeleteArgs): Promise<number> {
         a.projectPath,
         a.connKey,
         a.table,
-        asJson(a.pk),
+        asCmdFields<Parameters<Cmd["deleteSqliteRow"]>[3]>(a.pk),
       );
     case "postgres":
       return await cmd.deletePostgresRow(
@@ -271,14 +264,14 @@ async function dispatchDelete(engine: Engine, a: DeleteArgs): Promise<number> {
         a.connKey,
         a.schema ?? "public",
         a.table,
-        asJson(a.pk),
+        asCmdFields<Parameters<Cmd["deletePostgresRow"]>[4]>(a.pk),
       );
     case "mongodb":
       return await cmd.deleteMongodbDocument(
         a.projectPath,
         a.connKey,
         a.table,
-        asJson(a.pk),
+        asCmdFields<Parameters<Cmd["deleteMongodbDocument"]>[3]>(a.pk),
       );
   }
 }

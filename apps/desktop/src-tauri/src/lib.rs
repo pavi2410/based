@@ -8,6 +8,8 @@ mod file_watcher;
 mod project_commands;
 mod project_db_commands;
 mod project_types;
+mod query_registry;
+mod schema_cache;
 mod variables;
 mod window_manager;
 
@@ -18,14 +20,16 @@ use crate::project_commands::{
     read_project_config, save_query, write_project_config,
 };
 use crate::project_db_commands::{
-    close_connection, close_project_connections, connect_project_db, delete_mongodb_document,
-    delete_postgres_row, delete_sqlite_row, describe_mongodb_collection, describe_postgres_table,
-    describe_sqlite_table, execute_raw_mongo, execute_raw_sql, get_connection_info,
-    get_mongodb_collections, get_postgres_schemas, get_postgres_tables, get_sqlite_objects,
-    insert_mongodb_document, insert_postgres_row, insert_sqlite_row, query_mongodb_collection,
-    query_postgres_table, query_sqlite_table, update_mongodb_document, update_postgres_row,
-    update_sqlite_row,
+    cancel_query, close_connection, close_project_connections, connect_project_db,
+    delete_mongodb_document, delete_postgres_row, delete_sqlite_row, describe_mongodb_collection,
+    describe_postgres_table, describe_sqlite_table, execute_raw_mongo, execute_raw_sql,
+    get_connection_info, get_mongodb_collections, get_postgres_schemas, get_postgres_tables,
+    get_sqlite_objects, insert_mongodb_document, insert_postgres_row, insert_sqlite_row,
+    query_mongodb_collection, query_postgres_table, query_sqlite_table, update_mongodb_document,
+    update_postgres_row, update_sqlite_row,
 };
+use crate::query_registry::QueryRegistry;
+use crate::schema_cache::SchemaCache;
 use crate::window_manager::{close_window, focus_window, open_window};
 use tauri::Manager;
 use tauri_plugin_decorum::WebviewWindowExt;
@@ -87,6 +91,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             delete_mongodb_document,
             execute_raw_sql,
             execute_raw_mongo,
+            cancel_query,
             open_window,
             focus_window,
             close_window,
@@ -122,6 +127,8 @@ pub fn run() {
             Ok(())
         })
         .manage(ConnectionRegistry::new())
+        .manage(SchemaCache::new())
+        .manage(QueryRegistry::new())
         .manage(FileWatcherState::default())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

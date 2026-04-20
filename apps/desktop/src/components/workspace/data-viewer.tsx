@@ -41,6 +41,7 @@ import { VirtualDataTable } from "@/components/virtual-data-table";
 import { exportAsCsv, exportAsJson } from "@/lib/export";
 import { useRowMutations, type RowMap } from "@/hooks/use-row-mutations";
 import { useWindow } from "@/hooks/use-window";
+import { queryKeys } from "@/lib/query-keys";
 import { $undoStack } from "@/stores/row-mutations-store";
 import type { TableDescription } from "@/types/project";
 import { Button } from "@/components/ui/button";
@@ -130,7 +131,6 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
     setPage(0);
   }, [filters]);
 
-  const objectKey = `${selectedSchema || ""}.${selectedTable}`;
   const engine = connectionConfig.engine;
 
   // Convert filters to backend format
@@ -146,15 +146,13 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
   );
 
   const dataQuery = useQuery({
-    queryKey: [
-      "table-data",
-      projectPath,
-      connKey,
-      objectKey,
+    queryKey: queryKeys.conn.tableData(projectPath, connKey, {
+      schema: selectedSchema ?? null,
+      name: selectedTable,
       page,
       sorting,
-      filterParams,
-    ],
+      filters: filterParams,
+    }),
     queryFn: async () => {
       const options: BrowseOptions = {
         limit: PAGE_SIZE,
@@ -205,14 +203,13 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
   // deliberately a separate query from the browse data so it stays
   // cached across pagination.
   const descriptionQuery = useQuery({
-    queryKey: [
-      "describe",
+    queryKey: queryKeys.conn.tableDescribe(
       projectPath,
       connKey,
       engine,
-      selectedSchema || null,
+      selectedSchema,
       selectedTable,
-    ],
+    ),
     queryFn: async (): Promise<TableDescription> => {
       switch (engine) {
         case "sqlite":

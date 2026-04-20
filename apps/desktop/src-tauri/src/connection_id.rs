@@ -179,6 +179,18 @@ impl ConnectionRegistry {
     pub fn get_id(project_path: &str, conn_key: &str) -> ConnectionId {
         ConnectionId::new(project_path, conn_key)
     }
+
+    /// Every conn_key currently registered under `project_path`.
+    /// Used by cache invalidation so we don't need to retain a separate
+    /// project → conn_key index.
+    pub async fn project_conn_keys(&self, project_path: &str) -> Vec<String> {
+        let info_map = self.info.read().await;
+        info_map
+            .values()
+            .filter(|info| info.project_path == project_path)
+            .map(|info| info.conn_key.clone())
+            .collect()
+    }
 }
 
 #[cfg(test)]

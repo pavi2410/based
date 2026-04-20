@@ -54,7 +54,7 @@ pub struct FilterParam {
 
 /// Detailed description of a table or collection, rendered by the
 /// schema inspector panel.
-#[derive(Debug, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TableDescription {
     pub name: String,
@@ -72,7 +72,7 @@ pub struct TableDescription {
     pub row_count: Option<i64>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ColumnDescription {
     pub name: String,
@@ -84,7 +84,7 @@ pub struct ColumnDescription {
     pub position: i32,
 }
 
-#[derive(Debug, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct IndexDescription {
     pub name: String,
@@ -93,7 +93,7 @@ pub struct IndexDescription {
     pub primary: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ForeignKeyDescription {
     pub name: Option<String>,

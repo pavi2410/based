@@ -8,6 +8,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import type { ConnectionConfig } from "@/types/project";
+import { queryKeys } from "@/lib/query-keys";
 
 interface MongoDBDatabaseTreeProps {
   connKey: string;
@@ -26,7 +27,7 @@ export function MongoDBDatabaseTree({
   const [isOpen, setIsOpen] = useState(true);
 
   const collectionsQuery = useQuery({
-    queryKey: ["project-db-collections", projectPath, connKey],
+    queryKey: queryKeys.conn.mongoCollections(projectPath, connKey),
     queryFn: async () => {
       return await cmd.getMongodbCollections(projectPath, connKey);
     },

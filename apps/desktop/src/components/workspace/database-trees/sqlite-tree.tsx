@@ -14,6 +14,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import type { ConnectionConfig } from "@/types/project";
+import { queryKeys } from "@/lib/query-keys";
 
 interface SQLiteDatabaseTreeProps {
   connKey: string;
@@ -98,7 +99,7 @@ function SQLiteObjectGroup({
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   const objectQuery = useQuery({
-    queryKey: ["project-db-objects", projectPath, connKey, type],
+    queryKey: queryKeys.conn.sqliteObjects(projectPath, connKey, type),
     queryFn: async () => {
       return await cmd.getSqliteObjects(projectPath, connKey, type);
     },

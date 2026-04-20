@@ -323,6 +323,20 @@ async executeRawMongo(projectPath: string, connKey: string, collection: string, 
 }
 },
 /**
+ * Cancel an in-flight query by token. The actual mid-query checks
+ * land with the Phase 2 "params + history + cancel" work; this
+ * command is wired up now so the frontend can start carrying the
+ * token round-trip through the editor.
+ */
+async cancelQuery(token: string) : Promise<Result<boolean, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cancel_query", { token }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Open (or refocus, if already open) a child window.
  */
 async openWindow(kind: WindowKind) : Promise<Result<string, string>> {

@@ -8,6 +8,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import type { ConnectionConfig } from "@/types/project";
+import { queryKeys } from "@/lib/query-keys";
 
 interface PostgresDatabaseTreeProps {
   connKey: string;
@@ -28,7 +29,7 @@ export function PostgresDatabaseTree({
   const [isOpen, setIsOpen] = useState(true);
 
   const schemasQuery = useQuery({
-    queryKey: ["project-pg-schemas", projectPath, connKey],
+    queryKey: queryKeys.conn.pgSchemas(projectPath, connKey),
     queryFn: async () => {
       return await cmd.getPostgresSchemas(projectPath, connKey);
     },
@@ -104,7 +105,7 @@ function PostgresSchemaGroup({
   const [isOpen, setIsOpen] = useState(false);
 
   const tablesQuery = useQuery({
-    queryKey: ["project-pg-tables", projectPath, connKey, schema],
+    queryKey: queryKeys.conn.pgTables(projectPath, connKey, schema),
     queryFn: async () => {
       return await cmd.getPostgresTables(projectPath, connKey, schema);
     },

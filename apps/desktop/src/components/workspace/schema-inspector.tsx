@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { cmd } from "@/commands";
 import { Button } from "@/components/ui/button";
+import { queryKeys } from "@/lib/query-keys";
 import { useConnection } from "@/routes/project.$projectId/conn.$connKey";
 import type { TableDescription } from "@/types/project";
 
@@ -33,14 +34,13 @@ export function SchemaInspector({ selectedTable }: { selectedTable: string }) {
   const engine = connectionConfig.engine;
 
   const descriptionQuery = useQuery({
-    queryKey: [
-      "describe",
+    queryKey: queryKeys.conn.tableDescribe(
       projectPath,
       connKey,
       engine,
-      selectedSchema || null,
+      selectedSchema,
       selectedTable,
-    ],
+    ),
     queryFn: async (): Promise<TableDescription> => {
       switch (engine) {
         case "sqlite":

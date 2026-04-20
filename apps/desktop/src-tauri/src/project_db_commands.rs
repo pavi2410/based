@@ -20,6 +20,8 @@ use crate::engine::{self, BrowseOptions, QueryResult};
 use crate::error::Error;
 use crate::project_commands::read_project_config;
 use crate::project_types::{ConnectionConfig, Engine};
+use crate::query_registry::QueryRegistry;
+use crate::schema_cache::{CachedObjectKey, SchemaCache};
 use std::collections::HashMap;
 use tauri::State;
 
@@ -200,8 +202,10 @@ pub async fn close_connection(
     project_path: String,
     conn_key: String,
     registry: State<'_, ConnectionRegistry>,
+    cache: State<'_, SchemaCache>,
 ) -> Result<(), Error> {
     let id = ConnectionRegistry::get_id(&project_path, &conn_key);
+    cache.invalidate_connection(id.as_str()).await;
     registry.close(&id).await;
     Ok(())
 }
@@ -211,7 +215,14 @@ pub async fn close_connection(
 pub async fn close_project_connections(
     project_path: String,
     registry: State<'_, ConnectionRegistry>,
+    cache: State<'_, SchemaCache>,
 ) -> Result<(), Error> {
+    // Cache is scoped by connection id; blow it away for every
+    // connection in this project so a reconnect surfaces fresh schema.
+    for conn_key in registry.project_conn_keys(&project_path).await {
+        let id = ConnectionRegistry::get_id(&project_path, &conn_key);
+        cache.invalidate_connection(id.as_str()).await;
+    }
     registry.close_project(&project_path).await;
     Ok(())
 }
@@ -382,17 +393,25 @@ pub async fn describe_sqlite_table(
     conn_key: String,
     table_name: String,
     registry: State<'_, ConnectionRegistry>,
+    cache: State<'_, SchemaCache>,
     app: tauri::AppHandle,
 ) -> Result<TableDescription, Error> {
     let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
+    let key = CachedObjectKey::new(None, &table_name);
+    if let Some(hit) = cache.get(&conn_id, &key).await {
+        return Ok((*hit).clone());
+    }
     let pools = registry.pools().await;
     let pool = pools
         .get(&conn_id)
         .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
-    match pool {
-        ConnectionPool::Sqlite(p) => engine::sqlite::describe_table(p, &table_name).await,
-        _ => Err(expected("SQLite")),
-    }
+    let desc = match pool {
+        ConnectionPool::Sqlite(p) => engine::sqlite::describe_table(p, &table_name).await?,
+        _ => return Err(expected("SQLite")),
+    };
+    drop(pools);
+    cache.put(&conn_id, key, desc.clone()).await;
+    Ok(desc)
 }
 
 /// Describe a PostgreSQL table (columns, indexes, foreign keys,
@@ -405,19 +424,27 @@ pub async fn describe_postgres_table(
     schema: String,
     table_name: String,
     registry: State<'_, ConnectionRegistry>,
+    cache: State<'_, SchemaCache>,
     app: tauri::AppHandle,
 ) -> Result<TableDescription, Error> {
     let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
+    let key = CachedObjectKey::new(Some(&schema), &table_name);
+    if let Some(hit) = cache.get(&conn_id, &key).await {
+        return Ok((*hit).clone());
+    }
     let pools = registry.pools().await;
     let pool = pools
         .get(&conn_id)
         .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
-    match pool {
+    let desc = match pool {
         ConnectionPool::Postgres(p) => {
-            engine::postgres::describe_table(p, &schema, &table_name).await
+            engine::postgres::describe_table(p, &schema, &table_name).await?
         }
-        _ => Err(expected("PostgreSQL")),
-    }
+        _ => return Err(expected("PostgreSQL")),
+    };
+    drop(pools);
+    cache.put(&conn_id, key, desc.clone()).await;
+    Ok(desc)
 }
 
 /// Describe a MongoDB collection (sampled columns + real indexes +
@@ -429,17 +456,27 @@ pub async fn describe_mongodb_collection(
     conn_key: String,
     collection_name: String,
     registry: State<'_, ConnectionRegistry>,
+    cache: State<'_, SchemaCache>,
     app: tauri::AppHandle,
 ) -> Result<TableDescription, Error> {
     let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
+    let key = CachedObjectKey::new(None, &collection_name);
+    if let Some(hit) = cache.get(&conn_id, &key).await {
+        return Ok((*hit).clone());
+    }
     let pools = registry.pools().await;
     let pool = pools
         .get(&conn_id)
         .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
-    match pool {
-        ConnectionPool::Mongo(db) => engine::mongo::describe_collection(db, &collection_name).await,
-        _ => Err(expected("MongoDB")),
-    }
+    let desc = match pool {
+        ConnectionPool::Mongo(db) => {
+            engine::mongo::describe_collection(db, &collection_name).await?
+        }
+        _ => return Err(expected("MongoDB")),
+    };
+    drop(pools);
+    cache.put(&conn_id, key, desc.clone()).await;
+    Ok(desc)
 }
 
 // ---------------------------------------------------------------------------
@@ -453,6 +490,7 @@ pub async fn execute_raw_sql(
     conn_key: String,
     query: String,
     registry: State<'_, ConnectionRegistry>,
+    cache: State<'_, SchemaCache>,
     app: tauri::AppHandle,
 ) -> Result<QueryResult, Error> {
     let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
@@ -460,13 +498,22 @@ pub async fn execute_raw_sql(
     let pool = pools
         .get(&conn_id)
         .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
-    match pool {
+    let result = match pool {
         ConnectionPool::Sqlite(p) => engine::sqlite::execute_raw(p, &query).await,
         ConnectionPool::Postgres(p) => engine::postgres::execute_raw(p, &query).await,
-        ConnectionPool::Mongo(_) => Err(Error::InvalidDbUrl(
-            "Use execute_raw_mongo for MongoDB queries".to_string(),
-        )),
-    }
+        ConnectionPool::Mongo(_) => {
+            return Err(Error::InvalidDbUrl(
+                "Use execute_raw_mongo for MongoDB queries".to_string(),
+            ));
+        }
+    };
+    drop(pools);
+    // Raw SQL may have been DDL; we don't parse the statement so we
+    // conservatively invalidate the whole connection's schema cache
+    // rather than try to be clever. The cost is one extra describe
+    // roundtrip on the next Structure view.
+    cache.invalidate_connection(&conn_id).await;
+    result
 }
 
 #[tauri::command]
@@ -518,6 +565,7 @@ pub async fn update_sqlite_row(
     pk: RowMap,
     changes: RowMap,
     registry: State<'_, ConnectionRegistry>,
+    cache: State<'_, SchemaCache>,
     app: tauri::AppHandle,
 ) -> Result<u64, Error> {
     ensure_writable(&project_path, &conn_key).await?;
@@ -526,12 +574,17 @@ pub async fn update_sqlite_row(
     let pool = pools
         .get(&conn_id)
         .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
-    match pool {
+    let result = match pool {
         ConnectionPool::Sqlite(p) => {
             engine::mutations::sqlite_update_row(p, &table_name, &pk, &changes).await
         }
-        _ => Err(expected("SQLite")),
-    }
+        _ => return Err(expected("SQLite")),
+    };
+    drop(pools);
+    cache
+        .invalidate(&conn_id, &CachedObjectKey::new(None, &table_name))
+        .await;
+    result
 }
 
 #[tauri::command]
@@ -542,6 +595,7 @@ pub async fn insert_sqlite_row(
     table_name: String,
     values: RowMap,
     registry: State<'_, ConnectionRegistry>,
+    cache: State<'_, SchemaCache>,
     app: tauri::AppHandle,
 ) -> Result<u64, Error> {
     ensure_writable(&project_path, &conn_key).await?;
@@ -550,12 +604,17 @@ pub async fn insert_sqlite_row(
     let pool = pools
         .get(&conn_id)
         .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
-    match pool {
+    let result = match pool {
         ConnectionPool::Sqlite(p) => {
             engine::mutations::sqlite_insert_row(p, &table_name, &values).await
         }
-        _ => Err(expected("SQLite")),
-    }
+        _ => return Err(expected("SQLite")),
+    };
+    drop(pools);
+    cache
+        .invalidate(&conn_id, &CachedObjectKey::new(None, &table_name))
+        .await;
+    result
 }
 
 #[tauri::command]
@@ -566,6 +625,7 @@ pub async fn delete_sqlite_row(
     table_name: String,
     pk: RowMap,
     registry: State<'_, ConnectionRegistry>,
+    cache: State<'_, SchemaCache>,
     app: tauri::AppHandle,
 ) -> Result<u64, Error> {
     ensure_writable(&project_path, &conn_key).await?;
@@ -574,12 +634,17 @@ pub async fn delete_sqlite_row(
     let pool = pools
         .get(&conn_id)
         .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
-    match pool {
+    let result = match pool {
         ConnectionPool::Sqlite(p) => {
             engine::mutations::sqlite_delete_row(p, &table_name, &pk).await
         }
-        _ => Err(expected("SQLite")),
-    }
+        _ => return Err(expected("SQLite")),
+    };
+    drop(pools);
+    cache
+        .invalidate(&conn_id, &CachedObjectKey::new(None, &table_name))
+        .await;
+    result
 }
 
 #[tauri::command]
@@ -592,6 +657,7 @@ pub async fn update_postgres_row(
     pk: RowMap,
     changes: RowMap,
     registry: State<'_, ConnectionRegistry>,
+    cache: State<'_, SchemaCache>,
     app: tauri::AppHandle,
 ) -> Result<u64, Error> {
     ensure_writable(&project_path, &conn_key).await?;
@@ -600,12 +666,17 @@ pub async fn update_postgres_row(
     let pool = pools
         .get(&conn_id)
         .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
-    match pool {
+    let result = match pool {
         ConnectionPool::Postgres(p) => {
             engine::mutations::postgres_update_row(p, &schema, &table_name, &pk, &changes).await
         }
-        _ => Err(expected("PostgreSQL")),
-    }
+        _ => return Err(expected("PostgreSQL")),
+    };
+    drop(pools);
+    cache
+        .invalidate(&conn_id, &CachedObjectKey::new(Some(&schema), &table_name))
+        .await;
+    result
 }
 
 #[tauri::command]
@@ -617,6 +688,7 @@ pub async fn insert_postgres_row(
     table_name: String,
     values: RowMap,
     registry: State<'_, ConnectionRegistry>,
+    cache: State<'_, SchemaCache>,
     app: tauri::AppHandle,
 ) -> Result<u64, Error> {
     ensure_writable(&project_path, &conn_key).await?;
@@ -625,12 +697,17 @@ pub async fn insert_postgres_row(
     let pool = pools
         .get(&conn_id)
         .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
-    match pool {
+    let result = match pool {
         ConnectionPool::Postgres(p) => {
             engine::mutations::postgres_insert_row(p, &schema, &table_name, &values).await
         }
-        _ => Err(expected("PostgreSQL")),
-    }
+        _ => return Err(expected("PostgreSQL")),
+    };
+    drop(pools);
+    cache
+        .invalidate(&conn_id, &CachedObjectKey::new(Some(&schema), &table_name))
+        .await;
+    result
 }
 
 #[tauri::command]
@@ -642,6 +719,7 @@ pub async fn delete_postgres_row(
     table_name: String,
     pk: RowMap,
     registry: State<'_, ConnectionRegistry>,
+    cache: State<'_, SchemaCache>,
     app: tauri::AppHandle,
 ) -> Result<u64, Error> {
     ensure_writable(&project_path, &conn_key).await?;
@@ -650,12 +728,17 @@ pub async fn delete_postgres_row(
     let pool = pools
         .get(&conn_id)
         .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
-    match pool {
+    let result = match pool {
         ConnectionPool::Postgres(p) => {
             engine::mutations::postgres_delete_row(p, &schema, &table_name, &pk).await
         }
-        _ => Err(expected("PostgreSQL")),
-    }
+        _ => return Err(expected("PostgreSQL")),
+    };
+    drop(pools);
+    cache
+        .invalidate(&conn_id, &CachedObjectKey::new(Some(&schema), &table_name))
+        .await;
+    result
 }
 
 #[tauri::command]
@@ -667,6 +750,7 @@ pub async fn update_mongodb_document(
     pk: RowMap,
     changes: RowMap,
     registry: State<'_, ConnectionRegistry>,
+    cache: State<'_, SchemaCache>,
     app: tauri::AppHandle,
 ) -> Result<u64, Error> {
     ensure_writable(&project_path, &conn_key).await?;
@@ -675,12 +759,17 @@ pub async fn update_mongodb_document(
     let pool = pools
         .get(&conn_id)
         .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
-    match pool {
+    let result = match pool {
         ConnectionPool::Mongo(db) => {
             engine::mutations::mongodb_update_document(db, &collection_name, &pk, &changes).await
         }
-        _ => Err(expected("MongoDB")),
-    }
+        _ => return Err(expected("MongoDB")),
+    };
+    drop(pools);
+    cache
+        .invalidate(&conn_id, &CachedObjectKey::new(None, &collection_name))
+        .await;
+    result
 }
 
 #[tauri::command]
@@ -691,6 +780,7 @@ pub async fn insert_mongodb_document(
     collection_name: String,
     values: RowMap,
     registry: State<'_, ConnectionRegistry>,
+    cache: State<'_, SchemaCache>,
     app: tauri::AppHandle,
 ) -> Result<u64, Error> {
     ensure_writable(&project_path, &conn_key).await?;
@@ -699,12 +789,17 @@ pub async fn insert_mongodb_document(
     let pool = pools
         .get(&conn_id)
         .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
-    match pool {
+    let result = match pool {
         ConnectionPool::Mongo(db) => {
             engine::mutations::mongodb_insert_document(db, &collection_name, &values).await
         }
-        _ => Err(expected("MongoDB")),
-    }
+        _ => return Err(expected("MongoDB")),
+    };
+    drop(pools);
+    cache
+        .invalidate(&conn_id, &CachedObjectKey::new(None, &collection_name))
+        .await;
+    result
 }
 
 #[tauri::command]
@@ -715,6 +810,7 @@ pub async fn delete_mongodb_document(
     collection_name: String,
     pk: RowMap,
     registry: State<'_, ConnectionRegistry>,
+    cache: State<'_, SchemaCache>,
     app: tauri::AppHandle,
 ) -> Result<u64, Error> {
     ensure_writable(&project_path, &conn_key).await?;
@@ -723,10 +819,29 @@ pub async fn delete_mongodb_document(
     let pool = pools
         .get(&conn_id)
         .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
-    match pool {
+    let result = match pool {
         ConnectionPool::Mongo(db) => {
             engine::mutations::mongodb_delete_document(db, &collection_name, &pk).await
         }
-        _ => Err(expected("MongoDB")),
-    }
+        _ => return Err(expected("MongoDB")),
+    };
+    drop(pools);
+    cache
+        .invalidate(&conn_id, &CachedObjectKey::new(None, &collection_name))
+        .await;
+    result
+}
+
+// ---------------------------------------------------------------------------
+// Query cancellation
+// ---------------------------------------------------------------------------
+
+/// Cancel an in-flight query by token. The actual mid-query checks
+/// land with the Phase 2 "params + history + cancel" work; this
+/// command is wired up now so the frontend can start carrying the
+/// token round-trip through the editor.
+#[tauri::command]
+#[specta::specta]
+pub async fn cancel_query(token: String, queries: State<'_, QueryRegistry>) -> Result<bool, Error> {
+    Ok(queries.cancel(&token).await)
 }

@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { queryKeys } from "@/lib/query-keys";
 import type { QuerySummary } from "@/types/project";
 
 interface SavedQueriesListProps {
@@ -28,7 +29,7 @@ export function SavedQueriesList({
   onNewQuery,
 }: SavedQueriesListProps) {
   const queriesQuery = useQuery({
-    queryKey: ["saved-queries", projectPath],
+    queryKey: queryKeys.savedQueries(projectPath),
     queryFn: async () => {
       return await cmd.listSavedQueries(projectPath);
     },

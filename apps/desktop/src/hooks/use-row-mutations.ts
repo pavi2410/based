@@ -21,6 +21,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { cmd } from "@/commands";
 import type { JsonValue } from "@/bindings";
+import { queryKeys } from "@/lib/query-keys";
 import { useConnection } from "@/routes/project.$projectId/conn.$connKey";
 import {
   $undoStack,
@@ -64,10 +65,10 @@ export function useRowMutations(selectedTable: string | null): RowMutations {
     // Both the browse query and the describe query are affected — we
     // refresh both so row counts / sampled columns stay fresh on edit.
     queryClient.invalidateQueries({
-      queryKey: ["table-data", projectPath, connKey],
+      queryKey: queryKeys.conn.tableDataAll(projectPath, connKey),
     });
     queryClient.invalidateQueries({
-      queryKey: ["describe", projectPath, connKey],
+      queryKey: queryKeys.conn.tableDescribeAll(projectPath, connKey),
     });
   }, [queryClient, projectPath, connKey]);
 

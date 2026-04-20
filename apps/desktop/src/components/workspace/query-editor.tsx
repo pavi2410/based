@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/resizable";
 import { toast } from "sonner";
 import type { SavedQuery, Engine } from "@/types/project";
+import { queryKeys } from "@/lib/query-keys";
 import type { ColumnDef } from "@tanstack/react-table";
 
 interface QueryEditorProps {
@@ -62,7 +63,7 @@ export function QueryEditor({
 
   // Load existing query if editing
   const savedQueryQuery = useQuery({
-    queryKey: ["saved-query", projectPath, filename],
+    queryKey: queryKeys.savedQuery(projectPath, filename ?? ""),
     queryFn: async () => {
       if (!filename) return null;
       return await cmd.getSavedQuery(projectPath, filename);
@@ -162,7 +163,7 @@ export function QueryEditor({
       toast.success("Query saved");
       setIsDirty(false);
       queryClient.invalidateQueries({
-        queryKey: ["saved-queries", projectPath],
+        queryKey: queryKeys.savedQueries(projectPath),
       });
       onSaved?.(savedFilename);
     },

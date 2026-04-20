@@ -16,6 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2Icon } from "lucide-react";
 import { cmd } from "@/commands";
 import { DataViewer } from "@/components/workspace/data-viewer";
+import { queryKeys } from "@/lib/query-keys";
 import { ConnectionContext } from "@/routes/project.$projectId/conn.$connKey";
 import type { TabAddress } from "@/bindings";
 
@@ -36,7 +37,7 @@ export function DetachedTableViewer({ address }: { address: TabAddress }) {
   const connKey = connection.conn_key;
 
   const configQuery = useQuery({
-    queryKey: ["project-config", projectPath],
+    queryKey: queryKeys.projectConfig(projectPath),
     queryFn: () => cmd.readProjectConfig(projectPath),
   });
 

@@ -21,5 +21,6 @@ pub mod mongo;
 pub mod postgres;
 pub mod sqlite;
 pub mod types;
+pub mod values;
 
-pub use types::{BrowseOptions, ColumnInfo, QueryResult};
+pub use types::{BrowseOptions, QueryResult};

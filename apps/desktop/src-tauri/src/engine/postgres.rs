@@ -4,10 +4,11 @@
 use crate::error::Error;
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use sqlx::{Column, PgPool, Row, TypeInfo, ValueRef};
+use sqlx::{Column, PgPool, Postgres, QueryBuilder, Row, TypeInfo, ValueRef};
 
-use super::filters::{build_sql_where_clause, order_clause_sql, parse_filters};
+use super::filters::{parse_filters, push_sql_order, push_sql_where, quote_ident};
 use super::types::{BrowseOptions, ColumnInfo, QueryResult};
+use super::values::f64_to_json;
 
 #[derive(Debug, Serialize, Deserialize, Type)]
 pub struct PostgresSchema {
@@ -75,24 +76,27 @@ pub async fn browse_table(
         .collect();
 
     let filters = parse_filters(options.filters.as_deref());
-    let where_clause = build_sql_where_clause(&filters);
-    let order_clause = order_clause_sql(&options.order_by_column, &options.order_by_direction);
+    let qualified = format!("{}.{}", quote_ident(schema), quote_ident(table_name));
 
-    let count_query = format!(
-        "SELECT COUNT(*) as cnt FROM \"{}\".\"{}\"{}",
-        schema, table_name, where_clause
+    let mut count_qb: QueryBuilder<Postgres> = QueryBuilder::new("SELECT COUNT(*) as cnt FROM ");
+    count_qb.push(&qualified);
+    push_sql_where(&mut count_qb, &filters);
+    let total_count: i64 = count_qb.build().fetch_one(pool).await?.get("cnt");
+
+    let mut data_qb: QueryBuilder<Postgres> = QueryBuilder::new("SELECT * FROM ");
+    data_qb.push(&qualified);
+    push_sql_where(&mut data_qb, &filters);
+    push_sql_order(
+        &mut data_qb,
+        &options.order_by_column,
+        &options.order_by_direction,
     );
-    let count_row = sqlx::query(&count_query).fetch_one(pool).await?;
-    let total_count: i64 = count_row.get("cnt");
+    data_qb.push(" LIMIT ");
+    data_qb.push_bind(options.limit.unwrap_or(100));
+    data_qb.push(" OFFSET ");
+    data_qb.push_bind(options.offset.unwrap_or(0));
 
-    let limit = options.limit.unwrap_or(100);
-    let offset = options.offset.unwrap_or(0);
-    let data_query = format!(
-        "SELECT * FROM \"{}\".\"{}\"{}{} LIMIT {} OFFSET {}",
-        schema, table_name, where_clause, order_clause, limit, offset
-    );
-
-    let data_rows = sqlx::query(&data_query).fetch_all(pool).await?;
+    let data_rows = data_qb.build().fetch_all(pool).await?;
 
     let rows: Vec<Vec<serde_json::Value>> = data_rows
         .iter()
@@ -162,9 +166,7 @@ pub fn value_to_json(row: &sqlx::postgres::PgRow, column: &str) -> serde_json::V
             } else if let Ok(v) = row.try_get::<i32, _>(column) {
                 serde_json::Value::Number(v.into())
             } else if let Ok(v) = row.try_get::<f64, _>(column) {
-                serde_json::Number::from_f64(v)
-                    .map(serde_json::Value::Number)
-                    .unwrap_or(serde_json::Value::Null)
+                f64_to_json(v)
             } else if let Ok(v) = row.try_get::<String, _>(column) {
                 serde_json::Value::String(v)
             } else if let Ok(v) = row.try_get::<bool, _>(column) {

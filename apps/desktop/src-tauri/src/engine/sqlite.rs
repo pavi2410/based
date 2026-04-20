@@ -4,10 +4,11 @@
 use crate::error::Error;
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use sqlx::{Column, Row, SqlitePool, TypeInfo, ValueRef};
+use sqlx::{Column, QueryBuilder, Row, Sqlite, SqlitePool, TypeInfo, ValueRef};
 
-use super::filters::{build_sql_where_clause, order_clause_sql, parse_filters};
+use super::filters::{parse_filters, push_sql_order, push_sql_where, quote_ident};
 use super::types::{BrowseOptions, ColumnInfo, QueryResult};
+use super::values::{blob_marker, f64_to_json};
 
 /// User-visible SQLite object (table, view, index...).
 #[derive(Debug, Serialize, Deserialize, Type)]
@@ -19,16 +20,10 @@ pub async fn list_objects(
     pool: &SqlitePool,
     object_type: &str,
 ) -> Result<Vec<SQLiteObject>, Error> {
-    // `type` only ever takes values from a small static set emitted by
-    // the frontend (table / view / index / trigger); interpolating into
-    // the query is safe but the eventual `FilterAst` refactor will
-    // switch this to a bound parameter.
-    let query = format!(
-        "SELECT name FROM sqlite_schema WHERE type = '{}' ORDER BY name",
-        object_type
-    );
-
-    let rows = sqlx::query(&query).fetch_all(pool).await?;
+    let rows = sqlx::query("SELECT name FROM sqlite_schema WHERE type = ? ORDER BY name")
+        .bind(object_type)
+        .fetch_all(pool)
+        .await?;
 
     Ok(rows
         .iter()
@@ -41,9 +36,11 @@ pub async fn browse_table(
     table_name: &str,
     options: &BrowseOptions,
 ) -> Result<QueryResult, Error> {
-    let column_rows = sqlx::query(&format!("PRAGMA table_info('{}')", table_name))
-        .fetch_all(pool)
-        .await?;
+    // `PRAGMA` doesn't accept bind parameters, so we single-quote the
+    // table name and double any embedded `'`. Identifier quoting with
+    // `"..."` is not accepted by `PRAGMA table_info`.
+    let pragma_sql = format!("PRAGMA table_info('{}')", table_name.replace('\'', "''"));
+    let column_rows = sqlx::query(&pragma_sql).fetch_all(pool).await?;
 
     let columns: Vec<ColumnInfo> = column_rows
         .iter()
@@ -54,24 +51,27 @@ pub async fn browse_table(
         .collect();
 
     let filters = parse_filters(options.filters.as_deref());
-    let where_clause = build_sql_where_clause(&filters);
-    let order_clause = order_clause_sql(&options.order_by_column, &options.order_by_direction);
+    let quoted_table = quote_ident(table_name);
 
-    let count_query = format!(
-        "SELECT COUNT(*) as cnt FROM \"{}\"{}",
-        table_name, where_clause
+    let mut count_qb: QueryBuilder<Sqlite> = QueryBuilder::new("SELECT COUNT(*) as cnt FROM ");
+    count_qb.push(&quoted_table);
+    push_sql_where(&mut count_qb, &filters);
+    let total_count: i64 = count_qb.build().fetch_one(pool).await?.get("cnt");
+
+    let mut data_qb: QueryBuilder<Sqlite> = QueryBuilder::new("SELECT * FROM ");
+    data_qb.push(&quoted_table);
+    push_sql_where(&mut data_qb, &filters);
+    push_sql_order(
+        &mut data_qb,
+        &options.order_by_column,
+        &options.order_by_direction,
     );
-    let count_row = sqlx::query(&count_query).fetch_one(pool).await?;
-    let total_count: i64 = count_row.get("cnt");
+    data_qb.push(" LIMIT ");
+    data_qb.push_bind(options.limit.unwrap_or(100));
+    data_qb.push(" OFFSET ");
+    data_qb.push_bind(options.offset.unwrap_or(0));
 
-    let limit = options.limit.unwrap_or(100);
-    let offset = options.offset.unwrap_or(0);
-    let data_query = format!(
-        "SELECT * FROM \"{}\"{}{} LIMIT {} OFFSET {}",
-        table_name, where_clause, order_clause, limit, offset
-    );
-
-    let data_rows = sqlx::query(&data_query).fetch_all(pool).await?;
+    let data_rows = data_qb.build().fetch_all(pool).await?;
 
     let rows: Vec<Vec<serde_json::Value>> = data_rows
         .iter()
@@ -139,15 +139,13 @@ pub fn value_to_json(row: &sqlx::sqlite::SqliteRow, column: &str) -> serde_json:
             if let Ok(v) = row.try_get::<i64, _>(column) {
                 serde_json::Value::Number(v.into())
             } else if let Ok(v) = row.try_get::<f64, _>(column) {
-                serde_json::Number::from_f64(v)
-                    .map(serde_json::Value::Number)
-                    .unwrap_or(serde_json::Value::Null)
+                f64_to_json(v)
             } else if let Ok(v) = row.try_get::<String, _>(column) {
                 serde_json::Value::String(v)
             } else if let Ok(v) = row.try_get::<bool, _>(column) {
                 serde_json::Value::Bool(v)
             } else if let Ok(v) = row.try_get::<Vec<u8>, _>(column) {
-                serde_json::Value::String(format!("[BLOB: {} bytes]", v.len()))
+                blob_marker(v.len())
             } else {
                 serde_json::Value::Null
             }

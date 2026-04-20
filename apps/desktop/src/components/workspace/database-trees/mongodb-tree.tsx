@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { cmd } from "@/commands";
 import { useQuery } from "@tanstack/react-query";
 import { DatabaseIcon, ChevronRightIcon } from "lucide-react";
 import {
@@ -17,10 +17,6 @@ interface MongoDBDatabaseTreeProps {
   selectedTable?: string;
 }
 
-interface MongoCollection {
-  name: string;
-}
-
 export function MongoDBDatabaseTree({
   connKey,
   projectPath,
@@ -32,11 +28,7 @@ export function MongoDBDatabaseTree({
   const collectionsQuery = useQuery({
     queryKey: ["project-db-collections", projectPath, connKey],
     queryFn: async () => {
-      const collections = await invoke<MongoCollection[]>("get_mongodb_collections", {
-        projectPath,
-        connKey,
-      });
-      return collections;
+      return await cmd.getMongodbCollections(projectPath, connKey);
     },
     enabled: isOpen,
   });

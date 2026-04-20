@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { invoke } from "@tauri-apps/api/core";
+import { cmd } from "@/commands";
 import {
   PlayIcon,
   SaveIcon,
@@ -26,7 +26,7 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { toast } from "sonner";
-import type { SavedQuery, QueryResult, QueryParameter, Engine } from "@/types/project";
+import type { SavedQuery, Engine } from "@/types/project";
 import type { ColumnDef } from "@tanstack/react-table";
 
 interface QueryEditorProps {
@@ -54,7 +54,8 @@ export function QueryEditor({
   const [queryContent, setQueryContent] = useState("");
   const [description, setDescription] = useState("");
   const [favorite, setFavorite] = useState(false);
-  const [paramValues, setParamValues] = useState<Record<string, string | number | boolean>>({});
+  // TODO(phase2-params-history): surface param editor; currently defaults are captured but not used
+  const [, setParamValues] = useState<Record<string, string | number | boolean>>({});
   const [isDirty, setIsDirty] = useState(false);
 
   // For MongoDB
@@ -66,7 +67,7 @@ export function QueryEditor({
     queryKey: ["saved-query", projectPath, filename],
     queryFn: async () => {
       if (!filename) return null;
-      return await invoke<SavedQuery>("get_saved_query", { projectPath, filename });
+      return await cmd.getSavedQuery(projectPath, filename);
     },
     enabled: !!filename,
   });
@@ -90,7 +91,7 @@ export function QueryEditor({
       if (q.params) {
         const defaults: Record<string, string | number | boolean> = {};
         for (const [key, param] of Object.entries(q.params)) {
-          if (param.default !== undefined) {
+          if (param && param.default != null) {
             defaults[key] = param.default as string | number | boolean;
           }
         }
@@ -103,20 +104,16 @@ export function QueryEditor({
   const executeMutation = useMutation({
     mutationFn: async () => {
       if (engine === "mongodb") {
-        return await invoke<QueryResult>("execute_raw_mongo", {
+        return await cmd.executeRawMongo(
           projectPath,
-          connKey: connectionKey,
-          collection: mongoCollection,
-          queryType: mongoQueryType,
-          query: queryContent,
-        });
+          connectionKey,
+          mongoCollection,
+          mongoQueryType,
+          queryContent,
+        );
       } else {
         // TODO: Replace params in query
-        return await invoke<QueryResult>("execute_raw_sql", {
-          projectPath,
-          connKey: connectionKey,
-          query: queryContent,
-        });
+        return await cmd.executeRawSql(projectPath, connectionKey, queryContent);
       }
     },
     onError: (error) => {
@@ -139,26 +136,24 @@ export function QueryEditor({
       }
 
       const query: SavedQuery = {
-        filename: saveFilename,
         name: queryName,
         connection: connectionKey,
-        description: description || undefined,
+        description: description || null,
+        tags: null,
         favorite,
-        ...(engine === "mongodb"
-          ? {
-              mongo: {
+        params: null,
+        sql: engine === "mongodb" ? null : { query: queryContent },
+        mongo:
+          engine === "mongodb"
+            ? {
                 type: mongoQueryType,
-                ...(mongoQueryType === "find"
-                  ? { filter: queryContent }
-                  : { pipeline: queryContent }),
-              },
-            }
-          : {
-              sql: { query: queryContent },
-            }),
+                filter: mongoQueryType === "find" ? queryContent : null,
+                pipeline: mongoQueryType === "aggregate" ? queryContent : null,
+              }
+            : null,
       };
 
-      await invoke("save_query", { projectPath, filename: saveFilename, query });
+      await cmd.saveQuery(projectPath, saveFilename, query);
       return saveFilename;
     },
     onSuccess: (savedFilename) => {

@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
+use specta::Type;
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct ProjectConfig {
     pub version: u32,
     pub name: String,
@@ -10,7 +11,7 @@ pub struct ProjectConfig {
     pub settings: Option<ProjectSettings>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Engine {
     Sqlite,
@@ -19,7 +20,7 @@ pub enum Engine {
     Postgres,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(untagged)]
 pub enum SecretValue {
     Env { env: String },
@@ -48,7 +49,7 @@ impl SecretValue {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct ConnectionConfig {
     pub label: Option<String>,
     pub engine: Engine,
@@ -76,7 +77,7 @@ pub struct ConnectionConfig {
     pub ssl: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct ProjectSettings {
     #[serde(rename = "queryTimeout")]
     pub query_timeout: Option<u32>,
@@ -89,7 +90,7 @@ pub struct ProjectSettings {
 }
 
 /// Saved query file (.query.toml) structure
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct SavedQuery {
     /// Filename (not in TOML, added when reading)
     #[serde(skip)]
@@ -115,12 +116,12 @@ pub struct SavedQuery {
     pub mongo: Option<MongoQuery>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct SqlQuery {
     pub query: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct MongoQuery {
     #[serde(rename = "type")]
     pub query_type: MongoQueryType,
@@ -130,14 +131,14 @@ pub struct MongoQuery {
     pub pipeline: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "lowercase")]
 pub enum MongoQueryType {
     Find,
     Aggregate,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct QueryParameter {
     #[serde(rename = "type")]
     pub param_type: QueryParamType,
@@ -147,7 +148,7 @@ pub struct QueryParameter {
     pub options: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "lowercase")]
 pub enum QueryParamType {
     String,
@@ -158,7 +159,7 @@ pub enum QueryParamType {
 }
 
 /// Summary info for listing queries (without full content)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct QuerySummary {
     pub filename: String,
     pub name: String,

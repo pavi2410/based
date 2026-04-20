@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use specta::Type;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
@@ -9,7 +10,7 @@ use crate::project_types::Engine;
 
 /// A stable identifier for a database connection.
 /// Generated from (project_path, conn_key) using a hash function.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Type)]
 pub struct ConnectionId(String);
 
 impl ConnectionId {
@@ -54,7 +55,7 @@ impl From<String> for ConnectionId {
 }
 
 /// Metadata about a connection stored in the registry.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct ConnectionInfo {
     pub id: ConnectionId,
     pub project_path: String,

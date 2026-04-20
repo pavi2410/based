@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { invoke } from "@tauri-apps/api/core";
+import { cmd, type BrowseOptions } from "@/commands";
 import { useState, useEffect, useMemo } from "react";
 import {
   Loader2Icon,
@@ -23,12 +23,6 @@ import { DataTableFilter } from "@/components/data-table-filter/components/data-
 import { useDataTableFilters } from "@/components/data-table-filter/hooks/use-data-table-filters";
 import type { ColumnConfig, FiltersState } from "@/components/data-table-filter/core/types";
 import { dbTypeToFilterType, getFilterTypeIcon, type FilterParam } from "@/lib/filter-utils";
-
-interface QueryResult {
-  columns: { name: string; data_type: string }[];
-  rows: unknown[][];
-  total_count: number | null;
-}
 
 const PAGE_SIZE = 100;
 
@@ -109,45 +103,29 @@ function TableDataViewer({ selectedTable }: { selectedTable: string }) {
   const dataQuery = useQuery({
     queryKey: ["table-data", projectPath, connKey, objectKey, page, sorting, filterParams],
     queryFn: async () => {
-      const offset = page * PAGE_SIZE;
+      const options: BrowseOptions = {
+        limit: PAGE_SIZE,
+        offset: page * PAGE_SIZE,
+        orderByColumn: sorting[0]?.id ?? null,
+        orderByDirection: sorting[0] ? (sorting[0].desc ? "desc" : "asc") : null,
+        filters: filterParams.length > 0 ? JSON.stringify(filterParams) : null,
+      };
 
       switch (engine) {
         case "sqlite":
-          return await invoke<QueryResult>("query_sqlite_table", {
-            projectPath,
-            connKey,
-            tableName: selectedTable,
-            limit: PAGE_SIZE,
-            offset,
-            orderByColumn: sorting[0]?.id,
-            orderByDirection: sorting[0]?.desc ? "desc" : "asc",
-            filters: filterParams.length > 0 ? JSON.stringify(filterParams) : undefined,
-          });
+          return await cmd.querySqliteTable(projectPath, connKey, selectedTable, options);
 
         case "postgres":
-          return await invoke<QueryResult>("query_postgres_table", {
+          return await cmd.queryPostgresTable(
             projectPath,
             connKey,
-            schema: selectedSchema || "public",
-            tableName: selectedTable,
-            limit: PAGE_SIZE,
-            offset,
-            orderByColumn: sorting[0]?.id,
-            orderByDirection: sorting[0]?.desc ? "desc" : "asc",
-            filters: filterParams.length > 0 ? JSON.stringify(filterParams) : undefined,
-          });
+            selectedSchema || "public",
+            selectedTable,
+            options,
+          );
 
         case "mongodb":
-          return await invoke<QueryResult>("query_mongodb_collection", {
-            projectPath,
-            connKey,
-            collectionName: selectedTable,
-            limit: PAGE_SIZE,
-            offset,
-            orderByColumn: sorting[0]?.id,
-            orderByDirection: sorting[0]?.desc ? "desc" : "asc",
-            filters: filterParams.length > 0 ? JSON.stringify(filterParams) : undefined,
-          });
+          return await cmd.queryMongodbCollection(projectPath, connKey, selectedTable, options);
 
         default:
           throw new Error(`Unsupported engine: ${engine}`);

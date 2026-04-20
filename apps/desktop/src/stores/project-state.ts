@@ -2,7 +2,7 @@ import { atom } from "nanostores";
 import { persistentAtom } from "@nanostores/persistent";
 import { toast } from "sonner";
 import type { ProjectConfig } from "@/types/project";
-import { connectProjectDb, closeConnection } from "@/commands";
+import { cmd } from "@/commands";
 
 /**
  * Per-project state management using nanostores
@@ -83,7 +83,7 @@ export async function disconnectConnection() {
   // Close the backend connection if we have one
   if (projectPath && connKey) {
     try {
-      await closeConnection(projectPath, connKey);
+      await cmd.closeConnection(projectPath, connKey);
     } catch (error) {
       toast.error("Failed to disconnect", {
         description: error instanceof Error ? error.message : String(error),
@@ -131,7 +131,7 @@ export async function switchConnection(connKey: string): Promise<string | null> 
   const startTime = performance.now();
 
   try {
-    const connId = await connectProjectDb(projectPath, connKey);
+    const connId = await cmd.connectProjectDb(projectPath, connKey);
     const connectionTimeMs = Math.round(performance.now() - startTime);
     
     // Set connected state atomically

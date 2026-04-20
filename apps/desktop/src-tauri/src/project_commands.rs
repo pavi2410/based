@@ -29,6 +29,7 @@ pub enum ProjectError {
 
 /// Initialize a new Based project in the given directory
 #[command]
+#[specta::specta]
 pub async fn initialize_project(project_path: String) -> Result<(), String> {
     let based_dir = Path::new(&project_path).join(".based");
 
@@ -96,6 +97,7 @@ Thumbs.db
 
 /// Read and parse project config
 #[command]
+#[specta::specta]
 pub async fn read_project_config(project_path: String) -> Result<ProjectConfig, String> {
     let config_path = Path::new(&project_path).join(".based/config.toml");
 
@@ -114,6 +116,7 @@ pub async fn read_project_config(project_path: String) -> Result<ProjectConfig, 
 
 /// Write project config
 #[command]
+#[specta::specta]
 pub async fn write_project_config(
     project_path: String,
     config: ProjectConfig,
@@ -131,6 +134,7 @@ pub async fn write_project_config(
 
 /// List all saved queries in the project with summary info
 #[command]
+#[specta::specta]
 pub async fn list_saved_queries(project_path: String) -> Result<Vec<QuerySummary>, String> {
     let queries_path = Path::new(&project_path).join(".based/queries");
 
@@ -173,6 +177,7 @@ pub async fn list_saved_queries(project_path: String) -> Result<Vec<QuerySummary
 
 /// Read a saved query file
 #[command]
+#[specta::specta]
 pub async fn get_saved_query(
     project_path: String,
     filename: String,
@@ -195,6 +200,7 @@ pub async fn get_saved_query(
 
 /// Save a query file (create or update)
 #[command]
+#[specta::specta]
 pub async fn save_query(
     project_path: String,
     filename: String,
@@ -233,6 +239,7 @@ pub async fn save_query(
 
 /// Delete a saved query file
 #[command]
+#[specta::specta]
 pub async fn delete_saved_query(
     project_path: String,
     filename: String,

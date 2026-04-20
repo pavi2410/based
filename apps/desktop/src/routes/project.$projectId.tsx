@@ -8,7 +8,7 @@ import {
 } from "@/stores/project-state";
 import type { ProjectConfig } from "@/types/project";
 import { Loader2Icon } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
+import { cmd } from "@/commands";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
 import { TopBar } from "@/components/workspace/top-bar";
@@ -86,7 +86,7 @@ function ProjectLayout() {
       await loadProject(false);
 
       try {
-        await invoke("watch_project_config", { projectPath });
+        await cmd.watchProjectConfig(projectPath);
         unlisten = await listen("config-changed", async () => {
           await loadProject(true);
         });
@@ -99,8 +99,8 @@ function ProjectLayout() {
 
     return () => {
       unlisten?.();
-      invoke("unwatch_project_config").catch(console.error);
-      invoke("close_project_connections", { projectPath }).catch(console.error);
+      cmd.unwatchProjectConfig().catch(console.error);
+      cmd.closeProjectConnections(projectPath).catch(console.error);
     };
   }, [projectPath]);
 

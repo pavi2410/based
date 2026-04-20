@@ -4,6 +4,7 @@ use crate::error::Error;
 use crate::project_commands::read_project_config;
 use crate::project_types::{ConnectionConfig, Engine};
 use serde::{Deserialize, Serialize};
+use specta::Type;
 use sqlx::{Column, Row};
 use std::collections::HashMap;
 use tauri::State;
@@ -76,6 +77,7 @@ fn load_project_env(project_path: &str) -> HashMap<String, String> {
 /// Connect to a project database and return its connection ID.
 /// If already connected, returns the existing connection ID.
 #[tauri::command]
+#[specta::specta]
 pub async fn connect_project_db(
     project_path: String,
     conn_key: String,
@@ -122,6 +124,7 @@ pub async fn connect_project_db(
 
 /// Get connection info by ID.
 #[tauri::command]
+#[specta::specta]
 pub async fn get_connection_info(
     conn_id: String,
     registry: State<'_, ConnectionRegistry>,
@@ -136,12 +139,13 @@ pub async fn get_connection_info(
 // Database Object Query Commands
 // ============================================================================
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Type)]
 pub struct SQLiteObject {
     name: String,
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_sqlite_objects(
     project_path: String,
     conn_key: String,
@@ -182,12 +186,13 @@ pub async fn get_sqlite_objects(
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Type)]
 pub struct MongoDBCollection {
     name: String,
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_mongodb_collections(
     project_path: String,
     conn_key: String,
@@ -220,12 +225,13 @@ pub async fn get_mongodb_collections(
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Type)]
 pub struct PostgresSchema {
     name: String,
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_postgres_schemas(
     project_path: String,
     conn_key: String,
@@ -264,13 +270,14 @@ pub async fn get_postgres_schemas(
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Type)]
 pub struct PostgresTable {
     name: String,
     schema: String,
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_postgres_tables(
     project_path: String,
     conn_key: String,
@@ -317,6 +324,7 @@ pub async fn get_postgres_tables(
 
 /// Close a specific connection by project path and connection key.
 #[tauri::command]
+#[specta::specta]
 pub async fn close_connection(
     project_path: String,
     conn_key: String,
@@ -328,6 +336,7 @@ pub async fn close_connection(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn close_project_connections(
     project_path: String,
     registry: State<'_, ConnectionRegistry>,
@@ -341,21 +350,33 @@ pub async fn close_project_connections(
 // ============================================================================
 
 /// Result of a data query - rows with column info
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Type)]
 pub struct QueryResult {
     pub columns: Vec<ColumnInfo>,
     pub rows: Vec<Vec<serde_json::Value>>,
     pub total_count: Option<i64>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Type)]
 pub struct ColumnInfo {
     pub name: String,
     pub data_type: String,
 }
 
+/// Browse options for table/collection queries
+#[derive(Debug, Serialize, Deserialize, Clone, Default, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowseOptions {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+    pub order_by_column: Option<String>,
+    pub order_by_direction: Option<String>,
+    /// JSON string of FilterParam[]
+    pub filters: Option<String>,
+}
+
 /// Filter parameter from frontend
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FilterParam {
     pub column_id: String,
@@ -615,18 +636,22 @@ fn json_to_bson(val: &serde_json::Value) -> mongodb::bson::Bson {
 
 /// Query data from a SQLite table
 #[tauri::command]
+#[specta::specta]
 pub async fn query_sqlite_table(
     project_path: String,
     conn_key: String,
     table_name: String,
-    limit: Option<i64>,
-    offset: Option<i64>,
-    order_by_column: Option<String>,
-    order_by_direction: Option<String>,
-    filters: Option<String>,
+    options: BrowseOptions,
     registry: State<'_, ConnectionRegistry>,
     app: tauri::AppHandle,
 ) -> Result<QueryResult, Error> {
+    let BrowseOptions {
+        limit,
+        offset,
+        order_by_column,
+        order_by_direction,
+        filters,
+    } = options;
     let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
 
     let pools = registry.pools().await;
@@ -730,19 +755,23 @@ fn sqlite_value_to_json(row: &sqlx::sqlite::SqliteRow, column: &str) -> serde_js
 
 /// Query data from a PostgreSQL table
 #[tauri::command]
+#[specta::specta]
 pub async fn query_postgres_table(
     project_path: String,
     conn_key: String,
     schema: String,
     table_name: String,
-    limit: Option<i64>,
-    offset: Option<i64>,
-    order_by_column: Option<String>,
-    order_by_direction: Option<String>,
-    filters: Option<String>,
+    options: BrowseOptions,
     registry: State<'_, ConnectionRegistry>,
     app: tauri::AppHandle,
 ) -> Result<QueryResult, Error> {
+    let BrowseOptions {
+        limit,
+        offset,
+        order_by_column,
+        order_by_direction,
+        filters,
+    } = options;
     let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
 
     let pools = registry.pools().await;
@@ -865,18 +894,22 @@ fn postgres_value_to_json(row: &sqlx::postgres::PgRow, column: &str) -> serde_js
 
 /// Query data from a MongoDB collection
 #[tauri::command]
+#[specta::specta]
 pub async fn query_mongodb_collection(
     project_path: String,
     conn_key: String,
     collection_name: String,
-    limit: Option<i64>,
-    offset: Option<i64>,
-    order_by_column: Option<String>,
-    order_by_direction: Option<String>,
-    filters: Option<String>,
+    options: BrowseOptions,
     registry: State<'_, ConnectionRegistry>,
     app: tauri::AppHandle,
 ) -> Result<QueryResult, Error> {
+    let BrowseOptions {
+        limit,
+        offset,
+        order_by_column,
+        order_by_direction,
+        filters,
+    } = options;
     use mongodb::bson::doc;
     use futures::TryStreamExt;
 
@@ -1051,6 +1084,7 @@ async fn ensure_connection(
 
 /// Execute a raw SQL query (for SQLite and PostgreSQL)
 #[tauri::command]
+#[specta::specta]
 pub async fn execute_raw_sql(
     project_path: String,
     conn_key: String,
@@ -1170,6 +1204,7 @@ async fn execute_postgres_raw(
 
 /// Execute a raw MongoDB query (find or aggregate)
 #[tauri::command]
+#[specta::specta]
 pub async fn execute_raw_mongo(
     project_path: String,
     conn_key: String,

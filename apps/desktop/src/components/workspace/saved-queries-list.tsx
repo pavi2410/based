@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { invoke } from "@tauri-apps/api/core";
+import { cmd } from "@/commands";
 import { 
   FileTextIcon, 
   PlusIcon, 
@@ -30,7 +30,7 @@ export function SavedQueriesList({
   const queriesQuery = useQuery({
     queryKey: ["saved-queries", projectPath],
     queryFn: async () => {
-      return await invoke<QuerySummary[]>("list_saved_queries", { projectPath });
+      return await cmd.listSavedQueries(projectPath);
     },
   });
 

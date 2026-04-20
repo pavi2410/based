@@ -42,7 +42,7 @@ function ConnectionRow({ connKey, config, onConnect, isConnecting }: ConnectionR
       type="button"
       className="w-full flex items-center gap-4 px-4 py-3 rounded-lg border bg-muted/50 hover:bg-muted hover:border-primary/50 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
       onClick={() => onConnect(connKey)}
-      disabled={isConnecting || config.disabled}
+      disabled={isConnecting || config.disabled === true}
     >
       {engineIcon}
       <div className="flex-1 min-w-0">
@@ -104,6 +104,7 @@ export function ConnectionDashboard({ config, onConnect }: ConnectionDashboardPr
     const groups: Record<string, Array<{ key: string; config: ConnectionConfig }>> = {};
     
     for (const [key, connConfig] of Object.entries(config.connection)) {
+      if (!connConfig) continue;
       const group = connConfig.group || "other";
       if (!groups[group]) {
         groups[group] = [];

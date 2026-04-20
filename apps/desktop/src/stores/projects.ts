@@ -1,17 +1,17 @@
-import { invoke } from "@tauri-apps/api/core";
+import { cmd } from "@/commands";
 import type { ProjectConfig } from "../types/project";
 
 /**
  * Project store for managing Based projects
- * Handles project discovery, initialization, and configuration
+ * Thin wrappers over the typed `cmd` surface.
  */
 
 /**
- * Initialize a new Based project in the given directory
- * Creates .based/ structure with config.toml, .env.example, .gitignore
+ * Initialize a new Based project in the given directory.
+ * Creates .based/ structure with config.toml, .env.example, .gitignore.
  */
 export async function initializeProject(projectPath: string): Promise<void> {
-  await invoke("initialize_project", { projectPath });
+  await cmd.initializeProject(projectPath);
 }
 
 /**
@@ -20,7 +20,7 @@ export async function initializeProject(projectPath: string): Promise<void> {
 export async function readProjectConfig(
   projectPath: string,
 ): Promise<ProjectConfig> {
-  return await invoke("read_project_config", { projectPath });
+  return await cmd.readProjectConfig(projectPath);
 }
 
 /**
@@ -30,6 +30,5 @@ export async function writeProjectConfig(
   projectPath: string,
   config: ProjectConfig,
 ): Promise<void> {
-  await invoke("write_project_config", { projectPath, config });
+  await cmd.writeProjectConfig(projectPath, config);
 }
-

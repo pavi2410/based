@@ -25,6 +25,7 @@ impl Default for FileWatcherState {
 
 /// Start watching the project config file and env file for changes
 #[tauri::command]
+#[specta::specta]
 pub async fn watch_project_config(
     app_handle: AppHandle,
     project_path: String,
@@ -99,6 +100,7 @@ pub async fn watch_project_config(
 
 /// Stop watching the project config file
 #[tauri::command]
+#[specta::specta]
 pub async fn unwatch_project_config(
     state: tauri::State<'_, FileWatcherState>,
 ) -> Result<(), String> {

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { cmd } from "@/commands";
 import { useQuery } from "@tanstack/react-query";
 import { DatabaseIcon, TableIcon, ChevronRightIcon } from "lucide-react";
 import {
@@ -18,15 +18,6 @@ interface PostgresDatabaseTreeProps {
   selectedSchema?: string;
 }
 
-interface PostgresSchema {
-  name: string;
-}
-
-interface PostgresTable {
-  name: string;
-  schema: string;
-}
-
 export function PostgresDatabaseTree({
   connKey,
   projectPath,
@@ -39,11 +30,7 @@ export function PostgresDatabaseTree({
   const schemasQuery = useQuery({
     queryKey: ["project-pg-schemas", projectPath, connKey],
     queryFn: async () => {
-      const schemas = await invoke<PostgresSchema[]>("get_postgres_schemas", {
-        projectPath,
-        connKey,
-      });
-      return schemas;
+      return await cmd.getPostgresSchemas(projectPath, connKey);
     },
     enabled: isOpen,
   });
@@ -119,12 +106,7 @@ function PostgresSchemaGroup({
   const tablesQuery = useQuery({
     queryKey: ["project-pg-tables", projectPath, connKey, schema],
     queryFn: async () => {
-      const tables = await invoke<PostgresTable[]>("get_postgres_tables", {
-        projectPath,
-        connKey,
-        schema,
-      });
-      return tables;
+      return await cmd.getPostgresTables(projectPath, connKey, schema);
     },
     enabled: isOpen,
   });

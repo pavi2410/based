@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { cmd } from "@/commands";
 import { useQuery } from "@tanstack/react-query";
 import { TableIcon, Table2Icon, ListOrderedIcon, RefreshCcwIcon, ChevronRightIcon } from "lucide-react";
 import {
@@ -15,10 +15,6 @@ interface SQLiteDatabaseTreeProps {
   projectPath: string;
   onSelectTable?: (tableName: string, schema?: string) => void;
   selectedTable?: string;
-}
-
-interface SQLiteObject {
-  name: string;
 }
 
 export function SQLiteDatabaseTree({
@@ -98,13 +94,7 @@ function SQLiteObjectGroup({
   const objectQuery = useQuery({
     queryKey: ["project-db-objects", projectPath, connKey, type],
     queryFn: async () => {
-      // Call Tauri command to get objects for this connection
-      const objects = await invoke<SQLiteObject[]>("get_sqlite_objects", {
-        projectPath,
-        connKey,
-        objectType: type,
-      });
-      return objects;
+      return await cmd.getSqliteObjects(projectPath, connKey, type);
     },
     enabled: isOpen, // Only fetch when expanded
   });

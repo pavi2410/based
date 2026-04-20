@@ -14,7 +14,7 @@ import {
 import type { ConnectionConfig } from "@/types/project";
 
 interface ConnectionSelectorProps {
-  connections: Record<string, ConnectionConfig>;
+  connections: Partial<Record<string, ConnectionConfig>>;
   connKey: string | null;
   onConnectionChange: (connKey: string) => void;
   /** Compact mode for status bar */
@@ -43,7 +43,7 @@ export function ConnectionSelector({
 }: ConnectionSelectorProps) {
   // Group connections by group field, then by engine if no group
   const enabledConnections = Object.entries(connections)
-    .filter(([, conn]) => !conn.disabled)
+    .filter((entry): entry is [string, ConnectionConfig] => !!entry[1] && !entry[1].disabled)
     .map(([key, conn]) => ({ key, ...conn }));
 
   const groupedConnections = Object.groupBy(

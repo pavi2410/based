@@ -22,7 +22,7 @@ import { useCallback } from "react";
 import { cmd } from "@/commands";
 import type { JsonValue } from "@/bindings";
 import { queryKeys } from "@/lib/query-keys";
-import { useConnection } from "@/routes/project.$projectId/conn.$connKey";
+import { useWorkspace } from "@/hooks/use-workspace";
 import {
   $undoStack,
   pushUndoEntry,
@@ -56,10 +56,8 @@ export interface RowMutations {
 }
 
 export function useRowMutations(selectedTable: string | null): RowMutations {
-  const { connKey, connectionConfig, projectPath, selectedSchema } =
-    useConnection();
+  const { connKey, projectPath, selectedSchema, engine } = useWorkspace();
   const queryClient = useQueryClient();
-  const engine = connectionConfig.engine;
 
   const invalidate = useCallback(() => {
     // Both the browse query and the describe query are affected — we

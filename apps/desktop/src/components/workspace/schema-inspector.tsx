@@ -24,14 +24,11 @@ import {
 import { cmd } from "@/commands";
 import { Button } from "@/components/ui/button";
 import { queryKeys } from "@/lib/query-keys";
-import { useConnection } from "@/routes/project.$projectId/conn.$connKey";
+import { useWorkspace } from "@/hooks/use-workspace";
 import type { TableDescription } from "@/types/project";
 
 export function SchemaInspector({ selectedTable }: { selectedTable: string }) {
-  const { connKey, connectionConfig, projectPath, selectedSchema } =
-    useConnection();
-
-  const engine = connectionConfig.engine;
+  const { connKey, projectPath, selectedSchema, engine } = useWorkspace();
 
   const descriptionQuery = useQuery({
     queryKey: queryKeys.conn.tableDescribe(

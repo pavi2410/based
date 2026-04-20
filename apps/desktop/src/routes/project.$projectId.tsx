@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import { TopBar } from "@/components/workspace/top-bar";
 
 // Context to share project data with child routes
-interface ProjectContextValue {
+export interface ProjectContextValue {
   config: ProjectConfig;
   projectPath: string;
   projectId: string;

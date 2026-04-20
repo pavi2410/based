@@ -109,6 +109,10 @@ pub enum Error {
     ConnectionNotFound(String),
     #[error(transparent)]
     Project(#[from] ProjectError),
+    #[error("query cancelled")]
+    Cancelled,
+    #[error("query timed out after {0}ms")]
+    Timeout(u64),
 }
 
 impl From<String> for Error {

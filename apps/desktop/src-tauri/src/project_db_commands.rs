@@ -489,31 +489,95 @@ pub async fn execute_raw_sql(
     project_path: String,
     conn_key: String,
     query: String,
+    token: Option<String>,
+    timeout_ms: Option<u64>,
     registry: State<'_, ConnectionRegistry>,
     cache: State<'_, SchemaCache>,
+    queries: State<'_, QueryRegistry>,
     app: tauri::AppHandle,
 ) -> Result<QueryResult, Error> {
     let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
+
+    // Register with the query registry BEFORE acquiring the pool guard.
+    // The handle drops naturally with `finish_by_id` in the finally-
+    // style block below regardless of how the query resolves.
+    let cancel_handle = if let Some(ref t) = token {
+        Some(queries.register_with(t.clone()).await)
+    } else {
+        None
+    };
+
     let pools = registry.pools().await;
     let pool = pools
         .get(&conn_id)
         .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
-    let result = match pool {
-        ConnectionPool::Sqlite(p) => engine::sqlite::execute_raw(p, &query).await,
-        ConnectionPool::Postgres(p) => engine::postgres::execute_raw(p, &query).await,
-        ConnectionPool::Mongo(_) => {
-            return Err(Error::InvalidDbUrl(
+    let fut = async {
+        match pool {
+            ConnectionPool::Sqlite(p) => engine::sqlite::execute_raw(p, &query).await,
+            ConnectionPool::Postgres(p) => engine::postgres::execute_raw(p, &query).await,
+            ConnectionPool::Mongo(_) => Err(Error::InvalidDbUrl(
                 "Use execute_raw_mongo for MongoDB queries".to_string(),
-            ));
+            )),
         }
     };
+
+    let result = run_with_cancel(fut, cancel_handle.as_ref(), timeout_ms).await;
+
     drop(pools);
+    if let Some(ref t) = token {
+        queries.finish_by_id(t).await;
+    }
+
     // Raw SQL may have been DDL; we don't parse the statement so we
     // conservatively invalidate the whole connection's schema cache
     // rather than try to be clever. The cost is one extra describe
     // roundtrip on the next Structure view.
-    cache.invalidate_connection(&conn_id).await;
+    if result.is_ok() {
+        cache.invalidate_connection(&conn_id).await;
+    }
     result
+}
+
+/// Race a query future against cancellation + timeout.
+///
+/// Keeping this in a tiny helper means the two execute commands can
+/// share the same semantics without every call site reimplementing
+/// the `tokio::select!` dance. The ordering is important:
+///   1. If there's no cancellation handle the wrapper collapses to
+///      a timeout-only wait (or a plain `.await` if no timeout).
+///   2. Cancellation is checked via `handle.cancelled().await` which
+///      returns immediately if already cancelled, so a racing
+///      `cancel_query` that lands before we enter the select is still
+///      honoured.
+///   3. Dropping the inner future is how we actually free engine
+///      resources (sqlx / mongodb both respect future drop).
+async fn run_with_cancel<F>(
+    fut: F,
+    cancel: Option<&crate::query_registry::CancellationHandle>,
+    timeout_ms: Option<u64>,
+) -> Result<QueryResult, Error>
+where
+    F: std::future::Future<Output = Result<QueryResult, Error>>,
+{
+    use tokio::time::{Duration, timeout};
+    let inner = async {
+        match cancel {
+            Some(handle) => {
+                tokio::select! {
+                    r = fut => r,
+                    _ = handle.cancelled() => Err(Error::Cancelled),
+                }
+            }
+            None => fut.await,
+        }
+    };
+    match timeout_ms {
+        Some(ms) if ms > 0 => match timeout(Duration::from_millis(ms), inner).await {
+            Ok(r) => r,
+            Err(_) => Err(Error::Timeout(ms)),
+        },
+        _ => inner.await,
+    }
 }
 
 #[tauri::command]
@@ -524,20 +588,38 @@ pub async fn execute_raw_mongo(
     collection: String,
     query_type: String,
     query: String,
+    token: Option<String>,
+    timeout_ms: Option<u64>,
     registry: State<'_, ConnectionRegistry>,
+    queries: State<'_, QueryRegistry>,
     app: tauri::AppHandle,
 ) -> Result<QueryResult, Error> {
     let conn_id = ensure_connection(&project_path, &conn_key, &registry, app).await?;
+
+    let cancel_handle = if let Some(ref t) = token {
+        Some(queries.register_with(t.clone()).await)
+    } else {
+        None
+    };
+
     let pools = registry.pools().await;
     let pool = pools
         .get(&conn_id)
         .ok_or_else(|| Error::ConnectionNotFound(conn_id.clone()))?;
-    match pool {
-        ConnectionPool::Mongo(db) => {
-            engine::mongo::execute_raw(db, &collection, &query_type, &query).await
+    let fut = async {
+        match pool {
+            ConnectionPool::Mongo(db) => {
+                engine::mongo::execute_raw(db, &collection, &query_type, &query).await
+            }
+            _ => Err(expected("MongoDB")),
         }
-        _ => Err(expected("MongoDB")),
+    };
+    let result = run_with_cancel(fut, cancel_handle.as_ref(), timeout_ms).await;
+    drop(pools);
+    if let Some(ref t) = token {
+        queries.finish_by_id(t).await;
     }
+    result
 }
 
 // ---------------------------------------------------------------------------

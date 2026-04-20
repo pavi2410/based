@@ -96,15 +96,23 @@ impl QueryRegistry {
     /// to the UI) and the handle (to check cancellation mid-query).
     pub async fn register(&self) -> (QueryToken, CancellationHandle) {
         let token = QueryToken::new();
+        let handle = self.register_with(token.0.clone()).await;
+        (token, handle)
+    }
+
+    /// Register a query using a caller-supplied token id (typically
+    /// the UUID the frontend already generated before invoking
+    /// `execute_raw_*`). This is the path executors actually use so
+    /// the frontend can race a `cancel_query(token)` against an
+    /// in-flight execute without first doing a registration
+    /// round-trip.
+    pub async fn register_with(&self, token: String) -> CancellationHandle {
         let handle = CancellationHandle {
             flag: Arc::new(AtomicBool::new(false)),
             notify: Arc::new(Notify::new()),
         };
-        self.inner
-            .write()
-            .await
-            .insert(token.0.clone(), handle.clone());
-        (token, handle)
+        self.inner.write().await.insert(token, handle.clone());
+        handle
     }
 
     /// Cancel an in-flight query by token. No-op if the token is
@@ -124,6 +132,12 @@ impl QueryRegistry {
     /// whether the query succeeded, errored, or was cancelled.
     pub async fn finish(&self, token: &QueryToken) {
         self.inner.write().await.remove(&token.0);
+    }
+
+    /// Same as `finish` but accepts a raw string id, matching the
+    /// shape used by `register_with`.
+    pub async fn finish_by_id(&self, token: &str) {
+        self.inner.write().await.remove(token);
     }
 
     /// Count of active queries. Used by the status bar & tests.

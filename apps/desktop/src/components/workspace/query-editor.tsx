@@ -1,7 +1,18 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cmd } from "@/commands";
-import { PlayIcon, SaveIcon, StarIcon, Loader2Icon, XIcon } from "lucide-react";
+import {
+  PlayIcon,
+  SaveIcon,
+  StarIcon,
+  Loader2Icon,
+  XIcon,
+  SquareIcon,
+} from "lucide-react";
+import {
+  $pendingDraftQuery,
+  recordHistory,
+} from "@/stores/query-history-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,8 +60,7 @@ export function QueryEditor({
   const [queryContent, setQueryContent] = useState("");
   const [description, setDescription] = useState("");
   const [favorite, setFavorite] = useState(false);
-  // TODO(phase2-params-history): surface param editor; currently defaults are captured but not used
-  const [, setParamValues] = useState<
+  const [paramValues, setParamValues] = useState<
     Record<string, string | number | boolean>
   >({});
   const [isDirty, setIsDirty] = useState(false);
@@ -70,6 +80,19 @@ export function QueryEditor({
     },
     enabled: !!filename,
   });
+
+  // Initial content for new drafts: if there's a pending draft
+  // stashed in the store (e.g. from history replay or "duplicate
+  // query"), drain it exactly once.
+  useEffect(() => {
+    if (!isNewQuery) return;
+    const pending = $pendingDraftQuery.get();
+    if (pending) {
+      setQueryContent(pending);
+      setIsDirty(true);
+      $pendingDraftQuery.set(null);
+    }
+  }, [isNewQuery]);
 
   // Initialize state when query loads
   useEffect(() => {
@@ -99,24 +122,65 @@ export function QueryEditor({
     }
   }, [savedQueryQuery.data]);
 
+  // Currently-running query token. Held in a ref so the cancel
+  // handler can read the *latest* token without re-rendering — if it
+  // lived in state, the onClick closure would race and cancel an
+  // already-completed query in the worst case.
+  const activeTokenRef = useRef<string | null>(null);
+  const [executionTimeoutMs, setExecutionTimeoutMs] = useState<number>(0);
+
   // Execute query mutation
   const executeMutation = useMutation({
     mutationFn: async () => {
-      if (engine === "mongodb") {
-        return await cmd.executeRawMongo(
+      const token = crypto.randomUUID?.() ?? String(Math.random());
+      activeTokenRef.current = token;
+      const startedAt = performance.now();
+      const timeoutArg = executionTimeoutMs > 0 ? executionTimeoutMs : null;
+      try {
+        const result =
+          engine === "mongodb"
+            ? await cmd.executeRawMongo(
+                projectPath,
+                connectionKey,
+                mongoCollection,
+                mongoQueryType,
+                queryContent,
+                token,
+                timeoutArg,
+              )
+            : await cmd.executeRawSql(
+                projectPath,
+                connectionKey,
+                substitutedQuery,
+                token,
+                timeoutArg,
+              );
+        const duration = Math.round(performance.now() - startedAt);
+        recordHistory({
           projectPath,
-          connectionKey,
-          mongoCollection,
-          mongoQueryType,
-          queryContent,
-        );
-      } else {
-        // TODO: Replace params in query
-        return await cmd.executeRawSql(
+          connKey: connectionKey,
+          query: queryContent,
+          ranAt: Date.now(),
+          durationMs: duration,
+          rowCount: result.total_count ?? result.rows.length,
+        });
+        return result;
+      } catch (err) {
+        recordHistory({
           projectPath,
-          connectionKey,
-          queryContent,
-        );
+          connKey: connectionKey,
+          query: queryContent,
+          ranAt: Date.now(),
+          durationMs: null,
+          rowCount: null,
+          error:
+            err instanceof Error
+              ? err.message.slice(0, 500)
+              : String(err).slice(0, 500),
+        });
+        throw err;
+      } finally {
+        activeTokenRef.current = null;
       }
     },
     onError: (error) => {
@@ -125,6 +189,19 @@ export function QueryEditor({
       });
     },
   });
+
+  const handleCancel = useCallback(async () => {
+    const token = activeTokenRef.current;
+    if (!token) return;
+    try {
+      await cmd.cancelQuery(token);
+    } catch (err) {
+      // Silently ignore — cancel is best-effort. If the query already
+      // resolved before the cancel arrived, that's not a user-facing
+      // error.
+      console.warn("cancel_query failed", err);
+    }
+  }, []);
 
   // Save query mutation
   const saveMutation = useMutation({
@@ -178,6 +255,28 @@ export function QueryEditor({
     setQueryContent(value);
     setIsDirty(true);
   }, []);
+
+  /**
+   * Substitute `:name` placeholders with the current param values.
+   *
+   * Intentionally simple: this is client-side string templating, not
+   * real parameter binding, which means users should still treat
+   * param values as untrusted input at the review stage. Once we add
+   * a proper prepared-statement path this helper will be removed.
+   */
+  const substitutedQuery = useMemo(() => {
+    if (!savedQueryQuery.data?.params) return queryContent;
+    let sql = queryContent;
+    for (const [name, value] of Object.entries(paramValues)) {
+      const placeholder = new RegExp(`:${name}\\b`, "g");
+      const serialized =
+        typeof value === "string"
+          ? `'${value.replace(/'/g, "''")}'`
+          : String(value);
+      sql = sql.replace(placeholder, serialized);
+    }
+    return sql;
+  }, [queryContent, paramValues, savedQueryQuery.data?.params]);
 
   const handleExecute = () => {
     executeMutation.mutate();
@@ -282,6 +381,25 @@ export function QueryEditor({
 
         <div className="flex-1" />
 
+        <Select
+          value={String(executionTimeoutMs)}
+          onValueChange={(v) => setExecutionTimeoutMs(Number(v))}
+        >
+          <SelectTrigger
+            className="h-7 w-[100px] text-xs"
+            title="Query timeout"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="0">No timeout</SelectItem>
+            <SelectItem value="10000">10s</SelectItem>
+            <SelectItem value="30000">30s</SelectItem>
+            <SelectItem value="60000">1m</SelectItem>
+            <SelectItem value="300000">5m</SelectItem>
+          </SelectContent>
+        </Select>
+
         <Button
           variant="outline"
           size="sm"
@@ -297,19 +415,27 @@ export function QueryEditor({
           Save{isDirty ? " •" : ""}
         </Button>
 
-        <Button
-          size="sm"
-          className="h-7 text-xs"
-          onClick={handleExecute}
-          disabled={executeMutation.isPending || !queryContent.trim()}
-        >
-          {executeMutation.isPending ? (
-            <Loader2Icon className="size-3 mr-1 animate-spin" />
-          ) : (
+        {executeMutation.isPending ? (
+          <Button
+            size="sm"
+            variant="destructive"
+            className="h-7 text-xs"
+            onClick={handleCancel}
+          >
+            <SquareIcon className="size-3 mr-1" />
+            Cancel
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            className="h-7 text-xs"
+            onClick={handleExecute}
+            disabled={!queryContent.trim()}
+          >
             <PlayIcon className="size-3 mr-1" />
-          )}
-          Run
-        </Button>
+            Run
+          </Button>
+        )}
 
         {onClose && (
           <Button
@@ -327,6 +453,42 @@ export function QueryEditor({
       <ResizablePanelGroup direction="vertical" className="flex-1">
         <ResizablePanel defaultSize={50} minSize={20}>
           <div className="flex flex-col h-full">
+            {/* Params panel — only shown when the saved query
+                declares params. Values default to whatever the
+                saved-query TOML specified, so re-running a parameterized
+                query is still one click. */}
+            {savedQueryQuery.data?.params &&
+              Object.keys(savedQueryQuery.data.params).length > 0 && (
+                <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b bg-muted/10">
+                  {Object.entries(savedQueryQuery.data.params).map(
+                    ([name, param]) =>
+                      param ? (
+                        <div key={name} className="flex items-center gap-1.5">
+                          <Label className="text-xs font-mono">:{name}</Label>
+                          <Input
+                            value={String(paramValues[name] ?? "")}
+                            placeholder={
+                              param.description ?? String(param.default ?? "")
+                            }
+                            onChange={(e) =>
+                              setParamValues((prev) => ({
+                                ...prev,
+                                [name]:
+                                  param.type === "number"
+                                    ? Number(e.target.value)
+                                    : param.type === "boolean"
+                                      ? e.target.value === "true"
+                                      : e.target.value,
+                              }))
+                            }
+                            className="h-7 w-32 text-xs font-mono"
+                          />
+                        </div>
+                      ) : null,
+                  )}
+                </div>
+              )}
+
             {/* MongoDB-specific options */}
             {engine === "mongodb" && (
               <div className="flex items-center gap-3 px-3 py-2 border-b bg-muted/10">

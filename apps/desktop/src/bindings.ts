@@ -306,17 +306,17 @@ async deleteMongodbDocument(projectPath: string, connKey: string, collectionName
     else return { status: "error", error: e  as any };
 }
 },
-async executeRawSql(projectPath: string, connKey: string, query: string) : Promise<Result<QueryResult, string>> {
+async executeRawSql(projectPath: string, connKey: string, query: string, token: string | null, timeoutMs: number | null) : Promise<Result<QueryResult, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("execute_raw_sql", { projectPath, connKey, query }) };
+    return { status: "ok", data: await TAURI_INVOKE("execute_raw_sql", { projectPath, connKey, query, token, timeoutMs }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async executeRawMongo(projectPath: string, connKey: string, collection: string, queryType: string, query: string) : Promise<Result<QueryResult, string>> {
+async executeRawMongo(projectPath: string, connKey: string, collection: string, queryType: string, query: string, token: string | null, timeoutMs: number | null) : Promise<Result<QueryResult, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("execute_raw_mongo", { projectPath, connKey, collection, queryType, query }) };
+    return { status: "ok", data: await TAURI_INVOKE("execute_raw_mongo", { projectPath, connKey, collection, queryType, query, token, timeoutMs }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

@@ -8,6 +8,8 @@ import {
 } from "@/components/ui/tooltip";
 import { DatabaseTree } from "./database-tree";
 import { SavedQueriesList } from "./saved-queries-list";
+import { QueryHistoryList } from "./query-history-list";
+import { $pendingDraftQuery } from "@/stores/query-history-store";
 import { useConnection } from "@/routes/project.$projectId/conn.$connKey";
 
 interface WorkspaceSidebarProps {
@@ -62,12 +64,11 @@ export function WorkspaceSidebar({
               <TabsTrigger
                 value="history"
                 className="size-7 p-0 data-[state=active]:bg-muted"
-                disabled
               >
                 <HistoryIcon className="size-4" />
               </TabsTrigger>
             </TooltipTrigger>
-            <TooltipContent side="bottom">History (coming soon)</TooltipContent>
+            <TooltipContent side="bottom">History</TooltipContent>
           </Tooltip>
         </TabsList>
 
@@ -95,9 +96,14 @@ export function WorkspaceSidebar({
         </TabsContent>
 
         <TabsContent value="history" className="flex-1 m-0 mt-0">
-          <div className="flex items-center justify-center h-32 text-xs text-muted-foreground">
-            Coming soon
-          </div>
+          <QueryHistoryList
+            projectPath={projectPath}
+            connKey={connKey}
+            onSelect={(entry) => {
+              $pendingDraftQuery.set(entry.query);
+              onNewQuery?.();
+            }}
+          />
         </TabsContent>
       </Tabs>
     </div>

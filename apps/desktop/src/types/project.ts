@@ -27,6 +27,9 @@ export type {
   MongoDBCollection,
   PostgresSchema,
   PostgresTable,
+  ProjectAddress,
+  ConnectionAddress,
+  TabAddress,
 } from "@/bindings";
 
 /**

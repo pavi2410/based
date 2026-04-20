@@ -256,6 +256,11 @@ export type BrowseOptions = { limit: number | null; offset: number | null; order
  */
 filters: string | null }
 export type ColumnInfo = { name: string; data_type: string }
+/**
+ * Identifies a specific connection inside a project (by the user-visible
+ * key from `.based/config.toml`, e.g. `"dev"` or `"prod"`).
+ */
+export type ConnectionAddress = { project: ProjectAddress; conn_key: string }
 export type ConnectionConfig = { label: string | null; engine: Engine; group: string | null; disabled: boolean | null; order: number | null; color: string | null; icon: string | null; file: string | null; readonly: boolean | null; url?: SecretValue | null; host: string | null; port: number | null; database: string | null; username: string | null; password?: SecretValue | null; ssl: boolean | null }
 /**
  * A stable identifier for a database connection.
@@ -281,6 +286,11 @@ pipeline: string | null }
 export type MongoQueryType = "find" | "aggregate"
 export type PostgresSchema = { name: string }
 export type PostgresTable = { name: string; schema: string }
+/**
+ * Identifies a project on disk. Currently its absolute filesystem path;
+ * wrapped so we can swap in a stable ID later without touching callers.
+ */
+export type ProjectAddress = string
 export type ProjectConfig = { version: number; name: string; description: string | null; connection: Partial<{ [key in string]: ConnectionConfig }>; settings: ProjectSettings | null }
 export type ProjectSettings = { queryTimeout: number | null; maxResultRows: number | null; enableQueryCache: boolean | null; cacheTTL: number | null }
 export type QueryParamType = "string" | "number" | "date" | "boolean" | "select"
@@ -336,6 +346,23 @@ sql: SqlQuery | null;
 mongo: MongoQuery | null }
 export type SecretValue = { env: string } | { value: string } | { file: string } | string
 export type SqlQuery = { query: string }
+/**
+ * Identifies a workspace tab. The UI can address query tabs, table browse
+ * tabs, and pinned inspector tabs uniformly.
+ */
+export type TabAddress = 
+/**
+ * A SQL / MongoDB query tab. `id` is a UI-owned identifier (e.g. nanoid).
+ */
+{ kind: "query"; connection: ConnectionAddress; id: string } | 
+/**
+ * A table/collection browse tab.
+ */
+{ kind: "table"; connection: ConnectionAddress; schema: string | null; name: string } | 
+/**
+ * A schema-inspector tab for a single object.
+ */
+{ kind: "inspector"; connection: ConnectionAddress; schema: string | null; name: string }
 
 /** tauri-specta globals **/
 

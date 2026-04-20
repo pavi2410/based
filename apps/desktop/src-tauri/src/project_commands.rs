@@ -1,31 +1,14 @@
 use crate::project_types::*;
-use crate::variables::VariableError;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use tauri::command;
-use thiserror::Error;
 use walkdir::WalkDir;
 
-#[derive(Error, Debug)]
-pub enum ProjectError {
-    #[error("IO error: {0}")]
-    IoError(#[from] std::io::Error),
-    #[error("TOML parse error: {0}")]
-    TomlParseError(#[from] toml::de::Error),
-    #[error("TOML serialize error: {0}")]
-    TomlSerializeError(#[from] toml::ser::Error),
-    #[error("YAML parse error: {0}")]
-    YamlParseError(#[from] serde_yaml::Error),
-    #[error("Variable resolution error: {0}")]
-    VariableError(#[from] VariableError),
-    #[error("Connection not found: {0}")]
-    ConnectionNotFound(String),
-    #[error("Project not initialized at: {0}")]
-    ProjectNotInitialized(String),
-    #[error("Invalid frontmatter: {0}")]
-    InvalidFrontmatter(String),
-}
+// Structured error types for project operations live in `crate::error`
+// (see `ProjectError` there). The commands below still return
+// `Result<T, String>` for IPC compatibility, but callers inside the
+// backend should prefer `crate::error::ProjectError` / `AppError`.
 
 /// Initialize a new Based project in the given directory
 #[command]

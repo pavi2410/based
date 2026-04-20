@@ -1,3 +1,4 @@
+mod address;
 mod connection_id;
 mod connection_pool;
 mod connectors;
@@ -38,6 +39,13 @@ fn ts_exporter() -> specta_typescript::Typescript {
 /// without spinning up Tauri's event loop.
 pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
+        // Canonical address types shared by every workspace-scoped
+        // command. Exported even if no command currently references them
+        // directly so the frontend can use them as the single source of
+        // truth for "where am I looking" identifiers.
+        .typ::<crate::address::ProjectAddress>()
+        .typ::<crate::address::ConnectionAddress>()
+        .typ::<crate::address::TabAddress>()
         .commands(tauri_specta::collect_commands![
             initialize_project,
             read_project_config,

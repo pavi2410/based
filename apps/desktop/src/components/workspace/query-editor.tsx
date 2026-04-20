@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cmd } from "@/commands";
 import { PlayIcon, SaveIcon, StarIcon, Loader2Icon, XIcon } from "lucide-react";
@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CodeEditor } from "@/components/code-editor";
+import { CodeEditor, type SqlSchema } from "@/components/code-editor";
 import { DataTable } from "@/components/data-table";
 import {
   ResizableHandle,
@@ -191,6 +191,48 @@ export function QueryEditor({
     saveMutation.mutate();
   };
 
+  // Build a SQL autocomplete schema from whatever we already have in
+  // the React Query cache. We deliberately do NOT kick off a fresh
+  // describe request here: the tree/sidebar populates the cache for
+  // tables the user has browsed, and that's enough for the common
+  // "type FROM, hit Tab" flow. The cache lookup is cheap and doesn't
+  // introduce new N+1 request storms.
+  const sqlSchema: SqlSchema | undefined = useMemo(() => {
+    if (engine === "mongodb") return undefined;
+    const schema: SqlSchema = {};
+    const caches = queryClient.getQueriesData<unknown>({
+      queryKey: queryKeys.conn.all(projectPath, connectionKey),
+    });
+    for (const [, data] of caches) {
+      if (!data) continue;
+      // SQLite objects: { name, type, ... }[]
+      if (Array.isArray(data)) {
+        for (const item of data as Array<{ name?: unknown }>) {
+          if (
+            item &&
+            typeof item === "object" &&
+            typeof item.name === "string"
+          ) {
+            schema[item.name] ??= [];
+          }
+        }
+      }
+      // Postgres tables: [{ schema, name }][]; also handled by the loop above.
+      // Postgres tableDescribe: { columns: [{ name }], ... } — capture columns too.
+      if (
+        data &&
+        typeof data === "object" &&
+        "columns" in data &&
+        "name" in data &&
+        typeof (data as { name: unknown }).name === "string"
+      ) {
+        const d = data as { name: string; columns: Array<{ name: string }> };
+        schema[d.name] = d.columns.map((c) => c.name);
+      }
+    }
+    return Object.keys(schema).length > 0 ? schema : undefined;
+  }, [engine, queryClient, projectPath, connectionKey]);
+
   // Build columns for results
   const resultColumns: ColumnDef<Record<string, unknown>>[] =
     executeMutation.data?.columns.map((col) => ({
@@ -323,6 +365,10 @@ export function QueryEditor({
                 value={queryContent}
                 onChange={handleContentChange}
                 language={language}
+                engine={engine}
+                sqlSchema={sqlSchema}
+                onRun={handleExecute}
+                onSave={handleSave}
                 className="h-full"
                 placeholder={
                   engine === "mongodb"

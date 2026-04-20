@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { WindowShell } from "@/components/window/window-shell";
+import { CommandPalette } from "@/components/command-palette";
 // Import the generated route tree
 import { routeTree } from "./routeTree.gen";
 import "./index.css";
@@ -34,7 +35,14 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-        {isChildWindow ? <WindowShell /> : <RouterProvider router={router} />}
+        {isChildWindow ? (
+          <WindowShell />
+        ) : (
+          <>
+            <RouterProvider router={router} />
+            <CommandPalette />
+          </>
+        )}
         <Toaster />
       </ThemeProvider>
     </QueryClientProvider>

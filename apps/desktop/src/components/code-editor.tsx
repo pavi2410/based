@@ -1,8 +1,13 @@
 import CodeMirror from "@uiw/react-codemirror";
-import { sql } from "@codemirror/lang-sql";
+import { sql, PostgreSQL, SQLite, StandardSQL } from "@codemirror/lang-sql";
 import { json } from "@codemirror/lang-json";
+import { keymap } from "@codemirror/view";
 import { vscodeDark } from "@uiw/codemirror-theme-vscode";
+import { useMemo } from "react";
 import { useTheme } from "@/components/theme-provider";
+import type { Engine } from "@/types/project";
+
+export type SqlSchema = Record<string, string[]>;
 
 export interface CodeEditorProps {
   value: string;
@@ -10,6 +15,28 @@ export interface CodeEditorProps {
   language: "sql" | "json";
   className?: string;
   placeholder?: string;
+  /**
+   * SQL dialect hint. Selects the right keywords/identifier quoting for
+   * completion; ignored for JSON.
+   */
+  engine?: Engine;
+  /**
+   * Map of `table -> column[]` used to drive CodeMirror's SQL
+   * autocomplete. When provided the user gets schema-aware completion
+   * for `SELECT * FROM <Tab>` and `table.<Tab>` style access.
+   */
+  sqlSchema?: SqlSchema;
+  /**
+   * Invoked when the user hits `Mod-Enter` inside the editor. Wired
+   * through CodeMirror's keymap so it fires regardless of DOM focus
+   * nesting (e.g. when the editor is inside a dialog).
+   */
+  onRun?: () => void;
+  /**
+   * Invoked when the user hits `Mod-s`. Prevents the browser "save
+   * page" action.
+   */
+  onSave?: () => void;
 }
 
 export function CodeEditor({
@@ -18,6 +45,10 @@ export function CodeEditor({
   language,
   className,
   placeholder,
+  engine,
+  sqlSchema,
+  onRun,
+  onSave,
   ...props
 }: CodeEditorProps) {
   const { theme } = useTheme();
@@ -26,22 +57,49 @@ export function CodeEditor({
     (theme === "system" &&
       window.matchMedia("(prefers-color-scheme: dark)").matches);
 
-  const getLanguageExtension = () => {
-    switch (language) {
-      case "sql":
-        return sql();
-      case "json":
-        return json();
-      default:
-        return sql();
-    }
-  };
+  const extensions = useMemo(() => {
+    const base =
+      language === "json"
+        ? [json()]
+        : [
+            sql({
+              dialect:
+                engine === "postgres"
+                  ? PostgreSQL
+                  : engine === "sqlite"
+                    ? SQLite
+                    : StandardSQL,
+              schema: sqlSchema,
+              upperCaseKeywords: true,
+            }),
+          ];
+
+    const shortcuts = keymap.of([
+      {
+        key: "Mod-Enter",
+        preventDefault: true,
+        run: () => {
+          onRun?.();
+          return true;
+        },
+      },
+      {
+        key: "Mod-s",
+        preventDefault: true,
+        run: () => {
+          onSave?.();
+          return true;
+        },
+      },
+    ]);
+    return [...base, shortcuts];
+  }, [language, engine, sqlSchema, onRun, onSave]);
 
   return (
     <CodeMirror
       value={value}
       onChange={onChange}
-      extensions={[getLanguageExtension()]}
+      extensions={extensions}
       theme={isDark ? vscodeDark : "light"}
       className={className}
       placeholder={placeholder}

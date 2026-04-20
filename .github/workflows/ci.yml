@@ -34,6 +34,9 @@ jobs:
       - name: Build
         run: bunx --bun vite build
 
+      - name: Unit tests
+        run: bunx --bun vitest run
+
       # Phase 0 runs formatter-only Biome to keep CI green while Phase 1
       # incrementally cleans up the pre-existing lint backlog (organizeImports,
       # a11y/useButtonType, useExhaustiveDependencies). Switch back to

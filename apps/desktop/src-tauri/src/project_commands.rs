@@ -376,4 +376,42 @@ query = "SELECT * FROM orders WHERE order_date > date('now', '-' || $days || ' d
         assert!(query.sql.is_some());
         assert!(query.params.is_some());
     }
+
+    #[tokio::test]
+    async fn test_create_sample_project_scaffolds_files() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let parent = tmp.path().to_str().unwrap().to_string();
+        let name = "sample-check".to_string();
+
+        let created = create_sample_project(parent.clone(), name.clone())
+            .await
+            .expect("create_sample_project");
+        let created_path = Path::new(&created);
+
+        assert!(created_path.join(".based").join("config.toml").exists());
+        assert!(created_path.join("sample.db").exists());
+
+        let cfg = read_project_config(created.clone()).await.expect("read cfg");
+        assert_eq!(cfg.name, name);
+        let conn = cfg.connection.get("sample").expect("sample connection");
+        assert!(matches!(conn.engine, Engine::Sqlite));
+        assert_eq!(conn.file.as_deref(), Some("sample.db"));
+    }
+
+    #[tokio::test]
+    async fn test_create_sample_project_refuses_nonempty_dir() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let parent = tmp.path().to_str().unwrap().to_string();
+        let name = "dup".to_string();
+
+        // Seed a file in the destination so it's non-empty.
+        let dest = Path::new(&parent).join(&name);
+        fs::create_dir_all(&dest).unwrap();
+        fs::write(dest.join("marker"), "hi").unwrap();
+
+        let err = create_sample_project(parent, name)
+            .await
+            .expect_err("expected failure on non-empty dir");
+        assert!(err.contains("not empty"));
+    }
 }

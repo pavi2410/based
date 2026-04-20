@@ -106,10 +106,6 @@ async unwatchProjectConfig() : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Connect to a project database and return its connection ID.
- * If already connected, returns the existing connection ID.
- */
 async connectProjectDb(projectPath: string, connKey: string) : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("connect_project_db", { projectPath, connKey }) };
@@ -118,9 +114,6 @@ async connectProjectDb(projectPath: string, connKey: string) : Promise<Result<st
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Get connection info by ID.
- */
 async getConnectionInfo(connId: string) : Promise<Result<ConnectionInfo, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_connection_info", { connId }) };
@@ -161,9 +154,6 @@ async getPostgresTables(projectPath: string, connKey: string, schema: string) : 
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Close a specific connection by project path and connection key.
- */
 async closeConnection(projectPath: string, connKey: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("close_connection", { projectPath, connKey }) };
@@ -180,9 +170,6 @@ async closeProjectConnections(projectPath: string) : Promise<Result<null, string
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Query data from a SQLite table
- */
 async querySqliteTable(projectPath: string, connKey: string, tableName: string, options: BrowseOptions) : Promise<Result<QueryResult, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_sqlite_table", { projectPath, connKey, tableName, options }) };
@@ -191,9 +178,6 @@ async querySqliteTable(projectPath: string, connKey: string, tableName: string, 
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Query data from a PostgreSQL table
- */
 async queryPostgresTable(projectPath: string, connKey: string, schema: string, tableName: string, options: BrowseOptions) : Promise<Result<QueryResult, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_postgres_table", { projectPath, connKey, schema, tableName, options }) };
@@ -202,9 +186,6 @@ async queryPostgresTable(projectPath: string, connKey: string, schema: string, t
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Query data from a MongoDB collection
- */
 async queryMongodbCollection(projectPath: string, connKey: string, collectionName: string, options: BrowseOptions) : Promise<Result<QueryResult, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_mongodb_collection", { projectPath, connKey, collectionName, options }) };
@@ -213,9 +194,6 @@ async queryMongodbCollection(projectPath: string, connKey: string, collectionNam
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Execute a raw SQL query (for SQLite and PostgreSQL)
- */
 async executeRawSql(projectPath: string, connKey: string, query: string) : Promise<Result<QueryResult, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("execute_raw_sql", { projectPath, connKey, query }) };
@@ -224,9 +202,6 @@ async executeRawSql(projectPath: string, connKey: string, query: string) : Promi
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Execute a raw MongoDB query (find or aggregate)
- */
 async executeRawMongo(projectPath: string, connKey: string, collection: string, queryType: string, query: string) : Promise<Result<QueryResult, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("execute_raw_mongo", { projectPath, connKey, collection, queryType, query }) };
@@ -282,11 +257,16 @@ async closeWindow(label: string) : Promise<Result<null, string>> {
 /** user-defined types **/
 
 /**
- * Browse options for table/collection queries
+ * Paginated / filtered browse parameters. Consolidated so every engine
+ * command takes exactly this type and stays under tauri-specta's
+ * 10-argument command limit.
  */
 export type BrowseOptions = { limit: number | null; offset: number | null; orderByColumn: string | null; orderByDirection: string | null; 
 /**
- * JSON string of FilterParam[]
+ * JSON-encoded `Vec<FilterParam>`. Kept as a string (rather than a
+ * typed `Vec<FilterParam>`) so the UI's filter DSL can evolve
+ * without forcing a binding regen every time. Phase 1 todo 2
+ * replaces this with a proper `FilterAst` type.
  */
 filters: string | null }
 export type ColumnInfo = { name: string; data_type: string }
@@ -334,13 +314,17 @@ export type QueryParameter = { type: QueryParamType; default: JsonValue | null; 
  */
 options: string[] | null }
 /**
- * Result of a data query - rows with column info
+ * Result of a data query – rows plus column info plus an optional total
+ * row count (for pagination UIs).
  */
 export type QueryResult = { columns: ColumnInfo[]; rows: JsonValue[][]; total_count: number | null }
 /**
  * Summary info for listing queries (without full content)
  */
 export type QuerySummary = { filename: string; name: string; connection: string; description: string | null; tags: string[] | null; favorite: boolean | null }
+/**
+ * User-visible SQLite object (table, view, index...).
+ */
 export type SQLiteObject = { name: string }
 /**
  * Saved query file (.query.toml) structure

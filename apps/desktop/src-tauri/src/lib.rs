@@ -2,6 +2,7 @@ mod address;
 mod connection_id;
 mod connection_pool;
 mod connectors;
+mod engine;
 mod error;
 mod file_watcher;
 mod project_commands;

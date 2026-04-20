@@ -60,7 +60,6 @@ pub struct ConnectionConfig {
     pub readonly: Option<bool>,
 
     // MongoDB fields
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<SecretValue>,
 
     // PostgreSQL fields
@@ -68,7 +67,6 @@ pub struct ConnectionConfig {
     pub port: Option<u16>,
     pub database: Option<String>,
     pub username: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub password: Option<SecretValue>,
     pub ssl: Option<bool>,
 }

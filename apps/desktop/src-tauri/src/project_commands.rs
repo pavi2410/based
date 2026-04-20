@@ -131,7 +131,12 @@ Thumbs.db
 #[specta::specta]
 pub async fn create_sample_project(parent_dir: String, name: String) -> Result<String, String> {
     let project_path = Path::new(&parent_dir).join(&name);
-    if project_path.exists() && project_path.read_dir().map(|mut d| d.next().is_some()).unwrap_or(false) {
+    if project_path.exists()
+        && project_path
+            .read_dir()
+            .map(|mut d| d.next().is_some())
+            .unwrap_or(false)
+    {
         return Err(format!(
             "Destination {} is not empty; pick a different name.",
             project_path.display()
@@ -391,7 +396,9 @@ query = "SELECT * FROM orders WHERE order_date > date('now', '-' || $days || ' d
         assert!(created_path.join(".based").join("config.toml").exists());
         assert!(created_path.join("sample.db").exists());
 
-        let cfg = read_project_config(created.clone()).await.expect("read cfg");
+        let cfg = read_project_config(created.clone())
+            .await
+            .expect("read cfg");
         assert_eq!(cfg.name, name);
         let conn = cfg.connection.get("sample").expect("sample connection");
         assert!(matches!(conn.engine, Engine::Sqlite));

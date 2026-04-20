@@ -157,10 +157,7 @@ impl Serialize for Error {
 
 // Error serializes to string at the IPC boundary, so specta sees it as String.
 impl specta::Type for Error {
-    fn inline(_: &mut specta::TypeMap, _: specta::Generics) -> specta::DataType {
-        String::inline(
-            &mut specta::TypeMap::default(),
-            specta::Generics::Definition,
-        )
+    fn definition(types: &mut specta::Types) -> specta::datatype::DataType {
+        String::definition(types)
     }
 }

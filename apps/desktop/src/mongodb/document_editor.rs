@@ -1,4 +1,4 @@
-// mongodb::document_editor — replace / patch document by _id (JSON).
+// mongodb::document_editor — insert / replace documents via JSON (multiline editor).
 
 use gpui::{prelude::*, *};
 use gpui_component::{
@@ -6,63 +6,150 @@ use gpui_component::{
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,
+    input::{Input, InputState},
     menu::PopupMenu,
     v_flex,
 };
 use mongodb::Collection;
 use mongodb::bson::Document;
+use mongodb::bson::doc;
 
-use crate::mongodb::mutations::{document_from_json, replace_by_id};
+use crate::mongodb::mutations::document_from_json;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum EditorMode {
+    Insert,
+    Edit,
+}
+
+fn document_to_pretty_json(doc: &Document) -> String {
+    serde_json::to_value(doc)
+        .ok()
+        .and_then(|v| serde_json::to_string_pretty(&v).ok())
+        .unwrap_or_else(|| "{\n  \n}".to_string())
+}
 
 pub struct DocumentEditorPanel {
     focus_handle: FocusHandle,
     collection: Collection<Document>,
-    id: String,
-    body: String,
+    mode: EditorMode,
+    json_input: Entity<InputState>,
+    /// When editing, the loaded document (used for `_id` on replace).
+    original: Option<Document>,
+    error: Option<String>,
     status: SharedString,
 }
 
 impl DocumentEditorPanel {
-    pub fn new(
+    pub fn new_insert(
         collection: Collection<Document>,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        Self {
+        let json_input = cx.new(|cx| InputState::new(window, cx).multi_line(true));
+        let panel = Self {
             focus_handle: cx.focus_handle(),
             collection,
-            id: String::new(),
-            body: String::from("{ }"),
-            status: SharedString::from(""),
-        }
+            mode: EditorMode::Insert,
+            json_input,
+            original: None,
+            error: None,
+            status: SharedString::default(),
+        };
+        panel.json_input.update(cx, |state, cx| {
+            state.set_value("{\n  \n}", window, cx);
+        });
+        panel
     }
 
-    fn save_replace(&mut self, cx: &mut Context<Self>) {
-        let id = self.id.clone();
-        let body = self.body.clone();
+    pub fn new_edit(
+        collection: Collection<Document>,
+        doc: Document,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let json_input = cx.new(|cx| InputState::new(window, cx).multi_line(true));
+        let pretty = document_to_pretty_json(&doc);
+        let panel = Self {
+            focus_handle: cx.focus_handle(),
+            collection,
+            mode: EditorMode::Edit,
+            json_input,
+            original: Some(doc),
+            error: None,
+            status: SharedString::default(),
+        };
+        panel.json_input.update(cx, |state, cx| {
+            state.set_value(pretty, window, cx);
+        });
+        panel
+    }
+
+    /// Kept for callers that open an editor without a pre-loaded document (same as insert).
+    pub fn new(
+        collection: Collection<Document>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        Self::new_insert(collection, window, cx)
+    }
+
+    fn save(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+        let text = self.json_input.read(cx).value().to_string();
+        let mut doc = match document_from_json(&text) {
+            Ok(d) => d,
+            Err(e) => {
+                self.error = Some(e.to_string());
+                self.status = SharedString::default();
+                cx.notify();
+                return;
+            }
+        };
+
+        self.error = None;
+        self.status = SharedString::from("Saving…");
+        cx.notify();
+
         let coll = self.collection.clone();
+        let mode = self.mode;
+        let original = self.original.clone();
+
         cx.spawn(async move |this, cx| {
-            let doc = match document_from_json(&body) {
-                Ok(d) => d,
-                Err(e) => {
-                    let _ = cx.update(|cx| {
-                        this.update(cx, |p, cx| {
-                            p.status = format!("parse error: {e}").into();
-                            cx.notify();
-                        })
-                    });
-                    return;
+            let outcome = crate::db::run(cx, async move {
+                match mode {
+                    EditorMode::Insert => {
+                        coll.insert_one(doc, None)
+                            .await
+                            .map_err(|e| anyhow::anyhow!(e))?;
+                    }
+                    EditorMode::Edit => {
+                        let id = original
+                            .as_ref()
+                            .and_then(|o| o.get("_id"))
+                            .cloned()
+                            .ok_or_else(|| anyhow::anyhow!("missing _id on original document"))?;
+                        doc.insert("_id", id.clone());
+                        coll.replace_one(doc! { "_id": id }, doc, None)
+                            .await
+                            .map_err(|e| anyhow::anyhow!(e))?;
+                    }
                 }
-            };
-            let r = crate::db::run(cx, async move { replace_by_id(&coll, &id, doc).await }).await;
-            let _ = cx.update(|cx| {
-                this.update(cx, |p, cx| {
-                    p.status = match r {
-                        Ok(n) => format!("replaced, modified: {n}").into(),
-                        Err(e) => format!("error: {e}").into(),
-                    };
-                    cx.notify();
-                })
+                Ok::<(), anyhow::Error>(())
+            })
+            .await;
+
+            let _ = this.update(cx, |panel, cx| {
+                match outcome {
+                    Ok(()) => {
+                        panel.status = SharedString::from("Saved.");
+                        panel.error = None;
+                    }
+                    Err(e) => {
+                        panel.status = SharedString::default();
+                        panel.error = Some(format!("{e:#}"));
+                    }
+                }
+                cx.notify();
             });
         })
         .detach();
@@ -96,62 +183,95 @@ impl Panel for DocumentEditorPanel {
     }
 
     fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        format!("Edit — {}", self.collection.name())
+        match self.mode {
+            EditorMode::Insert => format!("Insert — {}", self.collection.name()),
+            EditorMode::Edit => format!("Edit — {}", self.collection.name()),
+        }
     }
 }
 
 impl Render for DocumentEditorPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let border = cx.theme().border;
-        let id_disp: SharedString = self.id.clone().into();
-        let body_disp: SharedString = self.body.clone().into();
+        let danger = cx.theme().danger;
+        let mode_label = match self.mode {
+            EditorMode::Insert => "Insert document",
+            EditorMode::Edit => "Edit document",
+        };
+
+        let error_row = self.error.as_ref().map(|err| {
+            div()
+                .px_3()
+                .py_2()
+                .text_xs()
+                .text_color(danger)
+                .child(err.clone())
+        });
 
         v_flex()
             .size_full()
             .gap_2()
-            .p_2()
             .child(
-                div()
-                    .text_xs()
-                    .text_color(cx.theme().muted_foreground)
-                    .child("_id"),
+                h_flex()
+                    .p_2()
+                    .gap_2()
+                    .items_center()
+                    .border_b_1()
+                    .border_color(border)
+                    .child(
+                        div()
+                            .flex_1()
+                            .text_sm()
+                            .text_color(cx.theme().muted_foreground)
+                            .child(mode_label),
+                    )
+                    .child(
+                        Button::new("mongo-save-doc")
+                            .primary()
+                            .label("Save")
+                            .on_click(cx.listener(|p, _, window, cx| p.save(window, cx))),
+                    ),
             )
+            .when_some(error_row, |v, row| v.child(row))
+            .when(!self.status.is_empty(), |v| {
+                v.child(
+                    div()
+                        .px_3()
+                        .text_xs()
+                        .text_color(cx.theme().muted_foreground)
+                        .child(self.status.clone()),
+                )
+            })
             .child(
                 div()
+                    .flex_1()
+                    .min_h(px(200.0))
                     .p_2()
                     .border_1()
                     .border_color(border)
                     .font_family("monospace")
                     .text_sm()
-                    .child(id_disp),
+                    .child(Input::new(&self.json_input).h_full().cleanable(false)),
             )
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(cx.theme().muted_foreground)
-                    .child("Document JSON"),
-            )
-            .child(
-                div()
-                    .flex_1()
-                    .min_h(px(160.0))
-                    .p_2()
-                    .border_1()
-                    .border_color(border)
-                    .font_family("monospace")
-                    .text_xs()
-                    .child(body_disp),
-            )
-            .child(
-                h_flex()
-                    .gap_2()
-                    .child(
-                        Button::new("mongo-save-doc")
-                            .primary()
-                            .label("Replace document")
-                            .on_click(cx.listener(|p, _, _, cx| p.save_replace(cx))),
-                    )
-                    .child(div().text_sm().child(self.status.clone())),
-            )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::mongodb::mutations::document_from_json;
+
+    #[test]
+    fn valid_json_object_passes() {
+        assert!(document_from_json(r#"{"a": 1}"#).is_ok());
+    }
+
+    #[test]
+    fn invalid_json_fails() {
+        assert!(document_from_json("{bad json}").is_err());
+    }
+
+    #[test]
+    fn json_array_fails() {
+        assert!(document_from_json("[1,2,3]").is_err());
     }
 }

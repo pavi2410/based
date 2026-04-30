@@ -35,5 +35,5 @@ jobs:
       - name: Tests
         run: cargo test --workspace
 
-      - name: Build desktop-native
-        run: cargo build -p desktop-native --release
+      - name: Build desktop
+        run: cargo build -p desktop --release

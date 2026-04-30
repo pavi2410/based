@@ -2,12 +2,12 @@
 rust = "latest"
 
 [tasks.dev]
-description = "Run desktop-native in development mode"
-run = "cargo run -p desktop-native"
+description = "Run desktop app in development mode"
+run = "cargo run -p desktop"
 
 [tasks.build]
-description = "Build desktop-native in release mode"
-run = "cargo build -p desktop-native --release"
+description = "Build desktop app in release mode"
+run = "cargo build -p desktop --release"
 
 [tasks.clean]
 description = "Clean Rust build artifacts"
@@ -17,15 +17,15 @@ run = [
 
 [tasks."native:dev"]
 description = "Run the native GPUI desktop app in development mode"
-run = "cargo run -p desktop-native"
+run = "cargo run -p desktop"
 
 [tasks."native:check"]
 description = "Cargo check the native GPUI app (fast compile check)"
-run = "cargo check -p desktop-native"
+run = "cargo check -p desktop"
 
 [tasks."native:build"]
 description = "Build the native GPUI app in release mode"
-run = "cargo build -p desktop-native --release"
+run = "cargo build -p desktop --release"
 
 [tasks.lint]
 description = "Run clippy checks"

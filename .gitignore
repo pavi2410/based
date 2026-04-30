@@ -19,7 +19,7 @@ data/
 *.db-shm
 *.db-wal
 
-# Local dev SQLite from desktop-native mock connection
+# Local dev SQLite from desktop mock connection
 /app.db
 
 # Cache

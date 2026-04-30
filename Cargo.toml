@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/desktop-native"]
+members = ["apps/desktop"]
 resolver = "2"
 
 # Shared GPUI ecosystem dependencies — pinned to what gpui-component v0.5.1 uses.

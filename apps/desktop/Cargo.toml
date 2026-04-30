@@ -1,11 +1,11 @@
 [package]
-name = "desktop-native"
+name = "desktop"
 version = "0.1.0"
 edition = "2024"
 description = "based — Git-Friendly Database Client (native GPUI build)"
 
 [[bin]]
-name = "desktop-native"
+name = "desktop"
 path = "src/main.rs"
 
 [dependencies]

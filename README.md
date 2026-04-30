@@ -3,7 +3,7 @@
 Based is a local-first, git-friendly desktop database client written in Rust.
 
 ## Features
-- Native GPUI desktop client (`apps/desktop-native`)
+- Native GPUI desktop client (`apps/desktop`)
 - Local project metadata in `.based/config.toml`
 - SQLite, PostgreSQL, and MongoDB workflows
 - No backend service; data stays on your machine
@@ -13,7 +13,7 @@ Based is a local-first, git-friendly desktop database client written in Rust.
 ```text
 based/
 ├── apps/
-│   └── desktop-native/   # Main native desktop app (Rust + GPUI)
+│   └── desktop/   # Main native desktop app (Rust + GPUI)
 ├── docs/
 ├── .based/
 └── mise.toml             # Task runner configuration
@@ -27,7 +27,7 @@ based/
 ### Development
 
 ```bash
-cargo run -p desktop-native
+cargo run -p desktop
 # or
 mise run dev
 ```
@@ -35,7 +35,7 @@ mise run dev
 ### Build
 
 ```bash
-cargo build -p desktop-native --release
+cargo build -p desktop --release
 # or
 mise run build
 ```

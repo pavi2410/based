@@ -15,7 +15,7 @@ The project model is centered on a committed `.based/` folder:
 
 ## App runtime
 
-The desktop app is **pure Rust** and lives in `apps/desktop-native`.
+The desktop app is **pure Rust** and lives in `apps/desktop`.
 
 - UI: `gpui` + `gpui-component`
 - Async runtime bridging: `gpui_tokio`
@@ -24,7 +24,7 @@ The desktop app is **pure Rust** and lives in `apps/desktop-native`.
 
 ```mermaid
 flowchart LR
-  subgraph nativeClient [DesktopNative]
+  subgraph nativeClient [DesktopApp]
     Workspace[WorkspaceShell]
     Editors[QueryEditors]
     Inspectors[SchemaInspectors]
@@ -51,7 +51,7 @@ flowchart LR
 ```text
 based/
 ├── apps/
-│   └── desktop-native/
+│   └── desktop/
 ├── docs/
 ├── .based/
 ├── Cargo.toml
@@ -60,7 +60,7 @@ based/
 
 ## Day-to-day invariants
 
-1. `desktop-native` is the only desktop runtime target.
+1. The `desktop` package is the only desktop runtime target.
 2. CI/release workflows use Cargo-only pipelines.
-3. New backend or engine work is implemented in Rust modules under `apps/desktop-native/src`.
+3. New backend or engine work is implemented in Rust modules under `apps/desktop/src`.
 4. Shared code extraction should move to `crates/*` only when a module is reused by more than one binary/library target.

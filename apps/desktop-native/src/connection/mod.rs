@@ -80,6 +80,7 @@ impl ConnectionConfig {
 
 // ── Open connection (engine-tagged, no shared query interface) ────────────────
 
+#[derive(Clone)]
 pub enum AnyConnection {
     Postgres(gpui::Entity<crate::postgres::PgConnection>),
     MongoDB(gpui::Entity<crate::mongodb::MongoConnection>),
@@ -90,10 +91,8 @@ pub enum AnyConnection {
 
 pub enum ConnectionState {
     Disconnected,
-    Connecting {
-        since: Instant,
-        task: gpui::Task<anyhow::Result<AnyConnection>>,
-    },
+    /// In-flight connect is tracked by `Workspace` spawn; this state is UX-only.
+    Connecting { since: Instant },
     Connected(AnyConnection),
     Failed {
         reason: String,

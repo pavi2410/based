@@ -1,16 +1,28 @@
-// postgres::inspector — columns and indexes from information_schema / pg_indexes.
+// postgres::inspector — columns, indexes, constraints, and stats with tabs.
 
 use gpui::{prelude::*, *};
 use gpui_component::{
     ActiveTheme,
+    button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
+    h_flex,
     menu::PopupMenu,
     table::{Column, DataTable, TableState},
     v_flex,
+    Sizable,
 };
 use sqlx::{PgPool, Row};
 
 use crate::widgets::virtual_table::RowDelegate;
+
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+enum PgInspectorTab {
+    #[default]
+    Columns,
+    Indexes,
+    Constraints,
+    Stats,
+}
 
 pub struct TableInspectorPanel {
     focus_handle: FocusHandle,
@@ -19,6 +31,9 @@ pub struct TableInspectorPanel {
     table_name: String,
     columns_tbl: Entity<TableState<RowDelegate>>,
     indexes_tbl: Entity<TableState<RowDelegate>>,
+    constraints_tbl: Entity<TableState<RowDelegate>>,
+    stats_tbl: Entity<TableState<RowDelegate>>,
+    tab: PgInspectorTab,
 }
 
 impl TableInspectorPanel {
@@ -33,6 +48,10 @@ impl TableInspectorPanel {
         let columns_tbl = cx.new(|cx| TableState::new(c1, window, cx));
         let c2 = RowDelegate::default();
         let indexes_tbl = cx.new(|cx| TableState::new(c2, window, cx));
+        let c3 = RowDelegate::default();
+        let constraints_tbl = cx.new(|cx| TableState::new(c3, window, cx));
+        let c4 = RowDelegate::default();
+        let stats_tbl = cx.new(|cx| TableState::new(c4, window, cx));
         let mut p = Self {
             focus_handle: cx.focus_handle(),
             pool,
@@ -40,6 +59,9 @@ impl TableInspectorPanel {
             table_name,
             columns_tbl,
             indexes_tbl,
+            constraints_tbl,
+            stats_tbl,
+            tab: PgInspectorTab::default(),
         };
         p.load(cx);
         p
@@ -50,9 +72,8 @@ impl TableInspectorPanel {
         let schema = self.schema.clone();
         let table = self.table_name.clone();
         cx.spawn(async move |this, cx| {
-            let (col_columns, col_data, ix_columns, ix_data) =
-                match crate::db::run_infallible(cx, async move {
-                    let col_rows = sqlx::query(
+            let loaded = crate::db::run_infallible(cx, async move {
+                let col_rows = sqlx::query(
                     r"SELECT ordinal_position, column_name, data_type, is_nullable, column_default
                    FROM information_schema.columns
                    WHERE table_schema = $1 AND table_name = $2
@@ -64,71 +85,188 @@ impl TableInspectorPanel {
                 .await
                 .unwrap_or_default();
 
-                    let idx_rows = sqlx::query(
-                        r"SELECT indexname, indexdef FROM pg_indexes
+                let idx_rows = sqlx::query(
+                    r"SELECT indexname, indexdef FROM pg_indexes
                    WHERE schemaname = $1 AND tablename = $2
                    ORDER BY indexname",
-                    )
-                    .bind(&schema)
-                    .bind(&table)
-                    .fetch_all(&pool)
-                    .await
-                    .unwrap_or_default();
-
-                    let col_columns = vec![
-                        Column::new("pos", "#"),
-                        Column::new("name", "Column"),
-                        Column::new("type", "Type"),
-                        Column::new("nullable", "NULL"),
-                        Column::new("default", "Default"),
-                    ];
-                    let col_data: Vec<Vec<SharedString>> = col_rows
-                        .iter()
-                        .map(|row| {
-                            let pos: i32 = row.try_get("ordinal_position").unwrap_or(0);
-                            let name: String = row.try_get("column_name").unwrap_or_default();
-                            let ty: String = row.try_get("data_type").unwrap_or_default();
-                            let null: String = row.try_get("is_nullable").unwrap_or_default();
-                            let def: String = row
-                                .try_get::<Option<String>, _>("column_default")
-                                .ok()
-                                .flatten()
-                                .unwrap_or_default();
-                            vec![
-                                pos.to_string().into(),
-                                name.into(),
-                                ty.into(),
-                                null.into(),
-                                def.into(),
-                            ]
-                        })
-                        .collect();
-
-                    let ix_columns = vec![
-                        Column::new("name", "Index"),
-                        Column::new("def", "Definition"),
-                    ];
-                    let ix_data: Vec<Vec<SharedString>> = idx_rows
-                        .iter()
-                        .map(|row| {
-                            vec![
-                                row.try_get::<String, _>("indexname")
-                                    .unwrap_or_default()
-                                    .into(),
-                                row.try_get::<String, _>("indexdef")
-                                    .unwrap_or_default()
-                                    .into(),
-                            ]
-                        })
-                        .collect();
-
-                    (col_columns, col_data, ix_columns, ix_data)
-                })
+                )
+                .bind(&schema)
+                .bind(&table)
+                .fetch_all(&pool)
                 .await
-                {
-                    Ok(p) => p,
-                    Err(_) => return,
+                .unwrap_or_default();
+
+                let con_rows = sqlx::query(
+                    r"SELECT con.conname AS constraint_name,
+                       CASE con.contype
+                         WHEN 'p' THEN 'PRIMARY KEY'
+                         WHEN 'u' THEN 'UNIQUE'
+                         WHEN 'f' THEN 'FOREIGN KEY'
+                         WHEN 'c' THEN 'CHECK'
+                         ELSE con.contype::text
+                       END AS constraint_type,
+                       pg_get_constraintdef(con.oid) AS definition
+                FROM pg_constraint con
+                JOIN pg_class rel ON rel.oid = con.conrelid
+                JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
+                WHERE nsp.nspname = $1 AND rel.relname = $2
+                ORDER BY con.conname",
+                )
+                .bind(&schema)
+                .bind(&table)
+                .fetch_all(&pool)
+                .await
+                .unwrap_or_default();
+
+                let stat_rows = sqlx::query(
+                    r"SELECT
+                       c.reltuples::bigint AS estimate_rows,
+                       pg_size_pretty(pg_relation_size(c.oid)) AS table_size,
+                       pg_size_pretty(pg_indexes_size(c.oid)) AS indexes_size,
+                       pg_size_pretty(pg_total_relation_size(c.oid)) AS total_size
+                FROM pg_class c
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = $1 AND c.relname = $2 AND c.relkind IN ('r', 'p', 'm')",
+                )
+                .bind(&schema)
+                .bind(&table)
+                .fetch_optional(&pool)
+                .await
+                .unwrap_or(None);
+
+                let col_columns = vec![
+                    Column::new("pos", "#"),
+                    Column::new("name", "Column"),
+                    Column::new("type", "Type"),
+                    Column::new("nullable", "NULL"),
+                    Column::new("default", "Default"),
+                ];
+                let col_data: Vec<Vec<SharedString>> = col_rows
+                    .iter()
+                    .map(|row| {
+                        let pos: i32 = row.try_get("ordinal_position").unwrap_or(0);
+                        let name: String = row.try_get("column_name").unwrap_or_default();
+                        let ty: String = row.try_get("data_type").unwrap_or_default();
+                        let null: String = row.try_get("is_nullable").unwrap_or_default();
+                        let def: String = row
+                            .try_get::<Option<String>, _>("column_default")
+                            .ok()
+                            .flatten()
+                            .unwrap_or_default();
+                        vec![
+                            pos.to_string().into(),
+                            name.into(),
+                            ty.into(),
+                            null.into(),
+                            def.into(),
+                        ]
+                    })
+                    .collect();
+
+                let ix_columns = vec![
+                    Column::new("name", "Index"),
+                    Column::new("def", "Definition"),
+                ];
+                let ix_data: Vec<Vec<SharedString>> = idx_rows
+                    .iter()
+                    .map(|row| {
+                        vec![
+                            row.try_get::<String, _>("indexname")
+                                .unwrap_or_default()
+                                .into(),
+                            row.try_get::<String, _>("indexdef")
+                                .unwrap_or_default()
+                                .into(),
+                        ]
+                    })
+                    .collect();
+
+                let co_columns = vec![
+                    Column::new("name", "Constraint"),
+                    Column::new("typ", "Type"),
+                    Column::new("def", "Definition"),
+                ];
+                let co_data: Vec<Vec<SharedString>> = con_rows
+                    .iter()
+                    .map(|row| {
+                        vec![
+                            row.try_get::<String, _>("constraint_name")
+                                .unwrap_or_default()
+                                .into(),
+                            row.try_get::<String, _>("constraint_type")
+                                .unwrap_or_default()
+                                .into(),
+                            row.try_get::<String, _>("definition")
+                                .unwrap_or_default()
+                                .into(),
+                        ]
+                    })
+                    .collect();
+
+                let st_columns = vec![
+                    Column::new("metric", "Metric"),
+                    Column::new("value", "Value"),
+                ];
+                let st_data: Vec<Vec<SharedString>> = if let Some(sr) = stat_rows.as_ref() {
+                    let rows_est: Option<i64> = sr.try_get("estimate_rows").ok();
+                    let ts: String = sr.try_get::<Option<String>, _>("table_size").ok().flatten().unwrap_or_default();
+                    let isz: String =
+                        sr.try_get::<Option<String>, _>("indexes_size").ok().flatten().unwrap_or_default();
+                    let tot: String =
+                        sr.try_get::<Option<String>, _>("total_size").ok().flatten().unwrap_or_default();
+                    vec![
+                        vec![
+                            SharedString::from("Estimated rows"),
+                            SharedString::from(
+                                rows_est.map(|n| n.to_string()).unwrap_or_else(|| "—".into()),
+                            ),
+                        ],
+                        vec![
+                            SharedString::from("Table size"),
+                            ts.into(),
+                        ],
+                        vec![
+                            SharedString::from("Indexes size"),
+                            isz.into(),
+                        ],
+                        vec![
+                            SharedString::from("Total size"),
+                            tot.into(),
+                        ],
+                    ]
+                } else {
+                    vec![vec![
+                        SharedString::from("(no stats)"),
+                        SharedString::from("relation not found or not a regular table"),
+                    ]]
                 };
+
+                (
+                    col_columns,
+                    col_data,
+                    ix_columns,
+                    ix_data,
+                    co_columns,
+                    co_data,
+                    st_columns,
+                    st_data,
+                )
+            })
+            .await;
+
+            let Ok((
+                col_columns,
+                col_data,
+                ix_columns,
+                ix_data,
+                co_columns,
+                co_data,
+                st_columns,
+                st_data,
+            )) = loaded
+            else {
+                return;
+            };
 
             let _ = cx.update(|cx| {
                 this.update(cx, |panel, cx| {
@@ -144,11 +282,43 @@ impl TableInspectorPanel {
                         d.rows = ix_data;
                         cx.notify();
                     });
+                    panel.constraints_tbl.update(cx, |state, cx| {
+                        let d = state.delegate_mut();
+                        d.columns = co_columns;
+                        d.rows = co_data;
+                        cx.notify();
+                    });
+                    panel.stats_tbl.update(cx, |state, cx| {
+                        let d = state.delegate_mut();
+                        d.columns = st_columns;
+                        d.rows = st_data;
+                        cx.notify();
+                    });
                     cx.notify();
                 })
             });
         })
         .detach();
+    }
+
+    fn tab_button(
+        &self,
+        id: &'static str,
+        label: &'static str,
+        tab: PgInspectorTab,
+        cx: &mut Context<Self>,
+    ) -> Button {
+        let active = self.tab == tab;
+        let mut b = Button::new(id).label(label).small();
+        if active {
+            b = b.outline();
+        } else {
+            b = b.ghost();
+        }
+        b.on_click(cx.listener(move |panel, _, _, cx| {
+            panel.tab = tab;
+            cx.notify();
+        }))
     }
 }
 
@@ -186,37 +356,42 @@ impl Panel for TableInspectorPanel {
 impl Render for TableInspectorPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let border = cx.theme().border;
+        let active_tbl = match self.tab {
+            PgInspectorTab::Columns => &self.columns_tbl,
+            PgInspectorTab::Indexes => &self.indexes_tbl,
+            PgInspectorTab::Constraints => &self.constraints_tbl,
+            PgInspectorTab::Stats => &self.stats_tbl,
+        };
+
         v_flex()
             .size_full()
             .gap_2()
-            .p_2()
             .child(
-                div()
-                    .text_sm()
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .child("Columns"),
+                h_flex()
+                    .gap_2()
+                    .py_2()
+                    .px_2()
+                    .border_b_1()
+                    .border_color(border)
+                    .child(self.tab_button("pg-insp-columns", "Columns", PgInspectorTab::Columns, cx))
+                    .child(self.tab_button("pg-insp-indexes", "Indexes", PgInspectorTab::Indexes, cx))
+                    .child(
+                        self.tab_button(
+                            "pg-insp-constraints",
+                            "Constraints",
+                            PgInspectorTab::Constraints,
+                            cx,
+                        ),
+                    )
+                    .child(self.tab_button("pg-insp-stats", "Stats", PgInspectorTab::Stats, cx)),
             )
             .child(
                 div()
                     .flex_1()
-                    .min_h(px(160.0))
+                    .min_h(px(200.0))
                     .border_1()
                     .border_color(border)
-                    .child(DataTable::new(&self.columns_tbl).bordered(false)),
-            )
-            .child(
-                div()
-                    .text_sm()
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .child("Indexes"),
-            )
-            .child(
-                div()
-                    .flex_1()
-                    .min_h(px(120.0))
-                    .border_1()
-                    .border_color(border)
-                    .child(DataTable::new(&self.indexes_tbl).bordered(false)),
+                    .child(DataTable::new(active_tbl).bordered(false)),
             )
     }
 }

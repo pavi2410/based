@@ -1,16 +1,27 @@
-// sqlite::inspector — TableInspectorPanel: schema info for a single table.
+// sqlite::inspector — TableInspectorPanel: columns, indexes, DDL (PRAGMA + sqlite_master).
 
 use gpui::{prelude::*, *};
 use gpui_component::{
     ActiveTheme,
+    button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
+    h_flex,
     menu::PopupMenu,
     table::{Column, DataTable, TableState},
     v_flex,
+    Sizable,
 };
 use sqlx::{Row, SqlitePool};
 
 use crate::widgets::virtual_table::RowDelegate;
+
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+enum SqliteInspectorTab {
+    #[default]
+    Columns,
+    Indexes,
+    Ddl,
+}
 
 pub struct ColumnInfo {
     pub cid: i64,
@@ -31,8 +42,10 @@ pub struct TableInspectorPanel {
     table_name: String,
     columns: Vec<ColumnInfo>,
     indexes: Vec<IndexInfo>,
+    ddl_text: SharedString,
     col_table: Entity<TableState<RowDelegate>>,
     idx_table: Entity<TableState<RowDelegate>>,
+    tab: SqliteInspectorTab,
 }
 
 impl TableInspectorPanel {
@@ -66,8 +79,10 @@ impl TableInspectorPanel {
             table_name,
             columns: vec![],
             indexes: vec![],
+            ddl_text: SharedString::from("(loading…)"),
             col_table,
             idx_table,
+            tab: SqliteInspectorTab::default(),
         };
         panel.load_info(cx);
         panel
@@ -102,11 +117,19 @@ impl TableInspectorPanel {
                     })
                     .collect();
 
-                Ok((columns, indexes))
+                let ddl: String = sqlx::query_scalar::<_, String>(
+                    r#"SELECT COALESCE(sql, '') FROM sqlite_master WHERE type IN ('table','view') AND name = ?"#,
+                )
+                .bind(&table_name)
+                .fetch_optional(&pool)
+                .await?
+                .unwrap_or_default();
+
+                Ok((columns, indexes, ddl))
             })
             .await;
 
-            let (columns, indexes) = match loaded {
+            let (columns, indexes, ddl) = match loaded {
                 Ok(x) => x,
                 Err(_) => return,
             };
@@ -134,10 +157,17 @@ impl TableInspectorPanel {
                 })
                 .collect();
 
+            let ddl_ss: SharedString = if ddl.is_empty() {
+                SharedString::from("(no DDL in sqlite_master)")
+            } else {
+                ddl.into()
+            };
+
             let _ = cx.update(|cx| {
                 this.update(cx, |panel, cx| {
                     panel.columns = columns;
                     panel.indexes = indexes;
+                    panel.ddl_text = ddl_ss;
                     panel.col_table.update(cx, |state, cx| {
                         state.delegate_mut().rows = col_data;
                         cx.notify();
@@ -151,6 +181,26 @@ impl TableInspectorPanel {
             });
         })
         .detach();
+    }
+
+    fn tab_button(
+        &self,
+        id: &'static str,
+        label: &'static str,
+        tab: SqliteInspectorTab,
+        cx: &mut Context<Self>,
+    ) -> Button {
+        let active = self.tab == tab;
+        let mut b = Button::new(id).label(label).small();
+        if active {
+            b = b.outline();
+        } else {
+            b = b.ghost();
+        }
+        b.on_click(cx.listener(move |panel, _, _, cx| {
+            panel.tab = tab;
+            cx.notify();
+        }))
     }
 }
 
@@ -188,34 +238,47 @@ impl Panel for TableInspectorPanel {
 impl Render for TableInspectorPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let fg = cx.theme().foreground;
-        let col_section = v_flex()
-            .gap(px(4.0))
-            .child(
-                div()
-                    .text_sm()
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .text_color(fg)
-                    .child("Columns"),
-            )
-            .child(DataTable::new(&self.col_table).stripe(true).bordered(false));
+        let border = cx.theme().border;
+        let body: SharedString = self.ddl_text.clone();
 
-        let idx_section = v_flex()
-            .gap(px(4.0))
-            .child(
-                div()
-                    .text_sm()
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .text_color(fg)
-                    .child("Indexes"),
-            )
-            .child(DataTable::new(&self.idx_table).stripe(true).bordered(false));
+        let tables_block = match self.tab {
+            SqliteInspectorTab::Columns => div()
+                .flex_1()
+                .min_h(px(160.0))
+                .child(DataTable::new(&self.col_table).stripe(true).bordered(false))
+                .into_any_element(),
+            SqliteInspectorTab::Indexes => div()
+                .flex_1()
+                .min_h(px(160.0))
+                .child(DataTable::new(&self.idx_table).stripe(true).bordered(false))
+                .into_any_element(),
+            SqliteInspectorTab::Ddl => div()
+                .id("sqlite-inspector-ddl")
+                .flex_1()
+                .min_h(px(160.0))
+                .overflow_y_scroll()
+                .p_3()
+                .border_1()
+                .border_color(border)
+                .font_family("monospace")
+                .text_sm()
+                .text_color(fg)
+                .child(body)
+                .into_any_element(),
+        };
 
         v_flex()
             .w_full()
             .h_full()
-            .p(px(8.0))
-            .gap(px(16.0))
-            .child(col_section)
-            .child(idx_section)
+            .gap(px(8.0))
+            .child(
+                h_flex()
+                    .gap_2()
+                    .py_2()
+                    .child(self.tab_button("sql-insp-col", "Columns", SqliteInspectorTab::Columns, cx))
+                    .child(self.tab_button("sql-insp-ix", "Indexes", SqliteInspectorTab::Indexes, cx))
+                    .child(self.tab_button("sql-insp-ddl", "DDL", SqliteInspectorTab::Ddl, cx)),
+            )
+            .child(tables_block)
     }
 }

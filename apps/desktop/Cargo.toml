@@ -44,3 +44,6 @@ gpui_platform = { workspace = true, features = ["x11", "wayland"] }
 # Match gpui-component's lint profile
 arc_with_non_send_sync = "allow"
 type_complexity = "allow"
+
+[dev-dependencies]
+tempfile = "3"

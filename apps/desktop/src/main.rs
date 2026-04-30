@@ -11,6 +11,7 @@ mod db;
 mod mongodb;
 mod postgres;
 mod project;
+mod query_store;
 mod settings_window;
 mod sqlite;
 mod theme;
@@ -42,6 +43,8 @@ fn main() {
 
             db::init(cx);
             PopOutManager::init(cx);
+
+            query_store::init(crate::project::find_project_root(), cx);
             cx.on_window_closed(|cx, id| {
                 PopOutManager::on_any_window_closed(cx, id);
             })

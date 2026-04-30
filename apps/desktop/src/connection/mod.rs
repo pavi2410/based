@@ -10,13 +10,14 @@ pub mod registry;
 
 use std::time::Instant;
 
-use time::OffsetDateTime;
 use serde::{Deserialize, Serialize};
+use time::OffsetDateTime;
 
 // ── Connection identity ───────────────────────────────────────────────────────
 
 /// Stable opaque identifier for a connection, derived from the config key.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct ConnectionId(pub String);
 
 impl ConnectionId {

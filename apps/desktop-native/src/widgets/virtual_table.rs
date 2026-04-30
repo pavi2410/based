@@ -1,4 +1,61 @@
-// VirtualTable — renders Vec<Row> with column headers, virtual scrolling,
-// multi-column sort indicators, and resizable columns.
-// Wraps gpui-component's Table widget.
-// Implemented in Phase 3.
+// VirtualTable: a DataTable<RowDelegate> for displaying generic string-valued rows.
+// The DataTable widget in gpui-component already virtualizes rows internally,
+// so this is a thin wrapper / type alias for the RowDelegate-based table.
+
+use gpui::{prelude::*, *};
+use gpui_component::table::{Column, ColumnSort, TableState};
+
+/// Generic row data: column names + string-valued cells.
+#[derive(Default)]
+pub struct RowDelegate {
+    pub columns: Vec<Column>,
+    pub rows: Vec<Vec<SharedString>>,
+    pub sort_col: Option<usize>,
+    pub sort_asc: bool,
+}
+
+impl gpui_component::table::TableDelegate for RowDelegate {
+    fn columns_count(&self, _: &App) -> usize {
+        self.columns.len()
+    }
+
+    fn rows_count(&self, _: &App) -> usize {
+        self.rows.len()
+    }
+
+    fn column(&self, col_ix: usize, _: &App) -> Column {
+        self.columns[col_ix].clone()
+    }
+
+    fn render_td(
+        &mut self,
+        row_ix: usize,
+        col_ix: usize,
+        _: &mut Window,
+        _cx: &mut Context<TableState<Self>>,
+    ) -> impl IntoElement {
+        div().child(self.rows[row_ix][col_ix].clone())
+    }
+
+    fn cell_text(&self, row_ix: usize, col_ix: usize, _: &App) -> String {
+        self.rows[row_ix][col_ix].to_string()
+    }
+
+    fn perform_sort(
+        &mut self,
+        col_ix: usize,
+        sort: ColumnSort,
+        _: &mut Window,
+        _: &mut Context<TableState<Self>>,
+    ) {
+        self.sort_col = Some(col_ix);
+        self.sort_asc = matches!(sort, ColumnSort::Ascending);
+        if self.sort_asc {
+            self.rows.sort_by(|a, b| a[col_ix].cmp(&b[col_ix]));
+        } else {
+            self.rows.sort_by(|a, b| b[col_ix].cmp(&a[col_ix]));
+        }
+    }
+}
+
+pub type VirtualTable = Entity<TableState<RowDelegate>>;

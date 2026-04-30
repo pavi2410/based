@@ -2,6 +2,8 @@
 
 pub mod item;
 pub mod pane;
+pub mod pop_out;
+pub use pop_out::PopOutManager;
 pub mod sidebar;
 pub mod status_bar;
 pub mod topbar;

@@ -5,11 +5,23 @@ use crate::connection::ConnectionId;
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TabSpec {
     Dashboard(ConnectionId),
-    DataViewer { conn_id: ConnectionId, object: String },
+    DataViewer {
+        conn_id: ConnectionId,
+        object: String,
+    },
     QueryEditor(ConnectionId),
-    Pipeline { conn_id: ConnectionId, collection: String },
-    Explain { conn_id: ConnectionId, label: String },
-    Inspector { conn_id: ConnectionId, object: String },
+    Pipeline {
+        conn_id: ConnectionId,
+        collection: String,
+    },
+    Explain {
+        conn_id: ConnectionId,
+        label: String,
+    },
+    Inspector {
+        conn_id: ConnectionId,
+        object: String,
+    },
 }
 
 impl TabSpec {

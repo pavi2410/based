@@ -46,3 +46,5 @@ data/northwind.db
 *.njsproj
 *.sln
 *.sw?
+*.db-shm
+*.db-wal

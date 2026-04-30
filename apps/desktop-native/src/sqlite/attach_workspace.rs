@@ -1,1 +1,2 @@
-// sqlite::attach_workspace — implemented in Phase 3.
+// Attach multiple SQLite databases into one connection (ATTACH DATABASE).
+// Implemented as a stretch goal in Phase 3b.

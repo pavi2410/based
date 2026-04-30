@@ -1,0 +1,41 @@
+[package]
+name = "desktop-native"
+version = "0.1.0"
+edition = "2024"
+description = "based — Git-Friendly Database Client (native GPUI build)"
+
+[[bin]]
+name = "desktop-native"
+path = "src/main.rs"
+
+[dependencies]
+# GPUI ecosystem — versions flow from workspace Cargo.toml
+gpui.workspace = true
+gpui_platform.workspace = true
+gpui-component.workspace = true
+gpui-component-assets.workspace = true
+
+# General utilities
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+futures.workspace = true
+log.workspace = true
+tracing.workspace = true
+
+# Project / config / state
+toml.workspace = true
+notify.workspace = true
+
+# DB engines — all three included so Phase 3/4/5 modules compile without
+# touching the workspace Cargo.toml again.
+sqlx.workspace = true
+mongodb = { version = "2", features = ["tokio-runtime"] }
+
+[lints.clippy]
+# Match gpui-component's lint profile
+arc_with_non_send_sync = "allow"
+type_complexity = "allow"

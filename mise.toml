@@ -1,35 +1,18 @@
 [tools]
-node = "latest"
-bun = "latest"
 rust = "latest"
 
 [tasks.dev]
-description = "Start development server for desktop app"
-run = "bun --filter desktop dev"
+description = "Run desktop-native in development mode"
+run = "cargo run -p desktop-native"
 
 [tasks.build]
-description = "Build desktop app for production"
-run = "bun --filter desktop run build"
-
-[tasks."tauri:dev"]
-description = "Start Tauri development mode"
-run = "bun --filter desktop tauri dev"
-
-[tasks."tauri:build"]
-description = "Build Tauri app for production"
-run = "bun --filter desktop tauri build"
-
-[tasks.install]
-description = "Install all dependencies"
-run = "bun install"
+description = "Build desktop-native in release mode"
+run = "cargo build -p desktop-native --release"
 
 [tasks.clean]
-description = "Clean all build artifacts and dependencies"
+description = "Clean Rust build artifacts"
 run = [
-  "rm -rf apps/desktop/node_modules",
-  "rm -rf apps/desktop/dist",
-  "rm -rf apps/desktop/src-tauri/target",
-  "rm -rf node_modules"
+  "cargo clean"
 ]
 
 [tasks."native:dev"]
@@ -45,13 +28,13 @@ description = "Build the native GPUI app in release mode"
 run = "cargo build -p desktop-native --release"
 
 [tasks.lint]
-description = "Lint all code"
-run = "bun --filter desktop run lint"
+description = "Run clippy checks"
+run = "cargo clippy --workspace --all-targets"
 
 [tasks.format]
-description = "Format all code"
-run = "bun --filter desktop run format"
+description = "Format all Rust code"
+run = "cargo fmt --all"
 
 [tasks."type-check"]
-description = "Type check TypeScript code"
-run = "bun --filter desktop run type-check"
+description = "Run Rust tests as type/compile safety gate"
+run = "cargo test --workspace"

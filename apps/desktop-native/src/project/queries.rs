@@ -59,8 +59,8 @@ pub fn save_query(project_dir: &Path, query: &SavedQuery) -> Result<()> {
 
 /// Delete the `.sql` file for the given query.
 pub fn delete_query(project_dir: &Path, query: &SavedQuery) -> Result<()> {
-    let path = queries_dir(project_dir, &query.connection_label)
-        .join(format!("{}.sql", query.name));
+    let path =
+        queries_dir(project_dir, &query.connection_label).join(format!("{}.sql", query.name));
     if path.exists() {
         std::fs::remove_file(&path)?;
     }

@@ -5,16 +5,17 @@ use gpui_component::{
     ActiveTheme,
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
+    h_flex,
     menu::PopupMenu,
-    h_flex, v_flex,
     table::{Column, DataTable, TableState},
     tooltip::Tooltip,
+    v_flex,
 };
 use sqlx::{Column as SqlxColumn, Row, SqlitePool};
 
 use crate::db;
-use crate::widgets::virtual_table::RowDelegate;
 use crate::widgets::ui::{metadata_pill, panel_header};
+use crate::widgets::virtual_table::RowDelegate;
 use crate::workspace::notify;
 
 pub enum QueryStatus {
@@ -188,7 +189,15 @@ impl Render for QueryEditorPanel {
                     .label("Run")
                     .on_click(cx.listener(|panel, _, window, cx| panel.run_query(window, cx))),
             )
-            .child(metadata_pill("shortcut", if cfg!(target_os = "macos") { "⌘↵" } else { "Ctrl Enter" }, cx))
+            .child(metadata_pill(
+                "shortcut",
+                if cfg!(target_os = "macos") {
+                    "⌘↵"
+                } else {
+                    "Ctrl Enter"
+                },
+                cx,
+            ))
             .child(
                 div()
                     .text_sm()

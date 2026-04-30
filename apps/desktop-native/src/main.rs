@@ -27,8 +27,8 @@ use workspace::{PopOutManager, Workspace};
 
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn"))
-    .format_timestamp_millis()
-    .init();
+        .format_timestamp_millis()
+        .init();
 
     gpui_platform::application()
         .with_assets(gpui_component_assets::Assets)

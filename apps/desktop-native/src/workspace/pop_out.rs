@@ -63,51 +63,52 @@ pub fn append_pop_out_to_panel_menu<T: Panel + 'static>(
     let weak = cx.entity().downgrade();
     let title: SharedString = format!("{} — based", panel.panel_name()).into();
 
-    menu.separator().item(
-        PopupMenuItem::new("Open in new window").on_click(move |_ev, src_window, app| {
-            let Some(ent) = weak.upgrade() else {
-                return;
-            };
-            let panel_id = ent.entity_id();
+    menu.separator()
+        .item(
+            PopupMenuItem::new("Open in new window").on_click(move |_ev, src_window, app| {
+                let Some(ent) = weak.upgrade() else {
+                    return;
+                };
+                let panel_id = ent.entity_id();
 
-            if let Some(existing) = PopOutManager::global(app).windows.get(&panel_id).copied() {
-                let _ = existing.update(app, |_, window, _| window.activate_window());
-                return;
-            }
-
-            let window_title = title.clone();
-            let title_for_window = window_title.to_string();
-            let origin = {
-                let b = src_window.bounds();
-                b.origin + point(px(48.0), px(48.0))
-            };
-            let pop_bounds = Bounds {
-                origin,
-                size: size(px(960.0), px(640.0)),
-            };
-            match app.open_window(
-                WindowOptions {
-                    window_bounds: Some(WindowBounds::Windowed(pop_bounds)),
-                    titlebar: Some(TitleBar::title_bar_options()),
-                    ..Default::default()
-                },
-                move |win, cx| {
-                    Theme::change(Theme::global(cx).mode, Some(win), cx);
-                    win.set_window_title(&title_for_window);
-                    let v: AnyView = ent.clone().into();
-                    cx.new(|cx| Root::new(v, win, cx).bg(cx.theme().background))
-                },
-            ) {
-                Ok(handle) => {
-                    let any: AnyWindowHandle = handle.into();
-                    PopOutManager::update_global(app, |m, _| {
-                        m.windows.insert(panel_id, any);
-                    });
+                if let Some(existing) = PopOutManager::global(app).windows.get(&panel_id).copied() {
+                    let _ = existing.update(app, |_, window, _| window.activate_window());
+                    return;
                 }
-                Err(err) => log::warn!("pop-out window: {err:#}"),
-            }
-        }),
-    )
+
+                let window_title = title.clone();
+                let title_for_window = window_title.to_string();
+                let origin = {
+                    let b = src_window.bounds();
+                    b.origin + point(px(48.0), px(48.0))
+                };
+                let pop_bounds = Bounds {
+                    origin,
+                    size: size(px(960.0), px(640.0)),
+                };
+                match app.open_window(
+                    WindowOptions {
+                        window_bounds: Some(WindowBounds::Windowed(pop_bounds)),
+                        titlebar: Some(TitleBar::title_bar_options()),
+                        ..Default::default()
+                    },
+                    move |win, cx| {
+                        Theme::change(Theme::global(cx).mode, Some(win), cx);
+                        win.set_window_title(&title_for_window);
+                        let v: AnyView = ent.clone().into();
+                        cx.new(|cx| Root::new(v, win, cx).bg(cx.theme().background))
+                    },
+                ) {
+                    Ok(handle) => {
+                        let any: AnyWindowHandle = handle.into();
+                        PopOutManager::update_global(app, |m, _| {
+                            m.windows.insert(panel_id, any);
+                        });
+                    }
+                    Err(err) => log::warn!("pop-out window: {err:#}"),
+                }
+            }),
+        )
 }
 
 #[macro_export]

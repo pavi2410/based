@@ -5,8 +5,8 @@ use gpui_component::{
     ActiveTheme,
     dock::{Panel, PanelEvent},
     menu::PopupMenu,
-    v_flex,
     table::{Column, DataTable, TableState},
+    v_flex,
 };
 use sqlx::{PgPool, Row};
 
@@ -50,8 +50,9 @@ impl TableInspectorPanel {
         let schema = self.schema.clone();
         let table = self.table_name.clone();
         cx.spawn(async move |this, cx| {
-            let (col_columns, col_data, ix_columns, ix_data) = match crate::db::run_infallible(cx, async move {
-                let col_rows = sqlx::query(
+            let (col_columns, col_data, ix_columns, ix_data) =
+                match crate::db::run_infallible(cx, async move {
+                    let col_rows = sqlx::query(
                     r"SELECT ordinal_position, column_name, data_type, is_nullable, column_default
                    FROM information_schema.columns
                    WHERE table_schema = $1 AND table_name = $2
@@ -63,69 +64,71 @@ impl TableInspectorPanel {
                 .await
                 .unwrap_or_default();
 
-                let idx_rows = sqlx::query(
-                    r"SELECT indexname, indexdef FROM pg_indexes
+                    let idx_rows = sqlx::query(
+                        r"SELECT indexname, indexdef FROM pg_indexes
                    WHERE schemaname = $1 AND tablename = $2
                    ORDER BY indexname",
-                )
-                .bind(&schema)
-                .bind(&table)
-                .fetch_all(&pool)
+                    )
+                    .bind(&schema)
+                    .bind(&table)
+                    .fetch_all(&pool)
+                    .await
+                    .unwrap_or_default();
+
+                    let col_columns = vec![
+                        Column::new("pos", "#"),
+                        Column::new("name", "Column"),
+                        Column::new("type", "Type"),
+                        Column::new("nullable", "NULL"),
+                        Column::new("default", "Default"),
+                    ];
+                    let col_data: Vec<Vec<SharedString>> = col_rows
+                        .iter()
+                        .map(|row| {
+                            let pos: i32 = row.try_get("ordinal_position").unwrap_or(0);
+                            let name: String = row.try_get("column_name").unwrap_or_default();
+                            let ty: String = row.try_get("data_type").unwrap_or_default();
+                            let null: String = row.try_get("is_nullable").unwrap_or_default();
+                            let def: String = row
+                                .try_get::<Option<String>, _>("column_default")
+                                .ok()
+                                .flatten()
+                                .unwrap_or_default();
+                            vec![
+                                pos.to_string().into(),
+                                name.into(),
+                                ty.into(),
+                                null.into(),
+                                def.into(),
+                            ]
+                        })
+                        .collect();
+
+                    let ix_columns = vec![
+                        Column::new("name", "Index"),
+                        Column::new("def", "Definition"),
+                    ];
+                    let ix_data: Vec<Vec<SharedString>> = idx_rows
+                        .iter()
+                        .map(|row| {
+                            vec![
+                                row.try_get::<String, _>("indexname")
+                                    .unwrap_or_default()
+                                    .into(),
+                                row.try_get::<String, _>("indexdef")
+                                    .unwrap_or_default()
+                                    .into(),
+                            ]
+                        })
+                        .collect();
+
+                    (col_columns, col_data, ix_columns, ix_data)
+                })
                 .await
-                .unwrap_or_default();
-
-                let col_columns = vec![
-                    Column::new("pos", "#"),
-                    Column::new("name", "Column"),
-                    Column::new("type", "Type"),
-                    Column::new("nullable", "NULL"),
-                    Column::new("default", "Default"),
-                ];
-                let col_data: Vec<Vec<SharedString>> = col_rows
-                    .iter()
-                    .map(|row| {
-                        let pos: i32 = row.try_get("ordinal_position").unwrap_or(0);
-                        let name: String = row.try_get("column_name").unwrap_or_default();
-                        let ty: String = row.try_get("data_type").unwrap_or_default();
-                        let null: String = row.try_get("is_nullable").unwrap_or_default();
-                        let def: String = row
-                            .try_get::<Option<String>, _>("column_default")
-                            .ok()
-                            .flatten()
-                            .unwrap_or_default();
-                        vec![
-                            pos.to_string().into(),
-                            name.into(),
-                            ty.into(),
-                            null.into(),
-                            def.into(),
-                        ]
-                    })
-                    .collect();
-
-                let ix_columns = vec![
-                    Column::new("name", "Index"),
-                    Column::new("def", "Definition"),
-                ];
-                let ix_data: Vec<Vec<SharedString>> = idx_rows
-                    .iter()
-                    .map(|row| {
-                        vec![
-                            row.try_get::<String, _>("indexname")
-                                .unwrap_or_default()
-                                .into(),
-                            row.try_get::<String, _>("indexdef")
-                                .unwrap_or_default()
-                                .into(),
-                        ]
-                    })
-                    .collect();
-
-                (col_columns, col_data, ix_columns, ix_data)
-            }).await {
-                Ok(p) => p,
-                Err(_) => return,
-            };
+                {
+                    Ok(p) => p,
+                    Err(_) => return,
+                };
 
             let _ = cx.update(|cx| {
                 this.update(cx, |panel, cx| {

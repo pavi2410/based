@@ -37,9 +37,7 @@ pub fn save_variables(project_dir: &Path, vars: &Variables) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let file = VarsFile {
-        vars: vars.clone(),
-    };
+    let file = VarsFile { vars: vars.clone() };
     let content = toml::to_string_pretty(&file)?;
     std::fs::write(&path, content)?;
     Ok(())

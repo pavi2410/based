@@ -1,8 +1,8 @@
 // mongodb::mutations — simple _id-targeted writes.
 
 use anyhow::{Context, Result};
-use mongodb::bson::{doc, Bson, Document};
 use mongodb::Collection;
+use mongodb::bson::{Bson, Document, doc};
 
 pub async fn delete_by_id(coll: &Collection<Document>, id: &str) -> Result<u64> {
     let oid = mongodb::bson::oid::ObjectId::parse_str(id)

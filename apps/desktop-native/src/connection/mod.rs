@@ -92,7 +92,9 @@ pub enum AnyConnection {
 pub enum ConnectionState {
     Disconnected,
     /// In-flight connect is tracked by `Workspace` spawn; this state is UX-only.
-    Connecting { since: Instant },
+    Connecting {
+        since: Instant,
+    },
     Connected(AnyConnection),
     Failed {
         reason: String,

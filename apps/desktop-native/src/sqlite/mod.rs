@@ -16,8 +16,8 @@ pub mod wizard;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::SqlitePool;
+use sqlx::sqlite::SqliteConnectOptions;
 
 use crate::connection::lifecycle::{Connectable, TestReport};
 use crate::db;
@@ -83,19 +83,15 @@ impl Connectable for SqliteConnection {
         })
     }
 
-    fn test(
-        config: &Self::Config,
-        cx: &mut gpui::App,
-    ) -> gpui::Task<anyhow::Result<TestReport>> {
+    fn test(config: &Self::Config, cx: &mut gpui::App) -> gpui::Task<anyhow::Result<TestReport>> {
         let config = config.clone();
         Tokio::spawn_result(cx, async move {
             let path = resolve_sqlite_path(&config.path);
             let start = std::time::Instant::now();
             let pool = SqlitePool::connect_with(sqlite_options(&path, false)).await?;
-            let version: String =
-                sqlx::query_scalar("SELECT sqlite_version()")
-                    .fetch_one(&pool)
-                    .await?;
+            let version: String = sqlx::query_scalar("SELECT sqlite_version()")
+                .fetch_one(&pool)
+                .await?;
             pool.close().await;
             Ok(TestReport {
                 latency_ms: start.elapsed().as_millis() as u64,

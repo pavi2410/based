@@ -55,10 +55,7 @@ impl TableInspectorPanel {
         let col_table = cx.new(|cx| TableState::new(col_delegate, window, cx));
 
         let idx_delegate = RowDelegate {
-            columns: vec![
-                Column::new("name", "Name"),
-                Column::new("unique", "Unique"),
-            ],
+            columns: vec![Column::new("name", "Name"), Column::new("unique", "Unique")],
             ..Default::default()
         };
         let idx_table = cx.new(|cx| TableState::new(idx_delegate, window, cx));

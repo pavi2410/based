@@ -14,10 +14,7 @@ pub fn push_notification(app: &mut App, note: Notification) {
 }
 
 pub fn push_error(app: &mut App, title: impl Into<SharedString>, message: impl Into<SharedString>) {
-    push_notification(
-        app,
-        Notification::error(message).title(title),
-    );
+    push_notification(app, Notification::error(message).title(title));
 }
 
 /// Critical: database unreachable, auth failure, etc. Stays until the user dismisses it.

@@ -2,12 +2,12 @@
 
 use gpui::{prelude::*, *};
 use gpui_component::{
-    ActiveTheme,
+    ActiveTheme, Theme,
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
+    h_flex,
     menu::PopupMenu,
-    h_flex, v_flex,
-    Theme,
+    v_flex,
 };
 
 use crate::connection::lifecycle::Connectable;
@@ -140,10 +140,7 @@ fn parse_postgres_uri(input: &str) -> Option<PostgresConfig> {
     let (username, password) = if credentials.is_empty() {
         ("postgres".to_string(), String::new())
     } else if let Some((u, p)) = credentials.split_once(':') {
-        (
-            url_decode(u),
-            url_decode(p),
-        )
+        (url_decode(u), url_decode(p))
     } else {
         (url_decode(credentials), String::new())
     };
@@ -159,10 +156,9 @@ fn parse_postgres_uri(input: &str) -> Option<PostgresConfig> {
         (host_part.to_string(), 5432u16)
     };
 
-    let (database, ssl_mode) = path_part.map(parse_path_and_query).unwrap_or((
-        "postgres".to_string(),
-        SslMode::Prefer,
-    ));
+    let (database, ssl_mode) = path_part
+        .map(parse_path_and_query)
+        .unwrap_or(("postgres".to_string(), SslMode::Prefer));
 
     Some(PostgresConfig {
         label: database.clone(),
@@ -272,9 +268,10 @@ impl Render for ConnectionWizardPanel {
         let status: SharedString = match &self.status {
             WizardStatus::Idle => "".into(),
             WizardStatus::Testing => "Testing…".into(),
-            WizardStatus::TestOk { latency_ms, version } => {
-                format!("OK — {version} ({latency_ms} ms)").into()
-            }
+            WizardStatus::TestOk {
+                latency_ms,
+                version,
+            } => format!("OK — {version} ({latency_ms} ms)").into(),
             WizardStatus::TestErr(e) => format!("Error: {e}").into(),
             WizardStatus::Connecting => "Connecting…".into(),
             WizardStatus::ConnectErr(e) => format!("Error: {e}").into(),
@@ -346,7 +343,12 @@ impl Render for ConnectionWizardPanel {
                         theme,
                     )),
             )
-            .child(div().text_xs().text_color(muted).child("SSL mode: use URI or defaults (Prefer)"))
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(muted)
+                    .child("SSL mode: use URI or defaults (Prefer)"),
+            )
             .child(
                 h_flex()
                     .gap_2()

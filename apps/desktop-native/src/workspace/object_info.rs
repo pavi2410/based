@@ -2,8 +2,9 @@ use gpui::{App, Context, FocusHandle, Focusable, IntoElement, Render, Window, di
 use gpui_component::{
     ActiveTheme,
     dock::{Panel, PanelEvent},
+    h_flex,
     menu::PopupMenu,
-    h_flex, v_flex,
+    v_flex,
 };
 
 use crate::connection::EngineKind;
@@ -174,11 +175,7 @@ impl Render for ObjectInfoPanel {
     }
 }
 
-fn dashboard_card(
-    title: &'static str,
-    body: &'static str,
-    cx: &mut App,
-) -> impl IntoElement {
+fn dashboard_card(title: &'static str, body: &'static str, cx: &mut App) -> impl IntoElement {
     v_flex()
         .gap_1()
         .p_3()

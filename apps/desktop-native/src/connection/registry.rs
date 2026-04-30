@@ -31,22 +31,14 @@ impl ConnectionRegistry {
     ) -> Entity<ConnectionEntry> {
         let entity = cx.new(|_| entry);
         self.connections.push(entity.clone());
-        cx.emit(RegistryEvent::ConnectionAdded(
-            entity.read(cx).id.clone(),
-        ));
+        cx.emit(RegistryEvent::ConnectionAdded(entity.read(cx).id.clone()));
         entity
     }
 
     pub fn remove(&mut self, id: &ConnectionId, cx: &mut Context<Self>) {
-        if let Some(pos) = self
-            .connections
-            .iter()
-            .position(|e| e.read(cx).id == *id)
-        {
+        if let Some(pos) = self.connections.iter().position(|e| e.read(cx).id == *id) {
             let entity = self.connections.remove(pos);
-            cx.emit(RegistryEvent::ConnectionRemoved(
-                entity.read(cx).id.clone(),
-            ));
+            cx.emit(RegistryEvent::ConnectionRemoved(entity.read(cx).id.clone()));
         }
     }
 

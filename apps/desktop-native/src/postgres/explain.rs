@@ -5,8 +5,9 @@ use gpui_component::{
     ActiveTheme,
     button::Button,
     dock::{Panel, PanelEvent},
+    h_flex,
     menu::PopupMenu,
-    h_flex, v_flex,
+    v_flex,
 };
 use sqlx::{PgPool, Row};
 
@@ -56,7 +57,9 @@ impl ExplainPanel {
                 } else {
                     text
                 }
-            }).await {
+            })
+            .await
+            {
                 Ok(t) => t,
                 Err(_) => "(error)".into(),
             };

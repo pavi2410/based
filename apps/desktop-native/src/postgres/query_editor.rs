@@ -5,22 +5,27 @@ use gpui_component::{
     ActiveTheme,
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
+    h_flex,
     menu::PopupMenu,
-    h_flex, v_flex,
     table::{DataTable, TableState},
     tooltip::Tooltip,
+    v_flex,
 };
 
 use crate::postgres::mutations::execute_sql;
-use crate::workspace::notify;
 use crate::widgets::ui::{metadata_pill, panel_header};
 use crate::widgets::virtual_table::RowDelegate;
+use crate::workspace::notify;
 use sqlx::PgPool;
 
 pub enum QueryStatus {
     Idle,
     Running,
-    Done { rows: usize, affected: u64, elapsed_ms: u64 },
+    Done {
+        rows: usize,
+        affected: u64,
+        elapsed_ms: u64,
+    },
     Error(String),
 }
 
@@ -167,7 +172,15 @@ impl Render for QueryEditorPanel {
                     .label("Run")
                     .on_click(cx.listener(|panel, _, _, cx| panel.run(cx))),
             )
-            .child(metadata_pill("shortcut", if cfg!(target_os = "macos") { "⌘↵" } else { "Ctrl Enter" }, cx))
+            .child(metadata_pill(
+                "shortcut",
+                if cfg!(target_os = "macos") {
+                    "⌘↵"
+                } else {
+                    "Ctrl Enter"
+                },
+                cx,
+            ))
             .child(
                 div()
                     .text_sm()
@@ -202,20 +215,18 @@ impl Render for QueryEditorPanel {
             .child(toolbar)
             .when_some(error_strip, |col, strip| col.child(strip))
             .child({
-                div()
-                    .p_2()
-                    .child(
-                        div()
-                            .h(px(180.0))
-                            .p_2()
-                            .border_1()
-                            .rounded(px(7.0))
-                            .bg(cx.theme().muted.opacity(0.14))
-                            .border_color(if is_error { err_border } else { border })
-                            .font_family("monospace")
-                            .text_sm()
-                            .child(sql_val),
-                    )
+                div().p_2().child(
+                    div()
+                        .h(px(180.0))
+                        .p_2()
+                        .border_1()
+                        .rounded(px(7.0))
+                        .bg(cx.theme().muted.opacity(0.14))
+                        .border_color(if is_error { err_border } else { border })
+                        .font_family("monospace")
+                        .text_sm()
+                        .child(sql_val),
+                )
             })
             .child(
                 div()

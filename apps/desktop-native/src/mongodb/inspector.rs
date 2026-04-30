@@ -4,11 +4,11 @@ use gpui::{prelude::*, *};
 use gpui_component::{
     dock::{Panel, PanelEvent},
     menu::PopupMenu,
-    v_flex,
     table::{Column, DataTable, TableState},
+    v_flex,
 };
-use mongodb::bson::Document;
 use mongodb::Collection;
+use mongodb::bson::Document;
 
 use crate::widgets::virtual_table::RowDelegate;
 
@@ -19,7 +19,11 @@ pub struct CollectionInspectorPanel {
 }
 
 impl CollectionInspectorPanel {
-    pub fn new(collection: Collection<Document>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        collection: Collection<Document>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let delegate = RowDelegate::default();
         let table = cx.new(|cx| TableState::new(delegate, window, cx));
         let mut p = Self {

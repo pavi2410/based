@@ -71,16 +71,16 @@ impl PragmaBrowserPanel {
                     rows.push((name.to_string(), val.unwrap_or_default()));
                 }
                 rows
-            }).await {
+            })
+            .await
+            {
                 Ok(r) => r,
                 Err(_) => return,
             };
 
             let data_rows: Vec<Vec<SharedString>> = rows
                 .iter()
-                .map(|(k, v)| {
-                    vec![SharedString::from(k.clone()), SharedString::from(v.clone())]
-                })
+                .map(|(k, v)| vec![SharedString::from(k.clone()), SharedString::from(v.clone())])
                 .collect();
 
             let _ = this.update(cx, |panel, cx| {

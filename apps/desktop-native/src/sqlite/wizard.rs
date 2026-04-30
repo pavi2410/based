@@ -5,8 +5,9 @@ use gpui_component::{
     ActiveTheme,
     button::Button,
     dock::{Panel, PanelEvent},
+    h_flex,
     menu::PopupMenu,
-    h_flex, v_flex,
+    v_flex,
 };
 
 use crate::connection::lifecycle::Connectable;
@@ -138,9 +139,10 @@ impl Render for ConnectionWizardPanel {
         let status_text: SharedString = match &self.status {
             WizardStatus::Idle => "".into(),
             WizardStatus::Testing => "Testing…".into(),
-            WizardStatus::TestOk { latency_ms, version } => {
-                format!("OK — SQLite {version} ({latency_ms}ms)").into()
-            }
+            WizardStatus::TestOk {
+                latency_ms,
+                version,
+            } => format!("OK — SQLite {version} ({latency_ms}ms)").into(),
             WizardStatus::TestErr(e) => format!("Error: {e}").into(),
             WizardStatus::Connecting => "Connecting…".into(),
             WizardStatus::ConnectErr(e) => format!("Error: {e}").into(),
@@ -217,11 +219,9 @@ impl Render for ConnectionWizardPanel {
                 h_flex()
                     .gap(px(8.0))
                     .child(
-                        Button::new("test")
-                            .label("Test Connection")
-                            .on_click(
-                                cx.listener(|panel, _, _window, cx| panel.test_connection(cx)),
-                            ),
+                        Button::new("test").label("Test Connection").on_click(
+                            cx.listener(|panel, _, _window, cx| panel.test_connection(cx)),
+                        ),
                     )
                     .child(
                         Button::new("connect")

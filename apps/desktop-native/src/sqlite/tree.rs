@@ -2,15 +2,16 @@
 
 use gpui::{prelude::*, *};
 
-use log::warn;
+use crate::widgets::ui::{metadata_pill, panel_header};
 use gpui_component::{
     ActiveTheme,
     dock::{Panel, PanelEvent},
+    h_flex,
     menu::PopupMenu,
-    h_flex, v_flex,
+    v_flex,
 };
+use log::warn;
 use sqlx::{Row, SqlitePool};
-use crate::widgets::ui::{metadata_pill, panel_header};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ObjectKind {
@@ -164,13 +165,7 @@ impl Render for SchemaTreePanel {
                             cx.notify();
                         }),
                     )
-                    .child(
-                        div()
-                            .text_xs()
-                            .opacity(0.5)
-                            .w(px(16.0))
-                            .child(kind_label),
-                    )
+                    .child(div().text_xs().opacity(0.5).w(px(16.0)).child(kind_label))
                     .child(div().text_sm().child(name))
             })
             .collect();

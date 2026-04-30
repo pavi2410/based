@@ -68,8 +68,7 @@ pub enum MongoUrlSpec {
 
 pub fn load_based_config(project_root: &Path) -> Result<BasedConfigFile> {
     let path = project_root.join(".based").join("config.toml");
-    let raw =
-        std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
+    let raw = std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
     toml::from_str(&raw).context("parse config.toml")
 }
 
@@ -132,7 +131,10 @@ fn raw_into_entry(stable_key: &str, raw: &RawConnection) -> Result<ConnectionEnt
             })
         }
         "postgres" | "postgresql" => {
-            let host = raw.host.clone().context("postgres connection requires `host`")?;
+            let host = raw
+                .host
+                .clone()
+                .context("postgres connection requires `host`")?;
             let database = raw
                 .database
                 .clone()
@@ -160,7 +162,9 @@ fn raw_into_entry(stable_key: &str, raw: &RawConnection) -> Result<ConnectionEnt
             let uri = match &raw.url {
                 Some(MongoUrlSpec::Literal(s)) => s.clone(),
                 Some(MongoUrlSpec::FromEnv { env }) => std::env::var(env).unwrap_or_default(),
-                None => anyhow::bail!("mongodb connection requires `url` (string or {{ env = \"VAR\" }})"),
+                None => anyhow::bail!(
+                    "mongodb connection requires `url` (string or {{ env = \"VAR\" }})"
+                ),
             };
             if uri.trim().is_empty() {
                 anyhow::bail!("mongodb URI is empty (is the env var set?)");

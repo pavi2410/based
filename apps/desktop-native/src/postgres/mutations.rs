@@ -42,10 +42,7 @@ pub async fn delete_row(
     Ok(r.rows_affected())
 }
 
-pub async fn execute_sql(
-    pool: &PgPool,
-    sql: &str,
-) -> Result<(Vec<String>, Vec<Vec<String>>, u64)> {
+pub async fn execute_sql(pool: &PgPool, sql: &str) -> Result<(Vec<String>, Vec<Vec<String>>, u64)> {
     let t = sql.trim_start();
     let lower = t.to_ascii_lowercase();
     if lower.starts_with("select")
@@ -62,7 +59,10 @@ pub async fn execute_sql(
             .iter()
             .map(|row| {
                 (0..row.len())
-                    .map(|i| row.try_get::<String, _>(i).unwrap_or_else(|_| "".to_string()))
+                    .map(|i| {
+                        row.try_get::<String, _>(i)
+                            .unwrap_or_else(|_| "".to_string())
+                    })
                     .collect()
             })
             .collect();

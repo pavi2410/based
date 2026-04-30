@@ -2,12 +2,12 @@
 
 use gpui::{prelude::*, *};
 use gpui_component::{
-    ActiveTheme,
+    ActiveTheme, Theme,
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
+    h_flex,
     menu::PopupMenu,
-    h_flex, v_flex,
-    Theme,
+    v_flex,
 };
 
 use crate::connection::lifecycle::Connectable;
@@ -154,10 +154,7 @@ impl Render for ConnectionWizardPanel {
         let status: SharedString = match &self.status {
             WizardStatus::Idle => "".into(),
             WizardStatus::Testing => "Testing…".into(),
-            WizardStatus::TestOk {
-                latency_ms,
-                detail,
-            } => {
+            WizardStatus::TestOk { latency_ms, detail } => {
                 format!("OK ({latency_ms} ms) — {detail}").into()
             }
             WizardStatus::TestErr(e) => format!("Error: {e}").into(),
@@ -169,11 +166,24 @@ impl Render for ConnectionWizardPanel {
             .size_full()
             .gap_2()
             .p_3()
-            .child(div().text_sm().font_weight(FontWeight::SEMIBOLD).child("Connection"))
+            .child(
+                div()
+                    .text_sm()
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .child("Connection"),
+            )
             .child(field_line("Label", &self.label, theme))
             .child(field_line("URI", &self.uri, theme))
-            .child(field_line("Database override (optional)", &self.database, theme))
-            .child(field_line("authSource (optional)", &self.auth_source, theme))
+            .child(field_line(
+                "Database override (optional)",
+                &self.database,
+                theme,
+            ))
+            .child(field_line(
+                "authSource (optional)",
+                &self.auth_source,
+                theme,
+            ))
             .child(
                 div()
                     .text_xs()

@@ -2,15 +2,16 @@
 
 use gpui::{prelude::*, *};
 
-use log::warn;
+use crate::widgets::ui::{metadata_pill, panel_header};
 use gpui_component::{
     ActiveTheme,
     dock::{Panel, PanelEvent},
+    h_flex,
     menu::PopupMenu,
-    h_flex, v_flex,
+    v_flex,
 };
+use log::warn;
 use sqlx::{PgPool, Row};
-use crate::widgets::ui::{metadata_pill, panel_header};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RelKind {
@@ -53,17 +54,17 @@ impl SchemaTreePanel {
         let pool = self.pool.clone();
         cx.spawn(async move |this, cx| {
             let rows = match crate::db::run(cx, async move {
-                Ok(
-                    sqlx::query(
-                        r"SELECT table_schema, table_name, table_type
+                Ok(sqlx::query(
+                    r"SELECT table_schema, table_name, table_type
                   FROM information_schema.tables
                   WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
                   ORDER BY table_schema, table_name",
-                    )
-                    .fetch_all(&pool)
-                    .await?,
                 )
-            }).await {
+                .fetch_all(&pool)
+                .await?)
+            })
+            .await
+            {
                 Ok(r) => r,
                 Err(e) => {
                     warn!("postgres schema load failed: {e:#}");
@@ -82,11 +83,7 @@ impl SchemaTreePanel {
                         "MATERIALIZED VIEW" => RelKind::Matview,
                         _ => RelKind::Table,
                     };
-                    RelRef {
-                        schema,
-                        name,
-                        kind,
-                    }
+                    RelRef { schema, name, kind }
                 })
                 .collect();
 
@@ -175,13 +172,7 @@ impl Render for SchemaTreePanel {
                         cx.emit(PgSchemaTreeEvent::RelationSelected(picked.clone()));
                         cx.notify();
                     }))
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(muted)
-                            .w(px(28.0))
-                            .child(badge),
-                    )
+                    .child(div().text_xs().text_color(muted).w(px(28.0)).child(badge))
                     .child(div().text_sm().text_color(fg).child(label2))
             })
             .collect::<Vec<_>>();

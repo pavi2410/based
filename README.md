@@ -1,77 +1,49 @@
-# Based - The Everything Database App
+# Based - Native Desktop Database App
 
-A free, open-source database explorer and management tool for developers.
+Based is a local-first, git-friendly desktop database client written in Rust.
 
 ## Features
-- Supports SQLite and MongoDB (PostgreSQL planned)
-- Free & Open Source
-- Privacy-focused - No backend, no data sent to servers
+- Native GPUI desktop client (`apps/desktop-native`)
+- Local project metadata in `.based/config.toml`
+- SQLite, PostgreSQL, and MongoDB workflows
+- No backend service; data stays on your machine
 
 ## Project Structure
 
-```
+```text
 based/
 ├── apps/
-│   └── desktop/        # Main Tauri desktop application
-├── packages/           # Shared packages (future)
-├── crates/             # Shared Rust crates (future)
-└── mise.toml           # Task runner configuration
+│   └── desktop-native/   # Main native desktop app (Rust + GPUI)
+├── docs/
+├── .based/
+└── mise.toml             # Task runner configuration
 ```
 
 ## Quick Start
 
 ### Prerequisites
-- Node.js 20+
-- Bun (latest)
 - Rust (latest stable)
-- Tauri prerequisites for your OS
-
-### Installation
-
-```bash
-bun install
-# or
-mise run install
-```
 
 ### Development
 
 ```bash
-# Start development server (frontend only)
-bun dev
+cargo run -p desktop-native
 # or
 mise run dev
-
-# Start Tauri development mode (full app)
-bun tauri dev
-# or
-mise run tauri:dev
 ```
 
-### Building
+### Build
 
 ```bash
-# Build frontend
-bun run build
-
-# Build Tauri app
-bun tauri build
+cargo build -p desktop-native --release
 # or
-mise run tauri:build
+mise run build
 ```
 
-## Available Tasks (via mise)
+## Validation
 
-- `mise run dev` - Start frontend dev server
-- `mise run tauri:dev` - Start Tauri development mode
-- `mise run build` - Build for production
-- `mise run tauri:build` - Build Tauri app
-- `mise run install` - Install dependencies
-- `mise run clean` - Clean build artifacts
-- `mise run lint` - Lint code
-- `mise run format` - Format code
-- `mise run type-check` - Type check TypeScript
-
-## Documentation
-
-See [apps/desktop/README.md](./apps/desktop/README.md) for desktop app details.
+```bash
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets
+cargo test --workspace
+```

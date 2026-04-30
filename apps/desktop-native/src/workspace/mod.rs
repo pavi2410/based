@@ -16,23 +16,21 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::Instant;
 
+use crate::widgets::ui::{engine_chip, engine_color, engine_name, metadata_pill};
 use gpui::{
     AnyElement, Context, Entity, FocusHandle, Focusable, FontWeight, IntoElement, Render,
     SharedString, Window, div, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme,
-    Icon, IconName,
-    Sizable as _,
-    StyledExt,
+    ActiveTheme, Icon, IconName, Sizable as _, StyledExt,
     dock::{DockArea, DockItem, DockPlacement, PanelStyle},
-    h_flex, v_flex,
+    h_flex,
     scroll::ScrollableElement,
     tooltip::Tooltip,
+    v_flex,
 };
 use mongodb::Database;
 use sqlx::{PgPool, Row, SqlitePool};
-use crate::widgets::ui::{engine_chip, engine_color, engine_name, metadata_pill};
 
 use crate::bindings::{CycleAppearance, ToggleSidebarRail};
 use crate::connection::lifecycle::Connectable;
@@ -46,10 +44,10 @@ use crate::project::{find_project_root, load_workspace_seed};
 use crate::sqlite::{self, SqliteConnection};
 use ::mongodb::bson::Document;
 
+use object_info::ObjectInfoPanel;
 use status_bar::StatusBar;
 use topbar::Topbar;
 use welcome::WelcomePanel;
-use object_info::ObjectInfoPanel;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum WorkspaceObjectKind {
@@ -405,10 +403,12 @@ impl Workspace {
         let center = match ac {
             AnyConnection::SQLite(ent) => {
                 let pool = ent.read(cx).pool.clone();
-                let query =
-                    cx.new(|cx| sqlite::query_editor::QueryEditorPanel::new(pool.clone(), window, cx));
-                let pragma =
-                    cx.new(|cx| sqlite::pragma_browser::PragmaBrowserPanel::new(pool.clone(), window, cx));
+                let query = cx.new(|cx| {
+                    sqlite::query_editor::QueryEditorPanel::new(pool.clone(), window, cx)
+                });
+                let pragma = cx.new(|cx| {
+                    sqlite::pragma_browser::PragmaBrowserPanel::new(pool.clone(), window, cx)
+                });
                 DockItem::tabs(
                     vec![Arc::new(dashboard), Arc::new(query), Arc::new(pragma)],
                     &weak,
@@ -418,10 +418,12 @@ impl Workspace {
             }
             AnyConnection::Postgres(ent) => {
                 let pool = ent.read(cx).pool.clone();
-                let query =
-                    cx.new(|cx| postgres::query_editor::QueryEditorPanel::new(pool.clone(), window, cx));
-                let monitor =
-                    cx.new(|cx| postgres::live_monitor::LiveMonitorPanel::new(pool.clone(), window, cx));
+                let query = cx.new(|cx| {
+                    postgres::query_editor::QueryEditorPanel::new(pool.clone(), window, cx)
+                });
+                let monitor = cx.new(|cx| {
+                    postgres::live_monitor::LiveMonitorPanel::new(pool.clone(), window, cx)
+                });
                 DockItem::tabs(
                     vec![Arc::new(dashboard), Arc::new(query), Arc::new(monitor)],
                     &weak,
@@ -432,10 +434,16 @@ impl Workspace {
             AnyConnection::MongoDB(ent) => {
                 let db = ent.read(cx).database().clone();
                 let coll: ::mongodb::Collection<Document> = db.collection("based_explorer");
-                let builder =
-                    cx.new(|cx| crate::mongodb::pipeline_builder::PipelineBuilderPanel::new(coll.clone(), window, cx));
-                let stream =
-                    cx.new(|cx| crate::mongodb::change_stream::ChangeStreamPanel::new(coll, window, cx));
+                let builder = cx.new(|cx| {
+                    crate::mongodb::pipeline_builder::PipelineBuilderPanel::new(
+                        coll.clone(),
+                        window,
+                        cx,
+                    )
+                });
+                let stream = cx.new(|cx| {
+                    crate::mongodb::change_stream::ChangeStreamPanel::new(coll, window, cx)
+                });
                 DockItem::tabs(
                     vec![Arc::new(dashboard), Arc::new(builder), Arc::new(stream)],
                     &weak,
@@ -676,53 +684,50 @@ impl Workspace {
             _ => None,
         };
         match ac {
-            Some(AnyConnection::SQLite(conn)) => {
-                match object.kind {
-                    WorkspaceObjectKind::Table | WorkspaceObjectKind::View => {
-                        let pool = conn.read(cx).pool.clone();
-                        let panel = cx.new(|cx| {
-                            sqlite::data_viewer::DataViewerPanel::new(
-                                pool,
-                                object.name.clone(),
-                                window,
-                                cx,
-                            )
-                        });
-                        self.add_center_panel(Arc::new(panel), window, cx);
-                    }
-                    _ => self.open_object_info(object, window, cx),
+            Some(AnyConnection::SQLite(conn)) => match object.kind {
+                WorkspaceObjectKind::Table | WorkspaceObjectKind::View => {
+                    let pool = conn.read(cx).pool.clone();
+                    let panel = cx.new(|cx| {
+                        sqlite::data_viewer::DataViewerPanel::new(
+                            pool,
+                            object.name.clone(),
+                            window,
+                            cx,
+                        )
+                    });
+                    self.add_center_panel(Arc::new(panel), window, cx);
                 }
-            }
-            Some(AnyConnection::Postgres(conn)) => {
-                match object.kind {
-                    WorkspaceObjectKind::Table
-                    | WorkspaceObjectKind::View
-                    | WorkspaceObjectKind::MaterializedView => {
-                        let pool = conn.read(cx).pool.clone();
-                        let schema = object.schema.clone().unwrap_or_else(|| "public".to_string());
-                        let panel = cx.new(|cx| {
-                            postgres::data_viewer::DataViewerPanel::new(
-                                pool,
-                                schema,
-                                object.name.clone(),
-                                window,
-                                cx,
-                            )
-                        });
-                        self.add_center_panel(Arc::new(panel), window, cx);
-                    }
-                    _ => self.open_object_info(object, window, cx),
+                _ => self.open_object_info(object, window, cx),
+            },
+            Some(AnyConnection::Postgres(conn)) => match object.kind {
+                WorkspaceObjectKind::Table
+                | WorkspaceObjectKind::View
+                | WorkspaceObjectKind::MaterializedView => {
+                    let pool = conn.read(cx).pool.clone();
+                    let schema = object
+                        .schema
+                        .clone()
+                        .unwrap_or_else(|| "public".to_string());
+                    let panel = cx.new(|cx| {
+                        postgres::data_viewer::DataViewerPanel::new(
+                            pool,
+                            schema,
+                            object.name.clone(),
+                            window,
+                            cx,
+                        )
+                    });
+                    self.add_center_panel(Arc::new(panel), window, cx);
                 }
-            }
+                _ => self.open_object_info(object, window, cx),
+            },
             Some(AnyConnection::MongoDB(conn)) => {
                 if matches!(object.kind, WorkspaceObjectKind::Collection) {
                     let db = conn.read(cx).database().clone();
                     let collection: ::mongodb::Collection<Document> = db.collection(&object.name);
                     let panel = cx.new(|cx| {
                         crate::mongodb::document_viewer::DocumentViewerPanel::new(
-                            collection,
-                            window,
-                            cx,
+                            collection, window, cx,
                         )
                     });
                     self.add_center_panel(Arc::new(panel), window, cx);
@@ -741,7 +746,8 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let panel = cx.new(|cx| ObjectInfoPanel::new(object.display_name(), object.kind.label(), window, cx));
+        let panel = cx
+            .new(|cx| ObjectInfoPanel::new(object.display_name(), object.kind.label(), window, cx));
         self.add_center_panel(Arc::new(panel), window, cx);
     }
 
@@ -780,8 +786,7 @@ impl Render for Workspace {
         }
 
         let this = cx.entity().clone();
-        let conn_list: Vec<Entity<ConnectionEntry>> =
-            self.registry.read(cx).connections().to_vec();
+        let conn_list: Vec<Entity<ConnectionEntry>> = self.registry.read(cx).connections().to_vec();
         let conn_count = conn_list.len();
         let connected_count = conn_list
             .iter()
@@ -825,7 +830,9 @@ impl Render for Workspace {
                                     .text_xs()
                                     .text_color(muted.opacity(0.82))
                                     .truncate()
-                                    .child(format!("{conn_count} connections · {connected_count} live")),
+                                    .child(format!(
+                                        "{conn_count} connections · {connected_count} live"
+                                    )),
                             ),
                     )
                     .child(
@@ -855,7 +862,11 @@ impl Render for Workspace {
                     .border_1()
                     .border_color(border.opacity(0.78))
                     .bg(cx.theme().muted.opacity(0.32))
-                    .child(Icon::new(IconName::Search).with_size(gpui_component::Size::XSmall).text_color(muted))
+                    .child(
+                        Icon::new(IconName::Search)
+                            .with_size(gpui_component::Size::XSmall)
+                            .text_color(muted),
+                    )
                     .child(
                         div()
                             .text_xs()
@@ -864,146 +875,138 @@ impl Render for Workspace {
                             .child("Search connections"),
                     ),
             )
-            .child(
-                v_flex()
-                    .flex_1()
-                    .overflow_y_scrollbar()
-                    .children(conn_list.into_iter().enumerate().map(|(idx, ent)| {
-                        let entry = ent.read(cx);
-                        let state_color = connection_state_dot(&entry.state, cx.theme());
-                        let engine = entry.config.engine();
-                        let conn_label = entry.config.label().to_string();
-                        let state_label = entry.state.label();
-                        let is_selected = self.selected_connection == Some(idx);
-                        let is_failed = matches!(entry.state, ConnectionState::Failed { .. });
-                        let fail_reason = match &entry.state {
-                            ConnectionState::Failed { reason, .. } => Some(reason.clone()),
-                            _ => None,
-                        };
-                        let err_fg = cx.theme().danger_foreground;
+            .child(v_flex().flex_1().overflow_y_scrollbar().children(
+                conn_list.into_iter().enumerate().map(|(idx, ent)| {
+                    let entry = ent.read(cx);
+                    let state_color = connection_state_dot(&entry.state, cx.theme());
+                    let engine = entry.config.engine();
+                    let conn_label = entry.config.label().to_string();
+                    let state_label = entry.state.label();
+                    let is_selected = self.selected_connection == Some(idx);
+                    let is_failed = matches!(entry.state, ConnectionState::Failed { .. });
+                    let fail_reason = match &entry.state {
+                        ConnectionState::Failed { reason, .. } => Some(reason.clone()),
+                        _ => None,
+                    };
+                    let err_fg = cx.theme().danger_foreground;
 
-                        let status_cell = if is_failed {
-                            h_flex()
-                                .flex_shrink_0()
-                                .gap_1()
-                                .items_center()
-                                .child(
-                                    Icon::new(IconName::CircleX)
-                                        .text_color(err_fg)
-                                        .with_size(gpui_component::Size::XSmall),
-                                )
-                                .child(
-                                    div()
-                                        .text_xs()
-                                        .font_semibold()
-                                        .text_color(err_fg)
-                                        .child("Failed"),
-                                )
-                        } else {
-                            h_flex()
-                                .flex_shrink_0()
-                                .child(
-                                    div()
-                                        .text_xs()
-                                        .text_color(muted)
-                                        .child(state_label),
-                                )
-                        };
-
-                        let main_row = h_flex()
-                            .w_full()
-                            .gap_2()
+                    let status_cell = if is_failed {
+                        h_flex()
+                            .flex_shrink_0()
+                            .gap_1()
                             .items_center()
                             .child(
-                                div()
-                                    .w_2()
-                                    .h_2()
-                                    .rounded_full()
-                                    .flex_shrink_0()
-                                    .bg(state_color),
+                                Icon::new(IconName::CircleX)
+                                    .text_color(err_fg)
+                                    .with_size(gpui_component::Size::XSmall),
                             )
                             .child(
-                                v_flex()
-                                    .flex_1()
-                                    .min_w_0()
-                                    .gap(gpui::px(1.0))
-                                    .child(
-                                        div()
-                                            .text_sm()
-                                            .text_color(sfg)
-                                            .truncate()
-                                            .when(is_failed, |d| d.text_color(err_fg.opacity(0.92)))
-                                            .child(conn_label.clone()),
-                                    )
-                                    .child(
-                                        h_flex()
-                                            .gap_1()
-                                            .items_center()
-                                            .child(engine_chip(engine, cx))
-                                            .child(
-                                                div()
-                                                    .text_xs()
-                                                    .text_color(muted.opacity(0.82))
-                                                    .child("local"),
-                                            ),
-                                    ),
+                                div()
+                                    .text_xs()
+                                    .font_semibold()
+                                    .text_color(err_fg)
+                                    .child("Failed"),
                             )
-                            .child(status_cell);
+                    } else {
+                        h_flex()
+                            .flex_shrink_0()
+                            .child(div().text_xs().text_color(muted).child(state_label))
+                    };
 
-                        let mut row = main_row.id(("conn-row", idx));
-                        if let Some(reason) = fail_reason {
-                            let reason_tip: SharedString = reason.clone().into();
-                            row = row.tooltip(move |window, app| {
-                                Tooltip::element({
-                                    let reason_tip = reason_tip.clone();
-                                    move |_w, tip_cx| {
-                                        let fg = tip_cx.theme().foreground;
-                                        let subtle = tip_cx.theme().muted_foreground;
-                                        v_flex()
-                                            .gap_1()
-                                            .max_w(gpui::px(400.0))
-                                            .child(
-                                                div()
-                                                    .text_xs()
-                                                    .font_semibold()
-                                                    .text_color(fg)
-                                                    .child("Could not connect"),
-                                            )
-                                            .child(
-                                                div()
-                                                    .text_xs()
-                                                    .text_color(subtle)
-                                                    .font_family(tip_cx.theme().mono_font_family.clone())
-                                                    .child(reason_tip.clone()),
-                                            )
-                                    }
-                                })
-                                .build(window, app)
-                            });
-                        }
+                    let main_row = h_flex()
+                        .w_full()
+                        .gap_2()
+                        .items_center()
+                        .child(
+                            div()
+                                .w_2()
+                                .h_2()
+                                .rounded_full()
+                                .flex_shrink_0()
+                                .bg(state_color),
+                        )
+                        .child(
+                            v_flex()
+                                .flex_1()
+                                .min_w_0()
+                                .gap(gpui::px(1.0))
+                                .child(
+                                    div()
+                                        .text_sm()
+                                        .text_color(sfg)
+                                        .truncate()
+                                        .when(is_failed, |d| d.text_color(err_fg.opacity(0.92)))
+                                        .child(conn_label.clone()),
+                                )
+                                .child(
+                                    h_flex()
+                                        .gap_1()
+                                        .items_center()
+                                        .child(engine_chip(engine, cx))
+                                        .child(
+                                            div()
+                                                .text_xs()
+                                                .text_color(muted.opacity(0.82))
+                                                .child("local"),
+                                        ),
+                                ),
+                        )
+                        .child(status_cell);
 
-                        row
-                            .px_2()
-                            .py_1()
-                            .cursor_pointer()
-                            .rounded(gpui::px(7.0))
-                            .mx_2()
-                            .mb(gpui::px(2.0))
-                            .when(is_selected, |r| {
-                                r.bg(cx.theme().accent.opacity(0.22))
-                                    .border_1()
-                                    .border_color(engine_color(engine).opacity(0.26))
+                    let mut row = main_row.id(("conn-row", idx));
+                    if let Some(reason) = fail_reason {
+                        let reason_tip: SharedString = reason.clone().into();
+                        row = row.tooltip(move |window, app| {
+                            Tooltip::element({
+                                let reason_tip = reason_tip.clone();
+                                move |_w, tip_cx| {
+                                    let fg = tip_cx.theme().foreground;
+                                    let subtle = tip_cx.theme().muted_foreground;
+                                    v_flex()
+                                        .gap_1()
+                                        .max_w(gpui::px(400.0))
+                                        .child(
+                                            div()
+                                                .text_xs()
+                                                .font_semibold()
+                                                .text_color(fg)
+                                                .child("Could not connect"),
+                                        )
+                                        .child(
+                                            div()
+                                                .text_xs()
+                                                .text_color(subtle)
+                                                .font_family(
+                                                    tip_cx.theme().mono_font_family.clone(),
+                                                )
+                                                .child(reason_tip.clone()),
+                                        )
+                                }
                             })
-                            .when(is_failed, |r| {
-                                r.border_1()
-                                    .border_color(cx.theme().danger.opacity(0.35))
-                            })
-                            .hover(move |s| s.bg(list_hover))
-                            .on_click(cx.listener(move |ws, _, window, cx| {
-                                ws.on_connection_row_clicked(idx, window, cx);
-                            }))
-                    })),
-            );
+                            .build(window, app)
+                        });
+                    }
+
+                    row.px_2()
+                        .py_1()
+                        .cursor_pointer()
+                        .rounded(gpui::px(7.0))
+                        .mx_2()
+                        .mb(gpui::px(2.0))
+                        .when(is_selected, |r| {
+                            r.bg(cx.theme().accent.opacity(0.22))
+                                .border_1()
+                                .border_color(engine_color(engine).opacity(0.26))
+                        })
+                        .when(is_failed, |r| {
+                            r.border_1().border_color(cx.theme().danger.opacity(0.35))
+                        })
+                        .hover(move |s| s.bg(list_hover))
+                        .on_click(cx.listener(move |ws, _, window, cx| {
+                            ws.on_connection_row_clicked(idx, window, cx);
+                        }))
+                }),
+            ));
 
         let objects_pane = render_objects_pane(
             self.active_objects.clone(),
@@ -1050,9 +1053,11 @@ impl Render for Workspace {
         v_flex()
             .size_full()
             .track_focus(&self.focus_handle)
-            .on_action(window.listener_for(&this, |ws, _: &ToggleSidebarRail, _, cx| {
-                ws.toggle_sidebar_rail(cx);
-            }))
+            .on_action(
+                window.listener_for(&this, |ws, _: &ToggleSidebarRail, _, cx| {
+                    ws.toggle_sidebar_rail(cx);
+                }),
+            )
             .on_action(window.listener_for(&this, |_, _: &CycleAppearance, _, cx| {
                 crate::app::prefs::cycle_theme(cx);
             }))
@@ -1108,21 +1113,22 @@ fn render_inspector(
                             .child(format!("{} connection", engine_name(engine))),
                     ),
             )
-            .child(h_flex().gap_2().child(engine_chip(engine, cx)).child(metadata_pill("state", state, cx)))
             .child(
-                inspector_section(
-                    "Activity",
-                    vec![
-                        ("Recent", "Schema refresh"),
-                        ("Saved", "0 queries"),
-                        ("Pinned", "No pinned objects"),
-                    ],
-                    cx,
-                ),
+                h_flex()
+                    .gap_2()
+                    .child(engine_chip(engine, cx))
+                    .child(metadata_pill("state", state, cx)),
             )
-            .child(
-                inspector_note("Health", &summary, cx),
-            )
+            .child(inspector_section(
+                "Activity",
+                vec![
+                    ("Recent", "Schema refresh"),
+                    ("Saved", "0 queries"),
+                    ("Pinned", "No pinned objects"),
+                ],
+                cx,
+            ))
+            .child(inspector_note("Health", &summary, cx))
             .into_any_element()
     } else {
         v_flex()
@@ -1136,9 +1142,30 @@ fn render_inspector(
             .child(inspector_section(
                 "Shortcuts",
                 vec![
-                    ("Command", if cfg!(target_os = "macos") { "⌘K" } else { "Ctrl K" }),
-                    ("Run query", if cfg!(target_os = "macos") { "⌘↵" } else { "Ctrl Enter" }),
-                    ("Sidebar", if cfg!(target_os = "macos") { "⌘\\" } else { "Ctrl \\" }),
+                    (
+                        "Command",
+                        if cfg!(target_os = "macos") {
+                            "⌘K"
+                        } else {
+                            "Ctrl K"
+                        },
+                    ),
+                    (
+                        "Run query",
+                        if cfg!(target_os = "macos") {
+                            "⌘↵"
+                        } else {
+                            "Ctrl Enter"
+                        },
+                    ),
+                    (
+                        "Sidebar",
+                        if cfg!(target_os = "macos") {
+                            "⌘\\"
+                        } else {
+                            "Ctrl \\"
+                        },
+                    ),
                 ],
                 cx,
             ))
@@ -1201,13 +1228,7 @@ fn render_objects_pane(
                     .gap_2()
                     .items_center()
                     .child(engine_chip(engine, cx))
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(muted)
-                            .truncate()
-                            .child(label),
-                    ),
+                    .child(div().text_xs().text_color(muted).truncate().child(label)),
             )
             .child(
                 div()
@@ -1260,13 +1281,7 @@ fn render_objects_pane(
                         .gap_2()
                         .items_center()
                         .child(engine_chip(engine, cx))
-                        .child(
-                            div()
-                                .text_xs()
-                                .text_color(muted)
-                                .truncate()
-                                .child(label),
-                        ),
+                        .child(div().text_xs().text_color(muted).truncate().child(label)),
                 )
                 .children(groups.into_iter().map(|(group_name, rows)| {
                     v_flex()
@@ -1299,7 +1314,8 @@ fn render_objects_pane(
                             object_id.hash(&mut hasher);
                             object.kind.label().hash(&mut hasher);
                             let object_key = hasher.finish();
-                            let is_selected = selected_object.as_deref() == Some(object_id.as_str());
+                            let is_selected =
+                                selected_object.as_deref() == Some(object_id.as_str());
                             let kind = object.kind.label();
                             let object_for_click = object.clone();
 
@@ -1383,7 +1399,11 @@ fn render_objects_pane(
                 .border_1()
                 .border_color(border.opacity(0.78))
                 .bg(cx.theme().muted.opacity(0.32))
-                .child(Icon::new(IconName::Search).with_size(gpui_component::Size::XSmall).text_color(muted))
+                .child(
+                    Icon::new(IconName::Search)
+                        .with_size(gpui_component::Size::XSmall)
+                        .text_color(muted),
+                )
                 .child(
                     div()
                         .text_xs()

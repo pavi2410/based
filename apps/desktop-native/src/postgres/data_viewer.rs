@@ -5,14 +5,15 @@ use gpui_component::{
     ActiveTheme, Disableable,
     button::Button,
     dock::{Panel, PanelEvent},
+    h_flex,
     menu::PopupMenu,
-    h_flex, v_flex,
     table::{Column, DataTable, TableState},
+    v_flex,
 };
 use sqlx::{Column as SqlxColumn, PgPool, Row};
 
-use crate::widgets::virtual_table::RowDelegate;
 use crate::widgets::ui::{metadata_pill, panel_header};
+use crate::widgets::virtual_table::RowDelegate;
 
 pub struct DataViewerPanel {
     focus_handle: FocusHandle,
@@ -219,11 +220,7 @@ impl Render for DataViewerPanel {
             .w_full()
             .h_full()
             .bg(cx.theme().background)
-            .child(panel_header(
-                title,
-                "Browse Postgres relation data",
-                cx,
-            ))
+            .child(panel_header(title, "Browse Postgres relation data", cx))
             .child(toolbar)
             .child(DataTable::new(&self.table).stripe(true).bordered(false))
     }

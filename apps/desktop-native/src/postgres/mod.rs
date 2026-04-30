@@ -13,8 +13,8 @@ pub mod tree;
 pub mod wizard;
 
 use serde::{Deserialize, Serialize};
-use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
 use sqlx::PgPool;
+use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
 
 use crate::connection::lifecycle::{Connectable, TestReport};
 use crate::db;

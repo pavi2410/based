@@ -1,12 +1,6 @@
-# Dependencies
-node_modules
-**/node_modules
-
-# Build outputs
-dist
-dist-ssr
-**/dist
-**/dist-ssr
+# Rust build outputs
+target
+**/target
 
 # Logs
 *.log
@@ -15,20 +9,15 @@ dist-ssr
 .DS_Store
 Thumbs.db
 
-# Package manager
-.pnpm-store
-.pnpm-debug.log
-
-# Tauri
-**/target
-**/.tanstack
-
 # Local env files
 *.local
 .env
 
 # Large sample DB (copy from Downloads or your source)
-data/northwind.db
+data/
+*.db
+*.db-shm
+*.db-wal
 
 # Local dev SQLite from desktop-native mock connection
 /app.db
@@ -46,5 +35,3 @@ data/northwind.db
 *.njsproj
 *.sln
 *.sw?
-*.db-shm
-*.db-wal

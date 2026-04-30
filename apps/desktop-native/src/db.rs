@@ -33,9 +33,7 @@ pub async fn run_infallible<R: Send + 'static>(
     cx: &mut AsyncApp,
     f: impl std::future::Future<Output = R> + Send + 'static,
 ) -> Result<R> {
-    Tokio::spawn(cx, f)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))
+    Tokio::spawn(cx, f).await.map_err(|e| anyhow::anyhow!(e))
 }
 
 pub fn close_sqlite_pool(pool: SqlitePool) {

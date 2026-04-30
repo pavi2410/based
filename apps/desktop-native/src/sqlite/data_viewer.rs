@@ -5,14 +5,15 @@ use gpui_component::{
     ActiveTheme, Disableable,
     button::Button,
     dock::{Panel, PanelEvent},
+    h_flex,
     menu::PopupMenu,
-    h_flex, v_flex,
     table::{Column, DataTable, TableState},
+    v_flex,
 };
 use sqlx::{Column as SqlxColumn, Row, SqlitePool};
 
-use crate::widgets::virtual_table::RowDelegate;
 use crate::widgets::ui::{metadata_pill, panel_header};
+use crate::widgets::virtual_table::RowDelegate;
 
 pub struct DataViewerPanel {
     focus_handle: FocusHandle,

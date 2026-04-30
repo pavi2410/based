@@ -1,11 +1,14 @@
-use gpui::{App, Context, FocusHandle, Focusable, IntoElement, Render, Window, div, prelude::*, px};
+use crate::widgets::ui::metadata_pill;
+use gpui::{
+    App, Context, FocusHandle, Focusable, IntoElement, Render, Window, div, prelude::*, px,
+};
 use gpui_component::{
     ActiveTheme, IconName, Sizable as _, StyledExt,
     dock::{Panel, PanelEvent},
+    h_flex,
     menu::PopupMenu,
-    h_flex, v_flex,
+    v_flex,
 };
-use crate::widgets::ui::metadata_pill;
 
 pub struct WelcomePanel {
     focus_handle: FocusHandle,
@@ -75,16 +78,39 @@ impl Render for WelcomePanel {
             .child(
                 h_flex()
                     .gap_2()
-                    .child(metadata_pill("command", if cfg!(target_os = "macos") { "⌘K" } else { "Ctrl K" }, cx))
+                    .child(metadata_pill(
+                        "command",
+                        if cfg!(target_os = "macos") {
+                            "⌘K"
+                        } else {
+                            "Ctrl K"
+                        },
+                        cx,
+                    ))
                     .child(metadata_pill("workspace", "local-first", cx))
                     .child(metadata_pill("engines", "SQLite · Postgres · MongoDB", cx)),
             )
             .child(
                 h_flex()
                     .gap_3()
-                    .child(action_card(cx, "Open Project", "Open an existing project folder", IconName::FolderOpen))
-                    .child(action_card(cx, "New Connection", "Add a database connection", IconName::Plus))
-                    .child(action_card(cx, "Command Center", "Open anything from one place", IconName::Search)),
+                    .child(action_card(
+                        cx,
+                        "Open Project",
+                        "Open an existing project folder",
+                        IconName::FolderOpen,
+                    ))
+                    .child(action_card(
+                        cx,
+                        "New Connection",
+                        "Add a database connection",
+                        IconName::Plus,
+                    ))
+                    .child(action_card(
+                        cx,
+                        "Command Center",
+                        "Open anything from one place",
+                        IconName::Search,
+                    )),
             )
     }
 }

@@ -1,8 +1,8 @@
 # Changelog
 
 All notable changes to Based are documented here. Versions follow
-[SemVer](https://semver.org). Entries target the desktop app
-(`apps/desktop`) unless noted otherwise.
+[SemVer](https://semver.org). Entries target the native desktop app
+(`apps/desktop-native`) unless noted otherwise.
 
 ## 0.2.0 — Internal release
 

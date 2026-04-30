@@ -1,14 +1,15 @@
 // mongodb::tree — collection list for a database.
 
+use crate::widgets::ui::{metadata_pill, panel_header};
 use gpui::{prelude::*, *};
 use gpui_component::{
     ActiveTheme,
     dock::{Panel, PanelEvent},
+    h_flex,
     menu::PopupMenu,
-    h_flex, v_flex,
+    v_flex,
 };
 use mongodb::Database;
-use crate::widgets::ui::{metadata_pill, panel_header};
 
 pub enum CollectionTreeEvent {
     CollectionSelected(String),
@@ -38,7 +39,9 @@ impl CollectionsTreePanel {
         cx.spawn(async move |this, cx| {
             let names = match crate::db::run_infallible(cx, async move {
                 db.list_collection_names(None).await.unwrap_or_default()
-            }).await {
+            })
+            .await
+            {
                 Ok(n) => n,
                 Err(_) => return,
             };

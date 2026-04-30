@@ -122,7 +122,11 @@ pub fn command_shell(cx: &mut App, placeholder: &'static str) -> impl IntoElemen
                 .text_xs()
                 .font_family(cx.theme().mono_font_family.clone())
                 .text_color(cx.theme().muted_foreground.opacity(0.82))
-                .child(if cfg!(target_os = "macos") { "⌘K" } else { "Ctrl K" }),
+                .child(if cfg!(target_os = "macos") {
+                    "⌘K"
+                } else {
+                    "Ctrl K"
+                }),
         )
 }
 

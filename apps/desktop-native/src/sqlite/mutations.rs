@@ -53,12 +53,7 @@ pub async fn update_row(
     Ok(result.rows_affected())
 }
 
-pub async fn delete_row(
-    pool: &SqlitePool,
-    table: &str,
-    pk_col: &str,
-    pk_val: &str,
-) -> Result<u64> {
+pub async fn delete_row(pool: &SqlitePool, table: &str, pk_col: &str, pk_val: &str) -> Result<u64> {
     let sql = format!("DELETE FROM \"{table}\" WHERE \"{pk_col}\" = ?1");
     let result = sqlx::query(&sql).bind(pk_val).execute(pool).await?;
     Ok(result.rows_affected())
@@ -73,10 +68,17 @@ pub async fn execute_sql(
     sql: &str,
 ) -> Result<(Vec<String>, Vec<Vec<String>>, u64)> {
     let trimmed = sql.trim_start().to_ascii_uppercase();
-    if trimmed.starts_with("SELECT") || trimmed.starts_with("WITH") || trimmed.starts_with("EXPLAIN") {
+    if trimmed.starts_with("SELECT")
+        || trimmed.starts_with("WITH")
+        || trimmed.starts_with("EXPLAIN")
+    {
         let rows = sqlx::query(sql).fetch_all(pool).await?;
         let columns: Vec<String> = if let Some(first) = rows.first() {
-            first.columns().iter().map(|c| c.name().to_string()).collect()
+            first
+                .columns()
+                .iter()
+                .map(|c| c.name().to_string())
+                .collect()
         } else {
             vec![]
         };

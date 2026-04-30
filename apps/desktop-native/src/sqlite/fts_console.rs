@@ -5,8 +5,9 @@ use gpui_component::{
     ActiveTheme,
     button::Button,
     dock::{Panel, PanelEvent},
+    h_flex,
     menu::PopupMenu,
-    h_flex, v_flex,
+    v_flex,
 };
 use sqlx::{Row, SqlitePool};
 
@@ -45,14 +46,14 @@ impl FtsConsolePanel {
         let pool = self.pool.clone();
         cx.spawn(async move |this, cx| {
             let rows = match crate::db::run(cx, async move {
-                Ok(
-                    sqlx::query(
-                        "SELECT name FROM sqlite_master WHERE type='table' AND sql LIKE '%fts5%'",
-                    )
-                    .fetch_all(&pool)
-                    .await?,
+                Ok(sqlx::query(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND sql LIKE '%fts5%'",
                 )
-            }).await {
+                .fetch_all(&pool)
+                .await?)
+            })
+            .await
+            {
                 Ok(r) => r,
                 Err(_) => return,
             };
@@ -85,7 +86,9 @@ impl FtsConsolePanel {
             );
             let rows = match crate::db::run(cx, async move {
                 Ok(sqlx::query(&sql).bind(&query).fetch_all(&pool).await?)
-            }).await {
+            })
+            .await
+            {
                 Ok(r) => r,
                 Err(_) => return,
             };

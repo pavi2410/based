@@ -5,13 +5,14 @@ use gpui_component::{
     ActiveTheme,
     button::Button,
     dock::{Panel, PanelEvent},
+    h_flex,
     menu::PopupMenu,
-    h_flex, v_flex,
     table::{Column, DataTable, TableState},
+    v_flex,
 };
-use mongodb::bson::{doc, Document};
-use mongodb::options::FindOptions;
 use mongodb::Collection;
+use mongodb::bson::{Document, doc};
+use mongodb::options::FindOptions;
 
 use crate::widgets::virtual_table::RowDelegate;
 
@@ -60,7 +61,9 @@ impl DocumentViewerPanel {
                     docs.push(d);
                 }
                 Ok(docs)
-            }).await {
+            })
+            .await
+            {
                 Ok(d) => d,
                 Err(_) => {
                     let _ = cx.update(|cx| {

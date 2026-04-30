@@ -34,52 +34,57 @@ impl RenderOnce for ConnectionSidebar {
                     .text_color(cx.theme().muted_foreground)
                     .child("CONNECTIONS"),
             )
-            .children(self.connections.into_iter().enumerate().map(|(idx, entry)| {
-                let state_color = state_dot_color(&entry.state);
-                let engine_label = entry.config.engine().short_label();
-                let conn_label = entry.config.label().to_string();
-                let state_label = entry.state.label();
-                let badge_color = engine_badge_color(entry.config.engine());
+            .children(
+                self.connections
+                    .into_iter()
+                    .enumerate()
+                    .map(|(idx, entry)| {
+                        let state_color = state_dot_color(&entry.state);
+                        let engine_label = entry.config.engine().short_label();
+                        let conn_label = entry.config.label().to_string();
+                        let state_label = entry.state.label();
+                        let badge_color = engine_badge_color(entry.config.engine());
 
-                h_flex()
-                    .id(("conn-row", idx))
-                    .px_3()
-                    .py_2()
-                    .gap_2()
-                    .items_center()
-                    .cursor_pointer()
-                    .rounded_md()
-                    .mx_1()
-                    .hover(|s| s.bg(gpui::hsla(0.0, 0.0, 0.5, 0.08)))
-                    .on_click(move |_, _window, _cx| {
-                        eprintln!("connection clicked: {} ({})", conn_label, state_label);
-                    })
-                    .child(
-                        div()
-                            .w_2()
-                            .h_2()
-                            .rounded_full()
-                            .flex_shrink_0()
-                            .bg(state_color),
-                    )
-                    .child(
-                        div()
-                            .text_xs()
-                            .px_1()
-                            .rounded_sm()
-                            .bg(badge_color)
-                            .text_color(cx.theme().foreground)
-                            .child(engine_label),
-                    )
-                    .child(
-                        div()
-                            .flex_1()
-                            .text_sm()
-                            .text_color(cx.theme().sidebar_foreground)
-                            .truncate()
-                            .child(entry.config.label().to_string()),
-                    )
-            }))
+                        h_flex()
+                            .id(("conn-row", idx))
+                            .px_3()
+                            .py_2()
+                            .gap_2()
+                            .items_center()
+                            .cursor_pointer()
+                            .rounded_md()
+                            .mx_1()
+                            .hover(|s| s.bg(gpui::hsla(0.0, 0.0, 0.5, 0.08)))
+                            .on_click(move |_, _window, _cx| {
+                                eprintln!("connection clicked: {} ({})", conn_label, state_label);
+                            })
+                            .child(
+                                div()
+                                    .w_2()
+                                    .h_2()
+                                    .rounded_full()
+                                    .flex_shrink_0()
+                                    .bg(state_color),
+                            )
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .px_1()
+                                    .rounded_sm()
+                                    .bg(badge_color)
+                                    .text_color(cx.theme().foreground)
+                                    .child(engine_label),
+                            )
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .text_sm()
+                                    .text_color(cx.theme().sidebar_foreground)
+                                    .truncate()
+                                    .child(entry.config.label().to_string()),
+                            )
+                    }),
+            )
     }
 }
 

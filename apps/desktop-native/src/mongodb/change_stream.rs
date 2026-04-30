@@ -2,14 +2,15 @@
 
 use gpui::{prelude::*, *};
 use gpui_component::{
-    button::{Button, ButtonVariants},
     Disableable,
+    button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
+    h_flex,
     menu::PopupMenu,
-    h_flex, v_flex,
+    v_flex,
 };
-use mongodb::bson::Document;
 use mongodb::Collection;
+use mongodb::bson::Document;
 
 pub struct ChangeStreamPanel {
     focus_handle: FocusHandle,
@@ -19,15 +20,19 @@ pub struct ChangeStreamPanel {
 }
 
 impl ChangeStreamPanel {
-    pub fn new(collection: Collection<Document>, _window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        collection: Collection<Document>,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         Self {
             focus_handle: cx.focus_handle(),
             collection,
-            lines: vec![(
-                "Replica-set deployments support $changeStream. \
-                 Click “Sample stream” to read up to 64 events or an error."
-            )
-                .into()],
+            lines: vec![
+                ("Replica-set deployments support $changeStream. \
+                 Click “Sample stream” to read up to 64 events or an error.")
+                    .into(),
+            ],
             busy: false,
         }
     }
@@ -126,16 +131,13 @@ impl Render for ChangeStreamPanel {
         v_flex()
             .size_full()
             .child(
-                h_flex()
-                    .p_2()
-                    .gap_2()
-                    .child(
-                        Button::new("mongo-watch-sample")
-                            .primary()
-                            .label("Sample stream")
-                            .disabled(self.busy)
-                            .on_click(cx.listener(|p, _, _, cx| p.sample(cx))),
-                    ),
+                h_flex().p_2().gap_2().child(
+                    Button::new("mongo-watch-sample")
+                        .primary()
+                        .label("Sample stream")
+                        .disabled(self.busy)
+                        .on_click(cx.listener(|p, _, _, cx| p.sample(cx))),
+                ),
             )
             .child(
                 div()

@@ -13,8 +13,8 @@ pub mod wizard;
 
 use serde::{Deserialize, Serialize};
 
-use mongodb::options::{ClientOptions, Credential};
 use mongodb::Database;
+use mongodb::options::{ClientOptions, Credential};
 
 use crate::connection::lifecycle::{Connectable, TestReport};
 use gpui_tokio::Tokio;
@@ -50,11 +50,7 @@ fn apply_auth_source(opts: &mut ClientOptions, src: &str) {
             cred.source = Some(src.to_string());
         }
         None => {
-            opts.credential = Some(
-                Credential::builder()
-                    .source(Some(src.to_string()))
-                    .build(),
-            );
+            opts.credential = Some(Credential::builder().source(Some(src.to_string())).build());
         }
     }
 }

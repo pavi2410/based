@@ -5,12 +5,13 @@ use gpui_component::{
     ActiveTheme,
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
+    h_flex,
     menu::PopupMenu,
-    h_flex, v_flex,
     table::{Column, DataTable, TableState},
+    v_flex,
 };
-use mongodb::bson::Document;
 use mongodb::Collection;
+use mongodb::bson::Document;
 
 use crate::widgets::virtual_table::RowDelegate;
 
@@ -23,7 +24,11 @@ pub struct PipelineBuilderPanel {
 }
 
 impl PipelineBuilderPanel {
-    pub fn new(collection: Collection<Document>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        collection: Collection<Document>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let delegate = RowDelegate::default();
         let result = cx.new(|cx| TableState::new(delegate, window, cx));
         Self {

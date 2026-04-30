@@ -23,7 +23,12 @@ pub struct EqpViewerPanel {
 }
 
 impl EqpViewerPanel {
-    pub fn new(pool: SqlitePool, sql: String, _window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        pool: SqlitePool,
+        sql: String,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let mut panel = Self {
             focus_handle: cx.focus_handle(),
             pool,
@@ -39,12 +44,16 @@ impl EqpViewerPanel {
         let sql = format!("EXPLAIN QUERY PLAN {}", self.sql);
 
         cx.spawn(async move |this, cx| {
-            let rows = match crate::db::run(cx, async move {
-                Ok(sqlx::query(&sql).fetch_all(&pool).await?)
-            }).await {
-                Ok(r) => r,
-                Err(_) => return,
-            };
+            let rows =
+                match crate::db::run(
+                    cx,
+                    async move { Ok(sqlx::query(&sql).fetch_all(&pool).await?) },
+                )
+                .await
+                {
+                    Ok(r) => r,
+                    Err(_) => return,
+                };
 
             let nodes: Vec<EqpNode> = rows
                 .iter()

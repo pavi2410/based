@@ -5,11 +5,12 @@ use gpui_component::{
     ActiveTheme,
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
+    h_flex,
     menu::PopupMenu,
-    h_flex, v_flex,
+    v_flex,
 };
-use mongodb::bson::Document;
 use mongodb::Collection;
+use mongodb::bson::Document;
 
 use crate::mongodb::mutations::{document_from_json, replace_by_id};
 
@@ -22,7 +23,11 @@ pub struct DocumentEditorPanel {
 }
 
 impl DocumentEditorPanel {
-    pub fn new(collection: Collection<Document>, _window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        collection: Collection<Document>,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         Self {
             focus_handle: cx.focus_handle(),
             collection,
@@ -105,7 +110,12 @@ impl Render for DocumentEditorPanel {
             .size_full()
             .gap_2()
             .p_2()
-            .child(div().text_xs().text_color(cx.theme().muted_foreground).child("_id"))
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(cx.theme().muted_foreground)
+                    .child("_id"),
+            )
             .child(
                 div()
                     .p_2()
@@ -115,7 +125,12 @@ impl Render for DocumentEditorPanel {
                     .text_sm()
                     .child(id_disp),
             )
-            .child(div().text_xs().text_color(cx.theme().muted_foreground).child("Document JSON"))
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(cx.theme().muted_foreground)
+                    .child("Document JSON"),
+            )
             .child(
                 div()
                     .flex_1()

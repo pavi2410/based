@@ -5,9 +5,10 @@ use gpui_component::{
     ActiveTheme,
     button::Button,
     dock::{Panel, PanelEvent},
+    h_flex,
     menu::PopupMenu,
-    h_flex, v_flex,
     table::{Column as TableColumn, DataTable, TableState},
+    v_flex,
 };
 use sqlx::{Column, PgPool, Row};
 
@@ -65,7 +66,9 @@ impl LiveMonitorPanel {
                     })
                     .collect();
                 (columns, data)
-            }).await {
+            })
+            .await
+            {
                 Ok(x) => x,
                 Err(_) => return,
             };
@@ -120,15 +123,11 @@ impl Render for LiveMonitorPanel {
         v_flex()
             .size_full()
             .child(
-                h_flex()
-                    .p_2()
-                    .border_b_1()
-                    .border_color(border)
-                    .child(
-                        Button::new("pg-refresh-activity")
-                            .label("Refresh")
-                            .on_click(cx.listener(|panel, _, _, cx| panel.refresh(cx))),
-                    ),
+                h_flex().p_2().border_b_1().border_color(border).child(
+                    Button::new("pg-refresh-activity")
+                        .label("Refresh")
+                        .on_click(cx.listener(|panel, _, _, cx| panel.refresh(cx))),
+                ),
             )
             .child(DataTable::new(&self.table).stripe(true).bordered(false))
     }

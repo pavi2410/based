@@ -103,12 +103,15 @@ impl Workspace {
             project_title,
         };
 
-        let _ = cx.observe(&registry, |_ws, _reg, cx| {
+        // Detach so subscriptions survive past `new` — dropping `Subscription` unsubscribes.
+        cx.observe(&registry, |_ws, _reg, cx| {
             cx.notify();
-        });
-        let _ = cx.observe(&tree_observe, |_ws, _, cx| {
+        })
+        .detach();
+        cx.observe(&tree_observe, |_ws, _, cx| {
             cx.notify();
-        });
+        })
+        .detach();
 
         workspace
     }

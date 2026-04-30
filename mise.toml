@@ -32,6 +32,18 @@ run = [
   "rm -rf node_modules"
 ]
 
+[tasks."native:dev"]
+description = "Run the native GPUI desktop app in development mode"
+run = "cargo run -p desktop-native"
+
+[tasks."native:check"]
+description = "Cargo check the native GPUI app (fast compile check)"
+run = "cargo check -p desktop-native"
+
+[tasks."native:build"]
+description = "Build the native GPUI app in release mode"
+run = "cargo build -p desktop-native --release"
+
 [tasks.lint]
 description = "Lint all code"
 run = "bun --filter desktop run lint"

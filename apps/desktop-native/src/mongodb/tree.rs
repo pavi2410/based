@@ -4,6 +4,7 @@ use gpui::{prelude::*, *};
 use gpui_component::{
     ActiveTheme,
     dock::{Panel, PanelEvent},
+    menu::PopupMenu,
     h_flex, v_flex,
 };
 use mongodb::Database;
@@ -63,6 +64,15 @@ impl Focusable for CollectionsTreePanel {
 impl Panel for CollectionsTreePanel {
     fn panel_name(&self) -> &'static str {
         "MongoCollectionsTree"
+    }
+
+    fn dropdown_menu(
+        &mut self,
+        menu: PopupMenu,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> PopupMenu {
+        crate::based_panel_dropdown!(menu, self, cx)
     }
 
     fn closable(&self, _: &App) -> bool {

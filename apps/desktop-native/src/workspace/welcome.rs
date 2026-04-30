@@ -2,6 +2,7 @@ use gpui::{App, Context, FocusHandle, Focusable, IntoElement, Render, Window, di
 use gpui_component::{
     ActiveTheme, StyledExt,
     dock::{Panel, PanelEvent},
+    menu::PopupMenu,
     h_flex, v_flex,
 };
 
@@ -28,6 +29,15 @@ impl Focusable for WelcomePanel {
 impl Panel for WelcomePanel {
     fn panel_name(&self) -> &'static str {
         "WelcomePanel"
+    }
+
+    fn dropdown_menu(
+        &mut self,
+        menu: PopupMenu,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> PopupMenu {
+        crate::based_panel_dropdown!(menu, self, cx)
     }
 
     fn closable(&self, _: &App) -> bool {

@@ -6,6 +6,7 @@ use log::warn;
 use gpui_component::{
     ActiveTheme,
     dock::{Panel, PanelEvent},
+    menu::PopupMenu,
     h_flex, v_flex,
 };
 use sqlx::{Row, SqlitePool};
@@ -109,6 +110,15 @@ impl Focusable for SchemaTreePanel {
 impl Panel for SchemaTreePanel {
     fn panel_name(&self) -> &'static str {
         "SqliteSchemaTree"
+    }
+
+    fn dropdown_menu(
+        &mut self,
+        menu: PopupMenu,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> PopupMenu {
+        crate::based_panel_dropdown!(menu, self, cx)
     }
 
     fn closable(&self, _: &App) -> bool {

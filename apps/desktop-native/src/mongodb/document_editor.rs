@@ -5,6 +5,7 @@ use gpui_component::{
     ActiveTheme,
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
+    menu::PopupMenu,
     h_flex, v_flex,
 };
 use mongodb::bson::Document;
@@ -74,6 +75,15 @@ impl Focusable for DocumentEditorPanel {
 impl Panel for DocumentEditorPanel {
     fn panel_name(&self) -> &'static str {
         "MongoDocumentEditor"
+    }
+
+    fn dropdown_menu(
+        &mut self,
+        menu: PopupMenu,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> PopupMenu {
+        crate::based_panel_dropdown!(menu, self, cx)
     }
 
     fn closable(&self, _: &App) -> bool {

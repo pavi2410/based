@@ -5,6 +5,7 @@ use gpui_component::{
     ActiveTheme,
     button::Button,
     dock::{Panel, PanelEvent},
+    menu::PopupMenu,
     h_flex, v_flex,
 };
 use sqlx::{PgPool, Row};
@@ -81,6 +82,15 @@ impl Focusable for ExplainPanel {
 impl Panel for ExplainPanel {
     fn panel_name(&self) -> &'static str {
         "PgExplain"
+    }
+
+    fn dropdown_menu(
+        &mut self,
+        menu: PopupMenu,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> PopupMenu {
+        crate::based_panel_dropdown!(menu, self, cx)
     }
 
     fn closable(&self, _: &App) -> bool {

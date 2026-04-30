@@ -3,6 +3,7 @@
 use gpui::{prelude::*, *};
 use gpui_component::{
     dock::{Panel, PanelEvent},
+    menu::PopupMenu,
     v_flex,
     table::{Column, DataTable, TableState},
 };
@@ -110,6 +111,15 @@ impl Focusable for CollectionInspectorPanel {
 impl Panel for CollectionInspectorPanel {
     fn panel_name(&self) -> &'static str {
         "MongoCollectionInspector"
+    }
+
+    fn dropdown_menu(
+        &mut self,
+        menu: PopupMenu,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> PopupMenu {
+        crate::based_panel_dropdown!(menu, self, cx)
     }
 
     fn closable(&self, _: &App) -> bool {

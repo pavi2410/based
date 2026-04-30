@@ -4,6 +4,7 @@ use gpui::{prelude::*, *};
 use gpui_component::{
     ActiveTheme,
     dock::{Panel, PanelEvent},
+    menu::PopupMenu,
     table::{Column, DataTable, TableState},
     v_flex,
 };
@@ -167,6 +168,15 @@ impl Focusable for TableInspectorPanel {
 impl Panel for TableInspectorPanel {
     fn panel_name(&self) -> &'static str {
         "SqliteTableInspector"
+    }
+
+    fn dropdown_menu(
+        &mut self,
+        menu: PopupMenu,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> PopupMenu {
+        crate::based_panel_dropdown!(menu, self, cx)
     }
 
     fn closable(&self, _: &App) -> bool {

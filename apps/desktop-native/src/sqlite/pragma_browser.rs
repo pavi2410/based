@@ -3,6 +3,7 @@
 use gpui::{prelude::*, *};
 use gpui_component::{
     dock::{Panel, PanelEvent},
+    menu::PopupMenu,
     table::{Column, DataTable, TableState},
     v_flex,
 };
@@ -105,6 +106,15 @@ impl Focusable for PragmaBrowserPanel {
 impl Panel for PragmaBrowserPanel {
     fn panel_name(&self) -> &'static str {
         "SqlitePragmaBrowser"
+    }
+
+    fn dropdown_menu(
+        &mut self,
+        menu: PopupMenu,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> PopupMenu {
+        crate::based_panel_dropdown!(menu, self, cx)
     }
 
     fn closable(&self, _: &App) -> bool {

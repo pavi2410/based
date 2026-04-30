@@ -5,6 +5,7 @@ use gpui_component::{
     ActiveTheme,
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
+    menu::PopupMenu,
     h_flex, v_flex,
     table::{DataTable, TableState},
 };
@@ -104,6 +105,15 @@ impl Focusable for QueryEditorPanel {
 impl Panel for QueryEditorPanel {
     fn panel_name(&self) -> &'static str {
         "PgQueryEditor"
+    }
+
+    fn dropdown_menu(
+        &mut self,
+        menu: PopupMenu,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> PopupMenu {
+        crate::based_panel_dropdown!(menu, self, cx)
     }
 
     fn closable(&self, _: &App) -> bool {

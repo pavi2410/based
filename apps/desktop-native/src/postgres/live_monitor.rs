@@ -5,6 +5,7 @@ use gpui_component::{
     ActiveTheme,
     button::Button,
     dock::{Panel, PanelEvent},
+    menu::PopupMenu,
     h_flex, v_flex,
     table::{Column as TableColumn, DataTable, TableState},
 };
@@ -93,6 +94,15 @@ impl Focusable for LiveMonitorPanel {
 impl Panel for LiveMonitorPanel {
     fn panel_name(&self) -> &'static str {
         "PgLiveMonitor"
+    }
+
+    fn dropdown_menu(
+        &mut self,
+        menu: PopupMenu,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> PopupMenu {
+        crate::based_panel_dropdown!(menu, self, cx)
     }
 
     fn closable(&self, _: &App) -> bool {

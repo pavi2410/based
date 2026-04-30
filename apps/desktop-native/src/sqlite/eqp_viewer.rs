@@ -4,6 +4,7 @@ use gpui::{prelude::*, *};
 use gpui_component::{
     ActiveTheme,
     dock::{Panel, PanelEvent},
+    menu::PopupMenu,
     v_flex,
 };
 use sqlx::{Row, SqlitePool};
@@ -96,6 +97,15 @@ impl Focusable for EqpViewerPanel {
 impl Panel for EqpViewerPanel {
     fn panel_name(&self) -> &'static str {
         "SqliteEqpViewer"
+    }
+
+    fn dropdown_menu(
+        &mut self,
+        menu: PopupMenu,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> PopupMenu {
+        crate::based_panel_dropdown!(menu, self, cx)
     }
 
     fn closable(&self, _: &App) -> bool {

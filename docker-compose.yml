@@ -1,26 +1,26 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     restart: unless-stopped
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "15432:5432"
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-based}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-based}
-      POSTGRES_DB: ${POSTGRES_DB:-based}
+      POSTGRES_USER: based
+      POSTGRES_PASSWORD: based
+      POSTGRES_DB: based
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      test: ["CMD-SHELL", "pg_isready -U based -d based"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   mongo:
-    image: mongo:7
+    image: mongo:8
     restart: unless-stopped
     ports:
-      - "${MONGO_PORT:-27017}:27017"
+      - "37017:27017"
     # Optional: set MONGO_INITDB_ROOT_USERNAME and MONGO_INITDB_ROOT_PASSWORD for auth
     volumes:
       - mongo_data:/data/db

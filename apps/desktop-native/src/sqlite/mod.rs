@@ -14,6 +14,7 @@ pub mod tree;
 pub mod wizard;
 
 use serde::{Deserialize, Serialize};
+use sqlx::SqlitePool;
 
 use crate::connection::lifecycle::{Connectable, TestReport};
 
@@ -28,23 +29,48 @@ pub struct SqliteConfig {
 /// Live SQLite connection wrapping a sqlx pool.
 pub struct SqliteConnection {
     pub config: SqliteConfig,
-    // pool: sqlx::SqlitePool — added in Phase 3
+    pub pool: SqlitePool,
 }
 
 impl Connectable for SqliteConnection {
     type Config = SqliteConfig;
 
-    fn open(_config: Self::Config, _cx: &mut gpui::App) -> gpui::Task<anyhow::Result<Self>> {
-        // TODO Phase 3
-        gpui::Task::ready(Err(anyhow::anyhow!("SQLite engine not yet implemented")))
+    fn open(config: Self::Config, cx: &mut gpui::App) -> gpui::Task<anyhow::Result<Self>> {
+        cx.background_executor().spawn(async move {
+            let url = format!("sqlite:{}", config.path.display());
+            let pool = SqlitePool::connect(&url).await?;
+            if config.wal {
+                sqlx::query("PRAGMA journal_mode=WAL")
+                    .execute(&pool)
+                    .await?;
+            }
+            Ok(Self { config, pool })
+        })
     }
 
-    fn test(_config: &Self::Config, _cx: &mut gpui::App) -> gpui::Task<anyhow::Result<TestReport>> {
-        // TODO Phase 3
-        gpui::Task::ready(Err(anyhow::anyhow!("SQLite engine not yet implemented")))
+    fn test(
+        config: &Self::Config,
+        cx: &mut gpui::App,
+    ) -> gpui::Task<anyhow::Result<TestReport>> {
+        let config = config.clone();
+        cx.background_executor().spawn(async move {
+            let url = format!("sqlite:{}", config.path.display());
+            let start = std::time::Instant::now();
+            let pool = SqlitePool::connect(&url).await?;
+            let version: String =
+                sqlx::query_scalar("SELECT sqlite_version()")
+                    .fetch_one(&pool)
+                    .await?;
+            pool.close().await;
+            Ok(TestReport {
+                latency_ms: start.elapsed().as_millis() as u64,
+                server_version: Some(version),
+                message: None,
+            })
+        })
     }
 
     async fn close(self) {
-        // TODO Phase 3
+        self.pool.close().await;
     }
 }

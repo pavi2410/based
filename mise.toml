@@ -9,23 +9,13 @@ run = "cargo run -p desktop"
 description = "Build desktop app in release mode"
 run = "cargo build -p desktop --release"
 
-[tasks.clean]
-description = "Clean Rust build artifacts"
-run = [
-  "cargo clean"
-]
-
-[tasks."native:dev"]
-description = "Run the native GPUI desktop app in development mode"
-run = "cargo run -p desktop"
-
-[tasks."native:check"]
-description = "Cargo check the native GPUI app (fast compile check)"
+[tasks.check]
+description = "Fast compile check (no linking)"
 run = "cargo check -p desktop"
 
-[tasks."native:build"]
-description = "Build the native GPUI app in release mode"
-run = "cargo build -p desktop --release"
+[tasks.clean]
+description = "Clean Rust build artifacts"
+run = "cargo clean"
 
 [tasks.lint]
 description = "Run clippy checks"
@@ -35,6 +25,6 @@ run = "cargo clippy --workspace --all-targets"
 description = "Format all Rust code"
 run = "cargo fmt --all"
 
-[tasks."type-check"]
-description = "Run Rust tests as type/compile safety gate"
+[tasks.test]
+description = "Run all tests"
 run = "cargo test --workspace"

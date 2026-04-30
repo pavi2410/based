@@ -1,0 +1,67 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Commands
+
+```bash
+# Via mise task runner
+mise run dev      # Run desktop app
+mise run build    # Release build
+mise run check    # Fast compile check (no linking)
+mise run lint     # Clippy
+mise run format   # Format all code
+mise run test     # Run all tests
+mise run clean    # Remove build artifacts
+
+# Direct cargo equivalents
+cargo run -p desktop
+cargo build -p desktop --release
+cargo check -p desktop
+cargo clippy --workspace --all-targets
+cargo fmt --all
+cargo test --workspace
+```
+
+Start local databases for development:
+```bash
+docker compose up -d          # PostgreSQL 16 (5432), MongoDB 7 (27017)
+```
+
+## Architecture
+
+**Based** is a native desktop database client written in Rust using GPUI (from Zed Industries). It supports PostgreSQL, MongoDB, and SQLite. The project model is a `.based/` folder (committed to git) containing connection configs and saved queries — there is no backend service.
+
+### Workspace layout
+
+```
+apps/desktop/src/
+├── main.rs              # Entry: GPUI app/window setup
+├── app/                 # Global state, actions, preferences
+├── connection/          # Engine-agnostic connection registry & lifecycle
+├── workspace/           # Main UI shell: DockArea, panes, sidebar, status bar
+├── sqlite/              # SQLite engine
+├── postgres/            # PostgreSQL engine
+├── mongodb/             # MongoDB engine
+├── project/             # .based/ folder loading and file watching
+├── widgets/             # Reusable UI components
+├── theme/               # Visual theming
+├── settings_window/     # Preferences UI
+└── db.rs                # Tokio ↔ GPUI async bridge
+```
+
+### Key patterns
+
+- **Engine abstraction**: `AnyConnection` enum + `Connectable` trait unify all database engines. Each engine implements open/test/close; query execution is engine-specific.
+- **Async bridging**: `db.rs` uses `gpui_tokio` to bridge Tokio async tasks into GPUI's sync render cycle. All blocking I/O must go through this bridge to keep the UI responsive.
+- **Tab system**: `TabId` encodes (connection id, tab kind, payload) — tabs are the primary navigation unit in the workspace.
+- **PopOutManager**: Tracks detached child windows and their lifecycle; consult before creating new window types.
+- **Project format**: `.based/config.toml` holds connection metadata; `.based/.env` holds secrets (git-ignored); `.based/state/` holds per-user workspace state.
+
+### Clippy overrides
+
+The workspace allows `arc_with_non_send_sync` and `type_complexity` to match gpui-component conventions. Don't suppress other lints without justification.
+
+### Performance profiles
+
+Dev builds apply `opt-level = 3` to GPUI and rendering crates (see workspace `Cargo.toml` profile section) so the UI stays fast during development.

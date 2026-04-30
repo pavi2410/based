@@ -10,7 +10,7 @@ pub mod registry;
 
 use std::time::Instant;
 
-use chrono::{DateTime, Utc};
+use time::OffsetDateTime;
 use serde::{Deserialize, Serialize};
 
 // ── Connection identity ───────────────────────────────────────────────────────
@@ -119,7 +119,7 @@ pub struct ConnectionEntry {
     pub id: ConnectionId,
     pub config: ConnectionConfig,
     pub state: ConnectionState,
-    pub last_connected_at: Option<DateTime<Utc>>,
+    pub last_connected_at: Option<OffsetDateTime>,
     pub last_error: Option<String>,
 }
 

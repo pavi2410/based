@@ -23,27 +23,15 @@ based/
 
 ### Prerequisites
 - Rust (latest stable)
+- [mise](https://mise.jdx.dev/) task runner
 
-### Development
+### Tasks
 
-```bash
-cargo run -p desktop
-# or
-mise run dev
-```
-
-### Build
-
-```bash
-cargo build -p desktop --release
-# or
-mise run build
-```
-
-## Validation
-
-```bash
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets
-cargo test --workspace
-```
+| Task | Command |
+|------|---------|
+| Run (dev) | `mise run dev` |
+| Release build | `mise run build` |
+| Fast check | `mise run check` |
+| Lint | `mise run lint` |
+| Format | `mise run format` |
+| Test | `mise run test` |

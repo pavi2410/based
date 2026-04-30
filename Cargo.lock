@@ -1455,6 +1455,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7cd812cc2bc1d69d4764bd80df88b4317eaef9e773c75226407d9bc0876b211c"
 dependencies = [
  "powerfmt",
+ "serde_core",
 ]
 
 [[package]]
@@ -1519,7 +1520,6 @@ name = "desktop"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "chrono",
  "dirs",
  "env_logger",
  "futures",
@@ -1534,9 +1534,9 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "time",
  "tokio",
  "toml 0.8.23",
- "tracing",
  "uuid",
 ]
 
@@ -5062,7 +5062,7 @@ dependencies = [
 [[package]]
 name = "psm"
 version = "0.1.31"
-source = "git+https://github.com/rust-lang/stacker?branch=master#1d45da4653e1d6e5d273cf20e215b372d84ade5e"
+source = "git+https://github.com/rust-lang/stacker?rev=1d45da4653e1d6e5d273cf20e215b372d84ade5e#1d45da4653e1d6e5d273cf20e215b372d84ade5e"
 dependencies = [
  "ar_archive_writer",
  "cc",
@@ -6396,7 +6396,6 @@ checksum = "ee6798b1838b6a0f69c007c133b8df5866302197e404e8b6ee8ed3e3a5e68dc6"
 dependencies = [
  "base64 0.22.1",
  "bytes",
- "chrono",
  "crc",
  "crossbeam-queue",
  "either",
@@ -6475,7 +6474,6 @@ dependencies = [
  "bitflags 2.11.1",
  "byteorder",
  "bytes",
- "chrono",
  "crc",
  "digest",
  "dotenvy",
@@ -6518,7 +6516,6 @@ dependencies = [
  "base64 0.22.1",
  "bitflags 2.11.1",
  "byteorder",
- "chrono",
  "crc",
  "dotenvy",
  "etcetera",
@@ -6554,7 +6551,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2d12fe70b2c1b4401038055f90f151b78208de1f9f89a7dbfd41587a10c3eea"
 dependencies = [
  "atoi",
- "chrono",
  "flume",
  "futures-channel",
  "futures-core",

@@ -4,8 +4,8 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use time::OffsetDateTime;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WorkspaceState {
@@ -15,7 +15,8 @@ pub struct WorkspaceState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PersistedConnection {
     pub id: String,
-    pub last_connected_at: Option<DateTime<Utc>>,
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    pub last_connected_at: Option<OffsetDateTime>,
     pub last_error: Option<String>,
 }
 

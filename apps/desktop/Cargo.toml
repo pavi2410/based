@@ -21,11 +21,10 @@ anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
-chrono.workspace = true
+time.workspace = true
 uuid.workspace = true
 futures.workspace = true
 log.workspace = true
-tracing.workspace = true
 env_logger = "0.11"
 dirs = "6"
 
@@ -37,6 +36,9 @@ notify.workspace = true
 # touching the workspace Cargo.toml again.
 sqlx.workspace = true
 mongodb = { version = "2", features = ["tokio-runtime"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gpui_platform = { workspace = true, features = ["x11", "wayland"] }
 
 [lints.clippy]
 # Match gpui-component's lint profile

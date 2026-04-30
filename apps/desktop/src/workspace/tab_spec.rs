@@ -90,11 +90,11 @@ mod tests {
     }
 
     #[test]
-    fn query_editors_always_distinct() {
-        // QueryEditor tabs are always fresh — same conn_id still represents different tabs
-        // (enforced by TabManager.open, not by equality)
+    fn query_editor_specs_equal_but_open_or_focus_creates_distinct_tabs() {
+        // Spec equality treats two QueryEditors the same conn as equal; TabManager::open_or_focus
+        // still opens a fresh tab whenever the caller passes TabSpec::QueryEditor (branch `is_query`).
         let a = TabSpec::QueryEditor(ConnectionId("pg".into()));
         let b = TabSpec::QueryEditor(ConnectionId("pg".into()));
-        assert_eq!(a, b); // spec equality is fine — TabManager decides open-or-new
+        assert_eq!(a, b);
     }
 }

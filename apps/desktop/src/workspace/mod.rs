@@ -20,23 +20,29 @@ pub mod status_bar;
 pub mod topbar;
 pub mod welcome;
 
+use std::sync::Arc;
+
 use crate::widgets::ui::{engine_chip, engine_name, metadata_pill};
 use gpui::{
-    Context, Entity, FocusHandle, Focusable, FontWeight, IntoElement, Render, SharedString, Window,
-    div, prelude::*,
+    AnyView, Context, Entity, FocusHandle, Focusable, FontWeight, IntoElement, Render,
+    SharedString, Window, div, prelude::*,
 };
 use gpui_component::{
     ActiveTheme, StyledExt,
-    dock::{DockArea, DockItem, PanelStyle},
+    dock::{DockArea, DockItem, DockPlacement, PanelStyle},
     h_flex, v_flex,
 };
 
+use ::mongodb::bson::Document;
+use mongodb::Collection;
+
 use crate::bindings::{CycleAppearance, ToggleSidebarRail};
 use crate::connection::registry::ConnectionRegistry;
-use crate::connection::{ConnectionEntry, ConnectionState, EngineKind};
+use crate::connection::{AnyConnection, ConnectionEntry, ConnectionId, ConnectionState};
+use crate::postgres;
 use crate::project::{find_project_root, load_workspace_seed};
+use crate::sqlite;
 
-use object_info::ObjectInfoPanel;
 use status_bar::StatusBar;
 use topbar::Topbar;
 use welcome::WelcomePanel;
@@ -45,12 +51,12 @@ pub struct Workspace {
     registry: Entity<ConnectionRegistry>,
     dock_area: Entity<DockArea>,
     connection_tree: Entity<ConnectionTree>,
-    #[allow(dead_code)]
     tab_manager: Entity<TabManager>,
     sidebar_collapsed: bool,
     inspector_collapsed: bool,
     focus_handle: FocusHandle,
     project_title: SharedString,
+    pending_open_tab: Option<TabSpec>,
 }
 
 impl Workspace {
@@ -101,7 +107,15 @@ impl Workspace {
             inspector_collapsed: false,
             focus_handle: cx.focus_handle(),
             project_title,
+            pending_open_tab: None,
         };
+
+        cx.subscribe(&tree_observe, |ws, _, event, ecx| {
+            let connection_tree::TreeEvent::OpenTab(spec) = event;
+            ws.pending_open_tab = Some(spec.clone());
+            ecx.notify();
+        })
+        .detach();
 
         // Detach so subscriptions survive past `new` — dropping `Subscription` unsubscribes.
         cx.observe(&registry, |_ws, _reg, cx| {
@@ -121,6 +135,98 @@ impl Workspace {
         crate::app::prefs::set_sidebar(self.sidebar_collapsed, cx);
         cx.notify();
     }
+
+    fn flush_pending_open_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(spec) = self.pending_open_tab.take() {
+            self.dispatch_open_tab(spec, window, cx);
+        }
+    }
+
+    fn find_connection(
+        &self,
+        id: &ConnectionId,
+        cx: &gpui::App,
+    ) -> Option<Entity<ConnectionEntry>> {
+        self.registry
+            .read(cx)
+            .connections()
+            .iter()
+            .find(|e| e.read(cx).id == *id)
+            .cloned()
+    }
+
+    fn dispatch_open_tab(&mut self, spec: TabSpec, window: &mut Window, cx: &mut Context<Self>) {
+        match spec {
+            TabSpec::DataViewer { conn_id, object } => {
+                let Some(ent) = self.find_connection(&conn_id, cx) else {
+                    return;
+                };
+                let ac = match &ent.read(cx).state {
+                    ConnectionState::Connected(ac) => ac.clone(),
+                    _ => return,
+                };
+                let tab_spec_for_manager = TabSpec::DataViewer {
+                    conn_id: conn_id.clone(),
+                    object: object.clone(),
+                };
+                match ac {
+                    AnyConnection::SQLite(conn) => {
+                        let pool = conn.read(cx).pool.clone();
+                        let panel_ent = cx.new(|cx| {
+                            sqlite::data_viewer::DataViewerPanel::new(pool, object, window, cx)
+                        });
+                        let arc = Arc::new(panel_ent);
+                        self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                    }
+                    AnyConnection::Postgres(conn) => {
+                        let pool = conn.read(cx).pool.clone();
+                        let (schema, name) = match object.rsplit_once('.') {
+                            Some((s, n)) if !n.is_empty() => (s.to_string(), n.to_string()),
+                            _ => ("public".to_string(), object),
+                        };
+                        let panel_ent = cx.new(|cx| {
+                            postgres::data_viewer::DataViewerPanel::new(
+                                pool, schema, name, window, cx,
+                            )
+                        });
+                        let arc = Arc::new(panel_ent);
+                        self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                    }
+                    AnyConnection::MongoDB(conn) => {
+                        let db = conn.read(cx).database().clone();
+                        let collection: Collection<Document> = db.collection(&object);
+                        let panel_ent = cx.new(|cx| {
+                            crate::mongodb::document_viewer::DocumentViewerPanel::new(
+                                collection, window, cx,
+                            )
+                        });
+                        let arc = Arc::new(panel_ent);
+                        self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                    }
+                }
+            }
+            _ => {
+                log::debug!("Workspace::dispatch_open_tab: unimplemented for {:?}", spec);
+            }
+        }
+    }
+
+    fn dock_add_and_register_tab(
+        &mut self,
+        spec: TabSpec,
+        panel: Arc<dyn gpui_component::dock::PanelView>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.dock_area.update(cx, |dock, ecx| {
+            dock.add_panel(panel.clone(), DockPlacement::Center, None, window, ecx);
+        });
+        let view: AnyView = panel.as_ref().into();
+        self.tab_manager.update(cx, |tm, ecx| {
+            tm.open_or_focus(spec, view, ecx);
+        });
+        cx.notify();
+    }
 }
 
 impl Focusable for Workspace {
@@ -131,6 +237,7 @@ impl Focusable for Workspace {
 
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.flush_pending_open_tab(window, cx);
         let this = cx.entity().clone();
         let conn_list: Vec<Entity<ConnectionEntry>> = self.registry.read(cx).connections().to_vec();
         let conn_count = conn_list.len();

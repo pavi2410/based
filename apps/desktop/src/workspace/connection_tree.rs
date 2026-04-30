@@ -37,7 +37,7 @@ use super::object_info::ObjectInfoPanel;
 use super::tab_spec::TabSpec;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum ObjectKind {
+pub enum ObjectKind {
     Table,
     View,
     MaterializedView,
@@ -56,7 +56,7 @@ impl ObjectKind {
         }
     }
 
-    fn group(&self) -> &'static str {
+    pub fn group(&self) -> &'static str {
         match self {
             Self::Table => "Tables",
             Self::View | Self::MaterializedView => "Views",
@@ -64,17 +64,27 @@ impl ObjectKind {
             Self::Collection => "Collections",
         }
     }
+
+    pub fn icon(&self) -> &'static str {
+        match self {
+            Self::Table => "▤",
+            Self::View | Self::MaterializedView => "◈",
+            Self::Trigger => "⚡",
+            Self::Collection => "▦",
+        }
+    }
 }
 
+/// Schema browser row (PostgreSQL exposes `schema` + local name).
 #[derive(Clone, Debug)]
-struct SidebarObject {
-    name: String,
-    schema: Option<String>,
-    kind: ObjectKind,
+pub struct SchemaObject {
+    pub name: String,
+    pub schema: Option<String>,
+    pub kind: ObjectKind,
 }
 
-impl SidebarObject {
-    fn display_name(&self) -> String {
+impl SchemaObject {
+    pub fn display_name(&self) -> String {
         if let Some(schema) = &self.schema {
             format!("{schema}.{}", self.name)
         } else {
@@ -93,7 +103,7 @@ enum ActiveObjects {
     Ready {
         label: String,
         engine: EngineKind,
-        objects: Vec<SidebarObject>,
+        objects: Vec<SchemaObject>,
     },
     Error {
         label: String,
@@ -104,10 +114,11 @@ enum ActiveObjects {
 /// Reserved for per-connection expansion / cached schema.
 struct ConnState {
     expanded: bool,
-    objects: Option<Vec<SidebarObject>>,
+    objects: Option<Vec<SchemaObject>>,
     loading: bool,
 }
 
+#[derive(Clone)]
 pub enum TreeEvent {
     OpenTab(TabSpec),
 }
@@ -116,6 +127,7 @@ pub struct ConnectionTree {
     pub registry: Entity<ConnectionRegistry>,
     dock_area: Entity<DockArea>,
     conn_states: HashMap<crate::connection::ConnectionId, ConnState>,
+    #[allow(dead_code)]
     active_spec: Option<TabSpec>,
     selected_connection: Option<usize>,
     active_objects: ActiveObjects,
@@ -513,7 +525,7 @@ impl ConnectionTree {
                             "trigger" => ObjectKind::Trigger,
                             _ => ObjectKind::Table,
                         };
-                        SidebarObject {
+                        SchemaObject {
                             name,
                             schema: None,
                             kind,
@@ -579,7 +591,7 @@ impl ConnectionTree {
                             "MATERIALIZED VIEW" => ObjectKind::MaterializedView,
                             _ => ObjectKind::Table,
                         };
-                        SidebarObject {
+                        SchemaObject {
                             name,
                             schema: Some(schema),
                             kind,
@@ -628,7 +640,7 @@ impl ConnectionTree {
                 let names = db.list_collection_names(None).await?;
                 let objects = names
                     .into_iter()
-                    .map(|name| SidebarObject {
+                    .map(|name| SchemaObject {
                         name,
                         schema: None,
                         kind: ObjectKind::Collection,
@@ -661,7 +673,7 @@ impl ConnectionTree {
 
     fn on_object_clicked(
         &mut self,
-        object: SidebarObject,
+        object: SchemaObject,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -677,51 +689,30 @@ impl ConnectionTree {
             _ => None,
         };
         match ac {
-            Some(AnyConnection::SQLite(conn)) => match object.kind {
+            Some(AnyConnection::SQLite(_)) => match object.kind {
                 ObjectKind::Table | ObjectKind::View => {
-                    let pool = conn.read(cx).pool.clone();
-                    let panel = cx.new(|cx| {
-                        sqlite::data_viewer::DataViewerPanel::new(
-                            pool,
-                            object.name.clone(),
-                            window,
-                            cx,
-                        )
-                    });
-                    self.add_center_panel(Arc::new(panel), window, cx);
+                    cx.emit(TreeEvent::OpenTab(TabSpec::DataViewer {
+                        conn_id: ent.read(cx).id.clone(),
+                        object: object.display_name(),
+                    }));
                 }
                 _ => self.open_object_info(object, window, cx),
             },
-            Some(AnyConnection::Postgres(conn)) => match object.kind {
+            Some(AnyConnection::Postgres(_)) => match object.kind {
                 ObjectKind::Table | ObjectKind::View | ObjectKind::MaterializedView => {
-                    let pool = conn.read(cx).pool.clone();
-                    let schema = object
-                        .schema
-                        .clone()
-                        .unwrap_or_else(|| "public".to_string());
-                    let panel = cx.new(|cx| {
-                        postgres::data_viewer::DataViewerPanel::new(
-                            pool,
-                            schema,
-                            object.name.clone(),
-                            window,
-                            cx,
-                        )
-                    });
-                    self.add_center_panel(Arc::new(panel), window, cx);
+                    cx.emit(TreeEvent::OpenTab(TabSpec::DataViewer {
+                        conn_id: ent.read(cx).id.clone(),
+                        object: object.display_name(),
+                    }));
                 }
                 _ => self.open_object_info(object, window, cx),
             },
-            Some(AnyConnection::MongoDB(conn)) => {
+            Some(AnyConnection::MongoDB(_)) => {
                 if matches!(object.kind, ObjectKind::Collection) {
-                    let db = conn.read(cx).database().clone();
-                    let collection: ::mongodb::Collection<Document> = db.collection(&object.name);
-                    let panel = cx.new(|cx| {
-                        crate::mongodb::document_viewer::DocumentViewerPanel::new(
-                            collection, window, cx,
-                        )
-                    });
-                    self.add_center_panel(Arc::new(panel), window, cx);
+                    cx.emit(TreeEvent::OpenTab(TabSpec::DataViewer {
+                        conn_id: ent.read(cx).id.clone(),
+                        object: object.display_name(),
+                    }));
                 } else {
                     self.open_object_info(object, window, cx);
                 }
@@ -733,7 +724,7 @@ impl ConnectionTree {
 
     fn open_object_info(
         &mut self,
-        object: SidebarObject,
+        object: SchemaObject,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -777,7 +768,6 @@ impl Render for ConnectionTree {
             .filter(|ent| matches!(ent.read(cx).state, ConnectionState::Connected(_)))
             .count();
         let border = cx.theme().sidebar_border;
-        let sidebar_bg = cx.theme().sidebar;
         let muted = cx.theme().muted_foreground;
         let sfg = cx.theme().sidebar_foreground;
         let list_hover = cx.theme().list_hover;
@@ -1067,7 +1057,7 @@ fn render_objects_pane(
             engine,
             objects,
         } => {
-            let mut groups: Vec<(&'static str, Vec<SidebarObject>)> = Vec::new();
+            let mut groups: Vec<(&'static str, Vec<SchemaObject>)> = Vec::new();
             for object in objects {
                 let group = object.kind.group();
                 if let Some((_, rows)) = groups.iter_mut().find(|(name, _)| *name == group) {

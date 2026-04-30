@@ -58,7 +58,7 @@ impl PragmaBrowserPanel {
     fn load_pragmas(&mut self, cx: &mut Context<Self>) {
         let pool = self.pool.clone();
         cx.spawn(async move |this, cx| {
-            let rows = crate::tokio_bridge::block_on_db(async move {
+            let rows = match crate::db::run_infallible(cx, async move {
                 let mut rows: Vec<(String, String)> = vec![];
                 for &name in PRAGMA_LIST {
                     let sql = format!("PRAGMA {name}");
@@ -70,7 +70,10 @@ impl PragmaBrowserPanel {
                     rows.push((name.to_string(), val.unwrap_or_default()));
                 }
                 rows
-            });
+            }).await {
+                Ok(r) => r,
+                Err(_) => return,
+            };
 
             let data_rows: Vec<Vec<SharedString>> = rows
                 .iter()
@@ -79,15 +82,13 @@ impl PragmaBrowserPanel {
                 })
                 .collect();
 
-            cx.update(|cx| {
-                this.update(cx, |panel, cx| {
-                    panel.table.update(cx, |state, cx| {
-                        state.delegate_mut().rows = data_rows;
-                        cx.notify();
-                    });
+            let _ = this.update(cx, |panel, cx| {
+                panel.table.update(cx, |state, cx| {
+                    state.delegate_mut().rows = data_rows;
                     cx.notify();
-                })
-            })
+                });
+                cx.notify();
+            });
         })
         .detach();
     }

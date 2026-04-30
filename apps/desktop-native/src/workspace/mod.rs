@@ -158,6 +158,8 @@ impl Workspace {
 
         let workspace = cx.entity().clone();
         let idx_for_pending = idx;
+        let conn_label = config.label().to_string();
+        let conn_engine = config.engine();
 
         match config {
             ConnectionConfig::SQLite(cfg) => {
@@ -173,6 +175,12 @@ impl Workspace {
                                         ConnectionState::Connected(AnyConnection::SQLite(ent));
                                 }
                                 Err(err) => {
+                                    log::warn!(
+                                        "connection failed: label=\"{}\" engine={} error={:#}",
+                                        conn_label,
+                                        conn_engine.short_label(),
+                                        err
+                                    );
                                     entry.state = ConnectionState::Failed {
                                         reason: err.to_string(),
                                         attempted_at: Instant::now(),
@@ -205,6 +213,12 @@ impl Workspace {
                                         ConnectionState::Connected(AnyConnection::Postgres(ent));
                                 }
                                 Err(err) => {
+                                    log::warn!(
+                                        "connection failed: label=\"{}\" engine={} error={:#}",
+                                        conn_label,
+                                        conn_engine.short_label(),
+                                        err
+                                    );
                                     entry.state = ConnectionState::Failed {
                                         reason: err.to_string(),
                                         attempted_at: Instant::now(),
@@ -237,6 +251,12 @@ impl Workspace {
                                         ConnectionState::Connected(AnyConnection::MongoDB(ent));
                                 }
                                 Err(err) => {
+                                    log::warn!(
+                                        "connection failed: label=\"{}\" engine={} error={:#}",
+                                        conn_label,
+                                        conn_engine.short_label(),
+                                        err
+                                    );
                                     entry.state = ConnectionState::Failed {
                                         reason: err.to_string(),
                                         attempted_at: Instant::now(),

@@ -67,7 +67,7 @@ impl DataViewerPanel {
         let page_size = self.page_size;
 
         cx.spawn(async move |this, cx| {
-            let res = crate::tokio_bridge::block_on_db(async move {
+            let res = crate::db::run(cx, async move {
                 let count_sql = format!(r#"SELECT COUNT(*) FROM "{schema}"."{table}""#);
                 let total: i64 = sqlx::query_scalar(&count_sql)
                     .fetch_one(&pool)
@@ -101,27 +101,26 @@ impl DataViewerPanel {
                     })
                     .collect();
 
-                Ok::<_, sqlx::Error>((total, columns, data_rows))
-            });
+                Ok((total, columns, data_rows))
+            })
+            .await;
 
-            let _ = cx.update(|cx| {
-                this.update(cx, |panel, cx| match res {
-                    Ok((total, columns, data_rows)) => {
-                        panel.total_rows = total as u64;
-                        panel.loading = false;
-                        panel.table.update(cx, |state, cx| {
-                            let delegate = state.delegate_mut();
-                            delegate.columns = columns;
-                            delegate.rows = data_rows;
-                            cx.notify();
-                        });
+            let _ = this.update(cx, |panel, cx| match res {
+                Ok((total, columns, data_rows)) => {
+                    panel.total_rows = total as u64;
+                    panel.loading = false;
+                    panel.table.update(cx, |state, cx| {
+                        let delegate = state.delegate_mut();
+                        delegate.columns = columns;
+                        delegate.rows = data_rows;
                         cx.notify();
-                    }
-                    Err(_) => {
-                        panel.loading = false;
-                        cx.notify();
-                    }
-                })
+                    });
+                    cx.notify();
+                }
+                Err(_) => {
+                    panel.loading = false;
+                    cx.notify();
+                }
             });
         })
         .detach();

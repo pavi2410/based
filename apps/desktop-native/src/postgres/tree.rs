@@ -1,6 +1,8 @@
 // postgres::tree — schema-qualified relation list from information_schema.
 
 use gpui::{prelude::*, *};
+
+use log::warn;
 use gpui_component::{
     ActiveTheme,
     dock::{Panel, PanelEvent},
@@ -48,19 +50,23 @@ impl SchemaTreePanel {
     fn load_relations(&mut self, cx: &mut Context<Self>) {
         let pool = self.pool.clone();
         cx.spawn(async move |this, cx| {
-            let rows = crate::tokio_bridge::block_on_db(async move {
-                sqlx::query(
-                    r"SELECT table_schema, table_name, table_type
+            let rows = match crate::db::run(cx, async move {
+                Ok(
+                    sqlx::query(
+                        r"SELECT table_schema, table_name, table_type
                   FROM information_schema.tables
                   WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
                   ORDER BY table_schema, table_name",
+                    )
+                    .fetch_all(&pool)
+                    .await?,
                 )
-                .fetch_all(&pool)
-                .await
-            });
-            let rows = match rows {
+            }).await {
                 Ok(r) => r,
-                Err(_) => return,
+                Err(e) => {
+                    warn!("postgres schema load failed: {e:#}");
+                    return;
+                }
             };
 
             let nodes: Vec<RelRef> = rows
@@ -82,12 +88,15 @@ impl SchemaTreePanel {
                 })
                 .collect();
 
-            let _ = cx.update(|cx| {
-                this.update(cx, |panel, cx| {
+            if this
+                .update(cx, |panel, cx| {
                     panel.nodes = nodes;
                     cx.notify();
                 })
-            });
+                .is_err()
+            {
+                warn!("postgres schema tree: entity update failed (panel released?)");
+            }
         })
         .detach();
     }
@@ -170,6 +179,8 @@ impl Render for SchemaTreePanel {
             .id("pg-schema-tree-scroll")
             .w_full()
             .h_full()
+            .min_h_0()
+            .flex_1()
             .overflow_y_scroll()
             .child(
                 div()

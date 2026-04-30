@@ -50,7 +50,7 @@ impl DocumentViewerPanel {
         let coll = self.collection.clone();
         let lim = self.limit;
         cx.spawn(async move |this, cx| {
-            let docs = crate::tokio_bridge::block_on_db(async move {
+            let docs = match crate::db::run(cx, async move {
                 let opts = FindOptions::builder().limit(lim).build();
                 let mut cursor = coll.find(doc! {}, opts).await?;
                 let mut docs: Vec<Document> = Vec::new();
@@ -58,10 +58,8 @@ impl DocumentViewerPanel {
                 while let Some(d) = cursor.try_next().await? {
                     docs.push(d);
                 }
-                Ok::<_, mongodb::error::Error>(docs)
-            });
-
-            let docs = match docs {
+                Ok(docs)
+            }).await {
                 Ok(d) => d,
                 Err(_) => {
                     let _ = cx.update(|cx| {

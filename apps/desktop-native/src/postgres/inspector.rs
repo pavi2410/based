@@ -49,7 +49,7 @@ impl TableInspectorPanel {
         let schema = self.schema.clone();
         let table = self.table_name.clone();
         cx.spawn(async move |this, cx| {
-            let pack = crate::tokio_bridge::block_on_db(async move {
+            let (col_columns, col_data, ix_columns, ix_data) = match crate::db::run_infallible(cx, async move {
                 let col_rows = sqlx::query(
                     r"SELECT ordinal_position, column_name, data_type, is_nullable, column_default
                    FROM information_schema.columns
@@ -121,11 +121,12 @@ impl TableInspectorPanel {
                     .collect();
 
                 (col_columns, col_data, ix_columns, ix_data)
-            });
+            }).await {
+                Ok(p) => p,
+                Err(_) => return,
+            };
 
-            let (col_columns, col_data, ix_columns, ix_data) = pack;
-
-            cx.update(|cx| {
+            let _ = cx.update(|cx| {
                 this.update(cx, |panel, cx| {
                     panel.columns_tbl.update(cx, |state, cx| {
                         let d = state.delegate_mut();
@@ -141,7 +142,7 @@ impl TableInspectorPanel {
                     });
                     cx.notify();
                 })
-            })
+            });
         })
         .detach();
     }

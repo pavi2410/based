@@ -36,13 +36,17 @@ impl QueryEditorPanel {
                 .row_selectable(true)
                 .cell_selectable(true)
         });
-        Self {
+        let panel = Self {
             focus_handle: cx.focus_handle(),
             pool,
             sql_text: String::from("SELECT 1 AS one;"),
             result,
             status: QueryStatus::Idle,
-        }
+        };
+        cx.defer_in(window, |panel, _, cx| {
+            panel.run(cx);
+        });
+        panel
     }
 
     fn run(&mut self, cx: &mut Context<Self>) {
@@ -54,40 +58,36 @@ impl QueryEditorPanel {
         let pool = self.pool.clone();
         cx.spawn(async move |this, cx| {
             let start = std::time::Instant::now();
-            let outcome = crate::tokio_bridge::block_on_db(async move { execute_sql(&pool, &sql).await });
+            let outcome = crate::db::run(cx, async move { execute_sql(&pool, &sql).await }).await;
             let ms = start.elapsed().as_millis() as u64;
-            cx.update(|cx| {
-                this.update(cx, |panel, cx| {
-                    panel.status = match outcome {
-                        Ok((cols, rows, aff)) => {
-                            let col_models: Vec<gpui_component::table::Column> = cols
-                                .into_iter()
-                                .map(|c| {
-                                    gpui_component::table::Column::new(c.clone(), c)
-                                })
-                                .collect();
-                            let data: Vec<Vec<SharedString>> = rows
-                                .into_iter()
-                                .map(|r| r.into_iter().map(SharedString::from).collect())
-                                .collect();
-                            let row_count = data.len();
-                            panel.result.update(cx, |state, cx| {
-                                let d = state.delegate_mut();
-                                d.columns = col_models;
-                                d.rows = data;
-                                cx.notify();
-                            });
-                            QueryStatus::Done {
-                                rows: row_count,
-                                affected: aff,
-                                elapsed_ms: ms,
-                            }
+            let _ = this.update(cx, |panel, cx| {
+                panel.status = match outcome {
+                    Ok((cols, rows, aff)) => {
+                        let col_models: Vec<gpui_component::table::Column> = cols
+                            .into_iter()
+                            .map(|c| gpui_component::table::Column::new(c.clone(), c))
+                            .collect();
+                        let data: Vec<Vec<SharedString>> = rows
+                            .into_iter()
+                            .map(|r| r.into_iter().map(SharedString::from).collect())
+                            .collect();
+                        let row_count = data.len();
+                        panel.result.update(cx, |state, cx| {
+                            let d = state.delegate_mut();
+                            d.columns = col_models;
+                            d.rows = data;
+                            cx.notify();
+                        });
+                        QueryStatus::Done {
+                            rows: row_count,
+                            affected: aff,
+                            elapsed_ms: ms,
                         }
-                        Err(e) => QueryStatus::Error(e.to_string()),
-                    };
-                    cx.notify();
-                })
-            })
+                    }
+                    Err(e) => QueryStatus::Error(e.to_string()),
+                };
+                cx.notify();
+            });
         })
         .detach();
     }
@@ -135,6 +135,7 @@ impl Render for QueryEditorPanel {
         v_flex()
             .w_full()
             .h_full()
+            .min_h_0()
             .child(
                 div()
                     .flex_1()

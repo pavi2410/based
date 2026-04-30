@@ -33,12 +33,8 @@ impl CollectionInspectorPanel {
     fn reload(&mut self, cx: &mut Context<Self>) {
         let coll = self.collection.clone();
         cx.spawn(async move |this, cx| {
-            let outcome = crate::tokio_bridge::block_on_db(async move {
-                let mut cursor = match coll.list_indexes(None).await {
-                    Ok(c) => c,
-                    Err(e) => return Err(e.to_string()),
-                };
-
+            let outcome = crate::db::run(cx, async move {
+                let mut cursor = coll.list_indexes(None).await?;
                 let mut rows = Vec::<Vec<String>>::new();
                 use futures::TryStreamExt;
                 while let Ok(Some(idx)) = cursor.try_next().await {
@@ -56,16 +52,18 @@ impl CollectionInspectorPanel {
                     rows.push(vec![name, key_json, unique.to_string()]);
                 }
                 Ok(rows)
-            });
+            })
+            .await;
 
             match outcome {
                 Err(e) => {
+                    let msg = e.to_string();
                     let _ = cx.update(|cx| {
                         this.update(cx, |panel, cx| {
                             panel.table.update(cx, |state, cx| {
                                 let d = state.delegate_mut();
                                 d.columns = vec![Column::new("error", "Error")];
-                                d.rows = vec![vec![SharedString::from(e)]];
+                                d.rows = vec![vec![SharedString::from(msg)]];
                                 cx.notify();
                             });
                             cx.notify();

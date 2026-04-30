@@ -35,7 +35,7 @@ impl ExplainPanel {
         let stmt = self.sql.clone();
         let analyze = self.use_analyze;
         cx.spawn(async move |this, cx| {
-            let (_, text) = crate::tokio_bridge::block_on_db(async move {
+            let text = match crate::db::run_infallible(cx, async move {
                 let prefix = if analyze {
                     "EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)"
                 } else {
@@ -48,15 +48,17 @@ impl ExplainPanel {
                     .filter_map(|row| row.try_get::<String, usize>(0).ok())
                     .collect::<Vec<_>>()
                     .join("\n");
-                let text = if text.is_empty() && rows.is_empty() {
+                if text.is_empty() && rows.is_empty() {
                     String::from("(no plan rows)")
                 } else if text.is_empty() {
                     "(could not read plan)".into()
                 } else {
                     text
-                };
-                (rows, text)
-            });
+                }
+            }).await {
+                Ok(t) => t,
+                Err(_) => "(error)".into(),
+            };
             cx.update(|cx| {
                 this.update(cx, |panel, cx| {
                     panel.plan_text = text;

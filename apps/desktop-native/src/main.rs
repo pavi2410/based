@@ -6,12 +6,12 @@
 
 mod app;
 mod connection;
+mod db;
 mod mongodb;
 mod postgres;
 mod project;
 mod settings_window;
 mod sqlite;
-mod tokio_bridge;
 mod widgets;
 mod workspace;
 
@@ -24,10 +24,15 @@ use workspace::Workspace;
 // ── Entry point ──────────────────────────────────────────────────────────────
 
 fn main() {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn"))
+    .format_timestamp_millis()
+    .init();
+
     gpui_platform::application()
         .with_assets(gpui_component_assets::Assets)
         .run(move |cx| {
             gpui_component::init(cx);
+            db::init(cx);
 
             cx.spawn(async move |cx| {
                 cx.open_window(

@@ -14,6 +14,8 @@ gpui_platform = { git = "https://github.com/zed-industries/zed", features = [
 ] }
 gpui-component = { git = "https://github.com/longbridge/gpui-component" }
 gpui-component-assets = { git = "https://github.com/longbridge/gpui-component" }
+# Same git rev as gpui / gpui_platform — bridges Tokio futures to GPUI tasks (see gpui_tokio::init).
+gpui_tokio = { git = "https://github.com/zed-industries/zed", package = "gpui_tokio" }
 
 # Common third-party
 anyhow = "1"
@@ -49,6 +51,7 @@ split-debuginfo = "unpacked"
 [profile.dev.package]
 gpui = { opt-level = 3 }
 gpui_platform = { opt-level = 3 }
+gpui_tokio = { opt-level = 3 }
 gpui_macros = { opt-level = 3 }
 resvg = { opt-level = 3 }
 rustybuzz = { opt-level = 3 }

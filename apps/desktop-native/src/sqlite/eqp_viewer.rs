@@ -38,10 +38,9 @@ impl EqpViewerPanel {
         let sql = format!("EXPLAIN QUERY PLAN {}", self.sql);
 
         cx.spawn(async move |this, cx| {
-            let rows = crate::tokio_bridge::block_on_db(async move {
-                sqlx::query(&sql).fetch_all(&pool).await
-            });
-            let rows = match rows {
+            let rows = match crate::db::run(cx, async move {
+                Ok(sqlx::query(&sql).fetch_all(&pool).await?)
+            }).await {
                 Ok(r) => r,
                 Err(_) => return,
             };

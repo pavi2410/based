@@ -43,15 +43,15 @@ impl FtsConsolePanel {
     fn detect_fts_tables(&mut self, cx: &mut Context<Self>) {
         let pool = self.pool.clone();
         cx.spawn(async move |this, cx| {
-            let rows = crate::tokio_bridge::block_on_db(async move {
-                sqlx::query(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND sql LIKE '%fts5%'",
+            let rows = match crate::db::run(cx, async move {
+                Ok(
+                    sqlx::query(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND sql LIKE '%fts5%'",
+                    )
+                    .fetch_all(&pool)
+                    .await?,
                 )
-                .fetch_all(&pool)
-                .await
-            });
-
-            let rows = match rows {
+            }).await {
                 Ok(r) => r,
                 Err(_) => return,
             };
@@ -82,10 +82,9 @@ impl FtsConsolePanel {
                 "SELECT snippet(\"{table}\", -1, '<b>', '</b>', '…', 32) AS snip, rank \
                  FROM \"{table}\" WHERE \"{table}\" MATCH ?1 ORDER BY rank"
             );
-            let rows = crate::tokio_bridge::block_on_db(async move {
-                sqlx::query(&sql).bind(&query).fetch_all(&pool).await
-            });
-            let rows = match rows {
+            let rows = match crate::db::run(cx, async move {
+                Ok(sqlx::query(&sql).bind(&query).fetch_all(&pool).await?)
+            }).await {
                 Ok(r) => r,
                 Err(_) => return,
             };

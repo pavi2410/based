@@ -17,7 +17,7 @@ use mongodb::options::{ClientOptions, Credential};
 use mongodb::Database;
 
 use crate::connection::lifecycle::{Connectable, TestReport};
-use crate::tokio_bridge;
+use gpui_tokio::Tokio;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MongoConfig {
@@ -63,50 +63,46 @@ impl Connectable for MongoConnection {
     type Config = MongoConfig;
 
     fn open(config: Self::Config, cx: &mut gpui::App) -> gpui::Task<anyhow::Result<Self>> {
-        cx.background_executor().spawn(async move {
-            tokio_bridge::block_on_db(async move {
-                let mut opts = ClientOptions::parse(&config.uri).await?;
-                if let Some(ref src) = config.auth_source {
-                    apply_auth_source(&mut opts, src);
-                }
+        Tokio::spawn_result(cx, async move {
+            let mut opts = ClientOptions::parse(&config.uri).await?;
+            if let Some(ref src) = config.auth_source {
+                apply_auth_source(&mut opts, src);
+            }
 
-                let client = mongodb::Client::with_options(opts.clone())?;
-                let db_name = config
-                    .database
-                    .clone()
-                    .or_else(|| opts.default_database.as_ref().map(|s| s.to_string()))
-                    .unwrap_or_else(|| "test".to_string());
-                let database = client.database(&db_name);
+            let client = mongodb::Client::with_options(opts.clone())?;
+            let db_name = config
+                .database
+                .clone()
+                .or_else(|| opts.default_database.as_ref().map(|s| s.to_string()))
+                .unwrap_or_else(|| "test".to_string());
+            let database = client.database(&db_name);
 
-                Ok(Self {
-                    config,
-                    client,
-                    database,
-                })
+            Ok(Self {
+                config,
+                client,
+                database,
             })
         })
     }
 
     fn test(config: &Self::Config, cx: &mut gpui::App) -> gpui::Task<anyhow::Result<TestReport>> {
         let config = config.clone();
-        cx.background_executor().spawn(async move {
-            tokio_bridge::block_on_db(async move {
-                let start = std::time::Instant::now();
-                let mut opts = ClientOptions::parse(&config.uri).await?;
-                if let Some(ref src) = config.auth_source {
-                    apply_auth_source(&mut opts, src);
-                }
-                let client = mongodb::Client::with_options(opts)?;
-                let db = config.database.as_deref().unwrap_or("admin");
-                client
-                    .database(db)
-                    .run_command(mongodb::bson::doc! { "ping": 1 }, None)
-                    .await?;
-                Ok(TestReport {
-                    latency_ms: start.elapsed().as_millis() as u64,
-                    server_version: None,
-                    message: Some("ping ok".into()),
-                })
+        Tokio::spawn_result(cx, async move {
+            let start = std::time::Instant::now();
+            let mut opts = ClientOptions::parse(&config.uri).await?;
+            if let Some(ref src) = config.auth_source {
+                apply_auth_source(&mut opts, src);
+            }
+            let client = mongodb::Client::with_options(opts)?;
+            let db = config.database.as_deref().unwrap_or("admin");
+            client
+                .database(db)
+                .run_command(mongodb::bson::doc! { "ping": 1 }, None)
+                .await?;
+            Ok(TestReport {
+                latency_ms: start.elapsed().as_millis() as u64,
+                server_version: None,
+                message: Some("ping ok".into()),
             })
         })
     }

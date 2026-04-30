@@ -67,8 +67,7 @@ impl PipelineBuilderPanel {
                 }
             }
 
-            let docs_result: Result<Vec<Document>, mongodb::error::Error> =
-                crate::tokio_bridge::block_on_db(async move {
+            let docs_result = crate::db::run(cx, async move {
                 let mut cursor = coll.aggregate(stages, None).await?;
                 let mut docs = Vec::<Document>::new();
                 use futures::TryStreamExt;
@@ -76,7 +75,8 @@ impl PipelineBuilderPanel {
                     docs.push(d);
                 }
                 Ok(docs)
-            });
+            })
+            .await;
 
             let docs = match docs_result {
                 Ok(d) => d,

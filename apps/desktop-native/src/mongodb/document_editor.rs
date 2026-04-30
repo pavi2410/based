@@ -48,7 +48,7 @@ impl DocumentEditorPanel {
                     return;
                 }
             };
-            let r = crate::tokio_bridge::block_on_db(async move { replace_by_id(&coll, &id, doc).await });
+            let r = crate::db::run(cx, async move { replace_by_id(&coll, &id, doc).await }).await;
             let _ = cx.update(|cx| {
                 this.update(cx, |p, cx| {
                     p.status = match r {

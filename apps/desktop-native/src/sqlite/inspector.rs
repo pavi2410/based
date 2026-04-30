@@ -80,7 +80,7 @@ impl TableInspectorPanel {
         let table_name = self.table_name.clone();
 
         cx.spawn(async move |this, cx| {
-            let loaded = crate::tokio_bridge::block_on_db(async move {
+            let loaded = crate::db::run(cx, async move {
                 let col_sql = format!("PRAGMA table_info(\"{table_name}\")");
                 let col_rows = sqlx::query(&col_sql).fetch_all(&pool).await?;
                 let columns: Vec<ColumnInfo> = col_rows
@@ -104,8 +104,9 @@ impl TableInspectorPanel {
                     })
                     .collect();
 
-                Ok::<_, sqlx::Error>((columns, indexes))
-            });
+                Ok((columns, indexes))
+            })
+            .await;
 
             let (columns, indexes) = match loaded {
                 Ok(x) => x,

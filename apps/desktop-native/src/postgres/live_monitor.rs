@@ -34,7 +34,7 @@ impl LiveMonitorPanel {
     pub fn refresh(&mut self, cx: &mut Context<Self>) {
         let pool = self.pool.clone();
         cx.spawn(async move |this, cx| {
-            let (columns, data) = crate::tokio_bridge::block_on_db(async move {
+            let (columns, data) = match crate::db::run_infallible(cx, async move {
                 let sql = r"
                 SELECT pid, usename, application_name, client_addr::text, state,
                        query_start::text, left(query, 200) AS query
@@ -64,18 +64,19 @@ impl LiveMonitorPanel {
                     })
                     .collect();
                 (columns, data)
-            });
-            cx.update(|cx| {
-                this.update(cx, |panel, cx| {
-                    panel.table.update(cx, |state, cx| {
-                        let d = state.delegate_mut();
-                        d.columns = columns;
-                        d.rows = data;
-                        cx.notify();
-                    });
+            }).await {
+                Ok(x) => x,
+                Err(_) => return,
+            };
+            let _ = this.update(cx, |panel, cx| {
+                panel.table.update(cx, |state, cx| {
+                    let d = state.delegate_mut();
+                    d.columns = columns;
+                    d.rows = data;
                     cx.notify();
-                })
-            })
+                });
+                cx.notify();
+            });
         })
         .detach();
     }

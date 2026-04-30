@@ -39,12 +39,12 @@ impl ChangeStreamPanel {
         self.lines = vec!["Opening change stream…".into()];
         let coll = self.collection.clone();
         cx.spawn(async move |this, cx| {
-            let result: Result<Vec<String>, String> = crate::tokio_bridge::block_on_db(async move {
+            let result = crate::db::run(cx, async move {
                 use futures::StreamExt;
                 let mut stream = coll
                     .watch(None, None)
                     .await
-                    .map_err(|e| format!("watch() failed: {e}"))?;
+                    .map_err(|e| anyhow::anyhow!("watch() failed: {e}"))?;
                 let mut out_lines = Vec::<String>::new();
                 let mut count = 0usize;
                 loop {
@@ -58,12 +58,13 @@ impl ChangeStreamPanel {
                             }
                         }
                         Some(Err(e)) => {
-                            return Err(format!("stream error: {e}"));
+                            return Err(anyhow::anyhow!("stream error: {e}"));
                         }
                     }
                 }
                 Ok(out_lines)
-            });
+            })
+            .await;
 
             let _ = cx.update(|cx| {
                 this.update(cx, |p, cx| {
@@ -75,7 +76,7 @@ impl ChangeStreamPanel {
                             }
                         }
                         Err(msg) => {
-                            p.lines = vec![msg];
+                            p.lines = vec![msg.to_string()];
                         }
                     }
                     p.busy = false;

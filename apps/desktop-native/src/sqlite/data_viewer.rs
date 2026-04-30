@@ -60,7 +60,7 @@ impl DataViewerPanel {
         let page_size = self.page_size;
 
         cx.spawn(async move |this, cx| {
-            let res = crate::tokio_bridge::block_on_db(async move {
+            let res = crate::db::run(cx, async move {
                 let count_sql = format!("SELECT COUNT(*) FROM \"{table_name}\"");
                 let total: i64 = sqlx::query_scalar(&count_sql)
                     .fetch_one(&pool)
@@ -93,8 +93,9 @@ impl DataViewerPanel {
                     })
                     .collect();
 
-                Ok::<_, sqlx::Error>((total, columns, data_rows))
-            });
+                Ok((total, columns, data_rows))
+            })
+            .await;
             let _ = cx.update(|cx| {
                 this.update(cx, |panel, cx| match res {
                     Ok((total, columns, data_rows)) => {

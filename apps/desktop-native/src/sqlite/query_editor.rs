@@ -10,7 +10,7 @@ use gpui_component::{
 };
 use sqlx::{Column as SqlxColumn, Row, SqlitePool};
 
-use crate::tokio_bridge;
+use crate::db;
 use crate::widgets::virtual_table::RowDelegate;
 
 pub enum QueryStatus {
@@ -29,14 +29,18 @@ pub struct QueryEditorPanel {
 }
 
 impl QueryEditorPanel {
-    pub fn new(pool: SqlitePool, _window: &mut Window, cx: &mut Context<Self>) -> Self {
-        Self {
+    pub fn new(pool: SqlitePool, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let panel = Self {
             focus_handle: cx.focus_handle(),
             pool,
             sql: String::from("SELECT * FROM sqlite_master LIMIT 20"),
             result_table: None,
             status: QueryStatus::Idle,
-        }
+        };
+        cx.defer_in(window, |panel, window, cx| {
+            panel.run_query(window, cx);
+        });
+        panel
     }
 
     fn run_query(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -55,8 +59,8 @@ impl QueryEditorPanel {
         cx.spawn(async move |this, cx| {
             let start = std::time::Instant::now();
 
-            let result: anyhow::Result<(Vec<Column>, Vec<Vec<SharedString>>)> = tokio_bridge::block_on_db(
-                async move {
+            let result: anyhow::Result<(Vec<Column>, Vec<Vec<SharedString>>)> =
+                db::run(cx, async move {
                     let rows = sqlx::query(&sql).fetch_all(&pool).await?;
                     let columns: Vec<Column> = if let Some(first) = rows.first() {
                         first
@@ -79,35 +83,33 @@ impl QueryEditorPanel {
                         })
                         .collect();
                     Ok((columns, data_rows))
-                },
-            );
+                })
+                .await;
 
             let elapsed_ms = start.elapsed().as_millis() as u64;
 
-            cx.update(|cx| {
-                this.update(cx, |panel, cx| match result {
-                    Ok((columns, data_rows)) => {
-                        let row_count = data_rows.len();
-                        if let Some(ref tbl) = panel.result_table {
-                            tbl.update(cx, |state, cx| {
-                                let delegate = state.delegate_mut();
-                                delegate.columns = columns;
-                                delegate.rows = data_rows;
-                                cx.notify();
-                            });
-                        }
-                        panel.status = QueryStatus::Done {
-                            rows: row_count,
-                            elapsed_ms,
-                        };
-                        cx.notify();
+            let _ = this.update(cx, |panel, cx| match result {
+                Ok((columns, data_rows)) => {
+                    let row_count = data_rows.len();
+                    if let Some(ref tbl) = panel.result_table {
+                        tbl.update(cx, |state, cx| {
+                            let delegate = state.delegate_mut();
+                            delegate.columns = columns;
+                            delegate.rows = data_rows;
+                            cx.notify();
+                        });
                     }
-                    Err(e) => {
-                        panel.status = QueryStatus::Error(e.to_string());
-                        cx.notify();
-                    }
-                })
-            })
+                    panel.status = QueryStatus::Done {
+                        rows: row_count,
+                        elapsed_ms,
+                    };
+                    cx.notify();
+                }
+                Err(e) => {
+                    panel.status = QueryStatus::Error(e.to_string());
+                    cx.notify();
+                }
+            });
         })
         .detach();
     }
@@ -186,11 +188,13 @@ impl Render for QueryEditorPanel {
         let bottom: AnyElement = if let Some(ref table) = self.result_table {
             div()
                 .flex_1()
+                .min_h_0()
                 .child(DataTable::new(table).stripe(true).bordered(false))
                 .into_any_element()
         } else {
             div()
                 .flex_1()
+                .min_h_0()
                 .flex()
                 .items_center()
                 .justify_center()
@@ -203,6 +207,7 @@ impl Render for QueryEditorPanel {
         v_flex()
             .w_full()
             .h_full()
+            .min_h_0()
             .p(px(8.0))
             .gap(px(8.0))
             .child(editor_placeholder)

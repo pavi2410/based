@@ -1,6 +1,8 @@
 // sqlite::tree — SchemaTreePanel: displays tables/views from sqlite_master.
 
 use gpui::{prelude::*, *};
+
+use log::warn;
 use gpui_component::{
     ActiveTheme,
     dock::{Panel, PanelEvent},
@@ -47,7 +49,7 @@ impl SchemaTreePanel {
     fn load_tables(&mut self, cx: &mut Context<Self>) {
         let pool = self.pool.clone();
         cx.spawn(async move |this, cx| {
-            let nodes: anyhow::Result<Vec<TableNode>> = crate::tokio_bridge::block_on_db(async move {
+            let nodes = crate::db::run(cx, async move {
                 let rows = sqlx::query(
                     "SELECT name, type FROM sqlite_master \
                      WHERE type IN ('table','view','trigger') \
@@ -70,19 +72,26 @@ impl SchemaTreePanel {
                     })
                     .collect();
                 Ok(nodes)
-            });
+            })
+            .await;
 
             let nodes = match nodes {
                 Ok(n) => n,
-                Err(_) => return,
+                Err(e) => {
+                    warn!("sqlite schema load failed: {e:#}");
+                    return;
+                }
             };
 
-            let _ = cx.update(|cx| {
-                this.update(cx, |panel, cx| {
+            if this
+                .update(cx, |panel, cx| {
                     panel.nodes = nodes;
                     cx.notify();
                 })
-            });
+                .is_err()
+            {
+                warn!("sqlite schema tree: entity update failed (panel released?)");
+            }
         })
         .detach();
     }
@@ -159,6 +168,8 @@ impl Render for SchemaTreePanel {
             .id("schema-tree-scroll")
             .w_full()
             .h_full()
+            .min_h_0()
+            .flex_1()
             .overflow_y_scroll()
             .children(rows)
     }

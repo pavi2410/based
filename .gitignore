@@ -30,6 +30,9 @@ Thumbs.db
 # Large sample DB (copy from Downloads or your source)
 data/northwind.db
 
+# Local dev SQLite from desktop-native mock connection
+/app.db
+
 # Cache
 .cache
 .temp

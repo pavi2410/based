@@ -36,7 +36,10 @@ use gpui_component::{
 use ::mongodb::bson::Document;
 use mongodb::Collection;
 
-use crate::bindings::{CycleAppearance, ToggleSidebarRail};
+use crate::bindings::{
+    CycleAppearance, DismissCommandPalette, ToggleCommandPalette, ToggleSidebarRail,
+};
+use crate::command_palette::CommandPalette;
 use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{AnyConnection, ConnectionEntry, ConnectionId, ConnectionState};
 use crate::postgres;
@@ -52,6 +55,7 @@ pub struct Workspace {
     dock_area: Entity<DockArea>,
     connection_tree: Entity<ConnectionTree>,
     tab_manager: Entity<TabManager>,
+    command_palette: Entity<CommandPalette>,
     sidebar_collapsed: bool,
     inspector_collapsed: bool,
     focus_handle: FocusHandle,
@@ -95,6 +99,7 @@ impl Workspace {
             cx.new(|cx| ConnectionTree::new(registry.clone(), dock_area.clone(), cx));
 
         let tab_manager = cx.new(|_| TabManager::new());
+        let command_palette = cx.new(|cx| CommandPalette::new(registry.clone(), cx));
 
         let tree_observe = connection_tree.clone();
 
@@ -103,6 +108,7 @@ impl Workspace {
             dock_area,
             connection_tree,
             tab_manager,
+            command_palette,
             sidebar_collapsed: crate::app::prefs::collapsed_from(cx),
             inspector_collapsed: false,
             focus_handle: cx.focus_handle(),
@@ -292,6 +298,20 @@ impl Render for Workspace {
             .on_action(window.listener_for(&this, |_, _: &CycleAppearance, _, cx| {
                 crate::app::prefs::cycle_theme(cx);
             }))
+            .on_action(
+                window.listener_for(&this, |ws, _: &ToggleCommandPalette, window, cx| {
+                    ws.command_palette.update(cx, |p, cx| p.toggle(window, cx));
+                }),
+            )
+            .on_action(
+                window.listener_for(&this, |ws, _: &DismissCommandPalette, _, cx| {
+                    ws.command_palette.update(cx, |p, cx| {
+                        if p.is_visible() {
+                            p.dismiss(cx);
+                        }
+                    });
+                }),
+            )
             .bg(cx.theme().background)
             .child(Topbar::new(
                 self.project_title.clone(),
@@ -301,6 +321,7 @@ impl Render for Workspace {
             ))
             .child(body)
             .child(StatusBar::new(conn_count, connected_count))
+            .child(self.command_palette.clone())
     }
 }
 

@@ -2,7 +2,14 @@
 
 use gpui::{App, KeyBinding};
 
-gpui::actions!([ToggleSidebarRail, CycleAppearance]);
+gpui::actions!([
+    ToggleSidebarRail,
+    CycleAppearance,
+    ToggleCommandPalette,
+    DismissCommandPalette,
+    CloseTab,
+    NewQuery,
+]);
 
 pub fn init(cx: &mut App) {
     cx.bind_keys([
@@ -10,5 +17,8 @@ pub fn init(cx: &mut App) {
         KeyBinding::new("ctrl-\\", ToggleSidebarRail, None),
         KeyBinding::new("cmd-alt-shift-t", CycleAppearance, None),
         KeyBinding::new("ctrl-alt-shift-t", CycleAppearance, None),
+        KeyBinding::new("cmd-k", ToggleCommandPalette, None),
+        KeyBinding::new("ctrl-k", ToggleCommandPalette, None),
+        KeyBinding::new("escape", DismissCommandPalette, None),
     ]);
 }

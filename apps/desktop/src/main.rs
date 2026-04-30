@@ -6,6 +6,7 @@
 
 mod app;
 mod bindings;
+mod command_palette;
 mod connection;
 mod db;
 mod mongodb;

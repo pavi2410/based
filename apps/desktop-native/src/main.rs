@@ -14,32 +14,11 @@ mod sqlite;
 mod widgets;
 mod workspace;
 
+use gpui::prelude::*;
 use gpui::*;
-use gpui_component::{Root, button::*, *};
+use gpui_component::{ActiveTheme, Root, Theme, ThemeMode, TitleBar};
 
-// ── Phase-0 hello-world ──────────────────────────────────────────────────────
-// This view is replaced by workspace::Workspace in Phase 1.
-
-struct HelloBased;
-
-impl Render for HelloBased {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        div()
-            .v_flex()
-            .gap_4()
-            .size_full()
-            .items_center()
-            .justify_center()
-            .child(div().text_xl().font_bold().child("based"))
-            .child(div().text_sm().child("Git-Friendly Database Client"))
-            .child(
-                Button::new("open-project")
-                    .primary()
-                    .label("Open Project")
-                    .on_click(|_, _, _| eprintln!("Open Project — Phase 1 will wire this")),
-            )
-    }
-}
+use workspace::Workspace;
 
 // ── Entry point ──────────────────────────────────────────────────────────────
 
@@ -56,15 +35,13 @@ fn main() {
                             origin: point(px(100.0), px(100.0)),
                             size: size(px(1280.0), px(800.0)),
                         })),
-                        titlebar: Some(TitlebarOptions {
-                            title: Some("based".into()),
-                            ..Default::default()
-                        }),
+                        titlebar: Some(TitleBar::title_bar_options()),
                         ..Default::default()
                     },
                     |window, cx| {
-                        let view = cx.new(|_| HelloBased);
-                        cx.new(|cx| Root::new(view, window, cx).bg(cx.theme().background))
+                        Theme::change(ThemeMode::Dark, Some(window), cx);
+                        let workspace = cx.new(|cx| Workspace::new(window, cx));
+                        cx.new(|cx| Root::new(workspace, window, cx).bg(cx.theme().background))
                     },
                 )
                 .expect("Failed to open main window");

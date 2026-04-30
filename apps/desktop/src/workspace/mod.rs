@@ -3,6 +3,9 @@
 pub mod tab_spec;
 pub use tab_spec::TabSpec;
 
+pub mod tab_manager;
+pub use tab_manager::TabManager;
+
 pub mod item;
 pub mod notify;
 pub mod object_info;

@@ -12,6 +12,7 @@ use gpui_component::{
 };
 use sqlx::{Column as SqlxColumn, Row, SqlitePool};
 
+use crate::widgets::filter_bar::FilterBar;
 use crate::widgets::ui::{metadata_pill, panel_header};
 use crate::widgets::virtual_table::RowDelegate;
 
@@ -20,6 +21,7 @@ pub struct DataViewerPanel {
     pool: SqlitePool,
     table_name: String,
     table: Entity<TableState<RowDelegate>>,
+    filter_bar: Entity<FilterBar>,
     offset: u64,
     page_size: u64,
     total_rows: u64,
@@ -39,12 +41,14 @@ impl DataViewerPanel {
                 .row_selectable(true)
                 .cell_selectable(true)
         });
+        let filter_bar = cx.new(|cx| FilterBar::new(window, cx, vec![]));
 
         let mut panel = Self {
             focus_handle: cx.focus_handle(),
             pool,
             table_name,
             table,
+            filter_bar,
             offset: 0,
             page_size: 500,
             total_rows: 0,
@@ -54,24 +58,39 @@ impl DataViewerPanel {
         panel
     }
 
+    fn sql_escape_ident(ident: &str) -> String {
+        ident.replace('"', "\"\"")
+    }
+
     fn load_page(&mut self, offset: u64, cx: &mut Context<Self>) {
         self.loading = true;
         self.offset = offset;
 
         let pool = self.pool.clone();
-        let table_name = self.table_name.clone();
+        let table_name = Self::sql_escape_ident(&self.table_name);
         let page_size = self.page_size;
+        let where_sql = self
+            .filter_bar
+            .read(cx)
+            .current_expr(cx)
+            .map(|e| e.to_sql_sqlite());
 
         cx.spawn(async move |this, cx| {
             let res = crate::db::run(cx, async move {
-                let count_sql = format!("SELECT COUNT(*) FROM \"{table_name}\"");
+                let where_clause = where_sql
+                    .as_ref()
+                    .map(|w| format!(" WHERE {w}"))
+                    .unwrap_or_default();
+
+                let count_sql = format!("SELECT COUNT(*) FROM \"{table_name}\"{where_clause}");
                 let total: i64 = sqlx::query_scalar(&count_sql)
                     .fetch_one(&pool)
                     .await
                     .unwrap_or(0);
 
-                let fetch_sql =
-                    format!("SELECT * FROM \"{table_name}\" LIMIT {page_size} OFFSET {offset}");
+                let fetch_sql = format!(
+                    "SELECT * FROM \"{table_name}\"{where_clause} LIMIT {page_size} OFFSET {offset}"
+                );
                 let rows = sqlx::query(&fetch_sql).fetch_all(&pool).await?;
 
                 let columns: Vec<Column> = if let Some(first) = rows.first() {
@@ -104,6 +123,11 @@ impl DataViewerPanel {
                     Ok((total, columns, data_rows)) => {
                         panel.total_rows = total as u64;
                         panel.loading = false;
+                        let names: Vec<String> =
+                            columns.iter().map(|c| c.key.to_string()).collect();
+                        panel.filter_bar.update(cx, |fb, cx| {
+                            fb.set_columns_if_empty(names, cx);
+                        });
                         panel.table.update(cx, |state, cx| {
                             let delegate = state.delegate_mut();
                             delegate.columns = columns;
@@ -189,12 +213,29 @@ impl Render for DataViewerPanel {
             .px(px(8.0))
             .py(px(6.0))
             .gap(px(8.0))
+            .flex_wrap()
             .border_b_1()
             .border_color(border.opacity(0.72))
             .bg(cx.theme().muted.opacity(0.18))
             .child(metadata_pill("rows", row_info, cx))
             .child(metadata_pill("page", page_size.to_string(), cx))
             .child(metadata_pill("mode", "read-only", cx))
+            .child(self.filter_bar.clone())
+            .child(
+                Button::new("sqlite-filter-apply")
+                    .label("Apply filter")
+                    .on_click(cx.listener(|panel, _, _, cx| panel.load_page(0, cx))),
+            )
+            .child(
+                Button::new("sqlite-filter-clear").label("Clear filter").on_click(cx.listener(
+                    |panel, _, window, cx| {
+                        panel.filter_bar.update(cx, |fb, cx| {
+                            fb.clear(window, cx);
+                        });
+                        panel.load_page(0, cx);
+                    },
+                )),
+            )
             .child(div().flex_1())
             .when(loading, |d| {
                 d.child(div().text_sm().text_color(muted).child("Loading…"))

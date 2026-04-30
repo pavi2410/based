@@ -14,12 +14,22 @@ use mongodb::Collection;
 use mongodb::bson::{Document, doc};
 use mongodb::options::FindOptions;
 
+use crate::widgets::filter_bar::{FilterBar, FilterExpr};
 use crate::widgets::virtual_table::RowDelegate;
+
+fn mongo_filter_doc(expr: &FilterExpr) -> Document {
+    let s = expr.to_mongo_filter();
+    serde_json::from_str::<serde_json::Value>(&s)
+        .ok()
+        .and_then(|v| mongodb::bson::to_document(&v).ok())
+        .unwrap_or_else(|| doc! {})
+}
 
 pub struct DocumentViewerPanel {
     focus_handle: FocusHandle,
     collection: Collection<Document>,
     table: Entity<TableState<RowDelegate>>,
+    filter_bar: Entity<FilterBar>,
     limit: i64,
     loading: bool,
 }
@@ -36,10 +46,12 @@ impl DocumentViewerPanel {
                 .row_selectable(true)
                 .cell_selectable(true)
         });
+        let filter_bar = cx.new(|cx| FilterBar::new(window, cx, vec![]));
         let mut p = Self {
             focus_handle: cx.focus_handle(),
             collection,
             table,
+            filter_bar,
             limit: 200,
             loading: false,
         };
@@ -51,10 +63,17 @@ impl DocumentViewerPanel {
         self.loading = true;
         let coll = self.collection.clone();
         let lim = self.limit;
+        let filter_doc = self
+            .filter_bar
+            .read(cx)
+            .current_expr(cx)
+            .map(|e| mongo_filter_doc(&e))
+            .unwrap_or_else(|| doc! {});
+
         cx.spawn(async move |this, cx| {
             let docs = match crate::db::run(cx, async move {
                 let opts = FindOptions::builder().limit(lim).build();
-                let mut cursor = coll.find(doc! {}, opts).await?;
+                let mut cursor = coll.find(filter_doc, opts).await?;
                 let mut docs: Vec<Document> = Vec::new();
                 use futures::TryStreamExt;
                 while let Some(d) = cursor.try_next().await? {
@@ -109,6 +128,9 @@ impl DocumentViewerPanel {
             let _ = cx.update(|cx| {
                 this.update(cx, |panel, cx| {
                     panel.loading = false;
+                    panel.filter_bar.update(cx, |fb, cx| {
+                        fb.set_columns_if_empty(keys.clone(), cx);
+                    });
                     panel.table.update(cx, |state, cx| {
                         let del = state.delegate_mut();
                         del.columns = columns;
@@ -164,12 +186,30 @@ impl Render for DocumentViewerPanel {
                 h_flex()
                     .p_2()
                     .gap_2()
+                    .flex_wrap()
+                    .items_center()
                     .border_b_1()
                     .border_color(border)
                     .child(
                         Button::new("mongo-refresh-docs")
                             .label("Refresh")
                             .on_click(cx.listener(|p, _, _, cx| p.reload(cx))),
+                    )
+                    .child(self.filter_bar.clone())
+                    .child(
+                        Button::new("mongo-filter-apply")
+                            .label("Apply filter")
+                            .on_click(cx.listener(|p, _, _, cx| p.reload(cx))),
+                    )
+                    .child(
+                        Button::new("mongo-filter-clear").label("Clear filter").on_click(
+                            cx.listener(|p, _, window, cx| {
+                                p.filter_bar.update(cx, |fb, cx| {
+                                    fb.clear(window, cx);
+                                });
+                                p.reload(cx);
+                            }),
+                        ),
                     )
                     .when(self.loading, |h| {
                         h.child(div().text_sm().text_color(muted).child("Loading…"))

@@ -10,6 +10,7 @@ use gpui_component::{
     h_flex, v_flex,
 };
 use sqlx::{Row, SqlitePool};
+use crate::widgets::ui::{metadata_pill, panel_header};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ObjectKind {
@@ -181,6 +182,23 @@ impl Render for SchemaTreePanel {
             .min_h_0()
             .flex_1()
             .overflow_y_scroll()
+            .bg(cx.theme().background)
+            .child(panel_header(
+                "SQLite Objects",
+                "Tables, views, triggers, and virtual tables",
+                cx,
+            ))
+            .child(
+                h_flex()
+                    .px_2()
+                    .py_1()
+                    .gap_2()
+                    .border_b_1()
+                    .border_color(cx.theme().border.opacity(0.72))
+                    .bg(cx.theme().muted.opacity(0.18))
+                    .child(metadata_pill("objects", rows.len().to_string(), cx))
+                    .child(metadata_pill("engine", "SQLite", cx)),
+            )
             .children(rows)
     }
 }

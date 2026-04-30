@@ -12,6 +12,7 @@ use gpui_component::{
 use sqlx::{Column as SqlxColumn, Row, SqlitePool};
 
 use crate::widgets::virtual_table::RowDelegate;
+use crate::widgets::ui::{metadata_pill, panel_header};
 
 pub struct DataViewerPanel {
     focus_handle: FocusHandle,
@@ -185,17 +186,14 @@ impl Render for DataViewerPanel {
         let toolbar = h_flex()
             .w_full()
             .px(px(8.0))
-            .py(px(4.0))
+            .py(px(6.0))
             .gap(px(8.0))
             .border_b_1()
-            .border_color(border)
-            .child(
-                div()
-                    .text_sm()
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .child(table_name),
-            )
-            .child(div().text_sm().text_color(muted).child(row_info))
+            .border_color(border.opacity(0.72))
+            .bg(cx.theme().muted.opacity(0.18))
+            .child(metadata_pill("rows", row_info, cx))
+            .child(metadata_pill("page", page_size.to_string(), cx))
+            .child(metadata_pill("mode", "read-only", cx))
             .child(div().flex_1())
             .when(loading, |d| {
                 d.child(div().text_sm().text_color(muted).child("Loading…"))
@@ -216,6 +214,12 @@ impl Render for DataViewerPanel {
         v_flex()
             .w_full()
             .h_full()
+            .bg(cx.theme().background)
+            .child(panel_header(
+                table_name,
+                "Browse data, filter rows, inspect cells",
+                cx,
+            ))
             .child(toolbar)
             .child(DataTable::new(&self.table).stripe(true).bordered(false))
     }

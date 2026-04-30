@@ -1,10 +1,11 @@
-use gpui::{App, Context, FocusHandle, Focusable, IntoElement, Render, Window, div, prelude::*};
+use gpui::{App, Context, FocusHandle, Focusable, IntoElement, Render, Window, div, prelude::*, px};
 use gpui_component::{
-    ActiveTheme, StyledExt,
+    ActiveTheme, IconName, Sizable as _, StyledExt,
     dock::{Panel, PanelEvent},
     menu::PopupMenu,
     h_flex, v_flex,
 };
+use crate::widgets::ui::metadata_pill;
 
 pub struct WelcomePanel {
     focus_handle: FocusHandle,
@@ -51,7 +52,7 @@ impl Render for WelcomePanel {
             .size_full()
             .items_center()
             .justify_center()
-            .gap_8()
+            .gap_6()
             .bg(cx.theme().background)
             .child(
                 v_flex()
@@ -68,15 +69,22 @@ impl Render for WelcomePanel {
                         div()
                             .text_sm()
                             .text_color(cx.theme().muted_foreground)
-                            .child("Git-Friendly Database Client"),
+                            .child("Graphite-native database workspace"),
                     ),
             )
             .child(
                 h_flex()
-                    .gap_4()
-                    .child(action_card(cx, "Open Project", "Open an existing project folder"))
-                    .child(action_card(cx, "New Connection", "Add a new database connection"))
-                    .child(action_card(cx, "Recent", "Open a recently used connection")),
+                    .gap_2()
+                    .child(metadata_pill("command", if cfg!(target_os = "macos") { "⌘K" } else { "Ctrl K" }, cx))
+                    .child(metadata_pill("workspace", "local-first", cx))
+                    .child(metadata_pill("engines", "SQLite · Postgres · MongoDB", cx)),
+            )
+            .child(
+                h_flex()
+                    .gap_3()
+                    .child(action_card(cx, "Open Project", "Open an existing project folder", IconName::FolderOpen))
+                    .child(action_card(cx, "New Connection", "Add a database connection", IconName::Plus))
+                    .child(action_card(cx, "Command Center", "Open anything from one place", IconName::Search)),
             )
     }
 }
@@ -85,19 +93,25 @@ fn action_card(
     cx: &mut Context<WelcomePanel>,
     title: &'static str,
     subtitle: &'static str,
+    icon: IconName,
 ) -> impl IntoElement {
     div()
-        .w_48()
-        .p_4()
-        .rounded_lg()
+        .w(px(210.0))
+        .p_3()
+        .rounded(px(8.0))
         .border_1()
-        .border_color(cx.theme().border)
-        .bg(cx.theme().background)
+        .border_color(cx.theme().border.opacity(0.84))
+        .bg(cx.theme().muted.opacity(0.22))
         .cursor_pointer()
-        .hover(|s| s.border_color(gpui::hsla(0.0, 0.0, 0.5, 1.0)))
+        .hover(|s| s.border_color(gpui::hsla(0.68, 0.45, 0.68, 0.56)))
         .child(
             v_flex()
-                .gap_1()
+                .gap_2()
+                .child(
+                    gpui_component::Icon::new(icon)
+                        .text_color(cx.theme().muted_foreground)
+                        .with_size(gpui_component::Size::Small),
+                )
                 .child(
                     div()
                         .text_sm()

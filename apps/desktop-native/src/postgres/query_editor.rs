@@ -13,6 +13,7 @@ use gpui_component::{
 
 use crate::postgres::mutations::execute_sql;
 use crate::workspace::notify;
+use crate::widgets::ui::{metadata_pill, panel_header};
 use crate::widgets::virtual_table::RowDelegate;
 use sqlx::PgPool;
 
@@ -154,14 +155,19 @@ impl Render for QueryEditorPanel {
 
         let toolbar = h_flex()
             .gap_2()
-            .p_2()
+            .px_2()
+            .py(px(6.0))
             .items_center()
+            .border_b_1()
+            .border_color(border.opacity(0.72))
+            .bg(cx.theme().muted.opacity(0.18))
             .child(
                 Button::new("pg-run")
                     .primary()
                     .label("Run")
                     .on_click(cx.listener(|panel, _, _, cx| panel.run(cx))),
             )
+            .child(metadata_pill("shortcut", if cfg!(target_os = "macos") { "⌘↵" } else { "Ctrl Enter" }, cx))
             .child(
                 div()
                     .text_sm()
@@ -187,18 +193,29 @@ impl Render for QueryEditorPanel {
             .w_full()
             .h_full()
             .min_h_0()
+            .bg(cx.theme().background)
+            .child(panel_header(
+                "Postgres Query",
+                "Run SQL, inspect plans, compare result sets",
+                cx,
+            ))
             .child(toolbar)
             .when_some(error_strip, |col, strip| col.child(strip))
             .child({
                 div()
-                    .flex_1()
-                    .min_h(px(120.0))
                     .p_2()
-                    .border_1()
-                    .border_color(if is_error { err_border } else { border })
-                    .font_family("monospace")
-                    .text_sm()
-                    .child(sql_val)
+                    .child(
+                        div()
+                            .h(px(180.0))
+                            .p_2()
+                            .border_1()
+                            .rounded(px(7.0))
+                            .bg(cx.theme().muted.opacity(0.14))
+                            .border_color(if is_error { err_border } else { border })
+                            .font_family("monospace")
+                            .text_sm()
+                            .child(sql_val),
+                    )
             })
             .child(
                 div()

@@ -5,11 +5,15 @@ use gpui_component::{ActiveTheme, h_flex};
 #[derive(IntoElement)]
 pub struct StatusBar {
     pub connection_count: usize,
+    pub connected_count: usize,
 }
 
 impl StatusBar {
-    pub fn new(connection_count: usize) -> Self {
-        Self { connection_count }
+    pub fn new(connection_count: usize, connected_count: usize) -> Self {
+        Self {
+            connection_count,
+            connected_count,
+        }
     }
 }
 
@@ -25,16 +29,43 @@ impl RenderOnce for StatusBar {
             .items_center()
             .justify_between()
             .child(
-                div()
-                    .text_xs()
-                    .text_color(cx.theme().muted_foreground)
-                    .child(format!("{} connections", self.connection_count)),
+                h_flex()
+                    .gap_3()
+                    .items_center()
+                    .child(
+                        div()
+                            .text_xs()
+                            .font_family(cx.theme().mono_font_family.clone())
+                            .text_color(cx.theme().muted_foreground)
+                            .child(format!(
+                                "{} connections · {} live",
+                                self.connection_count, self.connected_count
+                            )),
+                    )
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(cx.theme().muted_foreground.opacity(0.82))
+                            .child("work locally"),
+                    ),
             )
             .child(
-                div()
-                    .text_xs()
-                    .text_color(cx.theme().muted_foreground)
-                    .child("based v0.1.0"),
+                h_flex()
+                    .gap_3()
+                    .items_center()
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(cx.theme().muted_foreground.opacity(0.82))
+                            .child("query history ready"),
+                    )
+                    .child(
+                        div()
+                            .text_xs()
+                            .font_family(cx.theme().mono_font_family.clone())
+                            .text_color(cx.theme().muted_foreground)
+                            .child("based v0.1.0"),
+                    ),
             )
     }
 }

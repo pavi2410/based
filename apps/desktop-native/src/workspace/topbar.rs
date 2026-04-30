@@ -1,6 +1,4 @@
-use gpui::{
-    App, Entity, IntoElement, ParentElement, RenderOnce, SharedString, Styled, div,
-};
+use gpui::{App, Entity, IntoElement, ParentElement, RenderOnce, SharedString, Styled, div, px};
 use gpui_component::{
     ActiveTheme as _, IconName, Sizable as _, StyledExt, TitleBar,
     button::{Button, ButtonVariants},
@@ -9,19 +7,29 @@ use gpui_component::{
 
 use super::Workspace;
 use crate::app::prefs;
+use crate::widgets::ui::{command_shell, metadata_pill, toolbar_button};
 
 /// A `RenderOnce` top bar that renders inside the window's `TitleBar`.
 #[derive(IntoElement)]
 pub struct Topbar {
     pub project_name: SharedString,
     pub workspace: Entity<Workspace>,
+    pub connection_count: usize,
+    pub connected_count: usize,
 }
 
 impl Topbar {
-    pub fn new(project_name: impl Into<SharedString>, workspace: Entity<Workspace>) -> Self {
+    pub fn new(
+        project_name: impl Into<SharedString>,
+        workspace: Entity<Workspace>,
+        connection_count: usize,
+        connected_count: usize,
+    ) -> Self {
         Self {
             project_name: project_name.into(),
             workspace,
+            connection_count,
+            connected_count,
         }
     }
 }
@@ -34,15 +42,21 @@ impl RenderOnce for Topbar {
         let collapsed = prefs::collapsed_from(cx);
         let is_dark = cx.theme().is_dark();
 
+        let health = if self.connection_count == 0 {
+            "No connections".to_string()
+        } else {
+            format!("{}/{} live", self.connected_count, self.connection_count)
+        };
+
         TitleBar::new().child(
             h_flex()
                 .w_full()
                 .items_center()
                 .justify_between()
-                .gap_1()
+                .gap_2()
                 .child(
                     h_flex()
-                        .gap_0()
+                        .gap_1()
                         .items_center()
                         .child(
                             Button::new("rail-toggle")
@@ -85,22 +99,57 @@ impl RenderOnce for Topbar {
                         ),
                 )
                 .child(
-                    h_flex().flex_1().items_center().justify_center().child(
-                        div()
-                            .text_sm()
-                            .font_semibold()
-                            .font_family(cx.theme().mono_font_family.clone())
-                            .text_color(cx.theme().foreground)
-                            .child(self.project_name.clone()),
-                    ),
+                    h_flex()
+                        .min_w_0()
+                        .w(px(220.0))
+                        .items_center()
+                        .gap_2()
+                        .child(
+                            div()
+                                .text_sm()
+                                .font_semibold()
+                                .font_family(cx.theme().mono_font_family.clone())
+                                .text_color(cx.theme().foreground)
+                                .truncate()
+                                .child(self.project_name.clone()),
+                        )
+                        .child(metadata_pill("env", "local", cx)),
                 )
                 .child(
-                    Button::new("settings")
-                        .ghost()
-                        .xsmall()
-                        .icon(IconName::Settings)
-                        .tooltip(SharedString::from("Settings — coming soon"))
-                        .on_click(|_, _, _| eprintln!("settings — Phase 2 will wire this")),
+                    h_flex()
+                        .flex_1()
+                        .items_center()
+                        .justify_center()
+                        .child(command_shell(
+                            cx,
+                            "Open table, run query, switch connection...",
+                        )),
+                )
+                .child(
+                    h_flex()
+                        .w(px(300.0))
+                        .items_center()
+                        .justify_end()
+                        .gap_1()
+                        .child(metadata_pill("workspace", health, cx))
+                        .child(toolbar_button(
+                            "new-connection",
+                            IconName::Plus,
+                            "New connection — coming soon",
+                        ))
+                        .child(toolbar_button(
+                            "refresh-workspace",
+                            IconName::Search,
+                            "Refresh workspace",
+                        ))
+                        .child(
+                            Button::new("settings")
+                                .ghost()
+                                .xsmall()
+                                .icon(IconName::Settings)
+                                .tooltip(SharedString::from("Settings — coming soon"))
+                                .on_click(|_, _, _| eprintln!("settings — Phase 2 will wire this")),
+                        ),
                 ),
         )
     }

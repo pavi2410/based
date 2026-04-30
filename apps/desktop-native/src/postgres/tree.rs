@@ -10,6 +10,7 @@ use gpui_component::{
     h_flex, v_flex,
 };
 use sqlx::{PgPool, Row};
+use crate::widgets::ui::{metadata_pill, panel_header};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RelKind {
@@ -192,15 +193,22 @@ impl Render for SchemaTreePanel {
             .min_h_0()
             .flex_1()
             .overflow_y_scroll()
+            .bg(cx.theme().background)
+            .child(panel_header(
+                "Postgres Objects",
+                "Schemas, tables, views, and materialized views",
+                cx,
+            ))
             .child(
-                div()
-                    .px(px(8.0))
-                    .py(px(6.0))
+                h_flex()
+                    .px_2()
+                    .py_1()
+                    .gap_2()
                     .border_b_1()
-                    .border_color(border)
-                    .text_sm()
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .child("Schemas & tables"),
+                    .border_color(border.opacity(0.72))
+                    .bg(cx.theme().muted.opacity(0.18))
+                    .child(metadata_pill("relations", list.len().to_string(), cx))
+                    .child(metadata_pill("engine", "Postgres", cx)),
             )
             .children(list)
     }

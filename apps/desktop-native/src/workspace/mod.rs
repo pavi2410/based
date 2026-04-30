@@ -14,7 +14,8 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use gpui::{
-    Context, Entity, FocusHandle, Focusable, IntoElement, Render, SharedString, Window, div, prelude::*,
+    Context, Entity, FocusHandle, Focusable, FontWeight, IntoElement, Render, SharedString, Window,
+    div, prelude::*,
 };
 use gpui_component::{
     ActiveTheme,
@@ -25,12 +26,13 @@ use gpui_component::{
     h_flex, v_flex,
     tooltip::Tooltip,
 };
+use crate::widgets::ui::{engine_chip, engine_color, engine_name, metadata_pill};
 
 use crate::bindings::{CycleAppearance, ToggleSidebarRail};
 use crate::connection::lifecycle::Connectable;
 use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{
-    AnyConnection, ConnectionConfig, ConnectionEntry, ConnectionState, EngineKind,
+    AnyConnection, ConnectionConfig, ConnectionEntry, ConnectionState,
 };
 use crate::mongodb::MongoConnection;
 use crate::postgres;
@@ -46,6 +48,8 @@ pub struct Workspace {
     registry: Entity<ConnectionRegistry>,
     dock_area: Entity<DockArea>,
     sidebar_collapsed: bool,
+    inspector_collapsed: bool,
+    selected_connection: Option<usize>,
     focus_handle: FocusHandle,
     /// After async connect, open engine tabs on next render (needs `&mut Window`).
     pending_open_connection: Option<usize>,
@@ -88,6 +92,8 @@ impl Workspace {
             registry: registry.clone(),
             dock_area,
             sidebar_collapsed: crate::app::prefs::collapsed_from(cx),
+            inspector_collapsed: false,
+            selected_connection: None,
             focus_handle: cx.focus_handle(),
             pending_open_connection: None,
             project_title,
@@ -112,6 +118,7 @@ impl Workspace {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.selected_connection = Some(idx);
         let conn_ent = match self.registry.read(cx).connections().get(idx) {
             Some(e) => e.clone(),
             None => return,
@@ -374,6 +381,10 @@ impl Render for Workspace {
         let conn_list: Vec<Entity<ConnectionEntry>> =
             self.registry.read(cx).connections().to_vec();
         let conn_count = conn_list.len();
+        let connected_count = conn_list
+            .iter()
+            .filter(|ent| matches!(ent.read(cx).state, ConnectionState::Connected(_)))
+            .count();
         let border = cx.theme().sidebar_border;
         let sidebar_bg = cx.theme().sidebar;
         let muted = cx.theme().muted_foreground;
@@ -381,29 +392,93 @@ impl Render for Workspace {
         let list_hover = cx.theme().list_hover;
 
         let sidebar = v_flex()
-            .w(gpui::px(232.0))
+            .w(gpui::px(274.0))
             .h_full()
             .flex_shrink_0()
             .border_r_1()
             .border_color(border)
             .bg(sidebar_bg)
             .child(
+                h_flex()
+                    .h(gpui::px(38.0))
+                    .px_2()
+                    .gap_2()
+                    .items_center()
+                    .border_b_1()
+                    .border_color(border.opacity(0.86))
+                    .child(
+                        v_flex()
+                            .flex_1()
+                            .min_w_0()
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .font_bold()
+                                    .text_color(muted)
+                                    .font_family(cx.theme().mono_font_family.clone())
+                                    .child("WORKSPACE"),
+                            )
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(muted.opacity(0.82))
+                                    .truncate()
+                                    .child(format!("{conn_count} connections · {connected_count} live")),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .h(gpui::px(22.0))
+                            .px(gpui::px(7.0))
+                            .rounded(gpui::px(5.0))
+                            .border_1()
+                            .border_color(border.opacity(0.8))
+                            .bg(cx.theme().muted.opacity(0.38))
+                            .text_xs()
+                            .text_color(muted)
+                            .flex()
+                            .items_center()
+                            .child("+"),
+                    ),
+            )
+            .child(
+                h_flex()
+                    .mx_2()
+                    .my_2()
+                    .h(gpui::px(28.0))
+                    .items_center()
+                    .gap_2()
+                    .px_2()
+                    .rounded(gpui::px(6.0))
+                    .border_1()
+                    .border_color(border.opacity(0.78))
+                    .bg(cx.theme().muted.opacity(0.32))
+                    .child(Icon::new(IconName::Search).with_size(gpui_component::Size::XSmall).text_color(muted))
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(muted)
+                            .truncate()
+                            .child("Search tables, queries, collections"),
+                    ),
+            )
+            .child(
                 div()
                     .px_2()
-                    .py_1()
+                    .pb_1()
                     .text_xs()
                     .font_bold()
-                    .text_color(muted)
                     .font_family(cx.theme().mono_font_family.clone())
+                    .text_color(muted.opacity(0.86))
                     .child("CONNECTIONS"),
             )
             .children(conn_list.into_iter().enumerate().map(|(idx, ent)| {
                 let entry = ent.read(cx);
                 let state_color = connection_state_dot(&entry.state, cx.theme());
-                let engine_label = entry.config.engine().short_label();
+                let engine = entry.config.engine();
                 let conn_label = entry.config.label().to_string();
                 let state_label = entry.state.label();
-                let badge_bg = engine_kind_chip_bg(entry.config.engine(), cx.theme());
+                let is_selected = self.selected_connection == Some(idx);
                 let is_failed = matches!(entry.state, ConnectionState::Failed { .. });
                 let fail_reason = match &entry.state {
                     ConnectionState::Failed { reason, .. } => Some(reason.clone()),
@@ -452,23 +527,30 @@ impl Render for Workspace {
                             .bg(state_color),
                     )
                     .child(
-                        div()
-                            .text_xs()
-                            .px_1()
-                            .rounded_sm()
-                            .bg(badge_bg)
-                            .text_color(cx.theme().foreground)
-                            .child(engine_label),
-                    )
-                    .child(
-                        div()
+                        v_flex()
                             .flex_1()
                             .min_w_0()
-                            .text_xs()
-                            .text_color(sfg)
-                            .truncate()
-                            .when(is_failed, |d| d.text_color(err_fg.opacity(0.92)))
-                            .child(conn_label.clone()),
+                            .gap(gpui::px(1.0))
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .text_color(sfg)
+                                    .truncate()
+                                    .when(is_failed, |d| d.text_color(err_fg.opacity(0.92)))
+                                    .child(conn_label.clone()),
+                            )
+                            .child(
+                                h_flex()
+                                    .gap_1()
+                                    .items_center()
+                                    .child(engine_chip(engine, cx))
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .text_color(muted.opacity(0.82))
+                                            .child("local"),
+                                    ),
+                            ),
                     )
                     .child(status_cell);
 
@@ -508,8 +590,14 @@ impl Render for Workspace {
                     .px_2()
                     .py_1()
                     .cursor_pointer()
-                    .rounded_md()
-                    .mx_1()
+                    .rounded(gpui::px(7.0))
+                    .mx_2()
+                    .mb(gpui::px(2.0))
+                    .when(is_selected, |r| {
+                        r.bg(cx.theme().accent.opacity(0.22))
+                            .border_1()
+                            .border_color(engine_color(engine).opacity(0.26))
+                    })
                     .when(is_failed, |r| {
                         r.border_1()
                             .border_color(cx.theme().danger.opacity(0.35))
@@ -526,17 +614,24 @@ impl Render for Workspace {
             .overflow_hidden()
             .child(self.dock_area.clone());
 
+        let selected_connection = self
+            .selected_connection
+            .and_then(|idx| self.registry.read(cx).connections().get(idx).cloned());
+        let inspector = render_inspector(selected_connection, cx);
+
         let body = if self.sidebar_collapsed {
             h_flex()
                 .flex_1()
                 .overflow_hidden()
                 .child(dock_host)
+                .when(!self.inspector_collapsed, |row| row.child(inspector))
         } else {
             h_flex()
                 .flex_1()
                 .overflow_hidden()
                 .child(sidebar)
                 .child(dock_host)
+                .when(!self.inspector_collapsed, |row| row.child(inspector))
         };
 
         v_flex()
@@ -549,10 +644,183 @@ impl Render for Workspace {
                 crate::app::prefs::cycle_theme(cx);
             }))
             .bg(cx.theme().background)
-            .child(Topbar::new(self.project_title.clone(), this.clone()))
+            .child(Topbar::new(
+                self.project_title.clone(),
+                this.clone(),
+                conn_count,
+                connected_count,
+            ))
             .child(body)
-            .child(StatusBar::new(conn_count))
+            .child(StatusBar::new(conn_count, connected_count))
     }
+}
+
+fn render_inspector(
+    selected: Option<Entity<ConnectionEntry>>,
+    cx: &mut Context<Workspace>,
+) -> impl IntoElement {
+    let border = cx.theme().border;
+    let muted = cx.theme().muted_foreground;
+
+    let content = if let Some(ent) = selected {
+        let entry = ent.read(cx);
+        let engine = entry.config.engine();
+        let label = entry.config.label().to_string();
+        let state = entry.state.label().to_string();
+        let summary = match &entry.state {
+            ConnectionState::Failed { reason, .. } => notify::error_one_liner(reason).to_string(),
+            ConnectionState::Connected(_) => "Ready for browsing and queries".to_string(),
+            ConnectionState::Connecting { .. } => "Opening connection".to_string(),
+            ConnectionState::Disconnected => "Click to connect".to_string(),
+        };
+
+        v_flex()
+            .gap_3()
+            .p_3()
+            .child(
+                v_flex()
+                    .gap_1()
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(cx.theme().foreground)
+                            .truncate()
+                            .child(label),
+                    )
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(muted)
+                            .child(format!("{} connection", engine_name(engine))),
+                    ),
+            )
+            .child(h_flex().gap_2().child(engine_chip(engine, cx)).child(metadata_pill("state", state, cx)))
+            .child(
+                inspector_section(
+                    "Activity",
+                    vec![
+                        ("Recent", "Schema refresh"),
+                        ("Saved", "0 queries"),
+                        ("Pinned", "No pinned objects"),
+                    ],
+                    cx,
+                ),
+            )
+            .child(
+                inspector_note("Health", &summary, cx),
+            )
+            .into_any_element()
+    } else {
+        v_flex()
+            .gap_3()
+            .p_3()
+            .child(inspector_note(
+                "Selection",
+                "Choose a connection, table, cell, or query to see details here.",
+                cx,
+            ))
+            .child(inspector_section(
+                "Shortcuts",
+                vec![
+                    ("Command", if cfg!(target_os = "macos") { "⌘K" } else { "Ctrl K" }),
+                    ("Run query", if cfg!(target_os = "macos") { "⌘↵" } else { "Ctrl Enter" }),
+                    ("Sidebar", if cfg!(target_os = "macos") { "⌘\\" } else { "Ctrl \\" }),
+                ],
+                cx,
+            ))
+            .into_any_element()
+    };
+
+    v_flex()
+        .w(gpui::px(286.0))
+        .h_full()
+        .flex_shrink_0()
+        .border_l_1()
+        .border_color(border)
+        .bg(cx.theme().background)
+        .child(
+            h_flex()
+                .h(gpui::px(38.0))
+                .px_3()
+                .items_center()
+                .border_b_1()
+                .border_color(border.opacity(0.86))
+                .child(
+                    div()
+                        .text_xs()
+                        .font_bold()
+                        .font_family(cx.theme().mono_font_family.clone())
+                        .text_color(muted)
+                        .child("INSPECTOR"),
+                ),
+        )
+        .child(content)
+}
+
+fn inspector_note(
+    title: &'static str,
+    body: &str,
+    cx: &mut Context<Workspace>,
+) -> impl IntoElement {
+    v_flex()
+        .gap_1()
+        .p_2()
+        .rounded(gpui::px(7.0))
+        .border_1()
+        .border_color(cx.theme().border.opacity(0.82))
+        .bg(cx.theme().muted.opacity(0.28))
+        .child(
+            div()
+                .text_xs()
+                .font_weight(FontWeight::SEMIBOLD)
+                .text_color(cx.theme().foreground)
+                .child(title),
+        )
+        .child(
+            div()
+                .text_xs()
+                .text_color(cx.theme().muted_foreground)
+                .child(body.to_string()),
+        )
+}
+
+fn inspector_section(
+    title: &'static str,
+    rows: Vec<(&'static str, &'static str)>,
+    cx: &mut Context<Workspace>,
+) -> impl IntoElement {
+    v_flex()
+        .gap_2()
+        .child(
+            div()
+                .text_xs()
+                .font_bold()
+                .font_family(cx.theme().mono_font_family.clone())
+                .text_color(cx.theme().muted_foreground)
+                .child(title),
+        )
+        .children(rows.into_iter().map(|(label, value)| {
+            h_flex()
+                .h(gpui::px(24.0))
+                .items_center()
+                .justify_between()
+                .border_b_1()
+                .border_color(cx.theme().border.opacity(0.42))
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(cx.theme().muted_foreground)
+                        .child(label),
+                )
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(cx.theme().foreground.opacity(0.88))
+                        .truncate()
+                        .child(value),
+                )
+        }))
 }
 
 fn connection_state_dot(state: &ConnectionState, t: &gpui_component::Theme) -> gpui::Hsla {
@@ -561,13 +829,5 @@ fn connection_state_dot(state: &ConnectionState, t: &gpui_component::Theme) -> g
         ConnectionState::Connecting { .. } => t.yellow.opacity(0.95),
         ConnectionState::Connected(_) => t.green_light,
         ConnectionState::Failed { .. } => t.red,
-    }
-}
-
-fn engine_kind_chip_bg(engine: EngineKind, t: &gpui_component::Theme) -> gpui::Hsla {
-    match engine {
-        EngineKind::Postgres => t.blue.opacity(0.22),
-        EngineKind::MongoDB => t.magenta.opacity(0.2),
-        EngineKind::SQLite => t.green.opacity(0.18),
     }
 }

@@ -8,4 +8,5 @@ pub mod filter_bar;
 pub mod status_glyph;
 pub mod tab_chip;
 pub mod tree;
+pub mod ui;
 pub mod virtual_table;

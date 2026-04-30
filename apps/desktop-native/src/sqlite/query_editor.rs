@@ -3,7 +3,7 @@
 use gpui::{prelude::*, *};
 use gpui_component::{
     ActiveTheme,
-    button::Button,
+    button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     menu::PopupMenu,
     h_flex, v_flex,
@@ -14,6 +14,7 @@ use sqlx::{Column as SqlxColumn, Row, SqlitePool};
 
 use crate::db;
 use crate::widgets::virtual_table::RowDelegate;
+use crate::widgets::ui::{metadata_pill, panel_header};
 use crate::workspace::notify;
 
 pub enum QueryStatus {
@@ -176,15 +177,18 @@ impl Render for QueryEditorPanel {
         let toolbar = h_flex()
             .w_full()
             .px(px(8.0))
-            .py(px(4.0))
+            .py(px(6.0))
             .gap(px(8.0))
             .border_b_1()
-            .border_color(border)
+            .border_color(border.opacity(0.72))
+            .bg(cx.theme().muted.opacity(0.18))
             .child(
                 Button::new("run")
-                    .label("Run (⌘↵)")
+                    .primary()
+                    .label("Run")
                     .on_click(cx.listener(|panel, _, window, cx| panel.run_query(window, cx))),
             )
+            .child(metadata_pill("shortcut", if cfg!(target_os = "macos") { "⌘↵" } else { "Ctrl Enter" }, cx))
             .child(
                 div()
                     .text_sm()
@@ -209,11 +213,12 @@ impl Render for QueryEditorPanel {
         let editor_placeholder = div()
             .id("sql-editor")
             .w_full()
-            .h(px(160.0))
-            .p(px(8.0))
+            .h(px(170.0))
+            .p(px(10.0))
             .border_1()
             .border_color(if is_error { err_border } else { border })
-            .rounded(px(4.0))
+            .rounded(px(7.0))
+            .bg(cx.theme().muted.opacity(0.14))
             .font_family("monospace")
             .text_sm()
             .child(sql_text);
@@ -241,11 +246,15 @@ impl Render for QueryEditorPanel {
             .w_full()
             .h_full()
             .min_h_0()
-            .p(px(8.0))
-            .gap(px(8.0))
+            .bg(cx.theme().background)
+            .child(panel_header(
+                "Query Editor",
+                "Run SQL, inspect result sets, recover history",
+                cx,
+            ))
             .child(toolbar)
             .when_some(error_strip, |col, strip| col.child(strip))
-            .child(editor_placeholder)
+            .child(div().p(px(10.0)).child(editor_placeholder))
             .child(bottom)
     }
 }

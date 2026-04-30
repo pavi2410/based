@@ -8,6 +8,7 @@ use gpui_component::{
     h_flex, v_flex,
 };
 use mongodb::Database;
+use crate::widgets::ui::{metadata_pill, panel_header};
 
 pub enum CollectionTreeEvent {
     CollectionSelected(String),
@@ -95,15 +96,22 @@ impl Render for CollectionsTreePanel {
             .id("mongo-tree")
             .size_full()
             .overflow_y_scroll()
+            .bg(cx.theme().background)
+            .child(panel_header(
+                "MongoDB Objects",
+                "Collections, documents, indexes, and streams",
+                cx,
+            ))
             .child(
-                div()
+                h_flex()
                     .px_2()
                     .py_1()
+                    .gap_2()
                     .border_b_1()
-                    .border_color(border)
-                    .text_sm()
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .child("Collections"),
+                    .border_color(border.opacity(0.72))
+                    .bg(cx.theme().muted.opacity(0.18))
+                    .child(metadata_pill("collections", names.len().to_string(), cx))
+                    .child(metadata_pill("engine", "MongoDB", cx)),
             )
             .children(names.into_iter().enumerate().map(|(ix, name)| {
                 let sel = selected.as_ref() == Some(&name);

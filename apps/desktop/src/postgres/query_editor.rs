@@ -11,12 +11,15 @@ use gpui_component::{
     tooltip::Tooltip,
     v_flex,
 };
+use sqlx::PgPool;
+use time::OffsetDateTime;
 
+use crate::connection::ConnectionId;
 use crate::postgres::mutations::execute_sql;
+use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::ui::{metadata_pill, panel_header};
 use crate::widgets::virtual_table::RowDelegate;
 use crate::workspace::notify;
-use sqlx::PgPool;
 
 pub enum QueryStatus {
     Idle,
@@ -32,13 +35,20 @@ pub enum QueryStatus {
 pub struct QueryEditorPanel {
     focus_handle: FocusHandle,
     pool: PgPool,
+    conn_id: ConnectionId,
     sql_text: String,
     result: Entity<TableState<RowDelegate>>,
     status: QueryStatus,
+    show_history: bool,
 }
 
 impl QueryEditorPanel {
-    pub fn new(pool: PgPool, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        pool: PgPool,
+        conn_id: ConnectionId,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let delegate = RowDelegate::default();
         let result = cx.new(|cx| {
             TableState::new(delegate, window, cx)
@@ -48,9 +58,11 @@ impl QueryEditorPanel {
         let panel = Self {
             focus_handle: cx.focus_handle(),
             pool,
+            conn_id,
             sql_text: String::from("SELECT 1 AS one;"),
             result,
             status: QueryStatus::Idle,
+            show_history: false,
         };
         cx.defer_in(window, |panel, _, cx| {
             panel.run(cx);
@@ -65,6 +77,8 @@ impl QueryEditorPanel {
         }
         let vars = cx.global::<crate::project::ProjectVars>().vars.clone();
         let sql = crate::project::substitute(&sql_raw, &vars);
+        let sql_executed = sql.clone();
+        let conn_id = self.conn_id.clone();
         self.status = QueryStatus::Running;
         let pool = self.pool.clone();
         cx.spawn(async move |this, cx| {
@@ -88,6 +102,15 @@ impl QueryEditorPanel {
                             d.columns = col_models;
                             d.rows = data;
                             cx.notify();
+                        });
+                        cx.update_global(|store: &mut QueryStore, _| {
+                            store.push_history(HistoryEntry {
+                                conn_id: conn_id.clone(),
+                                query: sql_executed,
+                                ran_at: OffsetDateTime::now_utc(),
+                                duration_ms: ms,
+                                row_count: Some(row_count as u64),
+                            });
                         });
                         QueryStatus::Done {
                             rows: row_count,
@@ -174,6 +197,19 @@ impl Render for QueryEditorPanel {
                     .label("Run")
                     .on_click(cx.listener(|panel, _, _, cx| panel.run(cx))),
             )
+            .child(
+                Button::new("pg-history-toggle")
+                    .ghost()
+                    .label(if self.show_history {
+                        "Hide history"
+                    } else {
+                        "History"
+                    })
+                    .on_click(cx.listener(|panel, _, _, cx| {
+                        panel.show_history = !panel.show_history;
+                        cx.notify();
+                    })),
+            )
             .child(metadata_pill(
                 "shortcut",
                 if cfg!(target_os = "macos") {
@@ -204,18 +240,9 @@ impl Render for QueryEditorPanel {
                 .tooltip(move |window, app| Tooltip::new(tip.clone()).build(window, app))
         });
 
-        v_flex()
-            .w_full()
-            .h_full()
-            .min_h_0()
-            .bg(cx.theme().background)
-            .child(panel_header(
-                "Postgres Query",
-                "Run SQL, inspect plans, compare result sets",
-                cx,
-            ))
-            .child(toolbar)
-            .when_some(error_strip, |col, strip| col.child(strip))
+        let main_column = v_flex()
+            .flex_1()
+            .min_w(px(0.0))
             .child({
                 div().p_2().child(
                     div()
@@ -233,8 +260,81 @@ impl Render for QueryEditorPanel {
             .child(
                 div()
                     .flex_1()
-                    .min_h_0()
+                    .min_h(px(0.0))
                     .child(DataTable::new(&self.result).stripe(true).bordered(false)),
-            )
+            );
+
+        let editor_body = h_flex()
+            .flex_1()
+            .min_h(px(0.0))
+            .child(main_column)
+            .when(self.show_history, |row| {
+                row.child(
+                    v_flex()
+                        .w(px(260.0))
+                        .min_h(px(0.0))
+                        .border_l_1()
+                        .border_color(border)
+                        .bg(cx.theme().muted.opacity(0.08))
+                        .child(
+                            div()
+                                .px_3()
+                                .py_2()
+                                .border_b_1()
+                                .border_color(border)
+                                .text_xs()
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .child("Recent (this connection)"),
+                        )
+                        .children(
+                            cx.global::<QueryStore>()
+                                .history_for(&self.conn_id)
+                                .into_iter()
+                                .take(20)
+                                .enumerate()
+                                .map(|(i, e)| {
+                                    let preview: SharedString = e
+                                        .query
+                                        .chars()
+                                        .take(80)
+                                        .collect::<String>()
+                                        .into();
+                                    let full_query = e.query.clone();
+                                    div()
+                                        .id(("pg-hist", i))
+                                        .px_3()
+                                        .py_2()
+                                        .border_b_1()
+                                        .border_color(border)
+                                        .cursor_pointer()
+                                        .text_xs()
+                                        .font_family("monospace")
+                                        .text_color(muted)
+                                        .child(preview)
+                                        .on_mouse_down(
+                                            MouseButton::Left,
+                                            cx.listener(move |panel, _, _, cx| {
+                                                panel.sql_text = full_query.clone();
+                                                cx.notify();
+                                            }),
+                                        )
+                                }),
+                        ),
+                )
+            });
+
+        v_flex()
+            .w_full()
+            .h_full()
+            .min_h(px(0.0))
+            .bg(cx.theme().background)
+            .child(panel_header(
+                "Postgres Query",
+                "Run SQL, inspect plans, compare result sets",
+                cx,
+            ))
+            .child(toolbar)
+            .when_some(error_strip, |col, strip| col.child(strip))
+            .child(editor_body)
     }
 }

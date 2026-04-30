@@ -388,10 +388,14 @@ impl ConnectionTree {
         let Some(conn_ent) = self.registry.read(cx).connections().get(idx).cloned() else {
             return;
         };
-        let entry = conn_ent.read(cx);
-        let label = entry.config.label().to_string();
-        let engine = entry.config.engine();
-        let _ = entry;
+        let (label, engine, conn_id) = {
+            let entry = conn_ent.read(cx);
+            (
+                entry.config.label().to_string(),
+                entry.config.engine(),
+                entry.id.clone(),
+            )
+        };
 
         self.selected_connection = Some(idx);
         self.selected_object = None;
@@ -409,7 +413,12 @@ impl ConnectionTree {
             AnyConnection::SQLite(ent) => {
                 let pool = ent.read(cx).pool.clone();
                 let query = cx.new(|cx| {
-                    sqlite::query_editor::QueryEditorPanel::new(pool.clone(), window, cx)
+                    sqlite::query_editor::QueryEditorPanel::new(
+                        pool.clone(),
+                        conn_id.clone(),
+                        window,
+                        cx,
+                    )
                 });
                 let pragma = cx.new(|cx| {
                     sqlite::pragma_browser::PragmaBrowserPanel::new(pool.clone(), window, cx)
@@ -424,7 +433,12 @@ impl ConnectionTree {
             AnyConnection::Postgres(ent) => {
                 let pool = ent.read(cx).pool.clone();
                 let query = cx.new(|cx| {
-                    postgres::query_editor::QueryEditorPanel::new(pool.clone(), window, cx)
+                    postgres::query_editor::QueryEditorPanel::new(
+                        pool.clone(),
+                        conn_id.clone(),
+                        window,
+                        cx,
+                    )
                 });
                 let monitor = cx.new(|cx| {
                     postgres::live_monitor::LiveMonitorPanel::new(pool.clone(), window, cx)

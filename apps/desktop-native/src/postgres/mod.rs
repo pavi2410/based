@@ -17,6 +17,7 @@ use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
 use sqlx::PgPool;
 
 use crate::connection::lifecycle::{Connectable, TestReport};
+use crate::tokio_bridge;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PostgresConfig {
@@ -71,38 +72,45 @@ impl Connectable for PgConnection {
 
     fn open(config: Self::Config, cx: &mut gpui::App) -> gpui::Task<anyhow::Result<Self>> {
         cx.background_executor().spawn(async move {
-            let opts = pg_connect_options(&config);
-            let pool = PgPoolOptions::new()
-                .max_connections(8)
-                .connect_with(opts)
-                .await?;
-            Ok(Self { config, pool })
+            tokio_bridge::block_on_db(async move {
+                let opts = pg_connect_options(&config);
+                let pool = PgPoolOptions::new()
+                    .max_connections(8)
+                    .connect_with(opts)
+                    .await?;
+                Ok(Self { config, pool })
+            })
         })
     }
 
     fn test(config: &Self::Config, cx: &mut gpui::App) -> gpui::Task<anyhow::Result<TestReport>> {
         let config = config.clone();
         cx.background_executor().spawn(async move {
-            let start = std::time::Instant::now();
-            let opts = pg_connect_options(&config);
-            let pool = PgPoolOptions::new()
-                .max_connections(1)
-                .connect_with(opts)
-                .await?;
-            let version: String = sqlx::query_scalar("SELECT version()")
-                .fetch_one(&pool)
-                .await?;
-            pool.close().await;
-            let short = version.lines().next().unwrap_or(&version).to_string();
-            Ok(TestReport {
-                latency_ms: start.elapsed().as_millis() as u64,
-                server_version: Some(short),
-                message: None,
+            tokio_bridge::block_on_db(async move {
+                let start = std::time::Instant::now();
+                let opts = pg_connect_options(&config);
+                let pool = PgPoolOptions::new()
+                    .max_connections(1)
+                    .connect_with(opts)
+                    .await?;
+                let version: String = sqlx::query_scalar("SELECT version()")
+                    .fetch_one(&pool)
+                    .await?;
+                pool.close().await;
+                let short = version.lines().next().unwrap_or(&version).to_string();
+                Ok(TestReport {
+                    latency_ms: start.elapsed().as_millis() as u64,
+                    server_version: Some(short),
+                    message: None,
+                })
             })
         })
     }
 
     async fn close(self) {
-        self.pool.close().await;
+        let pool = self.pool;
+        tokio_bridge::block_on_db(async move {
+            pool.close().await;
+        });
     }
 }

@@ -80,28 +80,37 @@ impl TableInspectorPanel {
         let table_name = self.table_name.clone();
 
         cx.spawn(async move |this, cx| {
-            let col_sql = format!("PRAGMA table_info(\"{table_name}\")");
-            let col_rows = sqlx::query(&col_sql).fetch_all(&pool).await?;
-            let columns: Vec<ColumnInfo> = col_rows
-                .iter()
-                .map(|row| ColumnInfo {
-                    cid: row.try_get("cid").unwrap_or(0),
-                    name: row.try_get::<String, _>("name").unwrap_or_default(),
-                    type_name: row.try_get::<String, _>("type").unwrap_or_default(),
-                    notnull: row.try_get::<bool, _>("notnull").unwrap_or(false),
-                    pk: row.try_get("pk").unwrap_or(0),
-                })
-                .collect();
+            let loaded = crate::tokio_bridge::block_on_db(async move {
+                let col_sql = format!("PRAGMA table_info(\"{table_name}\")");
+                let col_rows = sqlx::query(&col_sql).fetch_all(&pool).await?;
+                let columns: Vec<ColumnInfo> = col_rows
+                    .iter()
+                    .map(|row| ColumnInfo {
+                        cid: row.try_get("cid").unwrap_or(0),
+                        name: row.try_get::<String, _>("name").unwrap_or_default(),
+                        type_name: row.try_get::<String, _>("type").unwrap_or_default(),
+                        notnull: row.try_get::<bool, _>("notnull").unwrap_or(false),
+                        pk: row.try_get("pk").unwrap_or(0),
+                    })
+                    .collect();
 
-            let idx_sql = format!("PRAGMA index_list(\"{table_name}\")");
-            let idx_rows = sqlx::query(&idx_sql).fetch_all(&pool).await?;
-            let indexes: Vec<IndexInfo> = idx_rows
-                .iter()
-                .map(|row| IndexInfo {
-                    name: row.try_get::<String, _>("name").unwrap_or_default(),
-                    unique: row.try_get::<bool, _>("unique").unwrap_or(false),
-                })
-                .collect();
+                let idx_sql = format!("PRAGMA index_list(\"{table_name}\")");
+                let idx_rows = sqlx::query(&idx_sql).fetch_all(&pool).await?;
+                let indexes: Vec<IndexInfo> = idx_rows
+                    .iter()
+                    .map(|row| IndexInfo {
+                        name: row.try_get::<String, _>("name").unwrap_or_default(),
+                        unique: row.try_get::<bool, _>("unique").unwrap_or(false),
+                    })
+                    .collect();
+
+                Ok::<_, sqlx::Error>((columns, indexes))
+            });
+
+            let (columns, indexes) = match loaded {
+                Ok(x) => x,
+                Err(_) => return,
+            };
 
             let col_data: Vec<Vec<SharedString>> = columns
                 .iter()
@@ -126,7 +135,7 @@ impl TableInspectorPanel {
                 })
                 .collect();
 
-            cx.update(|cx| {
+            let _ = cx.update(|cx| {
                 this.update(cx, |panel, cx| {
                     panel.columns = columns;
                     panel.indexes = indexes;
@@ -140,7 +149,7 @@ impl TableInspectorPanel {
                     });
                     cx.notify();
                 })
-            })
+            });
         })
         .detach();
     }

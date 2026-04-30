@@ -35,25 +35,28 @@ impl ExplainPanel {
         let stmt = self.sql.clone();
         let analyze = self.use_analyze;
         cx.spawn(async move |this, cx| {
-            let prefix = if analyze {
-                "EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)"
-            } else {
-                "EXPLAIN (FORMAT TEXT)"
-            };
-            let q = format!("{prefix} {stmt}");
-            let rows = sqlx::query(&q).fetch_all(&pool).await.unwrap_or_default();
-            let text = rows
-                .iter()
-                .filter_map(|row| row.try_get::<String, usize>(0).ok())
-                .collect::<Vec<_>>()
-                .join("\n");
-            let text = if text.is_empty() && rows.is_empty() {
-                String::from("(no plan rows)")
-            } else if text.is_empty() {
-                "(could not read plan)".into()
-            } else {
-                text
-            };
+            let (_, text) = crate::tokio_bridge::block_on_db(async move {
+                let prefix = if analyze {
+                    "EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)"
+                } else {
+                    "EXPLAIN (FORMAT TEXT)"
+                };
+                let q = format!("{prefix} {stmt}");
+                let rows = sqlx::query(&q).fetch_all(&pool).await.unwrap_or_default();
+                let text = rows
+                    .iter()
+                    .filter_map(|row| row.try_get::<String, usize>(0).ok())
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                let text = if text.is_empty() && rows.is_empty() {
+                    String::from("(no plan rows)")
+                } else if text.is_empty() {
+                    "(could not read plan)".into()
+                } else {
+                    text
+                };
+                (rows, text)
+            });
             cx.update(|cx| {
                 this.update(cx, |panel, cx| {
                     panel.plan_text = text;

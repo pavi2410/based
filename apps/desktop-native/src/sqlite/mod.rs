@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use crate::connection::lifecycle::{Connectable, TestReport};
+use crate::tokio_bridge;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SqliteConfig {
@@ -37,14 +38,16 @@ impl Connectable for SqliteConnection {
 
     fn open(config: Self::Config, cx: &mut gpui::App) -> gpui::Task<anyhow::Result<Self>> {
         cx.background_executor().spawn(async move {
-            let url = format!("sqlite:{}", config.path.display());
-            let pool = SqlitePool::connect(&url).await?;
-            if config.wal {
-                sqlx::query("PRAGMA journal_mode=WAL")
-                    .execute(&pool)
-                    .await?;
-            }
-            Ok(Self { config, pool })
+            tokio_bridge::block_on_db(async move {
+                let url = format!("sqlite:{}", config.path.display());
+                let pool = SqlitePool::connect(&url).await?;
+                if config.wal {
+                    sqlx::query("PRAGMA journal_mode=WAL")
+                        .execute(&pool)
+                        .await?;
+                }
+                Ok(Self { config, pool })
+            })
         })
     }
 
@@ -54,23 +57,28 @@ impl Connectable for SqliteConnection {
     ) -> gpui::Task<anyhow::Result<TestReport>> {
         let config = config.clone();
         cx.background_executor().spawn(async move {
-            let url = format!("sqlite:{}", config.path.display());
-            let start = std::time::Instant::now();
-            let pool = SqlitePool::connect(&url).await?;
-            let version: String =
-                sqlx::query_scalar("SELECT sqlite_version()")
-                    .fetch_one(&pool)
-                    .await?;
-            pool.close().await;
-            Ok(TestReport {
-                latency_ms: start.elapsed().as_millis() as u64,
-                server_version: Some(version),
-                message: None,
+            tokio_bridge::block_on_db(async move {
+                let url = format!("sqlite:{}", config.path.display());
+                let start = std::time::Instant::now();
+                let pool = SqlitePool::connect(&url).await?;
+                let version: String =
+                    sqlx::query_scalar("SELECT sqlite_version()")
+                        .fetch_one(&pool)
+                        .await?;
+                pool.close().await;
+                Ok(TestReport {
+                    latency_ms: start.elapsed().as_millis() as u64,
+                    server_version: Some(version),
+                    message: None,
+                })
             })
         })
     }
 
     async fn close(self) {
-        self.pool.close().await;
+        let pool = self.pool;
+        tokio_bridge::block_on_db(async move {
+            pool.close().await;
+        });
     }
 }

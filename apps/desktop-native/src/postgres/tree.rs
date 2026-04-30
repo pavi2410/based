@@ -48,14 +48,20 @@ impl SchemaTreePanel {
     fn load_relations(&mut self, cx: &mut Context<Self>) {
         let pool = self.pool.clone();
         cx.spawn(async move |this, cx| {
-            let rows = sqlx::query(
-                r"SELECT table_schema, table_name, table_type
+            let rows = crate::tokio_bridge::block_on_db(async move {
+                sqlx::query(
+                    r"SELECT table_schema, table_name, table_type
                   FROM information_schema.tables
                   WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
                   ORDER BY table_schema, table_name",
-            )
-            .fetch_all(&pool)
-            .await?;
+                )
+                .fetch_all(&pool)
+                .await
+            });
+            let rows = match rows {
+                Ok(r) => r,
+                Err(_) => return,
+            };
 
             let nodes: Vec<RelRef> = rows
                 .iter()
@@ -76,12 +82,12 @@ impl SchemaTreePanel {
                 })
                 .collect();
 
-            cx.update(|cx| {
+            let _ = cx.update(|cx| {
                 this.update(cx, |panel, cx| {
                     panel.nodes = nodes;
                     cx.notify();
                 })
-            })
+            });
         })
         .detach();
     }

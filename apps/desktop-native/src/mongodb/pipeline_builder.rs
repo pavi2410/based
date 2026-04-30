@@ -67,8 +67,19 @@ impl PipelineBuilderPanel {
                 }
             }
 
-            let mut cursor = match coll.aggregate(stages, None).await {
-                Ok(c) => c,
+            let docs_result: Result<Vec<Document>, mongodb::error::Error> =
+                crate::tokio_bridge::block_on_db(async move {
+                let mut cursor = coll.aggregate(stages, None).await?;
+                let mut docs = Vec::<Document>::new();
+                use futures::TryStreamExt;
+                while let Some(d) = cursor.try_next().await.unwrap_or(None) {
+                    docs.push(d);
+                }
+                Ok(docs)
+            });
+
+            let docs = match docs_result {
+                Ok(d) => d,
                 Err(e) => {
                     let _ = cx.update(|cx| {
                         this.update(cx, |p, cx| {
@@ -79,12 +90,6 @@ impl PipelineBuilderPanel {
                     return;
                 }
             };
-
-            let mut docs = Vec::<Document>::new();
-            use futures::TryStreamExt;
-            while let Some(d) = cursor.try_next().await.unwrap_or(None) {
-                docs.push(d);
-            }
 
             let mut keys: Vec<String> = Vec::new();
             for d in &docs {

@@ -43,22 +43,29 @@ impl FtsConsolePanel {
     fn detect_fts_tables(&mut self, cx: &mut Context<Self>) {
         let pool = self.pool.clone();
         cx.spawn(async move |this, cx| {
-            let rows = sqlx::query(
-                "SELECT name FROM sqlite_master WHERE type='table' AND sql LIKE '%fts5%'",
-            )
-            .fetch_all(&pool)
-            .await?;
+            let rows = crate::tokio_bridge::block_on_db(async move {
+                sqlx::query(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND sql LIKE '%fts5%'",
+                )
+                .fetch_all(&pool)
+                .await
+            });
+
+            let rows = match rows {
+                Ok(r) => r,
+                Err(_) => return,
+            };
 
             let tables: Vec<String> = rows.iter().map(|r| r.get::<String, _>("name")).collect();
 
-            cx.update(|cx| {
+            let _ = cx.update(|cx| {
                 this.update(cx, |panel, cx| {
                     panel.no_fts = tables.is_empty();
                     panel.selected_table = tables.first().cloned();
                     panel.fts_tables = tables;
                     cx.notify();
                 })
-            })
+            });
         })
         .detach();
     }
@@ -75,7 +82,13 @@ impl FtsConsolePanel {
                 "SELECT snippet(\"{table}\", -1, '<b>', '</b>', '…', 32) AS snip, rank \
                  FROM \"{table}\" WHERE \"{table}\" MATCH ?1 ORDER BY rank"
             );
-            let rows = sqlx::query(&sql).bind(&query).fetch_all(&pool).await?;
+            let rows = crate::tokio_bridge::block_on_db(async move {
+                sqlx::query(&sql).bind(&query).fetch_all(&pool).await
+            });
+            let rows = match rows {
+                Ok(r) => r,
+                Err(_) => return,
+            };
 
             let results: Vec<FtsResult> = rows
                 .iter()
@@ -86,12 +99,12 @@ impl FtsConsolePanel {
                 })
                 .collect();
 
-            cx.update(|cx| {
+            let _ = cx.update(|cx| {
                 this.update(cx, |panel, cx| {
                     panel.results = results;
                     cx.notify();
                 })
-            })
+            });
         })
         .detach();
     }

@@ -34,34 +34,37 @@ impl LiveMonitorPanel {
     pub fn refresh(&mut self, cx: &mut Context<Self>) {
         let pool = self.pool.clone();
         cx.spawn(async move |this, cx| {
-            let sql = r"
+            let (columns, data) = crate::tokio_bridge::block_on_db(async move {
+                let sql = r"
                 SELECT pid, usename, application_name, client_addr::text, state,
                        query_start::text, left(query, 200) AS query
                 FROM pg_stat_activity
                 WHERE datname = current_database()
                 ORDER BY query_start NULLS LAST
                 LIMIT 500";
-            let rows = sqlx::query(sql).fetch_all(&pool).await.unwrap_or_default();
-            let columns: Vec<TableColumn> = if let Some(first) = rows.first() {
-                first
-                    .columns()
-                    .iter()
-                    .map(|c| TableColumn::new(c.name().to_string(), c.name().to_string()))
-                    .collect()
-            } else {
-                vec![]
-            };
-            let data: Vec<Vec<SharedString>> = rows
-                .iter()
-                .map(|row| {
-                    (0..row.len())
-                        .map(|i| {
-                            let val: Option<String> = row.try_get(i).ok();
-                            SharedString::from(val.unwrap_or_default())
-                        })
+                let rows = sqlx::query(sql).fetch_all(&pool).await.unwrap_or_default();
+                let columns: Vec<TableColumn> = if let Some(first) = rows.first() {
+                    first
+                        .columns()
+                        .iter()
+                        .map(|c| TableColumn::new(c.name().to_string(), c.name().to_string()))
                         .collect()
-                })
-                .collect();
+                } else {
+                    vec![]
+                };
+                let data: Vec<Vec<SharedString>> = rows
+                    .iter()
+                    .map(|row| {
+                        (0..row.len())
+                            .map(|i| {
+                                let val: Option<String> = row.try_get(i).ok();
+                                SharedString::from(val.unwrap_or_default())
+                            })
+                            .collect()
+                    })
+                    .collect();
+                (columns, data)
+            });
             cx.update(|cx| {
                 this.update(cx, |panel, cx| {
                     panel.table.update(cx, |state, cx| {

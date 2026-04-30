@@ -11,6 +11,7 @@ mod postgres;
 mod project;
 mod settings_window;
 mod sqlite;
+mod tokio_bridge;
 mod widgets;
 mod workspace;
 

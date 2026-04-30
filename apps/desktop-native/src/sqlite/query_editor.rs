@@ -10,6 +10,7 @@ use gpui_component::{
 };
 use sqlx::{Column as SqlxColumn, Row, SqlitePool};
 
+use crate::tokio_bridge;
 use crate::widgets::virtual_table::RowDelegate;
 
 pub enum QueryStatus {
@@ -54,31 +55,32 @@ impl QueryEditorPanel {
         cx.spawn(async move |this, cx| {
             let start = std::time::Instant::now();
 
-            let result: anyhow::Result<(Vec<Column>, Vec<Vec<SharedString>>)> = async {
-                let rows = sqlx::query(&sql).fetch_all(&pool).await?;
-                let columns: Vec<Column> = if let Some(first) = rows.first() {
-                    first
-                        .columns()
-                        .iter()
-                        .map(|c| Column::new(c.name().to_string(), c.name().to_string()))
-                        .collect()
-                } else {
-                    vec![]
-                };
-                let data_rows: Vec<Vec<SharedString>> = rows
-                    .iter()
-                    .map(|row| {
-                        (0..row.len())
-                            .map(|i| {
-                                let val: Option<String> = row.try_get(i).ok();
-                                SharedString::from(val.unwrap_or_default())
-                            })
+            let result: anyhow::Result<(Vec<Column>, Vec<Vec<SharedString>>)> = tokio_bridge::block_on_db(
+                async move {
+                    let rows = sqlx::query(&sql).fetch_all(&pool).await?;
+                    let columns: Vec<Column> = if let Some(first) = rows.first() {
+                        first
+                            .columns()
+                            .iter()
+                            .map(|c| Column::new(c.name().to_string(), c.name().to_string()))
                             .collect()
-                    })
-                    .collect();
-                Ok((columns, data_rows))
-            }
-            .await;
+                    } else {
+                        vec![]
+                    };
+                    let data_rows: Vec<Vec<SharedString>> = rows
+                        .iter()
+                        .map(|row| {
+                            (0..row.len())
+                                .map(|i| {
+                                    let val: Option<String> = row.try_get(i).ok();
+                                    SharedString::from(val.unwrap_or_default())
+                                })
+                                .collect()
+                        })
+                        .collect();
+                    Ok((columns, data_rows))
+                },
+            );
 
             let elapsed_ms = start.elapsed().as_millis() as u64;
 

@@ -58,16 +58,19 @@ impl PragmaBrowserPanel {
     fn load_pragmas(&mut self, cx: &mut Context<Self>) {
         let pool = self.pool.clone();
         cx.spawn(async move |this, cx| {
-            let mut rows: Vec<(String, String)> = vec![];
-            for &name in PRAGMA_LIST {
-                let sql = format!("PRAGMA {name}");
-                let val: Option<String> = sqlx::query_scalar(&sql)
-                    .fetch_optional(&pool)
-                    .await
-                    .ok()
-                    .flatten();
-                rows.push((name.to_string(), val.unwrap_or_default()));
-            }
+            let rows = crate::tokio_bridge::block_on_db(async move {
+                let mut rows: Vec<(String, String)> = vec![];
+                for &name in PRAGMA_LIST {
+                    let sql = format!("PRAGMA {name}");
+                    let val: Option<String> = sqlx::query_scalar(&sql)
+                        .fetch_optional(&pool)
+                        .await
+                        .ok()
+                        .flatten();
+                    rows.push((name.to_string(), val.unwrap_or_default()));
+                }
+                rows
+            });
 
             let data_rows: Vec<Vec<SharedString>> = rows
                 .iter()

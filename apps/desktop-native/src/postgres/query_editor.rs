@@ -54,7 +54,7 @@ impl QueryEditorPanel {
         let pool = self.pool.clone();
         cx.spawn(async move |this, cx| {
             let start = std::time::Instant::now();
-            let outcome = execute_sql(&pool, &sql).await;
+            let outcome = crate::tokio_bridge::block_on_db(async move { execute_sql(&pool, &sql).await });
             let ms = start.elapsed().as_millis() as u64;
             cx.update(|cx| {
                 this.update(cx, |panel, cx| {

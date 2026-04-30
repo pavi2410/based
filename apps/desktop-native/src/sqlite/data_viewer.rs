@@ -60,51 +60,60 @@ impl DataViewerPanel {
         let page_size = self.page_size;
 
         cx.spawn(async move |this, cx| {
-            let count_sql = format!("SELECT COUNT(*) FROM \"{table_name}\"");
-            let total: i64 = sqlx::query_scalar(&count_sql)
-                .fetch_one(&pool)
-                .await
-                .unwrap_or(0);
+            let res = crate::tokio_bridge::block_on_db(async move {
+                let count_sql = format!("SELECT COUNT(*) FROM \"{table_name}\"");
+                let total: i64 = sqlx::query_scalar(&count_sql)
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap_or(0);
 
-            let fetch_sql =
-                format!("SELECT * FROM \"{table_name}\" LIMIT {page_size} OFFSET {offset}");
-            let rows = sqlx::query(&fetch_sql).fetch_all(&pool).await?;
+                let fetch_sql =
+                    format!("SELECT * FROM \"{table_name}\" LIMIT {page_size} OFFSET {offset}");
+                let rows = sqlx::query(&fetch_sql).fetch_all(&pool).await?;
 
-            let columns: Vec<Column> = if let Some(first) = rows.first() {
-                first
-                    .columns()
-                    .iter()
-                    .map(|c| Column::new(c.name().to_string(), c.name().to_string()))
-                    .collect()
-            } else {
-                vec![]
-            };
-
-            let data_rows: Vec<Vec<SharedString>> = rows
-                .iter()
-                .map(|row| {
-                    (0..row.len())
-                        .map(|i| {
-                            let val: Option<String> = row.try_get(i).ok();
-                            SharedString::from(val.unwrap_or_default())
-                        })
+                let columns: Vec<Column> = if let Some(first) = rows.first() {
+                    first
+                        .columns()
+                        .iter()
+                        .map(|c| Column::new(c.name().to_string(), c.name().to_string()))
                         .collect()
-                })
-                .collect();
+                } else {
+                    vec![]
+                };
 
-            cx.update(|cx| {
-                this.update(cx, |panel, cx| {
-                    panel.total_rows = total as u64;
-                    panel.loading = false;
-                    panel.table.update(cx, |state, cx| {
-                        let delegate = state.delegate_mut();
-                        delegate.columns = columns;
-                        delegate.rows = data_rows;
+                let data_rows: Vec<Vec<SharedString>> = rows
+                    .iter()
+                    .map(|row| {
+                        (0..row.len())
+                            .map(|i| {
+                                let val: Option<String> = row.try_get(i).ok();
+                                SharedString::from(val.unwrap_or_default())
+                            })
+                            .collect()
+                    })
+                    .collect();
+
+                Ok::<_, sqlx::Error>((total, columns, data_rows))
+            });
+            let _ = cx.update(|cx| {
+                this.update(cx, |panel, cx| match res {
+                    Ok((total, columns, data_rows)) => {
+                        panel.total_rows = total as u64;
+                        panel.loading = false;
+                        panel.table.update(cx, |state, cx| {
+                            let delegate = state.delegate_mut();
+                            delegate.columns = columns;
+                            delegate.rows = data_rows;
+                            cx.notify();
+                        });
                         cx.notify();
-                    });
-                    cx.notify();
+                    }
+                    Err(_) => {
+                        panel.loading = false;
+                        cx.notify();
+                    }
                 })
-            })
+            });
         })
         .detach();
     }

@@ -34,7 +34,9 @@ impl CollectionsTreePanel {
     fn reload(&mut self, cx: &mut Context<Self>) {
         let db = self.database.clone();
         cx.spawn(async move |this, cx| {
-            let names = db.list_collection_names(None).await.unwrap_or_default();
+            let names = crate::tokio_bridge::block_on_db(async move {
+                db.list_collection_names(None).await.unwrap_or_default()
+            });
             cx.update(|cx| {
                 this.update(cx, |panel, cx| {
                     panel.names = names;

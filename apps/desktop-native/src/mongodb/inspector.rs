@@ -33,64 +33,69 @@ impl CollectionInspectorPanel {
     fn reload(&mut self, cx: &mut Context<Self>) {
         let coll = self.collection.clone();
         cx.spawn(async move |this, cx| {
-            let mut cursor = match coll.list_indexes(None).await {
-                Ok(c) => c,
+            let outcome = crate::tokio_bridge::block_on_db(async move {
+                let mut cursor = match coll.list_indexes(None).await {
+                    Ok(c) => c,
+                    Err(e) => return Err(e.to_string()),
+                };
+
+                let mut rows = Vec::<Vec<String>>::new();
+                use futures::TryStreamExt;
+                while let Ok(Some(idx)) = cursor.try_next().await {
+                    let name = idx
+                        .options
+                        .as_ref()
+                        .and_then(|o| o.name.clone())
+                        .unwrap_or_else(|| idx.keys.to_string());
+                    let key_json = idx.keys.to_string();
+                    let unique = if idx.options.as_ref().and_then(|o| o.unique) == Some(true) {
+                        "yes"
+                    } else {
+                        "no"
+                    };
+                    rows.push(vec![name, key_json, unique.to_string()]);
+                }
+                Ok(rows)
+            });
+
+            match outcome {
                 Err(e) => {
                     let _ = cx.update(|cx| {
                         this.update(cx, |panel, cx| {
                             panel.table.update(cx, |state, cx| {
                                 let d = state.delegate_mut();
-                                d.columns =
-                                    vec![Column::new("error", "Error")];
-                                d.rows =
-                                    vec![vec![SharedString::from(e.to_string())]];
+                                d.columns = vec![Column::new("error", "Error")];
+                                d.rows = vec![vec![SharedString::from(e)]];
                                 cx.notify();
                             });
                             cx.notify();
                         })
                     });
-                    return;
                 }
-            };
+                Ok(rows) => {
+                    let columns = vec![
+                        Column::new("name", "Index"),
+                        Column::new("key", "Key"),
+                        Column::new("unique", "Unique"),
+                    ];
+                    let data: Vec<Vec<SharedString>> = rows
+                        .into_iter()
+                        .map(|r| r.into_iter().map(SharedString::from).collect())
+                        .collect();
 
-            let mut rows = Vec::<Vec<String>>::new();
-            use futures::TryStreamExt;
-            while let Ok(Some(idx)) = cursor.try_next().await {
-                let name = idx
-                    .options
-                    .as_ref()
-                    .and_then(|o| o.name.clone())
-                    .unwrap_or_else(|| idx.keys.to_string());
-                let key_json = idx.keys.to_string();
-                let unique = if idx.options.as_ref().and_then(|o| o.unique) == Some(true) {
-                    "yes"
-                } else {
-                    "no"
-                };
-                rows.push(vec![name, key_json, unique.to_string()]);
-            }
-
-            let columns = vec![
-                Column::new("name", "Index"),
-                Column::new("key", "Key"),
-                Column::new("unique", "Unique"),
-            ];
-            let data: Vec<Vec<SharedString>> = rows
-                .into_iter()
-                .map(|r| r.into_iter().map(SharedString::from).collect())
-                .collect();
-
-            let _ = cx.update(|cx| {
-                this.update(cx, |panel, cx| {
-                    panel.table.update(cx, |state, cx| {
-                        let d = state.delegate_mut();
-                        d.columns = columns;
-                        d.rows = data;
-                        cx.notify();
+                    let _ = cx.update(|cx| {
+                        this.update(cx, |panel, cx| {
+                            panel.table.update(cx, |state, cx| {
+                                let d = state.delegate_mut();
+                                d.columns = columns;
+                                d.rows = data;
+                                cx.notify();
+                            });
+                            cx.notify();
+                        })
                     });
-                    cx.notify();
-                })
-            });
+                }
+            }
         })
         .detach();
     }

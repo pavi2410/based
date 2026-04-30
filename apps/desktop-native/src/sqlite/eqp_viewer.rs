@@ -38,7 +38,13 @@ impl EqpViewerPanel {
         let sql = format!("EXPLAIN QUERY PLAN {}", self.sql);
 
         cx.spawn(async move |this, cx| {
-            let rows = sqlx::query(&sql).fetch_all(&pool).await?;
+            let rows = crate::tokio_bridge::block_on_db(async move {
+                sqlx::query(&sql).fetch_all(&pool).await
+            });
+            let rows = match rows {
+                Ok(r) => r,
+                Err(_) => return,
+            };
 
             let nodes: Vec<EqpNode> = rows
                 .iter()
@@ -50,12 +56,12 @@ impl EqpViewerPanel {
                 })
                 .collect();
 
-            cx.update(|cx| {
+            let _ = cx.update(|cx| {
                 this.update(cx, |panel, cx| {
                     panel.nodes = nodes;
                     cx.notify();
                 })
-            })
+            });
         })
         .detach();
     }

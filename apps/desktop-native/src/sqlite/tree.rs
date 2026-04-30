@@ -47,34 +47,42 @@ impl SchemaTreePanel {
     fn load_tables(&mut self, cx: &mut Context<Self>) {
         let pool = self.pool.clone();
         cx.spawn(async move |this, cx| {
-            let rows = sqlx::query(
-                "SELECT name, type FROM sqlite_master \
-                 WHERE type IN ('table','view','trigger') \
-                 ORDER BY type, name",
-            )
-            .fetch_all(&pool)
-            .await?;
+            let nodes: anyhow::Result<Vec<TableNode>> = crate::tokio_bridge::block_on_db(async move {
+                let rows = sqlx::query(
+                    "SELECT name, type FROM sqlite_master \
+                     WHERE type IN ('table','view','trigger') \
+                     ORDER BY type, name",
+                )
+                .fetch_all(&pool)
+                .await?;
 
-            let nodes: Vec<TableNode> = rows
-                .iter()
-                .map(|row| {
-                    let name: String = row.get("name");
-                    let kind_str: String = row.get("type");
-                    let kind = match kind_str.as_str() {
-                        "view" => ObjectKind::View,
-                        "trigger" => ObjectKind::Trigger,
-                        _ => ObjectKind::Table,
-                    };
-                    TableNode { name, kind }
-                })
-                .collect();
+                let nodes: Vec<TableNode> = rows
+                    .iter()
+                    .map(|row| {
+                        let name: String = row.get("name");
+                        let kind_str: String = row.get("type");
+                        let kind = match kind_str.as_str() {
+                            "view" => ObjectKind::View,
+                            "trigger" => ObjectKind::Trigger,
+                            _ => ObjectKind::Table,
+                        };
+                        TableNode { name, kind }
+                    })
+                    .collect();
+                Ok(nodes)
+            });
 
-            cx.update(|cx| {
+            let nodes = match nodes {
+                Ok(n) => n,
+                Err(_) => return,
+            };
+
+            let _ = cx.update(|cx| {
                 this.update(cx, |panel, cx| {
                     panel.nodes = nodes;
                     cx.notify();
                 })
-            })
+            });
         })
         .detach();
     }

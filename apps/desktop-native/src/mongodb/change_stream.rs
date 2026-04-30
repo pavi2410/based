@@ -39,57 +39,46 @@ impl ChangeStreamPanel {
         self.lines = vec!["Opening change stream…".into()];
         let coll = self.collection.clone();
         cx.spawn(async move |this, cx| {
-            let mut stream = match coll.watch(None, None).await {
-                Ok(s) => s,
-                Err(e) => {
-                    cx.update(|cx| {
-                        this.update(cx, |p, cx| {
-                            p.busy = false;
-                            p.lines = vec![format!("watch() failed: {e}")];
-                            cx.notify();
-                        })
-                    })
-                    .ok();
-                    return;
-                }
-            };
-
-            use futures::StreamExt;
-            let mut count = 0usize;
-            while let Some(evt) = stream.next().await {
-                match evt {
-                    Ok(change) => {
-                        count += 1;
-                        let line = format!("{change:?}");
-                        let _ = cx.update(|cx| {
-                            this.update(cx, |p, cx| {
-                                p.lines.push(line);
-                                cx.notify();
-                            })
-                        });
-                        if count >= 64 {
-                            break;
+            let result: Result<Vec<String>, String> = crate::tokio_bridge::block_on_db(async move {
+                use futures::StreamExt;
+                let mut stream = coll
+                    .watch(None, None)
+                    .await
+                    .map_err(|e| format!("watch() failed: {e}"))?;
+                let mut out_lines = Vec::<String>::new();
+                let mut count = 0usize;
+                loop {
+                    match stream.next().await {
+                        None => break,
+                        Some(Ok(change)) => {
+                            out_lines.push(format!("{change:?}"));
+                            count += 1;
+                            if count >= 64 {
+                                break;
+                            }
+                        }
+                        Some(Err(e)) => {
+                            return Err(format!("stream error: {e}"));
                         }
                     }
-                    Err(e) => {
-                        let _ = cx.update(|cx| {
-                            this.update(cx, |p, cx| {
-                                p.lines.push(format!("stream error: {e}"));
-                                p.busy = false;
-                                cx.notify();
-                            })
-                        });
-                        return;
-                    }
                 }
-            }
+                Ok(out_lines)
+            });
 
             let _ = cx.update(|cx| {
                 this.update(cx, |p, cx| {
-                    p.busy = false;
-                    if p.lines.len() == 1 {
-                        p.lines.push("(stream ended)".into());
+                    match result {
+                        Ok(extra) => {
+                            p.lines.extend(extra);
+                            if p.lines.len() == 1 {
+                                p.lines.push("(stream ended)".into());
+                            }
+                        }
+                        Err(msg) => {
+                            p.lines = vec![msg];
+                        }
                     }
+                    p.busy = false;
                     cx.notify();
                 })
             });

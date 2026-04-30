@@ -50,13 +50,29 @@ impl DocumentViewerPanel {
         let coll = self.collection.clone();
         let lim = self.limit;
         cx.spawn(async move |this, cx| {
-            let opts = FindOptions::builder().limit(lim).build();
-            let mut cursor = coll.find(doc! {}, opts).await?;
-            let mut docs: Vec<Document> = Vec::new();
-            use futures::TryStreamExt;
-            while let Some(d) = cursor.try_next().await? {
-                docs.push(d);
-            }
+            let docs = crate::tokio_bridge::block_on_db(async move {
+                let opts = FindOptions::builder().limit(lim).build();
+                let mut cursor = coll.find(doc! {}, opts).await?;
+                let mut docs: Vec<Document> = Vec::new();
+                use futures::TryStreamExt;
+                while let Some(d) = cursor.try_next().await? {
+                    docs.push(d);
+                }
+                Ok::<_, mongodb::error::Error>(docs)
+            });
+
+            let docs = match docs {
+                Ok(d) => d,
+                Err(_) => {
+                    let _ = cx.update(|cx| {
+                        this.update(cx, |panel, cx| {
+                            panel.loading = false;
+                            cx.notify();
+                        })
+                    });
+                    return;
+                }
+            };
 
             let mut keys: Vec<String> = Vec::new();
             for d in &docs {
@@ -88,7 +104,7 @@ impl DocumentViewerPanel {
                 })
                 .collect();
 
-            cx.update(|cx| {
+            let _ = cx.update(|cx| {
                 this.update(cx, |panel, cx| {
                     panel.loading = false;
                     panel.table.update(cx, |state, cx| {
@@ -99,7 +115,7 @@ impl DocumentViewerPanel {
                     });
                     cx.notify();
                 })
-            })
+            });
         })
         .detach();
     }

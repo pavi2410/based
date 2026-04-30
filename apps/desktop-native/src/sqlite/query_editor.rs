@@ -8,11 +8,13 @@ use gpui_component::{
     menu::PopupMenu,
     h_flex, v_flex,
     table::{Column, DataTable, TableState},
+    tooltip::Tooltip,
 };
 use sqlx::{Column as SqlxColumn, Row, SqlitePool};
 
 use crate::db;
 use crate::widgets::virtual_table::RowDelegate;
+use crate::workspace::notify;
 
 pub enum QueryStatus {
     Idle,
@@ -149,31 +151,27 @@ impl Panel for QueryEditorPanel {
 
 impl Render for QueryEditorPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let muted = cx.theme().muted_foreground;
+        let border = cx.theme().border;
+        let err_border = cx.theme().danger;
+        let err_fg = cx.theme().danger_foreground;
+
+        let is_error = matches!(self.status, QueryStatus::Error(_));
+        let err_text = match &self.status {
+            QueryStatus::Error(s) => Some(s.clone()),
+            _ => None,
+        };
+
         let status_text: SharedString = match &self.status {
             QueryStatus::Idle => "Ready".into(),
             QueryStatus::Running => "Running…".into(),
             QueryStatus::Done { rows, elapsed_ms } => {
                 format!("{rows} rows in {elapsed_ms}ms").into()
             }
-            QueryStatus::Error(e) => format!("Error: {e}").into(),
+            QueryStatus::Error(_) => "Query failed".into(),
         };
 
-        let is_error = matches!(self.status, QueryStatus::Error(_));
         let sql_text: SharedString = self.sql.clone().into();
-        let muted = cx.theme().muted_foreground;
-        let border = cx.theme().border;
-
-        let editor_placeholder = div()
-            .id("sql-editor")
-            .w_full()
-            .h(px(160.0))
-            .p(px(8.0))
-            .border_1()
-            .border_color(border)
-            .rounded(px(4.0))
-            .font_family("monospace")
-            .text_sm()
-            .child(sql_text);
 
         let toolbar = h_flex()
             .w_full()
@@ -190,10 +188,35 @@ impl Render for QueryEditorPanel {
             .child(
                 div()
                     .text_sm()
-                    .when(is_error, |d| d.text_color(rgb(0xff5555)))
-                    .when(!is_error, |d| d.text_color(muted))
+                    .text_color(if is_error { err_fg } else { muted })
                     .child(status_text),
             );
+
+        let error_strip = err_text.map(|full| {
+            let tip = full.clone();
+            let line = notify::error_one_liner(&full);
+            div()
+                .id("sqlite-query-error-strip")
+                .px(px(8.0))
+                .pb(px(4.0))
+                .text_xs()
+                .text_color(err_fg)
+                .truncate()
+                .child(line)
+                .tooltip(move |window, app| Tooltip::new(tip.clone()).build(window, app))
+        });
+
+        let editor_placeholder = div()
+            .id("sql-editor")
+            .w_full()
+            .h(px(160.0))
+            .p(px(8.0))
+            .border_1()
+            .border_color(if is_error { err_border } else { border })
+            .rounded(px(4.0))
+            .font_family("monospace")
+            .text_sm()
+            .child(sql_text);
 
         let bottom: AnyElement = if let Some(ref table) = self.result_table {
             div()
@@ -220,8 +243,9 @@ impl Render for QueryEditorPanel {
             .min_h_0()
             .p(px(8.0))
             .gap(px(8.0))
-            .child(editor_placeholder)
             .child(toolbar)
+            .when_some(error_strip, |col, strip| col.child(strip))
+            .child(editor_placeholder)
             .child(bottom)
     }
 }

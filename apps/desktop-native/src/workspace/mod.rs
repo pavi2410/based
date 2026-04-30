@@ -1,6 +1,7 @@
 // workspace/ — Workspace entity, DockArea, sidebar, status bar, connection wiring.
 
 pub mod item;
+pub mod notify;
 pub mod pane;
 pub mod pop_out;
 pub use pop_out::PopOutManager;
@@ -17,9 +18,12 @@ use gpui::{
 };
 use gpui_component::{
     ActiveTheme,
+    Icon, IconName,
+    Sizable as _,
     StyledExt,
     dock::{DockArea, DockItem, PanelStyle},
     h_flex, v_flex,
+    tooltip::Tooltip,
 };
 
 use crate::connection::lifecycle::Connectable;
@@ -136,11 +140,12 @@ impl Workspace {
                 let task = SqliteConnection::open(cfg, cx);
                 cx.spawn(async move |_, cx| {
                     let result = task.await;
-                    let _ = cx.update(|cx| {
-                        conn_ent.update(cx, |entry, cx| {
+                    let _ = cx.update(|app| {
+                        let mut tray_fail: Option<(String, String, String)> = None;
+                        conn_ent.update(app, |entry, ecx| {
                             match result {
                                 Ok(conn) => {
-                                    let ent = cx.new(|_| conn);
+                                    let ent = ecx.new(|_| conn);
                                     entry.state =
                                         ConnectionState::Connected(AnyConnection::SQLite(ent));
                                 }
@@ -156,15 +161,23 @@ impl Workspace {
                                         attempted_at: Instant::now(),
                                     };
                                     entry.last_error = Some(err.to_string());
+                                    tray_fail = Some((
+                                        conn_label.clone(),
+                                        conn_engine.short_label().to_string(),
+                                        format!("{err:#}"),
+                                    ));
                                 }
                             }
-                            cx.notify();
+                            ecx.notify();
                         });
-                        workspace.update(cx, |ws, cx| {
-                            if matches!(conn_ent.read(cx).state, ConnectionState::Connected(_)) {
+                        if let Some((l, e, d)) = tray_fail {
+                            notify::push_connection_failure(app, l, e, d);
+                        }
+                        workspace.update(app, |ws, ecx| {
+                            if matches!(conn_ent.read(ecx).state, ConnectionState::Connected(_)) {
                                 ws.pending_open_connection = Some(idx_for_pending);
                             }
-                            cx.notify();
+                            ecx.notify();
                         });
                     });
                 })
@@ -174,11 +187,12 @@ impl Workspace {
                 let task = postgres::PgConnection::open(cfg, cx);
                 cx.spawn(async move |_, cx| {
                     let result = task.await;
-                    let _ = cx.update(|cx| {
-                        conn_ent.update(cx, |entry, cx| {
+                    let _ = cx.update(|app| {
+                        let mut tray_fail: Option<(String, String, String)> = None;
+                        conn_ent.update(app, |entry, ecx| {
                             match result {
                                 Ok(conn) => {
-                                    let ent = cx.new(|_| conn);
+                                    let ent = ecx.new(|_| conn);
                                     entry.state =
                                         ConnectionState::Connected(AnyConnection::Postgres(ent));
                                 }
@@ -194,15 +208,23 @@ impl Workspace {
                                         attempted_at: Instant::now(),
                                     };
                                     entry.last_error = Some(err.to_string());
+                                    tray_fail = Some((
+                                        conn_label.clone(),
+                                        conn_engine.short_label().to_string(),
+                                        format!("{err:#}"),
+                                    ));
                                 }
                             }
-                            cx.notify();
+                            ecx.notify();
                         });
-                        workspace.update(cx, |ws, cx| {
-                            if matches!(conn_ent.read(cx).state, ConnectionState::Connected(_)) {
+                        if let Some((l, e, d)) = tray_fail {
+                            notify::push_connection_failure(app, l, e, d);
+                        }
+                        workspace.update(app, |ws, ecx| {
+                            if matches!(conn_ent.read(ecx).state, ConnectionState::Connected(_)) {
                                 ws.pending_open_connection = Some(idx_for_pending);
                             }
-                            cx.notify();
+                            ecx.notify();
                         });
                     });
                 })
@@ -212,11 +234,12 @@ impl Workspace {
                 let task = MongoConnection::open(cfg, cx);
                 cx.spawn(async move |_, cx| {
                     let result = task.await;
-                    let _ = cx.update(|cx| {
-                        conn_ent.update(cx, |entry, cx| {
+                    let _ = cx.update(|app| {
+                        let mut tray_fail: Option<(String, String, String)> = None;
+                        conn_ent.update(app, |entry, ecx| {
                             match result {
                                 Ok(conn) => {
-                                    let ent = cx.new(|_| conn);
+                                    let ent = ecx.new(|_| conn);
                                     entry.state =
                                         ConnectionState::Connected(AnyConnection::MongoDB(ent));
                                 }
@@ -232,15 +255,23 @@ impl Workspace {
                                         attempted_at: Instant::now(),
                                     };
                                     entry.last_error = Some(err.to_string());
+                                    tray_fail = Some((
+                                        conn_label.clone(),
+                                        conn_engine.short_label().to_string(),
+                                        format!("{err:#}"),
+                                    ));
                                 }
                             }
-                            cx.notify();
+                            ecx.notify();
                         });
-                        workspace.update(cx, |ws, cx| {
-                            if matches!(conn_ent.read(cx).state, ConnectionState::Connected(_)) {
+                        if let Some((l, e, d)) = tray_fail {
+                            notify::push_connection_failure(app, l, e, d);
+                        }
+                        workspace.update(app, |ws, ecx| {
+                            if matches!(conn_ent.read(ecx).state, ConnectionState::Connected(_)) {
                                 ws.pending_open_connection = Some(idx_for_pending);
                             }
-                            cx.notify();
+                            ecx.notify();
                         });
                     });
                 })
@@ -341,7 +372,7 @@ impl Render for Workspace {
         let sfg = cx.theme().sidebar_foreground;
 
         let sidebar = v_flex()
-            .w(gpui::px(220.0))
+            .w(gpui::px(264.0))
             .h_full()
             .flex_shrink_0()
             .border_r_1()
@@ -363,20 +394,45 @@ impl Render for Workspace {
                 let conn_label = entry.config.label().to_string();
                 let state_label = entry.state.label();
                 let badge_color = engine_badge_color(entry.config.engine());
+                let is_failed = matches!(entry.state, ConnectionState::Failed { .. });
+                let fail_reason = match &entry.state {
+                    ConnectionState::Failed { reason, .. } => Some(reason.clone()),
+                    _ => None,
+                };
+                let err_fg = cx.theme().danger_foreground;
 
-                h_flex()
-                    .id(("conn-row", idx))
-                    .px_3()
-                    .py_2()
+                let status_cell = if is_failed {
+                    h_flex()
+                        .flex_shrink_0()
+                        .gap_1()
+                        .items_center()
+                        .child(
+                            Icon::new(IconName::CircleX)
+                                .text_color(err_fg)
+                                .with_size(gpui_component::Size::XSmall),
+                        )
+                        .child(
+                            div()
+                                .text_xs()
+                                .font_semibold()
+                                .text_color(err_fg)
+                                .child("Failed"),
+                        )
+                } else {
+                    h_flex()
+                        .flex_shrink_0()
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(muted)
+                                .child(state_label),
+                        )
+                };
+
+                let main_row = h_flex()
+                    .w_full()
                     .gap_2()
                     .items_center()
-                    .cursor_pointer()
-                    .rounded_md()
-                    .mx_1()
-                    .hover(|s| s.bg(gpui::hsla(0.0, 0.0, 0.5, 0.08)))
-                    .on_click(cx.listener(move |ws, _, window, cx| {
-                        ws.on_connection_row_clicked(idx, window, cx);
-                    }))
                     .child(
                         div()
                             .w_2()
@@ -397,17 +453,61 @@ impl Render for Workspace {
                     .child(
                         div()
                             .flex_1()
+                            .min_w_0()
                             .text_sm()
                             .text_color(sfg)
                             .truncate()
-                            .child(conn_label),
+                            .when(is_failed, |d| d.text_color(err_fg.opacity(0.92)))
+                            .child(conn_label.clone()),
                     )
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(muted)
-                            .child(state_label),
-                    )
+                    .child(status_cell);
+
+                let mut row = main_row.id(("conn-row", idx));
+                if let Some(reason) = fail_reason {
+                    let reason_tip: SharedString = reason.clone().into();
+                    row = row.tooltip(move |window, app| {
+                        Tooltip::element({
+                            let reason_tip = reason_tip.clone();
+                            move |_win, app| {
+                                let fg = app.theme().foreground;
+                                let subtle = app.theme().muted_foreground;
+                                v_flex()
+                                    .gap_1()
+                                    .max_w(gpui::px(400.0))
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .font_semibold()
+                                            .text_color(fg)
+                                            .child("Could not connect"),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .text_color(subtle)
+                                            .font_family("monospace")
+                                            .child(reason_tip.clone()),
+                                    )
+                            }
+                        })
+                        .build(window, app)
+                    });
+                }
+
+                row
+                    .px_3()
+                    .py_2()
+                    .cursor_pointer()
+                    .rounded_md()
+                    .mx_1()
+                    .when(is_failed, |r| {
+                        r.border_1()
+                            .border_color(cx.theme().danger.opacity(0.35))
+                    })
+                    .hover(|s| s.bg(gpui::hsla(0.0, 0.0, 0.5, 0.08)))
+                    .on_click(cx.listener(move |ws, _, window, cx| {
+                        ws.on_connection_row_clicked(idx, window, cx);
+                    }))
             }));
 
         v_flex()

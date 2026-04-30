@@ -8,9 +8,11 @@ use gpui_component::{
     menu::PopupMenu,
     h_flex, v_flex,
     table::{DataTable, TableState},
+    tooltip::Tooltip,
 };
 
 use crate::postgres::mutations::execute_sql;
+use crate::workspace::notify;
 use crate::widgets::virtual_table::RowDelegate;
 use sqlx::PgPool;
 
@@ -129,7 +131,15 @@ impl Render for QueryEditorPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let border = cx.theme().border;
         let muted = cx.theme().muted_foreground;
+        let err_border = cx.theme().danger;
+        let err_fg = cx.theme().danger_foreground;
         let sql_val: SharedString = self.sql_text.clone().into();
+
+        let is_error = matches!(self.status, QueryStatus::Error(_));
+        let err_text = match &self.status {
+            QueryStatus::Error(s) => Some(s.clone()),
+            _ => None,
+        };
 
         let status_line: SharedString = match &self.status {
             QueryStatus::Idle => "Ready.".into(),
@@ -139,37 +149,57 @@ impl Render for QueryEditorPanel {
                 affected,
                 elapsed_ms,
             } => format!("{rows} rows — {affected} affected — {elapsed_ms} ms").into(),
-            QueryStatus::Error(e) => format!("Error: {e}").into(),
+            QueryStatus::Error(_) => "Query failed.".into(),
         };
+
+        let toolbar = h_flex()
+            .gap_2()
+            .p_2()
+            .items_center()
+            .child(
+                Button::new("pg-run")
+                    .primary()
+                    .label("Run")
+                    .on_click(cx.listener(|panel, _, _, cx| panel.run(cx))),
+            )
+            .child(
+                div()
+                    .text_sm()
+                    .text_color(if is_error { err_fg } else { muted })
+                    .child(status_line),
+            );
+
+        let error_strip = err_text.map(|full| {
+            let tip = full.clone();
+            let line = notify::error_one_liner(&full);
+            div()
+                .id("pg-query-error-strip")
+                .px_2()
+                .pb_1()
+                .text_xs()
+                .text_color(err_fg)
+                .truncate()
+                .child(line)
+                .tooltip(move |window, app| Tooltip::new(tip.clone()).build(window, app))
+        });
 
         v_flex()
             .w_full()
             .h_full()
             .min_h_0()
-            .child(
+            .child(toolbar)
+            .when_some(error_strip, |col, strip| col.child(strip))
+            .child({
                 div()
                     .flex_1()
                     .min_h(px(120.0))
                     .p_2()
                     .border_1()
-                    .border_color(border)
+                    .border_color(if is_error { err_border } else { border })
                     .font_family("monospace")
                     .text_sm()
-                    .child(sql_val),
-            )
-            .child(
-                h_flex()
-                    .gap_2()
-                    .p_2()
-                    .items_center()
-                    .child(
-                        Button::new("pg-run")
-                            .primary()
-                            .label("Run")
-                            .on_click(cx.listener(|panel, _, _, cx| panel.run(cx))),
-                    )
-                    .child(div().text_sm().text_color(muted).child(status_line)),
-            )
+                    .child(sql_val)
+            })
             .child(
                 div()
                     .flex_1()

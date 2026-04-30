@@ -14,9 +14,18 @@ pub use discovery::find_project_root;
 pub use queries::*;
 pub use variables::*;
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 
-use gpui::{Context, EventEmitter};
+use gpui::{Context, EventEmitter, Global};
+
+/// Loaded `$VAR` map from `.based/vars.toml`, available to query panels via [`gpui::App::global`].
+#[derive(Default)]
+pub struct ProjectVars {
+    pub vars: HashMap<String, String>,
+}
+
+impl Global for ProjectVars {}
 
 pub enum ProjectEvent {
     ConfigReloaded,

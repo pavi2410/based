@@ -50,7 +50,9 @@ impl QueryEditorPanel {
 
     fn run_query(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let pool = self.pool.clone();
-        let sql = self.sql.clone();
+        let sql_raw = self.sql.clone();
+        let vars = cx.global::<crate::project::ProjectVars>().vars.clone();
+        let sql = crate::project::substitute(&sql_raw, &vars);
         self.status = QueryStatus::Running;
 
         let delegate = RowDelegate::default();

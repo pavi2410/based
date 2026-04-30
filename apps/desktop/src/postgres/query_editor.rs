@@ -59,10 +59,12 @@ impl QueryEditorPanel {
     }
 
     fn run(&mut self, cx: &mut Context<Self>) {
-        let sql = self.sql_text.clone();
-        if sql.trim().is_empty() {
+        let sql_raw = self.sql_text.clone();
+        if sql_raw.trim().is_empty() {
             return;
         }
+        let vars = cx.global::<crate::project::ProjectVars>().vars.clone();
+        let sql = crate::project::substitute(&sql_raw, &vars);
         self.status = QueryStatus::Running;
         let pool = self.pool.clone();
         cx.spawn(async move |this, cx| {

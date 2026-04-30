@@ -45,7 +45,20 @@ fn main() {
             db::init(cx);
             PopOutManager::init(cx);
 
-            query_store::init(crate::project::find_project_root(), cx);
+            let project_root = crate::project::find_project_root();
+            query_store::init(project_root.clone(), cx);
+
+            let vars = project_root
+                .as_ref()
+                .map(|root| {
+                    crate::project::variables::load_variables(root).unwrap_or_else(|e| {
+                        log::warn!("vars.toml load ({root:?}): {e:#}");
+                        Default::default()
+                    })
+                })
+                .unwrap_or_default();
+            cx.set_global(crate::project::ProjectVars { vars });
+
             cx.on_window_closed(|cx, id| {
                 PopOutManager::on_any_window_closed(cx, id);
             })

@@ -52,3 +52,24 @@ pub fn substitute(query: &str, vars: &Variables) -> String {
     }
     result
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn substitutes_known_var() {
+        let mut vars = HashMap::new();
+        vars.insert("SCHEMA".into(), "public".into());
+        let out = substitute("SELECT * FROM $SCHEMA.users", &vars);
+        assert_eq!(out, "SELECT * FROM public.users");
+    }
+
+    #[test]
+    fn unknown_var_left_as_is() {
+        let vars = HashMap::new();
+        let out = substitute("SELECT $UNKNOWN", &vars);
+        assert_eq!(out, "SELECT $UNKNOWN");
+    }
+}

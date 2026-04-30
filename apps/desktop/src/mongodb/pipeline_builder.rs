@@ -38,14 +38,27 @@ impl PipelineBuilderPanel {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        Self::new_with_pipeline(collection, conn_id, None, window, cx)
+    }
+
+    pub fn new_with_pipeline(
+        collection: Collection<Document>,
+        conn_id: ConnectionId,
+        initial_pipeline_json: Option<String>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let delegate = RowDelegate::default();
         let result = cx.new(|cx| TableState::new(delegate, window, cx));
         let save_name_input = cx.new(|cx| InputState::new(window, cx));
+        let pipeline_json = initial_pipeline_json.unwrap_or_else(|| {
+            String::from("[{ \"$match\": {} }, { \"$limit\": 50 }]")
+        });
         Self {
             focus_handle: cx.focus_handle(),
             collection,
             conn_id,
-            pipeline_json: String::from("[{ \"$match\": {} }, { \"$limit\": 50 }]"),
+            pipeline_json,
             result,
             status: SharedString::from(""),
             save_name_input,

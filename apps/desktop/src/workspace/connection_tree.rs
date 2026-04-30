@@ -25,7 +25,7 @@ use sqlx::{PgPool, Row, SqlitePool};
 use crate::connection::lifecycle::Connectable;
 use crate::connection::registry::{ConnectionRegistry, RegistryEvent};
 use crate::connection::{
-    AnyConnection, ConnectionConfig, ConnectionEntry, ConnectionState, EngineKind,
+    AnyConnection, ConnectionConfig, ConnectionEntry, ConnectionId, ConnectionState, EngineKind,
 };
 use crate::mongodb::MongoConnection;
 use crate::postgres;
@@ -189,6 +189,26 @@ impl ConnectionTree {
     pub fn selected_connection_entry(&self, cx: &gpui::App) -> Option<Entity<ConnectionEntry>> {
         self.selected_connection
             .and_then(|idx| self.registry.read(cx).connections().get(idx).cloned())
+    }
+
+    /// Select a connection in the sidebar and, if connected, open its dashboard workspace (same as clicking the row).
+    pub fn focus_connection_by_id(&mut self, conn_id: &ConnectionId, cx: &mut Context<Self>) {
+        let Some(idx) = self
+            .registry
+            .read(cx)
+            .connections()
+            .iter()
+            .position(|e| e.read(cx).id == *conn_id)
+        else {
+            return;
+        };
+        self.selected_connection = Some(idx);
+        self.selected_object = None;
+        let conn_ent = self.registry.read(cx).connections()[idx].clone();
+        if matches!(conn_ent.read(cx).state, ConnectionState::Connected(_)) {
+            self.pending_open_connection = Some(idx);
+        }
+        cx.notify();
     }
 
     fn on_connection_row_clicked(

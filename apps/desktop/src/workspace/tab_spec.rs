@@ -9,7 +9,13 @@ pub enum TabSpec {
         conn_id: ConnectionId,
         object: String,
     },
-    QueryEditor(ConnectionId),
+    /// SQL editors (Postgres/SQLite) or Mongo pipeline workspace (initial_pipeline).
+    QueryEditor {
+        conn_id: ConnectionId,
+        initial_sql: Option<String>,
+        initial_pipeline: Option<String>,
+        auto_run: bool,
+    },
     Pipeline {
         conn_id: ConnectionId,
         collection: String,
@@ -25,11 +31,20 @@ pub enum TabSpec {
 }
 
 impl TabSpec {
+    pub fn blank_query_editor(conn_id: ConnectionId) -> Self {
+        Self::QueryEditor {
+            conn_id,
+            initial_sql: None,
+            initial_pipeline: None,
+            auto_run: true,
+        }
+    }
+
     pub fn conn_id(&self) -> &ConnectionId {
         match self {
             Self::Dashboard(id) => id,
             Self::DataViewer { conn_id, .. } => conn_id,
-            Self::QueryEditor(id) => id,
+            Self::QueryEditor { conn_id, .. } => conn_id,
             Self::Pipeline { conn_id, .. } => conn_id,
             Self::Explain { conn_id, .. } => conn_id,
             Self::Inspector { conn_id, .. } => conn_id,
@@ -40,7 +55,7 @@ impl TabSpec {
         match self {
             Self::Dashboard(_) => "dashboard",
             Self::DataViewer { .. } => "data viewer",
-            Self::QueryEditor(_) => "query",
+            Self::QueryEditor { .. } => "query",
             Self::Pipeline { .. } => "pipeline",
             Self::Explain { .. } => "explain",
             Self::Inspector { .. } => "structure",
@@ -51,7 +66,7 @@ impl TabSpec {
         match self {
             Self::Dashboard(id) => id.0.clone(),
             Self::DataViewer { object, .. } => object.clone(),
-            Self::QueryEditor(_) => "untitled".to_string(),
+            Self::QueryEditor { .. } => "untitled".to_string(),
             Self::Pipeline { collection, .. } => collection.clone(),
             Self::Explain { label, .. } => label.clone(),
             Self::Inspector { object, .. } => object.clone(),
@@ -93,8 +108,8 @@ mod tests {
     fn query_editor_specs_equal_but_open_or_focus_creates_distinct_tabs() {
         // Spec equality treats two QueryEditors the same conn as equal; TabManager::open_or_focus
         // still opens a fresh tab whenever the caller passes TabSpec::QueryEditor (branch `is_query`).
-        let a = TabSpec::QueryEditor(ConnectionId("pg".into()));
-        let b = TabSpec::QueryEditor(ConnectionId("pg".into()));
+        let a = TabSpec::blank_query_editor(ConnectionId("pg".into()));
+        let b = TabSpec::blank_query_editor(ConnectionId("pg".into()));
         assert_eq!(a, b);
     }
 }

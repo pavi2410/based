@@ -34,7 +34,7 @@ impl TabManager {
     /// QueryEditor always opens a new tab (caller passes a fresh spec each time).
     pub fn open_or_focus(&mut self, spec: TabSpec, view: AnyView, cx: &mut Context<Self>) {
         // QueryEditor: always new
-        let is_query = matches!(spec, TabSpec::QueryEditor(_));
+        let is_query = matches!(spec, TabSpec::QueryEditor { .. });
         if !is_query {
             if let Some(idx) = self.tabs.iter().position(|t| t.spec == spec) {
                 self.active_idx = Some(idx);
@@ -118,7 +118,7 @@ mod tests {
 
     #[test]
     fn query_editors_are_always_distinct_specs() {
-        let s = TabSpec::QueryEditor(ConnectionId("pg".into()));
-        assert!(matches!(s, TabSpec::QueryEditor(_)));
+        let s = TabSpec::blank_query_editor(ConnectionId("pg".into()));
+        assert!(matches!(s, TabSpec::QueryEditor { .. }));
     }
 }

@@ -49,24 +49,38 @@ impl QueryEditorPanel {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        Self::new_with_initial(pool, conn_id, None, true, window, cx)
+    }
+
+    pub fn new_with_initial(
+        pool: PgPool,
+        conn_id: ConnectionId,
+        initial_sql: Option<String>,
+        auto_run: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let delegate = RowDelegate::default();
         let result = cx.new(|cx| {
             TableState::new(delegate, window, cx)
                 .row_selectable(true)
                 .cell_selectable(true)
         });
+        let sql_text = initial_sql.unwrap_or_else(|| "SELECT 1 AS one;".to_string());
         let panel = Self {
             focus_handle: cx.focus_handle(),
             pool,
             conn_id,
-            sql_text: String::from("SELECT 1 AS one;"),
+            sql_text,
             result,
             status: QueryStatus::Idle,
             show_history: false,
         };
-        cx.defer_in(window, |panel, _, cx| {
-            panel.run(cx);
-        });
+        if auto_run && !panel.sql_text.trim().is_empty() {
+            cx.defer_in(window, |panel, _, cx| {
+                panel.run(cx);
+            });
+        }
         panel
     }
 

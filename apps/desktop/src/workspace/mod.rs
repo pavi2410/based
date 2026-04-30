@@ -100,6 +100,7 @@ impl Workspace {
 
         let tab_manager = cx.new(|_| TabManager::new());
         let command_palette = cx.new(|cx| CommandPalette::new(registry.clone(), cx));
+        let palette_observe = command_palette.clone();
 
         let tree_observe = connection_tree.clone();
 
@@ -118,6 +119,13 @@ impl Workspace {
 
         cx.subscribe(&tree_observe, |ws, _, event, ecx| {
             let connection_tree::TreeEvent::OpenTab(spec) = event;
+            ws.pending_open_tab = Some(spec.clone());
+            ecx.notify();
+        })
+        .detach();
+
+        cx.subscribe(&palette_observe, |ws, _, event, ecx| {
+            let crate::command_palette::PaletteEvent::OpenTab(spec) = event;
             ws.pending_open_tab = Some(spec.clone());
             ecx.notify();
         })
@@ -163,6 +171,11 @@ impl Workspace {
 
     fn dispatch_open_tab(&mut self, spec: TabSpec, window: &mut Window, cx: &mut Context<Self>) {
         match spec {
+            TabSpec::Dashboard(conn_id) => {
+                self.connection_tree.update(cx, |tree, ecx| {
+                    tree.focus_connection_by_id(&conn_id, ecx);
+                });
+            }
             TabSpec::DataViewer { conn_id, object } => {
                 let Some(ent) = self.find_connection(&conn_id, cx) else {
                     return;
@@ -211,8 +224,164 @@ impl Workspace {
                     }
                 }
             }
-            _ => {
-                log::debug!("Workspace::dispatch_open_tab: unimplemented for {:?}", spec);
+            TabSpec::QueryEditor {
+                conn_id,
+                initial_sql,
+                initial_pipeline,
+                auto_run,
+            } => {
+                let Some(ent) = self.find_connection(&conn_id, cx) else {
+                    return;
+                };
+                let ac = match &ent.read(cx).state {
+                    ConnectionState::Connected(ac) => ac.clone(),
+                    _ => return,
+                };
+                let tab_spec_for_manager = TabSpec::QueryEditor {
+                    conn_id: conn_id.clone(),
+                    initial_sql: initial_sql.clone(),
+                    initial_pipeline: initial_pipeline.clone(),
+                    auto_run,
+                };
+                match ac {
+                    AnyConnection::SQLite(conn) => {
+                        let pool = conn.read(cx).pool.clone();
+                        let panel_ent = cx.new(|cx| {
+                            sqlite::query_editor::QueryEditorPanel::new_with_initial(
+                                pool,
+                                conn_id.clone(),
+                                initial_sql.clone(),
+                                auto_run,
+                                window,
+                                cx,
+                            )
+                        });
+                        let arc = Arc::new(panel_ent);
+                        self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                    }
+                    AnyConnection::Postgres(conn) => {
+                        let pool = conn.read(cx).pool.clone();
+                        let panel_ent = cx.new(|cx| {
+                            postgres::query_editor::QueryEditorPanel::new_with_initial(
+                                pool,
+                                conn_id.clone(),
+                                initial_sql.clone(),
+                                auto_run,
+                                window,
+                                cx,
+                            )
+                        });
+                        let arc = Arc::new(panel_ent);
+                        self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                    }
+                    AnyConnection::MongoDB(conn) => {
+                        let db = conn.read(cx).database().clone();
+                        let coll: Collection<Document> = db.collection("based_explorer");
+                        let merged = initial_pipeline.clone().or(initial_sql.clone());
+                        let panel_ent = cx.new(|cx| {
+                            crate::mongodb::pipeline_builder::PipelineBuilderPanel::new_with_pipeline(
+                                coll,
+                                conn_id.clone(),
+                                merged,
+                                window,
+                                cx,
+                            )
+                        });
+                        let arc = Arc::new(panel_ent);
+                        self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                    }
+                }
+            }
+            TabSpec::Pipeline { conn_id, collection } => {
+                let Some(ent) = self.find_connection(&conn_id, cx) else {
+                    return;
+                };
+                let ac = match &ent.read(cx).state {
+                    ConnectionState::Connected(ac) => ac.clone(),
+                    _ => return,
+                };
+                let AnyConnection::MongoDB(conn) = ac else {
+                    log::warn!("pipeline tab requires a MongoDB connection");
+                    return;
+                };
+                let tab_spec_for_manager = TabSpec::Pipeline {
+                    conn_id: conn_id.clone(),
+                    collection: collection.clone(),
+                };
+                let db = conn.read(cx).database().clone();
+                let coll: Collection<Document> = db.collection(&collection);
+                let panel_ent = cx.new(|cx| {
+                    crate::mongodb::pipeline_builder::PipelineBuilderPanel::new(
+                        coll,
+                        conn_id.clone(),
+                        window,
+                        cx,
+                    )
+                });
+                let arc = Arc::new(panel_ent);
+                self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+            }
+            TabSpec::Inspector { conn_id, object } => {
+                let Some(ent) = self.find_connection(&conn_id, cx) else {
+                    return;
+                };
+                let ac = match &ent.read(cx).state {
+                    ConnectionState::Connected(ac) => ac.clone(),
+                    _ => return,
+                };
+                let tab_spec_for_manager = TabSpec::Inspector {
+                    conn_id: conn_id.clone(),
+                    object: object.clone(),
+                };
+                match ac {
+                    AnyConnection::SQLite(conn) => {
+                        let pool = conn.read(cx).pool.clone();
+                        let panel_ent = cx.new(|cx| {
+                            sqlite::inspector::TableInspectorPanel::new(
+                                pool,
+                                object.clone(),
+                                window,
+                                cx,
+                            )
+                        });
+                        let arc = Arc::new(panel_ent);
+                        self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                    }
+                    AnyConnection::Postgres(conn) => {
+                        let pool = conn.read(cx).pool.clone();
+                        let (schema, name) = match object.rsplit_once('.') {
+                            Some((s, n)) if !n.is_empty() => (s.to_string(), n.to_string()),
+                            _ => ("public".to_string(), object.clone()),
+                        };
+                        let panel_ent = cx.new(|cx| {
+                            postgres::inspector::TableInspectorPanel::new(
+                                pool,
+                                schema,
+                                name,
+                                window,
+                                cx,
+                            )
+                        });
+                        let arc = Arc::new(panel_ent);
+                        self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                    }
+                    AnyConnection::MongoDB(conn) => {
+                        let db = conn.read(cx).database().clone();
+                        let coll: Collection<Document> = db.collection(&object);
+                        let panel_ent = cx.new(|cx| {
+                            crate::mongodb::inspector::CollectionInspectorPanel::new(
+                                coll,
+                                window,
+                                cx,
+                            )
+                        });
+                        let arc = Arc::new(panel_ent);
+                        self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                    }
+                }
+            }
+            TabSpec::Explain { conn_id, label } => {
+                log::debug!("explain viewer deferred (phase 9): {:?} {}", conn_id, label);
             }
         }
     }

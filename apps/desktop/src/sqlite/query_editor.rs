@@ -45,18 +45,32 @@ impl QueryEditorPanel {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        Self::new_with_initial(pool, conn_id, None, true, window, cx)
+    }
+
+    pub fn new_with_initial(
+        pool: SqlitePool,
+        conn_id: ConnectionId,
+        initial_sql: Option<String>,
+        auto_run: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let sql = initial_sql.unwrap_or_else(|| "SELECT * FROM sqlite_master LIMIT 20".to_string());
         let panel = Self {
             focus_handle: cx.focus_handle(),
             pool,
             conn_id,
-            sql: String::from("SELECT * FROM sqlite_master LIMIT 20"),
+            sql,
             result_table: None,
             status: QueryStatus::Idle,
             show_history: false,
         };
-        cx.defer_in(window, |panel, window, cx| {
-            panel.run_query(window, cx);
-        });
+        if auto_run && !panel.sql.trim().is_empty() {
+            cx.defer_in(window, |panel, window, cx| {
+                panel.run_query(window, cx);
+            });
+        }
         panel
     }
 

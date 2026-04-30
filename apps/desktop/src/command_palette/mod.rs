@@ -3,14 +3,21 @@
 use std::ops::DerefMut;
 
 use gpui::{
-    App, Context, Entity, FocusHandle, Focusable, IntoElement, MouseButton, Render, SharedString,
-    Window, div, prelude::*,
+    App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, MouseButton, Render,
+    SharedString, Window, div, prelude::*,
 };
 use gpui_component::{ActiveTheme, h_flex, scroll::ScrollableElement, v_flex};
 
 use crate::connection::registry::ConnectionRegistry;
+use crate::connection::EngineKind;
 use crate::query_store::QueryStore;
 use crate::workspace::tab_spec::TabSpec;
+
+/// Emitted when the user picks a palette row — workspace opens the tab.
+#[derive(Clone, Debug)]
+pub enum PaletteEvent {
+    OpenTab(TabSpec),
+}
 
 /// A search result the palette can return.
 #[derive(Clone)]
@@ -70,6 +77,15 @@ impl CommandPalette {
         cx.notify();
     }
 
+    fn open_selected(&mut self, cx: &mut Context<Self>) {
+        let Some(entry) = self.results.get(self.selected) else {
+            return;
+        };
+        let spec = entry.spec.clone();
+        cx.emit(PaletteEvent::OpenTab(spec));
+        self.dismiss(cx);
+    }
+
     fn refresh_results(&mut self, cx: &mut Context<Self>) {
         let q = self.query.to_lowercase();
         let mut results = vec![];
@@ -97,19 +113,43 @@ impl CommandPalette {
                     label: saved.name.clone(),
                     sublabel: saved.query_text().chars().take(60).collect(),
                     conn_label: saved.connection.0.clone(),
-                    spec: TabSpec::QueryEditor(saved.connection.clone()),
+                    spec: TabSpec::QueryEditor {
+                        conn_id: saved.connection.clone(),
+                        initial_sql: saved.sql.clone(),
+                        initial_pipeline: saved.pipeline.clone(),
+                        auto_run: false,
+                    },
                 });
             }
         }
 
         for entry in store.history.recent(100) {
             if q.is_empty() || entry.query.to_lowercase().contains(&q) {
+                let engine = self
+                    .registry
+                    .read(cx)
+                    .get(&entry.conn_id, cx)
+                    .map(|e| e.read(cx).config.engine());
+                let spec = match engine {
+                    Some(EngineKind::MongoDB) => TabSpec::QueryEditor {
+                        conn_id: entry.conn_id.clone(),
+                        initial_sql: None,
+                        initial_pipeline: Some(entry.query.clone()),
+                        auto_run: false,
+                    },
+                    _ => TabSpec::QueryEditor {
+                        conn_id: entry.conn_id.clone(),
+                        initial_sql: Some(entry.query.clone()),
+                        initial_pipeline: None,
+                        auto_run: false,
+                    },
+                };
                 results.push(PaletteResult {
                     kind: ResultKind::History,
                     label: entry.query.chars().take(72).collect(),
                     sublabel: String::new(),
                     conn_label: entry.conn_id.0.clone(),
-                    spec: TabSpec::QueryEditor(entry.conn_id.clone()),
+                    spec,
                 });
             }
         }
@@ -119,6 +159,8 @@ impl CommandPalette {
         cx.notify();
     }
 }
+
+impl EventEmitter<PaletteEvent> for CommandPalette {}
 
 impl Focusable for CommandPalette {
     fn focus_handle(&self, _: &App) -> FocusHandle {
@@ -185,11 +227,21 @@ impl Render for CommandPalette {
                             .children(self.results.iter().enumerate().map(|(i, r)| {
                                 let is_sel = i == self.selected;
                                 div()
+                                    .id(("palette-result", i))
                                     .px_3()
                                     .py_2()
                                     .flex()
                                     .gap_2()
+                                    .cursor_pointer()
                                     .when(is_sel, |d| d.bg(theme.accent))
+                                    .on_mouse_down(
+                                        MouseButton::Left,
+                                        cx.listener(move |this, _, _, cx| {
+                                            cx.stop_propagation();
+                                            this.selected = i;
+                                            this.open_selected(cx);
+                                        }),
+                                    )
                                     .child(
                                         div()
                                             .text_xs()
@@ -208,8 +260,7 @@ impl Render for CommandPalette {
                             .gap_3()
                             .text_xs()
                             .text_color(theme.muted_foreground)
-                            .child("↑↓ navigate")
-                            .child("↵ open")
+                            .child("Click a row to open")
                             .child("esc dismiss"),
                     ),
             )

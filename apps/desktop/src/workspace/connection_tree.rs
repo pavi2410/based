@@ -456,6 +456,7 @@ impl ConnectionTree {
                 let builder = cx.new(|cx| {
                     crate::mongodb::pipeline_builder::PipelineBuilderPanel::new(
                         coll.clone(),
+                        conn_id.clone(),
                         window,
                         cx,
                     )

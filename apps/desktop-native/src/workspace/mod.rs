@@ -26,6 +26,7 @@ use gpui_component::{
     tooltip::Tooltip,
 };
 
+use crate::bindings::{CycleAppearance, ToggleSidebarRail};
 use crate::connection::lifecycle::Connectable;
 use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{
@@ -86,7 +87,7 @@ impl Workspace {
         let workspace = Self {
             registry: registry.clone(),
             dock_area,
-            sidebar_collapsed: false,
+            sidebar_collapsed: crate::app::prefs::collapsed_from(cx),
             focus_handle: cx.focus_handle(),
             pending_open_connection: None,
             project_title,
@@ -97,6 +98,12 @@ impl Workspace {
         });
 
         workspace
+    }
+
+    pub fn toggle_sidebar_rail(&mut self, cx: &mut Context<Self>) {
+        self.sidebar_collapsed = !self.sidebar_collapsed;
+        crate::app::prefs::set_sidebar(self.sidebar_collapsed, cx);
+        cx.notify();
     }
 
     fn on_connection_row_clicked(
@@ -363,6 +370,7 @@ impl Render for Workspace {
             }
         }
 
+        let this = cx.entity().clone();
         let conn_list: Vec<Entity<ConnectionEntry>> =
             self.registry.read(cx).connections().to_vec();
         let conn_count = conn_list.len();
@@ -370,9 +378,10 @@ impl Render for Workspace {
         let sidebar_bg = cx.theme().sidebar;
         let muted = cx.theme().muted_foreground;
         let sfg = cx.theme().sidebar_foreground;
+        let list_hover = cx.theme().list_hover;
 
         let sidebar = v_flex()
-            .w(gpui::px(264.0))
+            .w(gpui::px(232.0))
             .h_full()
             .flex_shrink_0()
             .border_r_1()
@@ -380,20 +389,21 @@ impl Render for Workspace {
             .bg(sidebar_bg)
             .child(
                 div()
-                    .px_3()
-                    .py_2()
+                    .px_2()
+                    .py_1()
                     .text_xs()
                     .font_bold()
                     .text_color(muted)
+                    .font_family(cx.theme().mono_font_family.clone())
                     .child("CONNECTIONS"),
             )
             .children(conn_list.into_iter().enumerate().map(|(idx, ent)| {
                 let entry = ent.read(cx);
-                let state_color = state_dot_color(&entry.state);
+                let state_color = connection_state_dot(&entry.state, cx.theme());
                 let engine_label = entry.config.engine().short_label();
                 let conn_label = entry.config.label().to_string();
                 let state_label = entry.state.label();
-                let badge_color = engine_badge_color(entry.config.engine());
+                let badge_bg = engine_kind_chip_bg(entry.config.engine(), cx.theme());
                 let is_failed = matches!(entry.state, ConnectionState::Failed { .. });
                 let fail_reason = match &entry.state {
                     ConnectionState::Failed { reason, .. } => Some(reason.clone()),
@@ -446,7 +456,7 @@ impl Render for Workspace {
                             .text_xs()
                             .px_1()
                             .rounded_sm()
-                            .bg(badge_color)
+                            .bg(badge_bg)
                             .text_color(cx.theme().foreground)
                             .child(engine_label),
                     )
@@ -454,7 +464,7 @@ impl Render for Workspace {
                         div()
                             .flex_1()
                             .min_w_0()
-                            .text_sm()
+                            .text_xs()
                             .text_color(sfg)
                             .truncate()
                             .when(is_failed, |d| d.text_color(err_fg.opacity(0.92)))
@@ -468,9 +478,9 @@ impl Render for Workspace {
                     row = row.tooltip(move |window, app| {
                         Tooltip::element({
                             let reason_tip = reason_tip.clone();
-                            move |_win, app| {
-                                let fg = app.theme().foreground;
-                                let subtle = app.theme().muted_foreground;
+                            move |_w, tip_cx| {
+                                let fg = tip_cx.theme().foreground;
+                                let subtle = tip_cx.theme().muted_foreground;
                                 v_flex()
                                     .gap_1()
                                     .max_w(gpui::px(400.0))
@@ -485,7 +495,7 @@ impl Render for Workspace {
                                         div()
                                             .text_xs()
                                             .text_color(subtle)
-                                            .font_family("monospace")
+                                            .font_family(tip_cx.theme().mono_font_family.clone())
                                             .child(reason_tip.clone()),
                                     )
                             }
@@ -495,8 +505,8 @@ impl Render for Workspace {
                 }
 
                 row
-                    .px_3()
-                    .py_2()
+                    .px_2()
+                    .py_1()
                     .cursor_pointer()
                     .rounded_md()
                     .mx_1()
@@ -504,46 +514,60 @@ impl Render for Workspace {
                         r.border_1()
                             .border_color(cx.theme().danger.opacity(0.35))
                     })
-                    .hover(|s| s.bg(gpui::hsla(0.0, 0.0, 0.5, 0.08)))
+                    .hover(move |s| s.bg(list_hover))
                     .on_click(cx.listener(move |ws, _, window, cx| {
                         ws.on_connection_row_clicked(idx, window, cx);
                     }))
             }));
 
+        let dock_host = div()
+            .flex_1()
+            .size_full()
+            .overflow_hidden()
+            .child(self.dock_area.clone());
+
+        let body = if self.sidebar_collapsed {
+            h_flex()
+                .flex_1()
+                .overflow_hidden()
+                .child(dock_host)
+        } else {
+            h_flex()
+                .flex_1()
+                .overflow_hidden()
+                .child(sidebar)
+                .child(dock_host)
+        };
+
         v_flex()
             .size_full()
+            .track_focus(&self.focus_handle)
+            .on_action(window.listener_for(&this, |ws, _: &ToggleSidebarRail, _, cx| {
+                ws.toggle_sidebar_rail(cx);
+            }))
+            .on_action(window.listener_for(&this, |_, _: &CycleAppearance, _, cx| {
+                crate::app::prefs::cycle_theme(cx);
+            }))
             .bg(cx.theme().background)
-            .child(Topbar::new(self.project_title.clone()))
-            .child(
-                h_flex()
-                    .flex_1()
-                    .overflow_hidden()
-                    .child(sidebar)
-                    .child(
-                        div()
-                            .flex_1()
-                            .size_full()
-                            .overflow_hidden()
-                            .child(self.dock_area.clone()),
-                    ),
-            )
+            .child(Topbar::new(self.project_title.clone(), this.clone()))
+            .child(body)
             .child(StatusBar::new(conn_count))
     }
 }
 
-fn state_dot_color(state: &ConnectionState) -> gpui::Hsla {
+fn connection_state_dot(state: &ConnectionState, t: &gpui_component::Theme) -> gpui::Hsla {
     match state {
-        ConnectionState::Disconnected => gpui::hsla(0.0, 0.0, 0.5, 1.0),
-        ConnectionState::Connecting { .. } => gpui::hsla(0.13, 0.95, 0.55, 1.0),
-        ConnectionState::Connected(_) => gpui::hsla(0.35, 0.75, 0.45, 1.0),
-        ConnectionState::Failed { .. } => gpui::hsla(0.0, 0.75, 0.5, 1.0),
+        ConnectionState::Disconnected => t.muted_foreground.opacity(0.75),
+        ConnectionState::Connecting { .. } => t.yellow.opacity(0.95),
+        ConnectionState::Connected(_) => t.green_light,
+        ConnectionState::Failed { .. } => t.red,
     }
 }
 
-fn engine_badge_color(engine: EngineKind) -> gpui::Hsla {
+fn engine_kind_chip_bg(engine: EngineKind, t: &gpui_component::Theme) -> gpui::Hsla {
     match engine {
-        EngineKind::Postgres => gpui::hsla(0.58, 0.6, 0.35, 0.3),
-        EngineKind::MongoDB => gpui::hsla(0.28, 0.6, 0.35, 0.3),
-        EngineKind::SQLite => gpui::hsla(0.08, 0.5, 0.4, 0.3),
+        EngineKind::Postgres => t.blue.opacity(0.22),
+        EngineKind::MongoDB => t.magenta.opacity(0.2),
+        EngineKind::SQLite => t.green.opacity(0.18),
     }
 }

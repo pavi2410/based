@@ -5,6 +5,7 @@
 // phase fills in real implementations.
 
 mod app;
+mod bindings;
 mod connection;
 mod db;
 mod mongodb;
@@ -12,12 +13,13 @@ mod postgres;
 mod project;
 mod settings_window;
 mod sqlite;
+mod theme;
 mod widgets;
 mod workspace;
 
 use gpui::prelude::*;
 use gpui::*;
-use gpui_component::{ActiveTheme, Root, Theme, ThemeMode, TitleBar};
+use gpui_component::{ActiveTheme, Root, TitleBar};
 
 use workspace::{PopOutManager, Workspace};
 
@@ -32,6 +34,12 @@ fn main() {
         .with_assets(gpui_component_assets::Assets)
         .run(move |cx| {
             gpui_component::init(cx);
+            if let Err(err) = theme::install_based_theme(cx) {
+                log::error!("failed to apply Based theme bundle: {err:#}");
+            }
+            bindings::init(cx);
+            app::prefs::install(cx);
+
             db::init(cx);
             PopOutManager::init(cx);
             cx.on_window_closed(|cx, id| {
@@ -51,7 +59,6 @@ fn main() {
                             ..Default::default()
                         },
                         |window, cx| {
-                            Theme::change(ThemeMode::Dark, Some(window), cx);
                             let workspace = cx.new(|cx| Workspace::new(window, cx));
                             cx.new(|cx| Root::new(workspace, window, cx).bg(cx.theme().background))
                         },

@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use gpui::prelude::*;
 use gpui::*;
 use gpui_component::{
-    ActiveTheme, Root, Theme, ThemeMode, TitleBar,
+    ActiveTheme as _, Root, Theme, TitleBar,
     dock::Panel,
     menu::{PopupMenu, PopupMenuItem},
 };
@@ -92,7 +92,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + 'static>(
                     ..Default::default()
                 },
                 move |win, cx| {
-                    Theme::change(ThemeMode::Dark, Some(win), cx);
+                    Theme::change(Theme::global(cx).mode, Some(win), cx);
                     win.set_window_title(&title_for_window);
                     let v: AnyView = ent.clone().into();
                     cx.new(|cx| Root::new(v, win, cx).bg(cx.theme().background))

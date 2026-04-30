@@ -16,9 +16,9 @@ impl StatusBar {
 impl RenderOnce for StatusBar {
     fn render(self, _window: &mut gpui::Window, cx: &mut App) -> impl IntoElement {
         h_flex()
-            .h_7()
+            .h_6()
             .w_full()
-            .px_3()
+            .px_2()
             .border_t_1()
             .border_color(cx.theme().border)
             .bg(cx.theme().tab_bar)

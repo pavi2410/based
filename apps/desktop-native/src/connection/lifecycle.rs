@@ -4,10 +4,11 @@
 
 use gpui::{App, Task};
 
+#[derive(Debug, Clone)]
 pub struct TestReport {
-    pub ok: bool,
     pub latency_ms: u64,
-    pub message: String,
+    pub server_version: Option<String>,
+    pub message: Option<String>,
 }
 
 pub trait Connectable: 'static + Sized {

@@ -139,6 +139,12 @@ impl ConnectionEntry {
     }
 }
 
+// ── Connection entry events ───────────────────────────────────────────────────
+
+pub enum ConnectionEntryEvent {}
+
+impl gpui::EventEmitter<ConnectionEntryEvent> for ConnectionEntry {}
+
 // ── Tab addressing ────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

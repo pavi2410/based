@@ -25,6 +25,8 @@ The repo also contains **`desktop-native`**, an experimental **GPUI + gpui-compo
 
 **Decision:** The **90-day parity** and production bets stay on **Tauri 2 + React** until a deliberate, resourced program reopens full migration. The GPUI app remains a **green-lit experiment**: we continue it where it reduces technical risk (native density, OS-window model) and **do not** block Tauri milestones on GPUI parity.
 
+**Phase 7 (desktop-native) — UI feedback:** Error and feedback behavior is locked in [docs/desktop-native-phase7-ui-feedback.md](docs/desktop-native-phase7-ui-feedback.md): **contextual inline + anchored popovers** as the primary surface; **VS Code–style notification tray** for cross-context, progress, and ambient info. Beginner/Pro toggle, vim-style grid nav, and telemetry are out of this phase.
+
 ## UI framework decision: Tauri 2
 
 We evaluated **iced**, **egui**, **Dioxus Desktop**, and **GPUI** against the current Tauri stack. For **shipped product through the parity sprint**, **Tauri stays**. Reasoning:

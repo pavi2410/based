@@ -25,6 +25,7 @@ data/
 # Cache
 .cache
 .temp
+.superpowers/
 
 # Editor directories and files
 .vscode/*

@@ -64,6 +64,7 @@ pub struct SqliteConfig {
 pub struct SqliteConnection {
     pub config: SqliteConfig,
     pub pool: SqlitePool,
+    pub server_version: Option<String>,
 }
 
 impl Connectable for SqliteConnection {
@@ -79,7 +80,14 @@ impl Connectable for SqliteConnection {
                     .execute(&pool)
                     .await?;
             }
-            Ok(Self { config, pool })
+            let version: String = sqlx::query_scalar("SELECT sqlite_version()")
+                .fetch_one(&pool)
+                .await?;
+            Ok(Self {
+                config,
+                pool,
+                server_version: Some(version),
+            })
         })
     }
 

@@ -403,7 +403,7 @@ impl ConnectionTree {
 
         let weak = self.dock_area.downgrade();
         let dashboard = cx.new(|cx| {
-            super::object_info::ConnectionDashboardPanel::new(label.clone(), engine, window, cx)
+            super::object_info::ConnectionDashboardPanel::new(conn_ent.clone(), window, cx)
         });
         let center = match ac {
             AnyConnection::SQLite(ent) => {

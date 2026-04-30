@@ -1,4 +1,7 @@
-use gpui::{App, Context, FocusHandle, Focusable, IntoElement, Render, Window, div, prelude::*};
+use gpui::{
+    App, Context, Entity, FocusHandle, Focusable, IntoElement, Render, SharedString, Window, div,
+    prelude::*,
+};
 use gpui_component::{
     ActiveTheme,
     dock::{Panel, PanelEvent},
@@ -7,26 +10,29 @@ use gpui_component::{
     v_flex,
 };
 
-use crate::connection::EngineKind;
+use crate::connection::{AnyConnection, ConnectionEntry, ConnectionState};
+use crate::query_store::QueryStore;
 use crate::widgets::ui::{engine_chip, metadata_pill, panel_header};
 
 pub struct ConnectionDashboardPanel {
     focus_handle: FocusHandle,
-    label: String,
-    engine: EngineKind,
+    conn: Entity<ConnectionEntry>,
 }
 
 impl ConnectionDashboardPanel {
     pub fn new(
-        label: String,
-        engine: EngineKind,
+        conn: Entity<ConnectionEntry>,
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        cx.observe(&conn, |_this, _, cx| {
+            cx.notify();
+        })
+        .detach();
+
         Self {
             focus_handle: cx.focus_handle(),
-            label,
-            engine,
+            conn,
         }
     }
 }
@@ -57,18 +63,62 @@ impl Panel for ConnectionDashboardPanel {
         false
     }
 
-    fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        self.label.clone()
+    fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.conn.read(cx).config.label().to_string()
     }
 }
 
 impl Render for ConnectionDashboardPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let connected = {
+            let entry = self.conn.read(cx);
+            match &entry.state {
+                ConnectionState::Connected(ac) => Some(ac.clone()),
+                _ => None,
+            }
+        };
+
+        let server_version = connected.and_then(|ac| match ac {
+            AnyConnection::Postgres(e) => e.read(cx).server_version.clone(),
+            AnyConnection::SQLite(e) => e.read(cx).server_version.clone(),
+            AnyConnection::MongoDB(e) => e.read(cx).server_version.clone(),
+        });
+
+        let (label, engine, state_label, conn_id) = {
+            let entry = self.conn.read(cx);
+            (
+                entry.config.label().to_string(),
+                entry.config.engine(),
+                entry.state.label(),
+                entry.id.clone(),
+            )
+        };
+
+        let store = cx.global::<QueryStore>();
+        let history_len = store.history_for(&conn_id).len();
+        let saved_len = store.saved.for_conn(&conn_id).len();
+
+        let stats_summary = format!(
+            "Recorded runs in session history: {history_len}. Saved queries tied to this connection: {saved_len}."
+        );
+
+        let mut header_row = h_flex()
+            .gap_2()
+            .items_center()
+            .flex_wrap()
+            .child(engine_chip(engine, cx))
+            .child(metadata_pill("state", state_label, cx))
+            .child(metadata_pill("scope", "local workspace", cx));
+
+        if let Some(ref ver) = server_version {
+            header_row = header_row.child(metadata_pill("server", ver.as_str(), cx));
+        }
+
         v_flex()
             .size_full()
             .bg(cx.theme().background)
             .child(panel_header(
-                self.label.clone(),
+                label.clone(),
                 "Connection dashboard",
                 cx,
             ))
@@ -76,14 +126,12 @@ impl Render for ConnectionDashboardPanel {
                 v_flex()
                     .p_4()
                     .gap_4()
-                    .child(
-                        h_flex()
-                            .gap_2()
-                            .items_center()
-                            .child(engine_chip(self.engine, cx))
-                            .child(metadata_pill("state", "connected", cx))
-                            .child(metadata_pill("scope", "local workspace", cx)),
-                    )
+                    .child(header_row)
+                    .child(dashboard_card(
+                        "Queries",
+                        stats_summary,
+                        cx,
+                    ))
                     .child(dashboard_card(
                         "Start",
                         "Use the Objects pane to open tables, views, or collections. Use the query tab for ad-hoc work.",
@@ -175,7 +223,13 @@ impl Render for ObjectInfoPanel {
     }
 }
 
-fn dashboard_card(title: &'static str, body: &'static str, cx: &mut App) -> impl IntoElement {
+fn dashboard_card(
+    title: impl Into<SharedString>,
+    body: impl Into<SharedString>,
+    cx: &mut App,
+) -> impl IntoElement {
+    let title = title.into();
+    let body = body.into();
     v_flex()
         .gap_1()
         .p_3()

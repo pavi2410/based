@@ -66,6 +66,7 @@ pub(crate) fn pg_connect_options(config: &PostgresConfig) -> PgConnectOptions {
 pub struct PgConnection {
     pub config: PostgresConfig,
     pub pool: PgPool,
+    pub server_version: Option<String>,
 }
 
 impl Connectable for PgConnection {
@@ -78,7 +79,15 @@ impl Connectable for PgConnection {
                 .max_connections(8)
                 .connect_with(opts)
                 .await?;
-            Ok(Self { config, pool })
+            let version: String = sqlx::query_scalar("SELECT version()")
+                .fetch_one(&pool)
+                .await?;
+            let short = version.lines().next().unwrap_or(&version).to_string();
+            Ok(Self {
+                config,
+                pool,
+                server_version: Some(short),
+            })
         })
     }
 

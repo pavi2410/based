@@ -14,6 +14,7 @@ pub mod wizard;
 use serde::{Deserialize, Serialize};
 
 use mongodb::Database;
+use mongodb::bson::doc;
 use mongodb::options::{ClientOptions, Credential};
 
 use crate::connection::lifecycle::{Connectable, TestReport};
@@ -30,6 +31,7 @@ pub struct MongoConfig {
 /// Live MongoDB connection: client + selected database.
 pub struct MongoConnection {
     pub config: MongoConfig,
+    pub server_version: Option<String>,
     client: mongodb::Client,
     database: Database,
 }
@@ -73,8 +75,15 @@ impl Connectable for MongoConnection {
                 .unwrap_or_else(|| "test".to_string());
             let database = client.database(&db_name);
 
+            let server_version = database
+                .run_command(doc! { "buildInfo": 1 }, None)
+                .await
+                .ok()
+                .and_then(|info| info.get_str("version").ok().map(ToString::to_string));
+
             Ok(Self {
                 config,
+                server_version,
                 client,
                 database,
             })
@@ -91,13 +100,18 @@ impl Connectable for MongoConnection {
             }
             let client = mongodb::Client::with_options(opts)?;
             let db = config.database.as_deref().unwrap_or("admin");
-            client
-                .database(db)
+            let database = client.database(db);
+            database
                 .run_command(mongodb::bson::doc! { "ping": 1 }, None)
                 .await?;
+            let server_version = database
+                .run_command(doc! { "buildInfo": 1 }, None)
+                .await
+                .ok()
+                .and_then(|info| info.get_str("version").ok().map(ToString::to_string));
             Ok(TestReport {
                 latency_ms: start.elapsed().as_millis() as u64,
-                server_version: None,
+                server_version,
                 message: Some("ping ok".into()),
             })
         })

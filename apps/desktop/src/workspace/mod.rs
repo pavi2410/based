@@ -1,5 +1,8 @@
 // workspace/ — Workspace entity, DockArea, sidebar, status bar, connection wiring.
 
+pub mod tab_spec;
+pub use tab_spec::TabSpec;
+
 pub mod item;
 pub mod notify;
 pub mod object_info;

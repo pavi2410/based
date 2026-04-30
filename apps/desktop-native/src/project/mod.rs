@@ -1,12 +1,16 @@
 // project/ — .based/ directory I/O: config.toml, saved queries, file watcher,
 // variable resolution.
 
+pub mod based_config;
 pub mod config;
+pub mod discovery;
 pub mod queries;
 pub mod variables;
 pub mod watcher;
 
+pub use based_config::load_workspace_seed;
 pub use config::*;
+pub use discovery::find_project_root;
 pub use queries::*;
 pub use variables::*;
 

@@ -21,18 +21,8 @@ use sqlx::SqlitePool;
 
 use crate::connection::lifecycle::{Connectable, TestReport};
 use crate::db;
+use crate::project::find_project_root;
 use gpui_tokio::Tokio;
-
-/// Walk parents of `std::env::current_dir()` for a directory that contains `.based/`.
-fn based_project_root() -> Option<PathBuf> {
-    let mut dir = std::env::current_dir().ok()?;
-    loop {
-        if dir.join(".based").is_dir() {
-            return Some(dir);
-        }
-        dir = dir.parent()?.to_path_buf();
-    }
-}
 
 /// Resolve relative DB paths against `BASED_PROJECT_DIR`, then the Based project root (`.based/`
 /// ancestor), then the process working directory. Absolute paths are unchanged.
@@ -46,7 +36,7 @@ pub fn resolve_sqlite_path(path: &Path) -> PathBuf {
     if let Ok(dir) = std::env::var("BASED_PROJECT_DIR") {
         return PathBuf::from(dir).join(path);
     }
-    if let Some(root) = based_project_root() {
+    if let Some(root) = find_project_root() {
         return root.join(path);
     }
     std::env::current_dir()

@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use gpui::{
-    Context, Entity, FocusHandle, Focusable, IntoElement, Render, Window, div, prelude::*,
+    Context, Entity, FocusHandle, Focusable, IntoElement, Render, SharedString, Window, div, prelude::*,
 };
 use gpui_component::{
     ActiveTheme,
@@ -25,9 +25,10 @@ use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{
     AnyConnection, ConnectionConfig, ConnectionEntry, ConnectionState, EngineKind,
 };
-use crate::mongodb::{MongoConfig, MongoConnection};
-use crate::postgres::{self, PostgresConfig, SslMode};
-use crate::sqlite::{self, SqliteConfig, SqliteConnection};
+use crate::mongodb::MongoConnection;
+use crate::postgres;
+use crate::project::{find_project_root, load_workspace_seed};
+use crate::sqlite::{self, SqliteConnection};
 use ::mongodb::bson::Document;
 
 use status_bar::StatusBar;
@@ -41,13 +42,27 @@ pub struct Workspace {
     focus_handle: FocusHandle,
     /// After async connect, open engine tabs on next render (needs `&mut Window`).
     pending_open_connection: Option<usize>,
+    project_title: SharedString,
 }
 
 impl Workspace {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let (project_title, entries) = find_project_root()
+            .map(|root| {
+                let (title, e) = load_workspace_seed(&root);
+                (title.into(), e)
+            })
+            .unwrap_or_else(|| ("No Project".into(), vec![]));
+
+        if entries.is_empty() {
+            log::warn!(
+                "no connections loaded; add [connection.id] tables to .based/config.toml (or set BASED_PROJECT_DIR)"
+            );
+        }
+
         let registry = cx.new(ConnectionRegistry::new);
         registry.update(cx, |reg, cx| {
-            for entry in Self::make_mock_connections() {
+            for entry in entries {
                 reg.add(entry, cx);
             }
         });
@@ -68,6 +83,7 @@ impl Workspace {
             sidebar_collapsed: false,
             focus_handle: cx.focus_handle(),
             pending_open_connection: None,
+            project_title,
         };
 
         let _ = cx.observe(&registry, |_ws, _reg, cx| {
@@ -75,54 +91,6 @@ impl Workspace {
         });
 
         workspace
-    }
-
-    fn make_mock_connections() -> Vec<ConnectionEntry> {
-        let mut entries = Vec::new();
-
-        entries.push(ConnectionEntry::new(ConnectionConfig::Postgres(
-            PostgresConfig {
-                label: "prod-postgres".to_string(),
-                host: "localhost".to_string(),
-                port: 5432,
-                database: "prod".to_string(),
-                username: "admin".to_string(),
-                password: String::new(),
-                ssl_mode: SslMode::Prefer,
-            },
-        )));
-
-        entries.push(ConnectionEntry::new(ConnectionConfig::Postgres(
-            PostgresConfig {
-                label: "staging-postgres".to_string(),
-                host: "staging.example.com".to_string(),
-                port: 5432,
-                database: "staging".to_string(),
-                username: "app".to_string(),
-                password: String::new(),
-                ssl_mode: SslMode::Require,
-            },
-        )));
-
-        let mut mongo = ConnectionEntry::new(ConnectionConfig::MongoDB(MongoConfig {
-            label: "local-mongo".to_string(),
-            uri: "mongodb://localhost:27017".to_string(),
-            database: None,
-            auth_source: None,
-        }));
-        mongo.state = ConnectionState::Failed {
-            reason: "demo: click to retry".to_string(),
-            attempted_at: Instant::now(),
-        };
-        entries.push(mongo);
-
-        entries.push(ConnectionEntry::new(ConnectionConfig::SQLite(SqliteConfig {
-            label: "app.db".to_string(),
-            path: std::path::PathBuf::from("app.db"),
-            wal: true,
-        })));
-
-        entries
     }
 
     fn on_connection_row_clicked(
@@ -443,7 +411,7 @@ impl Render for Workspace {
         v_flex()
             .size_full()
             .bg(cx.theme().background)
-            .child(Topbar::new("No Project"))
+            .child(Topbar::new(self.project_title.clone()))
             .child(
                 h_flex()
                     .flex_1()

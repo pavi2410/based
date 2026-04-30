@@ -123,7 +123,12 @@ pub struct ConnectionEntry {
 
 impl ConnectionEntry {
     pub fn new(config: ConnectionConfig) -> Self {
-        let id = ConnectionId::from_key(config.label());
+        let key = config.label().to_string();
+        Self::with_stable_id(config, &key)
+    }
+
+    pub fn with_stable_id(config: ConnectionConfig, stable_key: &str) -> Self {
+        let id = ConnectionId::from_key(stable_key);
         Self {
             id,
             config,

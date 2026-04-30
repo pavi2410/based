@@ -11,9 +11,23 @@ A **git-friendly**, **local-first** desktop database client for **Postgres, Mong
 
 The git-friendly wedge is the project model: a `.based/` directory committed to the repo containing `config.toml` (connections) and `queries/*.query.toml` (saved queries), with secrets resolved from `.based/.env` (git-ignored) or host environment variables. No backend, no pricing, no data ever leaves the machine.
 
+## Native GPUI client (`apps/desktop-native`) — Phase 6 decision gate
+
+The repo also contains **`desktop-native`**, an experimental **GPUI + gpui-component** shell. This is a **spike / parallel track**, not a wholesale UI migration. It exists to validate native density, docking, and multi-window behavior without throwing away the shipping Tauri client.
+
+**Validated so far:**
+
+- Workspace shell with sidebar, dock, and status bar; connections loaded from `.based/config.toml`.
+- Engine vertical slices for **SQLite**, **Postgres**, and **MongoDB** using **gpui_tokio** for async database work.
+- **Pop-out windows:** the tab ⋮ menu includes **Open in new window**, which calls `App::open_window` and wraps the **same panel `Entity`** in a new `Root`. The popped window therefore shares live state with the main dock (not a clone of panel logic).
+
+**Still a weak substitute for the Tauri stack today:** CodeMirror-grade SQL editing, the TanStack Table + filter ecosystem, shadcn/Radix component depth, and the stability of public webview APIs. GPUI follows Zed's release cadence; third-party ergonomics remain thinner than Electron/Tauri.
+
+**Decision:** The **90-day parity** and production bets stay on **Tauri 2 + React** until a deliberate, resourced program reopens full migration. The GPUI app remains a **green-lit experiment**: we continue it where it reduces technical risk (native density, OS-window model) and **do not** block Tauri milestones on GPUI parity.
+
 ## UI framework decision: Tauri 2
 
-We evaluated **iced**, **egui**, **Dioxus Desktop**, and **GPUI** against the current Tauri stack. **Tauri stays**. Reasoning:
+We evaluated **iced**, **egui**, **Dioxus Desktop**, and **GPUI** against the current Tauri stack. For **shipped product through the parity sprint**, **Tauri stays**. Reasoning:
 
 | Framework | SQL editor | Data grid | Design system | Multi-window | Rewrite cost |
 | --- | --- | --- | --- | --- | --- |
@@ -28,7 +42,7 @@ We evaluated **iced**, **egui**, **Dioxus Desktop**, and **GPUI** against the cu
 - **iced**: Reimplementing CodeMirror-level SQL editing and a filterable/sortable/editable virtualized 1M-row grid is multiple years of work alone.
 - **egui**: Immediate-mode is a poor fit for the complex, stateful forms we need (connection wizard, params editor, row insert dialog). Styling is constrained in ways that make Supabase-level polish infeasible.
 - **Dioxus Desktop**: Runs on the **same `wry` webview Tauri does**, so there is no architectural win re: multi-window, memory, or platform consistency. Migrating would discard the React + shadcn + CodeMirror + TanStack Table ecosystem for zero capability gain. "I prefer Rust syntax" is not a sufficient reason to pay that cost.
-- **GPUI**: The only candidate that could plausibly beat Tauri on density (it's literally Zed's native aesthetic). But the `gpui` crate is not a publishable third-party framework: API churns, docs are thin, the ecosystem is "just Zed itself", and none of Zed's good parts (code editor, command palette, diff viewer, tree) are packaged as reusable widgets. Strategically wrong for a solo full-time 90-day sprint.
+- **GPUI**: The only candidate that could plausibly beat Tauri on raw UI density (Zed's aesthetic). The `gpui` crate is still not a turnkey product framework: API churn, thin third-party docs, and most Zed primitives are not packaged as reusable widgets. **desktop-native** shrinks that uncertainty for *our* use case (dock, data grid, multi-window) but does not erase the editor/ecosystem gap. Remains **high risk for a solo 90-day *replacement* sprint**; acceptable as a **parallel spike** (see **Native GPUI client** above).
 
 ### Why the stated goals don't require leaving Tauri
 
@@ -45,7 +59,7 @@ We evaluated **iced**, **egui**, **Dioxus Desktop**, and **GPUI** against the cu
   - An 864-LOC data-table filter kit we'd re-invent badly.
   - shadcn/ui + Radix primitives for every dialog/menu/popover.
 
-This decision is codified in [based_90-day_parity_plan_02f75bec.plan.md](.cursor/plans/based_90-day_parity_plan_02f75bec.plan.md) and should not be revisited without a significant new signal (e.g. GPUI stabilizes with a full widget library, or WebView2 ships a memory-regression severe enough to change the math).
+The production default is codified in [based_90-day_parity_plan_02f75bec.plan.md](.cursor/plans/based_90-day_parity_plan_02f75bec.plan.md). Revisit full migration only on a **deliberate** basis (e.g. GPUI gains a stable widget story we would actually adopt, a sponsor-level investment in native UI, or a platform change that breaks the Tauri value proposition).
 
 ## High-level component diagram
 

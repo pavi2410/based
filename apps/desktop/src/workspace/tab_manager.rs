@@ -98,6 +98,28 @@ impl TabManager {
             self.close(i, cx);
         }
     }
+
+    /// Drop tabs whose panel views are no longer present in the dock (e.g. user closed a dock tab).
+    pub fn sync_open_tabs(&mut self, dock_views: &[AnyView], cx: &mut Context<Self>) {
+        let active_view = self
+            .active_idx
+            .and_then(|i| self.tabs.get(i).map(|t| t.view.clone()));
+        let before_len = self.tabs.len();
+        let old_active = self.active_idx;
+        self.tabs
+            .retain(|t| dock_views.iter().any(|dv| dv == &t.view));
+        let mut new_active = active_view
+            .and_then(|av| self.tabs.iter().position(|t| t.view == av))
+            .or_else(|| self.tabs.len().checked_sub(1));
+        if new_active.is_none() && !self.tabs.is_empty() {
+            new_active = Some(0);
+        }
+        let changed = before_len != self.tabs.len() || old_active != new_active;
+        self.active_idx = new_active;
+        if changed {
+            cx.notify();
+        }
+    }
 }
 
 impl EventEmitter<TabEvent> for TabManager {}

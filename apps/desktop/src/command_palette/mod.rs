@@ -3,8 +3,8 @@
 use std::ops::DerefMut;
 
 use gpui::{
-    App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, MouseButton, Render,
-    SharedString, Window, div, prelude::*,
+    App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, KeyDownEvent,
+    MouseButton, Render, SharedString, Window, div, prelude::*,
 };
 use gpui_component::{ActiveTheme, h_flex, scroll::ScrollableElement, v_flex};
 
@@ -86,6 +86,67 @@ impl CommandPalette {
         self.dismiss(cx);
     }
 
+    fn handle_palette_key(&mut self, ev: &KeyDownEvent, cx: &mut Context<Self>) {
+        let mods = ev.keystroke.modifiers;
+        let key = ev.keystroke.key.as_str();
+
+        if matches!(key, "up" | "down") && !mods.secondary() && !mods.control {
+            cx.stop_propagation();
+            if self.results.is_empty() {
+                return;
+            }
+            let max = self.results.len() - 1;
+            if key == "up" {
+                self.selected = self.selected.saturating_sub(1);
+            } else {
+                self.selected = (self.selected + 1).min(max);
+            }
+            cx.notify();
+            return;
+        }
+
+        if key == "enter" && !mods.secondary() && !mods.control {
+            cx.stop_propagation();
+            self.open_selected(cx);
+            return;
+        }
+
+        if mods.secondary() || mods.control || mods.alt || mods.function {
+            return;
+        }
+
+        if key == "backspace" {
+            cx.stop_propagation();
+            if self.query.pop().is_some() {
+                self.selected = 0;
+                self.refresh_results(cx);
+            }
+            return;
+        }
+
+        let mut pushed = false;
+        if let Some(s) = ev.keystroke.key_char.as_ref() {
+            if let Some(ch) = s.chars().next()
+                && !ch.is_control()
+            {
+                self.query.push(ch);
+                pushed = true;
+            }
+        } else if key.len() == 1 {
+            let ch = key.chars().next().unwrap();
+            if !ch.is_control() {
+                self.query.push(ch);
+                pushed = true;
+            }
+        }
+
+        if pushed {
+            cx.stop_propagation();
+            self.selected = 0;
+            self.refresh_results(cx);
+        }
+    }
+
     fn refresh_results(&mut self, cx: &mut Context<Self>) {
         let q = self.query.to_lowercase();
         let mut results = vec![];
@@ -117,6 +178,7 @@ impl CommandPalette {
                         conn_id: saved.connection.clone(),
                         initial_sql: saved.sql.clone(),
                         initial_pipeline: saved.pipeline.clone(),
+                        mongo_collection: saved.mongo_collection.clone(),
                         auto_run: false,
                     },
                 });
@@ -135,12 +197,14 @@ impl CommandPalette {
                         conn_id: entry.conn_id.clone(),
                         initial_sql: None,
                         initial_pipeline: Some(entry.query.clone()),
+                        mongo_collection: None,
                         auto_run: false,
                     },
                     _ => TabSpec::QueryEditor {
                         conn_id: entry.conn_id.clone(),
                         initial_sql: Some(entry.query.clone()),
                         initial_pipeline: None,
+                        mongo_collection: None,
                         auto_run: false,
                     },
                 };
@@ -194,6 +258,10 @@ impl Render for CommandPalette {
                     .ml(gpui::px(-280.0))
                     .w(gpui::px(560.0))
                     .track_focus(&self.focus_handle)
+                    .key_context("CommandPalette")
+                    .on_key_down(cx.listener(|this, ev: &KeyDownEvent, _, cx| {
+                        this.handle_palette_key(ev, cx);
+                    }))
                     .on_mouse_down(
                         MouseButton::Left,
                         cx.listener(|_, _, _, cx| {
@@ -212,13 +280,22 @@ impl Render for CommandPalette {
                             .border_b_1()
                             .border_color(theme.border)
                             .child(div().text_color(theme.muted_foreground).child("⌕"))
-                            .child(div().flex_1().text_sm().text_color(theme.foreground).child(
-                                if self.query.is_empty() {
-                                    SharedString::from("Search tables, queries, connections…")
-                                } else {
-                                    SharedString::from(self.query.clone())
-                                },
-                            )),
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .when(self.query.is_empty(), |row| {
+                                        row.text_sm().text_color(theme.muted_foreground).child(
+                                            SharedString::from("Search tables, queries, connections…"),
+                                        )
+                                    })
+                                    .when(!self.query.is_empty(), |row| {
+                                        row.text_sm()
+                                            .text_color(theme.foreground)
+                                            .font_family(cx.theme().mono_font_family.clone())
+                                            .child(self.query.clone())
+                                    }),
+                            ),
                     )
                     .child(
                         v_flex()
@@ -260,8 +337,7 @@ impl Render for CommandPalette {
                             .gap_3()
                             .text_xs()
                             .text_color(theme.muted_foreground)
-                            .child("Click a row to open")
-                            .child("esc dismiss"),
+                            .child("↑↓ navigate · type to filter · ↵ open · esc dismiss"),
                     ),
             )
             .into_any_element()

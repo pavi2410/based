@@ -12,6 +12,9 @@ use gpui_component::{
 };
 use sqlx::{Column as SqlxColumn, Row, SqlitePool};
 
+use gpui_component::table::TableEvent;
+
+use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_display};
 use crate::widgets::filter_bar::FilterBar;
 use crate::widgets::ui::{metadata_pill, panel_header};
 use crate::widgets::virtual_table::RowDelegate;
@@ -21,6 +24,7 @@ pub struct DataViewerPanel {
     pool: SqlitePool,
     table_name: String,
     table: Entity<TableState<RowDelegate>>,
+    cell_detail: Entity<CellDetail>,
     filter_bar: Entity<FilterBar>,
     offset: u64,
     page_size: u64,
@@ -42,20 +46,45 @@ impl DataViewerPanel {
                 .cell_selectable(true)
         });
         let filter_bar = cx.new(|cx| FilterBar::new(window, cx, vec![]));
+        let cell_detail = cx.new(|_| CellDetail::new());
 
         let mut panel = Self {
             focus_handle: cx.focus_handle(),
             pool,
             table_name,
             table,
+            cell_detail,
             filter_bar,
             offset: 0,
             page_size: 500,
             total_rows: 0,
             loading: false,
         };
+        cx.subscribe(&panel.table, |panel, _, event, cx| {
+            if let TableEvent::DoubleClickedCell(row_ix, col_ix) = event {
+                let row = *row_ix;
+                let col = *col_ix;
+                let Some((col_name, val)) = panel.cell_snapshot(row, col, cx) else {
+                    return;
+                };
+                panel.cell_detail.update(cx, |d, cx| {
+                    d.show(col_name, val);
+                    cx.notify();
+                });
+                cx.notify();
+            }
+        })
+        .detach();
         panel.load_page(0, cx);
         panel
+    }
+
+    fn cell_snapshot(&self, row: usize, col: usize, cx: &App) -> Option<(String, CellValue)> {
+        let st = self.table.read(cx);
+        let del = st.delegate();
+        let col_name = del.columns.get(col)?.key.to_string();
+        let txt = del.rows.get(row)?.get(col)?.to_string();
+        Some((col_name, interpret_cell_display(&txt)))
     }
 
     fn sql_escape_ident(ident: &str) -> String {
@@ -254,6 +283,7 @@ impl Render for DataViewerPanel {
             );
 
         v_flex()
+            .relative()
             .w_full()
             .h_full()
             .bg(cx.theme().background)
@@ -264,5 +294,6 @@ impl Render for DataViewerPanel {
             ))
             .child(toolbar)
             .child(DataTable::new(&self.table).stripe(true).bordered(false))
+            .child(self.cell_detail.clone())
     }
 }

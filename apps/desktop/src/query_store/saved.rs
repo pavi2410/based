@@ -15,6 +15,9 @@ pub struct SavedQuery {
     pub sql: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pipeline: Option<String>,
+    /// MongoDB collection name when `pipeline` is set (optional; defaults for palette runs).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mongo_collection: Option<String>,
 }
 
 impl SavedQuery {
@@ -86,6 +89,7 @@ mod tests {
             tags: vec!["test".into()],
             sql: Some("SELECT 1".into()),
             pipeline: None,
+            mongo_collection: None,
         }
     }
 

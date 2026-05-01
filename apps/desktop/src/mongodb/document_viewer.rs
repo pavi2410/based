@@ -14,6 +14,9 @@ use mongodb::Collection;
 use mongodb::bson::{Document, doc};
 use mongodb::options::FindOptions;
 
+use gpui_component::table::TableEvent;
+
+use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_display};
 use crate::widgets::filter_bar::{FilterBar, FilterExpr};
 use crate::widgets::virtual_table::RowDelegate;
 
@@ -29,6 +32,7 @@ pub struct DocumentViewerPanel {
     focus_handle: FocusHandle,
     collection: Collection<Document>,
     table: Entity<TableState<RowDelegate>>,
+    cell_detail: Entity<CellDetail>,
     filter_bar: Entity<FilterBar>,
     limit: i64,
     loading: bool,
@@ -47,16 +51,41 @@ impl DocumentViewerPanel {
                 .cell_selectable(true)
         });
         let filter_bar = cx.new(|cx| FilterBar::new(window, cx, vec![]));
+        let cell_detail = cx.new(|_| CellDetail::new());
         let mut p = Self {
             focus_handle: cx.focus_handle(),
             collection,
             table,
+            cell_detail,
             filter_bar,
             limit: 200,
             loading: false,
         };
+        cx.subscribe(&p.table, |panel, _, event, cx| {
+            if let TableEvent::DoubleClickedCell(row_ix, col_ix) = event {
+                let row = *row_ix;
+                let col = *col_ix;
+                let Some((col_name, val)) = panel.cell_snapshot(row, col, cx) else {
+                    return;
+                };
+                panel.cell_detail.update(cx, |d, cx| {
+                    d.show(col_name, val);
+                    cx.notify();
+                });
+                cx.notify();
+            }
+        })
+        .detach();
         p.reload(cx);
         p
+    }
+
+    fn cell_snapshot(&self, row: usize, col: usize, cx: &App) -> Option<(String, CellValue)> {
+        let st = self.table.read(cx);
+        let del = st.delegate();
+        let col_name = del.columns.get(col)?.key.to_string();
+        let txt = del.rows.get(row)?.get(col)?.to_string();
+        Some((col_name, interpret_cell_display(&txt)))
     }
 
     fn reload(&mut self, cx: &mut Context<Self>) {
@@ -181,6 +210,7 @@ impl Render for DocumentViewerPanel {
         let border = cx.theme().border;
         let muted = cx.theme().muted_foreground;
         v_flex()
+            .relative()
             .size_full()
             .child(
                 h_flex()
@@ -216,5 +246,6 @@ impl Render for DocumentViewerPanel {
                     }),
             )
             .child(DataTable::new(&self.table).stripe(true).bordered(false))
+            .child(self.cell_detail.clone())
     }
 }

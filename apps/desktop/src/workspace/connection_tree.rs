@@ -13,7 +13,8 @@ use gpui::{
 };
 use gpui_component::{
     ActiveTheme, Icon, IconName, Sizable as _, StyledExt,
-    dock::{DockArea, DockItem, DockPlacement},
+    button::{Button, ButtonVariants},
+    dock::{DockArea, DockItem},
     h_flex,
     scroll::ScrollableElement,
     tooltip::Tooltip,
@@ -33,7 +34,6 @@ use crate::sqlite::{self, SqliteConnection};
 use ::mongodb::bson::Document;
 
 use super::notify;
-use super::object_info::ObjectInfoPanel;
 use super::tab_spec::TabSpec;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -709,7 +709,7 @@ impl ConnectionTree {
     fn on_object_clicked(
         &mut self,
         object: SchemaObject,
-        window: &mut Window,
+        _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         self.selected_object = Some(object.display_name());
@@ -731,7 +731,7 @@ impl ConnectionTree {
                         object: object.display_name(),
                     }));
                 }
-                _ => self.open_object_info(object, window, cx),
+                _ => self.emit_object_info_tab(object, cx),
             },
             Some(AnyConnection::Postgres(_)) => match object.kind {
                 ObjectKind::Table | ObjectKind::View | ObjectKind::MaterializedView => {
@@ -740,7 +740,7 @@ impl ConnectionTree {
                         object: object.display_name(),
                     }));
                 }
-                _ => self.open_object_info(object, window, cx),
+                _ => self.emit_object_info_tab(object, cx),
             },
             Some(AnyConnection::MongoDB(_)) => {
                 if matches!(object.kind, ObjectKind::Collection) {
@@ -749,7 +749,7 @@ impl ConnectionTree {
                         object: object.display_name(),
                     }));
                 } else {
-                    self.open_object_info(object, window, cx);
+                    self.emit_object_info_tab(object, cx);
                 }
             }
             _ => {}
@@ -757,26 +757,38 @@ impl ConnectionTree {
         cx.notify();
     }
 
-    fn open_object_info(
-        &mut self,
-        object: SchemaObject,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let panel = cx
-            .new(|cx| ObjectInfoPanel::new(object.display_name(), object.kind.label(), window, cx));
-        self.add_center_panel(Arc::new(panel), window, cx);
+    fn emit_object_info_tab(&mut self, object: SchemaObject, cx: &mut Context<Self>) {
+        let Some(idx) = self.selected_connection else {
+            return;
+        };
+        let Some(ent) = self.registry.read(cx).connections().get(idx).cloned() else {
+            return;
+        };
+        let conn_id = ent.read(cx).id.clone();
+        cx.emit(TreeEvent::OpenTab(TabSpec::ObjectInfo {
+            conn_id,
+            object_name: object.display_name(),
+            kind_label: object.kind.label().to_string(),
+        }));
     }
 
-    fn add_center_panel(
+    fn open_inspector_tab(&mut self, object: SchemaObject, conn_id: ConnectionId, cx: &mut Context<Self>) {
+        cx.emit(TreeEvent::OpenTab(TabSpec::Inspector {
+            conn_id,
+            object: object.display_name(),
+        }));
+    }
+
+    fn open_document_insert_tab(
         &mut self,
-        panel: Arc<dyn gpui_component::dock::PanelView>,
-        window: &mut Window,
+        object: SchemaObject,
+        conn_id: ConnectionId,
         cx: &mut Context<Self>,
     ) {
-        self.dock_area.update(cx, |dock, cx| {
-            dock.add_panel(panel, DockPlacement::Center, None, window, cx);
-        });
+        cx.emit(TreeEvent::OpenTab(TabSpec::DocumentInsert {
+            conn_id,
+            collection: object.display_name(),
+        }));
     }
 }
 
@@ -1017,9 +1029,17 @@ impl Render for ConnectionTree {
                 }),
             ));
 
+        let conn_id_for_tabs = self.selected_connection.and_then(|idx| {
+            self.registry
+                .read(cx)
+                .connections()
+                .get(idx)
+                .map(|e| e.read(cx).id.clone())
+        });
         let objects_pane = render_objects_pane(
             self.active_objects.clone(),
             self.selected_object.clone(),
+            conn_id_for_tabs,
             cx,
         );
 
@@ -1033,6 +1053,7 @@ impl Render for ConnectionTree {
 fn render_objects_pane(
     active_objects: ActiveObjects,
     selected_object: Option<String>,
+    conn_id_for_tabs: Option<ConnectionId>,
     cx: &mut Context<ConnectionTree>,
 ) -> impl IntoElement {
     let border = cx.theme().sidebar_border;
@@ -1149,7 +1170,7 @@ fn render_objects_pane(
                             let is_selected =
                                 selected_object.as_deref() == Some(object_id.as_str());
                             let kind = object.kind.label();
-                            let object_for_click = object.clone();
+                            let object_for_row_click = object.clone();
 
                             h_flex()
                                 .id(("object-row", object_key))
@@ -1168,7 +1189,7 @@ fn render_objects_pane(
                                 })
                                 .hover(|row| row.bg(cx.theme().list_hover))
                                 .on_click(cx.listener(move |tree, _, window, cx| {
-                                    tree.on_object_clicked(object_for_click.clone(), window, cx);
+                                    tree.on_object_clicked(object_for_row_click.clone(), window, cx);
                                 }))
                                 .child(
                                     div()
@@ -1186,6 +1207,49 @@ fn render_objects_pane(
                                         .text_color(cx.theme().sidebar_foreground)
                                         .truncate()
                                         .child(object_id),
+                                )
+                                .when(
+                                    conn_id_for_tabs.is_some()
+                                        && matches!(
+                                            object.kind,
+                                            ObjectKind::Table
+                                                | ObjectKind::View
+                                                | ObjectKind::MaterializedView
+                                                | ObjectKind::Collection
+                                        ),
+                                    |row| {
+                                        let cid = conn_id_for_tabs.clone().unwrap();
+                                        let o = object.clone();
+                                        row.child(
+                                            Button::new(("obj-inspect", object_key))
+                                                .small()
+                                                .ghost()
+                                                .label("◇")
+                                                .on_click(cx.listener(move |tree, _, _, cx| {
+                                                    cx.stop_propagation();
+                                                    tree.open_inspector_tab(o.clone(), cid.clone(), cx);
+                                                })),
+                                        )
+                                    },
+                                )
+                                .when(
+                                    conn_id_for_tabs.is_some()
+                                        && matches!(engine, EngineKind::MongoDB)
+                                        && matches!(object.kind, ObjectKind::Collection),
+                                    |row| {
+                                        let cid = conn_id_for_tabs.clone().unwrap();
+                                        let o = object.clone();
+                                        row.child(
+                                            Button::new(("obj-insert", object_key))
+                                                .small()
+                                                .ghost()
+                                                .label("+")
+                                                .on_click(cx.listener(move |tree, _, _, cx| {
+                                                    cx.stop_propagation();
+                                                    tree.open_document_insert_tab(o.clone(), cid.clone(), cx);
+                                                })),
+                                        )
+                                    },
                                 )
                         }))
                 }))

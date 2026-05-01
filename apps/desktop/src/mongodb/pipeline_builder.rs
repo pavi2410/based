@@ -204,6 +204,7 @@ impl PipelineBuilderPanel {
                 tags: vec![],
                 sql: None,
                 pipeline: Some(pipeline),
+                mongo_collection: Some(self.collection.name().to_string()),
             });
         });
 

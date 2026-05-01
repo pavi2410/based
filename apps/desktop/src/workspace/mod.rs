@@ -24,12 +24,12 @@ use std::sync::Arc;
 
 use crate::widgets::ui::{engine_chip, engine_name, metadata_pill};
 use gpui::{
-    AnyView, Context, Entity, FocusHandle, Focusable, FontWeight, IntoElement, Render,
+    AnyView, App, Context, Entity, FocusHandle, Focusable, FontWeight, IntoElement, Render,
     SharedString, Window, div, prelude::*,
 };
 use gpui_component::{
     ActiveTheme, StyledExt,
-    dock::{DockArea, DockItem, DockPlacement, PanelStyle},
+    dock::{DockArea, DockEvent, DockItem, DockPlacement, PanelStyle},
     h_flex, v_flex,
 };
 
@@ -46,6 +46,7 @@ use crate::postgres;
 use crate::project::{find_project_root, load_workspace_seed};
 use crate::sqlite;
 
+use object_info::ObjectInfoPanel;
 use status_bar::StatusBar;
 use topbar::Topbar;
 use welcome::WelcomePanel;
@@ -141,6 +142,14 @@ impl Workspace {
         })
         .detach();
 
+        let dock_observe = workspace.dock_area.clone();
+        cx.subscribe(&dock_observe, |ws, _, event: &DockEvent, ecx| {
+            if matches!(event, DockEvent::LayoutChanged) {
+                ws.sync_tab_manager_from_dock(ecx);
+            }
+        })
+        .detach();
+
         workspace
     }
 
@@ -154,6 +163,16 @@ impl Workspace {
         if let Some(spec) = self.pending_open_tab.take() {
             self.dispatch_open_tab(spec, window, cx);
         }
+    }
+
+    fn sync_tab_manager_from_dock(&mut self, cx: &mut Context<Self>) {
+        let views = {
+            let dock = self.dock_area.read(cx);
+            dock_area_present_views(&dock, cx)
+        };
+        self.tab_manager.update(cx, |tm, ecx| {
+            tm.sync_open_tabs(&views, ecx);
+        });
     }
 
     fn find_connection(
@@ -229,6 +248,7 @@ impl Workspace {
                 initial_sql,
                 initial_pipeline,
                 auto_run,
+                mongo_collection,
             } => {
                 let Some(ent) = self.find_connection(&conn_id, cx) else {
                     return;
@@ -242,6 +262,7 @@ impl Workspace {
                     initial_sql: initial_sql.clone(),
                     initial_pipeline: initial_pipeline.clone(),
                     auto_run,
+                    mongo_collection: mongo_collection.clone(),
                 };
                 match ac {
                     AnyConnection::SQLite(conn) => {
@@ -276,7 +297,12 @@ impl Workspace {
                     }
                     AnyConnection::MongoDB(conn) => {
                         let db = conn.read(cx).database().clone();
-                        let coll: Collection<Document> = db.collection("based_explorer");
+                        let coll_name = mongo_collection
+                            .as_deref()
+                            .map(str::trim)
+                            .filter(|s| !s.is_empty())
+                            .unwrap_or("based_explorer");
+                        let coll: Collection<Document> = db.collection(coll_name);
                         let merged = initial_pipeline.clone().or(initial_sql.clone());
                         let panel_ent = cx.new(|cx| {
                             crate::mongodb::pipeline_builder::PipelineBuilderPanel::new_with_pipeline(
@@ -379,6 +405,51 @@ impl Workspace {
                         self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
                     }
                 }
+            }
+            TabSpec::ObjectInfo {
+                conn_id,
+                object_name,
+                kind_label,
+            } => {
+                let tab_spec_for_manager = TabSpec::ObjectInfo {
+                    conn_id: conn_id.clone(),
+                    object_name: object_name.clone(),
+                    kind_label: kind_label.clone(),
+                };
+                let panel_ent = cx.new(|cx| {
+                    ObjectInfoPanel::new(object_name.clone(), kind_label.clone(), window, cx)
+                });
+                let arc = Arc::new(panel_ent);
+                self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+            }
+            TabSpec::DocumentInsert {
+                conn_id,
+                collection,
+            } => {
+                let Some(ent) = self.find_connection(&conn_id, cx) else {
+                    return;
+                };
+                let ac = match &ent.read(cx).state {
+                    ConnectionState::Connected(ac) => ac.clone(),
+                    _ => return,
+                };
+                let AnyConnection::MongoDB(conn) = ac else {
+                    log::warn!("document insert tab requires MongoDB");
+                    return;
+                };
+                let tab_spec_for_manager = TabSpec::DocumentInsert {
+                    conn_id: conn_id.clone(),
+                    collection: collection.clone(),
+                };
+                let db = conn.read(cx).database().clone();
+                let coll: Collection<Document> = db.collection(&collection);
+                let panel_ent = cx.new(|cx| {
+                    crate::mongodb::document_editor::DocumentEditorPanel::new_insert(
+                        coll, window, cx,
+                    )
+                });
+                let arc = Arc::new(panel_ent);
+                self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
             }
             TabSpec::Explain { conn_id, label } => {
                 log::debug!("explain viewer deferred (phase 9): {:?} {}", conn_id, label);
@@ -492,6 +563,40 @@ impl Render for Workspace {
             .child(StatusBar::new(conn_count, connected_count))
             .child(self.command_palette.clone())
     }
+}
+
+fn collect_dock_panel_views(item: &DockItem, out: &mut Vec<AnyView>) {
+    match item {
+        DockItem::Split { items, .. } => {
+            for child in items {
+                collect_dock_panel_views(child, out);
+            }
+        }
+        DockItem::Tabs { items, .. } => {
+            for p in items {
+                out.push(p.view());
+            }
+        }
+        DockItem::Panel { view, .. } => {
+            out.push(view.view());
+        }
+        DockItem::Tiles { .. } => {}
+    }
+}
+
+fn dock_area_present_views(dock: &DockArea, cx: &App) -> Vec<AnyView> {
+    let mut v = Vec::new();
+    collect_dock_panel_views(dock.center(), &mut v);
+    if let Some(left) = dock.left_dock() {
+        collect_dock_panel_views(left.read(cx).panel(), &mut v);
+    }
+    if let Some(right) = dock.right_dock() {
+        collect_dock_panel_views(right.read(cx).panel(), &mut v);
+    }
+    if let Some(bottom) = dock.bottom_dock() {
+        collect_dock_panel_views(bottom.read(cx).panel(), &mut v);
+    }
+    v
 }
 
 fn render_inspector(

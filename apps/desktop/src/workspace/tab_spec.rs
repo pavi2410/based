@@ -15,6 +15,8 @@ pub enum TabSpec {
         initial_sql: Option<String>,
         initial_pipeline: Option<String>,
         auto_run: bool,
+        /// Target Mongo collection when opening a pipeline/query tab (PG/SQLite ignore).
+        mongo_collection: Option<String>,
     },
     Pipeline {
         conn_id: ConnectionId,
@@ -28,6 +30,17 @@ pub enum TabSpec {
         conn_id: ConnectionId,
         object: String,
     },
+    /// Lightweight placeholder for triggers and other objects without a schema inspector tab.
+    ObjectInfo {
+        conn_id: ConnectionId,
+        object_name: String,
+        kind_label: String,
+    },
+    /// MongoDB insert-document JSON editor for a collection.
+    DocumentInsert {
+        conn_id: ConnectionId,
+        collection: String,
+    },
 }
 
 impl TabSpec {
@@ -37,6 +50,7 @@ impl TabSpec {
             initial_sql: None,
             initial_pipeline: None,
             auto_run: true,
+            mongo_collection: None,
         }
     }
 
@@ -48,6 +62,8 @@ impl TabSpec {
             Self::Pipeline { conn_id, .. } => conn_id,
             Self::Explain { conn_id, .. } => conn_id,
             Self::Inspector { conn_id, .. } => conn_id,
+            Self::ObjectInfo { conn_id, .. } => conn_id,
+            Self::DocumentInsert { conn_id, .. } => conn_id,
         }
     }
 
@@ -59,6 +75,8 @@ impl TabSpec {
             Self::Pipeline { .. } => "pipeline",
             Self::Explain { .. } => "explain",
             Self::Inspector { .. } => "structure",
+            Self::ObjectInfo { .. } => "object",
+            Self::DocumentInsert { .. } => "insert",
         }
     }
 
@@ -70,6 +88,8 @@ impl TabSpec {
             Self::Pipeline { collection, .. } => collection.clone(),
             Self::Explain { label, .. } => label.clone(),
             Self::Inspector { object, .. } => object.clone(),
+            Self::ObjectInfo { object_name, .. } => object_name.clone(),
+            Self::DocumentInsert { collection, .. } => format!("Insert · {collection}"),
         }
     }
 }

@@ -4,8 +4,8 @@
     {
       "name": "Based Light",
       "mode": "light",
-      "font.size": 13,
-      "mono_font.size": 12,
+      "font.size": 14,
+      "mono_font.size": 14,
       "radius": 4,
       "radius.lg": 6,
       "shadow": false,
@@ -81,8 +81,8 @@
     {
       "name": "Based Dark",
       "mode": "dark",
-      "font.size": 13,
-      "mono_font.size": 12,
+      "font.size": 14,
+      "mono_font.size": 14,
       "radius": 4,
       "radius.lg": 6,
       "shadow": false,

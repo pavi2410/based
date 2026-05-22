@@ -165,7 +165,7 @@ impl Workspace {
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(Bounds {
                     origin: point(px(120.0), px(120.0)),
-                    size: size(px(480.0), px(360.0)),
+                    size: size(px(480.0), px(420.0)),
                 })),
                 titlebar: Some(TitleBar::title_bar_options()),
                 ..Default::default()

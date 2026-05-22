@@ -1,7 +1,8 @@
 // sqlite::tree — SchemaTreePanel: displays tables/views from sqlite_master.
 
-use gpui::{prelude::*, *};
+use gpui::{InteractiveElement, prelude::*, *};
 
+use crate::widgets::list_row::schema_object_row;
 use crate::widgets::ui::{metadata_pill, panel_header};
 use gpui_component::{
     ActiveTheme,
@@ -136,11 +137,12 @@ impl Render for SchemaTreePanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let nodes = self.nodes.clone();
         let selected = self.selected.clone();
-        let accent = cx.theme().accent;
-
+        let muted = cx.theme().muted_foreground;
+        let fg = cx.theme().foreground;
         let rows: Vec<_> = nodes
             .into_iter()
-            .map(|node| {
+            .enumerate()
+            .map(|(ix, node)| {
                 let is_selected = selected.as_deref() == Some(&node.id());
                 let name: SharedString = node.name.clone().into();
                 let kind_label: SharedString = match node.kind {
@@ -149,24 +151,17 @@ impl Render for SchemaTreePanel {
                     ObjectKind::Trigger => "TR",
                 }
                 .into();
+                let picked = node.name.clone();
 
-                h_flex()
-                    .w_full()
-                    .py(px(4.0))
-                    .px(px(8.0))
-                    .gap(px(6.0))
-                    .cursor_pointer()
-                    .when(is_selected, |d| d.bg(accent))
+                schema_object_row(("sqlite-obj", ix), is_selected, kind_label, name, muted, fg)
                     .on_mouse_down(
                         MouseButton::Left,
                         cx.listener(move |panel, _, _window, cx| {
-                            panel.selected = Some(node.name.clone());
-                            cx.emit(SchemaTreeEvent::TableSelected(node.name.clone()));
+                            panel.selected = Some(picked.clone());
+                            cx.emit(SchemaTreeEvent::TableSelected(picked.clone()));
                             cx.notify();
                         }),
                     )
-                    .child(div().text_xs().opacity(0.5).w(px(16.0)).child(kind_label))
-                    .child(div().text_sm().child(name))
             })
             .collect();
 

@@ -2,20 +2,23 @@
 
 use gpui::{prelude::*, *};
 use gpui_component::{
-    ActiveTheme, Disableable,
+    ActiveTheme,
     button::Button,
     dock::{Panel, PanelEvent},
     h_flex,
     menu::PopupMenu,
-    table::{Column, DataTable, TableState},
+    table::{Column, TableState},
     v_flex,
 };
 use sqlx::{Column as SqlxColumn, PgPool, Row};
 
 use gpui_component::table::TableEvent;
 
+use crate::app::prefs;
 use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_display};
+use crate::widgets::data_table::read_only_striped;
 use crate::widgets::filter_bar::FilterBar;
+use crate::widgets::pagination::{offset_for_page, sql_pagination_controls, sql_row_range_label};
 use crate::widgets::ui::{metadata_pill, panel_header};
 use crate::widgets::virtual_table::RowDelegate;
 
@@ -59,7 +62,7 @@ impl DataViewerPanel {
             cell_detail,
             filter_bar,
             offset: 0,
-            page_size: 500,
+            page_size: prefs::page_size(cx),
             total_rows: 0,
             loading: false,
         };
@@ -177,17 +180,8 @@ impl DataViewerPanel {
         .detach();
     }
 
-    fn prev_page(&mut self, cx: &mut Context<Self>) {
-        if self.offset >= self.page_size {
-            self.load_page(self.offset - self.page_size, cx);
-        }
-    }
-
-    fn next_page(&mut self, cx: &mut Context<Self>) {
-        let new_offset = self.offset + self.page_size;
-        if new_offset < self.total_rows {
-            self.load_page(new_offset, cx);
-        }
+    fn go_to_page(&mut self, page_1_based: usize, cx: &mut Context<Self>) {
+        self.load_page(offset_for_page(page_1_based, self.page_size), cx);
     }
 }
 
@@ -227,12 +221,10 @@ impl Render for DataViewerPanel {
         let total = self.total_rows;
         let offset = self.offset;
         let page_size = self.page_size;
-        let can_prev = offset > 0;
-        let can_next = offset + page_size < total;
         let loading = self.loading;
         let title: SharedString = format!("{}.{}", self.schema, self.table_name).into();
-        let end = (offset + page_size).min(total);
-        let row_info: SharedString = format!("{} – {} of {}", offset + 1, end, total).into();
+        let row_info: SharedString = sql_row_range_label(total, offset, page_size).into();
+        let panel = cx.entity().downgrade();
         let muted = cx.theme().muted_foreground;
         let border = cx.theme().border;
 
@@ -255,30 +247,27 @@ impl Render for DataViewerPanel {
                     .on_click(cx.listener(|panel, _, _, cx| panel.load_page(0, cx))),
             )
             .child(
-                Button::new("pg-filter-clear").label("Clear filter").on_click(cx.listener(
-                    |panel, _, window, cx| {
+                Button::new("pg-filter-clear")
+                    .label("Clear filter")
+                    .on_click(cx.listener(|panel, _, window, cx| {
                         panel.filter_bar.update(cx, |fb, cx| {
                             fb.clear(window, cx);
                         });
                         panel.load_page(0, cx);
-                    },
-                )),
+                    })),
             )
             .child(div().flex_1())
             .when(loading, |d| {
                 d.child(div().text_sm().text_color(muted).child("Loading…"))
             })
             .child(
-                Button::new("pg-prev")
-                    .label("◀")
-                    .disabled(!can_prev)
-                    .on_click(cx.listener(|panel, _, _, cx| panel.prev_page(cx))),
-            )
-            .child(
-                Button::new("pg-next")
-                    .label("▶")
-                    .disabled(!can_next)
-                    .on_click(cx.listener(|panel, _, _, cx| panel.next_page(cx))),
+                sql_pagination_controls("pg-pager", total, offset, page_size, loading).on_click(
+                    move |page, _, cx| {
+                        if let Some(ent) = panel.upgrade() {
+                            let _ = ent.update(cx, |panel, cx| panel.go_to_page(*page, cx));
+                        }
+                    },
+                ),
             );
 
         v_flex()
@@ -288,7 +277,7 @@ impl Render for DataViewerPanel {
             .bg(cx.theme().background)
             .child(panel_header(title, "Browse Postgres relation data", cx))
             .child(toolbar)
-            .child(DataTable::new(&self.table).stripe(true).bordered(false))
+            .child(read_only_striped(&self.table))
             .child(self.cell_detail.clone())
     }
 }

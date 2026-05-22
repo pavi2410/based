@@ -28,13 +28,8 @@ pub fn parse_pg_explain_json(json: &serde_json::Value) -> Option<PlanNode> {
 
 fn parse_node(node: &serde_json::Value) -> PlanNode {
     PlanNode {
-        node_type: node["Node Type"]
-            .as_str()
-            .unwrap_or("Unknown")
-            .to_string(),
-        relation: node["Relation Name"]
-            .as_str()
-            .map(|s| s.to_string()),
+        node_type: node["Node Type"].as_str().unwrap_or("Unknown").to_string(),
+        relation: node["Relation Name"].as_str().map(|s| s.to_string()),
         index_name: node["Index Name"].as_str().map(|s| s.to_string()),
         cost_startup: node["Startup Cost"].as_f64().unwrap_or(0.0),
         cost_total: node["Total Cost"].as_f64().unwrap_or(0.0),

@@ -117,9 +117,7 @@ fn render_eqp_node(node: &EqpNode, depth: usize, theme: &gpui_component::Theme) 
         .py(px(2.0))
         .pl(px((depth * 16) as f32 + 8.0))
         .pr(px(8.0))
-        .when(node.is_table_scan, |d| {
-            d.border_l_2().border_color(warn)
-        })
+        .when(node.is_table_scan, |d| d.border_l_2().border_color(warn))
         .text_sm()
         .text_color(fg)
         .child(node.detail.clone());

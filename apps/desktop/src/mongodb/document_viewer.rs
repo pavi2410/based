@@ -7,7 +7,7 @@ use gpui_component::{
     dock::{Panel, PanelEvent},
     h_flex,
     menu::PopupMenu,
-    table::{Column, DataTable, TableState},
+    table::{Column, TableState},
     v_flex,
 };
 use mongodb::Collection;
@@ -17,6 +17,7 @@ use mongodb::options::FindOptions;
 use gpui_component::table::TableEvent;
 
 use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_display};
+use crate::widgets::data_table::read_only_striped;
 use crate::widgets::filter_bar::{FilterBar, FilterExpr};
 use crate::widgets::virtual_table::RowDelegate;
 
@@ -232,20 +233,20 @@ impl Render for DocumentViewerPanel {
                             .on_click(cx.listener(|p, _, _, cx| p.reload(cx))),
                     )
                     .child(
-                        Button::new("mongo-filter-clear").label("Clear filter").on_click(
-                            cx.listener(|p, _, window, cx| {
+                        Button::new("mongo-filter-clear")
+                            .label("Clear filter")
+                            .on_click(cx.listener(|p, _, window, cx| {
                                 p.filter_bar.update(cx, |fb, cx| {
                                     fb.clear(window, cx);
                                 });
                                 p.reload(cx);
-                            }),
-                        ),
+                            })),
                     )
                     .when(self.loading, |h| {
                         h.child(div().text_sm().text_color(muted).child("Loading…"))
                     }),
             )
-            .child(DataTable::new(&self.table).stripe(true).bordered(false))
+            .child(read_only_striped(&self.table))
             .child(self.cell_detail.clone())
     }
 }

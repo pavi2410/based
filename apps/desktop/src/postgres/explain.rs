@@ -139,10 +139,7 @@ fn render_plan_node(node: &PlanNode, depth: usize, theme: &gpui_component::Theme
         .time_actual_ms
         .map(|t| format!(" — {t:.2} ms"))
         .unwrap_or_default();
-    let title = format!(
-        "{}{}{} — {}{}",
-        node.node_type, relation, index, rows, time
-    );
+    let title = format!("{}{}{} — {}{}", node.node_type, relation, index, rows, time);
     let warn = theme.warning;
 
     let row = div()

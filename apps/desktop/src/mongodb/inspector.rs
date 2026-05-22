@@ -2,18 +2,18 @@
 
 use gpui::{prelude::*, *};
 use gpui_component::{
-    ActiveTheme,
+    ActiveTheme, Sizable,
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,
     menu::PopupMenu,
-    table::{Column, DataTable, TableState},
+    table::{Column, TableState},
     v_flex,
-    Sizable,
 };
 use mongodb::Collection;
 use mongodb::bson::{Document, doc};
 
+use crate::widgets::data_table::read_only_striped;
 use crate::widgets::virtual_table::RowDelegate;
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -243,15 +243,18 @@ impl Render for CollectionInspectorPanel {
                     .px_2()
                     .border_b_1()
                     .border_color(border)
-                    .child(self.tab_button("mongo-insp-stats", "Stats", MongoInspectorTab::Stats, cx))
-                    .child(
-                        self.tab_button(
-                            "mongo-insp-indexes",
-                            "Indexes",
-                            MongoInspectorTab::Indexes,
-                            cx,
-                        ),
-                    ),
+                    .child(self.tab_button(
+                        "mongo-insp-stats",
+                        "Stats",
+                        MongoInspectorTab::Stats,
+                        cx,
+                    ))
+                    .child(self.tab_button(
+                        "mongo-insp-indexes",
+                        "Indexes",
+                        MongoInspectorTab::Indexes,
+                        cx,
+                    )),
             )
             .child(
                 div()
@@ -259,7 +262,7 @@ impl Render for CollectionInspectorPanel {
                     .min_h(px(200.0))
                     .border_1()
                     .border_color(border)
-                    .child(DataTable::new(active_tbl).stripe(true).bordered(false)),
+                    .child(read_only_striped(active_tbl)),
             )
     }
 }

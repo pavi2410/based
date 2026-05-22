@@ -4,8 +4,8 @@
 
 pub mod attach_workspace;
 pub mod data_viewer;
-pub mod eqp_viewer;
 mod eqp_parse;
+pub mod eqp_viewer;
 pub mod fts_console;
 pub mod inspector;
 pub mod mutations;

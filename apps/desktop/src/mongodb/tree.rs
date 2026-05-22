@@ -1,7 +1,8 @@
 // mongodb::tree — collection list for a database.
 
+use crate::widgets::list_row::schema_object_row;
 use crate::widgets::ui::{metadata_pill, panel_header};
-use gpui::{prelude::*, *};
+use gpui::{InteractiveElement, prelude::*, *};
 use gpui_component::{
     ActiveTheme,
     dock::{Panel, PanelEvent},
@@ -91,9 +92,10 @@ impl Panel for CollectionsTreePanel {
 impl Render for CollectionsTreePanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let border = cx.theme().border;
-        let fg = cx.theme().foreground;
         let names = self.names.clone();
         let selected = self.selected.clone();
+        let muted = cx.theme().muted_foreground;
+        let fg = cx.theme().foreground;
 
         v_flex()
             .id("mongo-tree")
@@ -119,18 +121,14 @@ impl Render for CollectionsTreePanel {
             .children(names.into_iter().enumerate().map(|(ix, name)| {
                 let sel = selected.as_ref() == Some(&name);
                 let n = name.clone();
-                h_flex()
-                    .id(("coll", ix))
-                    .px_2()
-                    .py_1()
-                    .cursor_pointer()
-                    .when(sel, |d| d.bg(cx.theme().accent.opacity(0.12)))
-                    .on_click(cx.listener(move |panel, _, _, cx| {
+                let label: SharedString = name.into();
+                schema_object_row(("coll", ix), sel, "coll", label, muted, fg).on_click(
+                    cx.listener(move |panel, _, _, cx| {
                         panel.selected = Some(n.clone());
                         cx.emit(CollectionTreeEvent::CollectionSelected(n.clone()));
                         cx.notify();
-                    }))
-                    .child(div().text_sm().text_color(fg).child(name))
+                    }),
+                )
             }))
     }
 }

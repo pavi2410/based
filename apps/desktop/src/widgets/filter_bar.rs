@@ -2,11 +2,10 @@
 
 use gpui::{App, Context, Entity, IntoElement, Render, Window, div, prelude::*, px};
 use gpui_component::{
-    ActiveTheme,
+    ActiveTheme, Sizable,
     button::{Button, ButtonVariants},
     h_flex,
     input::{Input, InputState},
-    Sizable,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -68,10 +67,7 @@ impl FilterExpr {
         match self.op {
             FilterOp::IsNull => format!("{c} IS NULL"),
             FilterOp::IsNotNull => format!("{c} IS NOT NULL"),
-            FilterOp::Like => format!(
-                "{c} ILIKE '%{}%'",
-                self.value.replace('\'', "''")
-            ),
+            FilterOp::Like => format!("{c} ILIKE '%{}%'", self.value.replace('\'', "''")),
             FilterOp::Eq => format!("{c} = '{}'", self.value.replace('\'', "''")),
             FilterOp::NotEq => format!("{c} != '{}'", self.value.replace('\'', "''")),
             FilterOp::Gt => format!("{c} > '{}'", self.value.replace('\'', "''")),
@@ -87,7 +83,10 @@ impl FilterExpr {
             FilterOp::IsNotNull => format!("{c} IS NOT NULL"),
             FilterOp::Like => format!(
                 "{c} LIKE '%{}%' ESCAPE '\\'",
-                self.value.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+                self.value
+                    .replace('\\', "\\\\")
+                    .replace('%', "\\%")
+                    .replace('_', "\\_")
             ),
             FilterOp::Eq => format!("{c} = '{}'", self.value.replace('\'', "''")),
             FilterOp::NotEq => format!("{c} != '{}'", self.value.replace('\'', "''")),

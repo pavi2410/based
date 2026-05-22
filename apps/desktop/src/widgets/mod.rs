@@ -4,9 +4,11 @@
 
 pub mod cell_detail;
 pub mod code_editor;
+pub mod data_table;
 pub mod filter_bar;
+pub mod list_row;
+pub mod pagination;
 pub mod status_glyph;
 pub mod tab_chip;
-pub mod tree;
 pub mod ui;
 pub mod virtual_table;

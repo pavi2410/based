@@ -7,7 +7,7 @@ use gpui_component::{
     dock::{Panel, PanelEvent},
     h_flex,
     menu::PopupMenu,
-    table::{Column, DataTable, TableState},
+    table::{Column, TableState},
     tooltip::Tooltip,
     v_flex,
 };
@@ -17,6 +17,7 @@ use time::OffsetDateTime;
 use crate::connection::ConnectionId;
 use crate::db;
 use crate::query_store::{HistoryEntry, QueryStore};
+use crate::widgets::data_table::read_only_striped;
 use crate::widgets::ui::{metadata_pill, panel_header};
 use crate::widgets::virtual_table::RowDelegate;
 use crate::workspace::notify;
@@ -288,7 +289,7 @@ impl Render for QueryEditorPanel {
             div()
                 .flex_1()
                 .min_h(px(0.0))
-                .child(DataTable::new(table).stripe(true).bordered(false))
+                .child(read_only_striped(table))
                 .into_any_element()
         } else {
             div()
@@ -309,64 +310,61 @@ impl Render for QueryEditorPanel {
             .child(div().p(px(10.0)).child(editor_placeholder))
             .child(bottom);
 
-        let body = h_flex()
-            .flex_1()
-            .min_h(px(0.0))
-            .child(main_column)
-            .when(self.show_history, |row| {
-                row.child(
-                    v_flex()
-                        .w(px(260.0))
-                        .min_h(px(0.0))
-                        .border_l_1()
-                        .border_color(border)
-                        .bg(cx.theme().muted.opacity(0.08))
-                        .child(
-                            div()
-                                .px_3()
-                                .py_2()
-                                .border_b_1()
-                                .border_color(border)
-                                .text_xs()
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .child("Recent (this connection)"),
-                        )
-                        .children(
-                            cx.global::<QueryStore>()
-                                .history_for(&self.conn_id)
-                                .into_iter()
-                                .take(20)
-                                .enumerate()
-                                .map(|(i, e)| {
-                                    let preview: SharedString = e
-                                        .query
-                                        .chars()
-                                        .take(80)
-                                        .collect::<String>()
-                                        .into();
-                                    let full_query = e.query.clone();
-                                    div()
-                                        .id(("sqlite-hist", i))
-                                        .px_3()
-                                        .py_2()
-                                        .border_b_1()
-                                        .border_color(border)
-                                        .cursor_pointer()
-                                        .text_xs()
-                                        .font_family("monospace")
-                                        .text_color(muted)
-                                        .child(preview)
-                                        .on_mouse_down(
-                                            MouseButton::Left,
-                                            cx.listener(move |panel, _, _, cx| {
-                                                panel.sql = full_query.clone();
-                                                cx.notify();
-                                            }),
-                                        )
-                                }),
-                        ),
-                )
-            });
+        let body =
+            h_flex()
+                .flex_1()
+                .min_h(px(0.0))
+                .child(main_column)
+                .when(self.show_history, |row| {
+                    row.child(
+                        v_flex()
+                            .w(px(260.0))
+                            .min_h(px(0.0))
+                            .border_l_1()
+                            .border_color(border)
+                            .bg(cx.theme().muted.opacity(0.08))
+                            .child(
+                                div()
+                                    .px_3()
+                                    .py_2()
+                                    .border_b_1()
+                                    .border_color(border)
+                                    .text_xs()
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .child("Recent (this connection)"),
+                            )
+                            .children(
+                                cx.global::<QueryStore>()
+                                    .history_for(&self.conn_id)
+                                    .into_iter()
+                                    .take(20)
+                                    .enumerate()
+                                    .map(|(i, e)| {
+                                        let preview: SharedString =
+                                            e.query.chars().take(80).collect::<String>().into();
+                                        let full_query = e.query.clone();
+                                        div()
+                                            .id(("sqlite-hist", i))
+                                            .px_3()
+                                            .py_2()
+                                            .border_b_1()
+                                            .border_color(border)
+                                            .cursor_pointer()
+                                            .text_xs()
+                                            .font_family("monospace")
+                                            .text_color(muted)
+                                            .child(preview)
+                                            .on_mouse_down(
+                                                MouseButton::Left,
+                                                cx.listener(move |panel, _, _, cx| {
+                                                    panel.sql = full_query.clone();
+                                                    cx.notify();
+                                                }),
+                                            )
+                                    }),
+                            ),
+                    )
+                });
 
         v_flex()
             .w_full()

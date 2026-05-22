@@ -2,17 +2,17 @@
 
 use gpui::{prelude::*, *};
 use gpui_component::{
-    ActiveTheme,
+    ActiveTheme, Sizable,
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,
     menu::PopupMenu,
-    table::{Column, DataTable, TableState},
+    table::{Column, TableState},
     v_flex,
-    Sizable,
 };
 use sqlx::{PgPool, Row};
 
+use crate::widgets::data_table::read_only_striped;
 use crate::widgets::virtual_table::RowDelegate;
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -209,30 +209,33 @@ impl TableInspectorPanel {
                 ];
                 let st_data: Vec<Vec<SharedString>> = if let Some(sr) = stat_rows.as_ref() {
                     let rows_est: Option<i64> = sr.try_get("estimate_rows").ok();
-                    let ts: String = sr.try_get::<Option<String>, _>("table_size").ok().flatten().unwrap_or_default();
-                    let isz: String =
-                        sr.try_get::<Option<String>, _>("indexes_size").ok().flatten().unwrap_or_default();
-                    let tot: String =
-                        sr.try_get::<Option<String>, _>("total_size").ok().flatten().unwrap_or_default();
+                    let ts: String = sr
+                        .try_get::<Option<String>, _>("table_size")
+                        .ok()
+                        .flatten()
+                        .unwrap_or_default();
+                    let isz: String = sr
+                        .try_get::<Option<String>, _>("indexes_size")
+                        .ok()
+                        .flatten()
+                        .unwrap_or_default();
+                    let tot: String = sr
+                        .try_get::<Option<String>, _>("total_size")
+                        .ok()
+                        .flatten()
+                        .unwrap_or_default();
                     vec![
                         vec![
                             SharedString::from("Estimated rows"),
                             SharedString::from(
-                                rows_est.map(|n| n.to_string()).unwrap_or_else(|| "—".into()),
+                                rows_est
+                                    .map(|n| n.to_string())
+                                    .unwrap_or_else(|| "—".into()),
                             ),
                         ],
-                        vec![
-                            SharedString::from("Table size"),
-                            ts.into(),
-                        ],
-                        vec![
-                            SharedString::from("Indexes size"),
-                            isz.into(),
-                        ],
-                        vec![
-                            SharedString::from("Total size"),
-                            tot.into(),
-                        ],
+                        vec![SharedString::from("Table size"), ts.into()],
+                        vec![SharedString::from("Indexes size"), isz.into()],
+                        vec![SharedString::from("Total size"), tot.into()],
                     ]
                 } else {
                     vec![vec![
@@ -373,16 +376,24 @@ impl Render for TableInspectorPanel {
                     .px_2()
                     .border_b_1()
                     .border_color(border)
-                    .child(self.tab_button("pg-insp-columns", "Columns", PgInspectorTab::Columns, cx))
-                    .child(self.tab_button("pg-insp-indexes", "Indexes", PgInspectorTab::Indexes, cx))
-                    .child(
-                        self.tab_button(
-                            "pg-insp-constraints",
-                            "Constraints",
-                            PgInspectorTab::Constraints,
-                            cx,
-                        ),
-                    )
+                    .child(self.tab_button(
+                        "pg-insp-columns",
+                        "Columns",
+                        PgInspectorTab::Columns,
+                        cx,
+                    ))
+                    .child(self.tab_button(
+                        "pg-insp-indexes",
+                        "Indexes",
+                        PgInspectorTab::Indexes,
+                        cx,
+                    ))
+                    .child(self.tab_button(
+                        "pg-insp-constraints",
+                        "Constraints",
+                        PgInspectorTab::Constraints,
+                        cx,
+                    ))
                     .child(self.tab_button("pg-insp-stats", "Stats", PgInspectorTab::Stats, cx)),
             )
             .child(
@@ -391,7 +402,7 @@ impl Render for TableInspectorPanel {
                     .min_h(px(200.0))
                     .border_1()
                     .border_color(border)
-                    .child(DataTable::new(active_tbl).bordered(false)),
+                    .child(read_only_striped(active_tbl)),
             )
     }
 }

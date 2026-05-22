@@ -1,6 +1,6 @@
 //! Read-only-ish SQL display with naive token coloring (keywords, strings, numbers, comments).
 
-use gpui::{div, prelude::*, Context, Hsla, IntoElement, Render, Window};
+use gpui::{Context, Hsla, IntoElement, Render, Window, div, prelude::*};
 use gpui_component::ActiveTheme;
 
 #[derive(Clone, PartialEq, Eq)]

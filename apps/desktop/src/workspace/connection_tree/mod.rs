@@ -1,19 +1,16 @@
 // Sidebar connection list + object browser (extracted from workspace).
 
 use std::collections::HashMap;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::Instant;
 
 use crate::widgets::ui::{engine_chip, engine_color};
 use gpui::{
-    AnyElement, Context, Entity, EventEmitter, FontWeight, IntoElement, Render, SharedString,
-    Window, div, prelude::*,
+    Context, Entity, EventEmitter, IntoElement, Render, SharedString, Window, div, prelude::*,
 };
 use gpui_component::{
     ActiveTheme, Icon, IconName, Sizable as _, StyledExt,
-    button::{Button, ButtonVariants},
+    button::Button,
     dock::{DockArea, DockItem},
     h_flex,
     scroll::ScrollableElement,
@@ -36,92 +33,12 @@ use ::mongodb::bson::Document;
 use super::notify;
 use super::tab_spec::TabSpec;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ObjectKind {
-    Table,
-    View,
-    MaterializedView,
-    Trigger,
-    Collection,
-}
+mod object_browser;
+mod types;
 
-impl ObjectKind {
-    fn label(&self) -> &'static str {
-        match self {
-            Self::Table => "table",
-            Self::View => "view",
-            Self::MaterializedView => "matview",
-            Self::Trigger => "trigger",
-            Self::Collection => "collection",
-        }
-    }
+pub use types::{ObjectKind, SchemaObject, TreeEvent};
 
-    pub fn group(&self) -> &'static str {
-        match self {
-            Self::Table => "Tables",
-            Self::View | Self::MaterializedView => "Views",
-            Self::Trigger => "Triggers",
-            Self::Collection => "Collections",
-        }
-    }
-
-    pub fn icon(&self) -> &'static str {
-        match self {
-            Self::Table => "▤",
-            Self::View | Self::MaterializedView => "◈",
-            Self::Trigger => "⚡",
-            Self::Collection => "▦",
-        }
-    }
-}
-
-/// Schema browser row (PostgreSQL exposes `schema` + local name).
-#[derive(Clone, Debug)]
-pub struct SchemaObject {
-    pub name: String,
-    pub schema: Option<String>,
-    pub kind: ObjectKind,
-}
-
-impl SchemaObject {
-    pub fn display_name(&self) -> String {
-        if let Some(schema) = &self.schema {
-            format!("{schema}.{}", self.name)
-        } else {
-            self.name.clone()
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-enum ActiveObjects {
-    Empty,
-    Loading {
-        label: String,
-        engine: EngineKind,
-    },
-    Ready {
-        label: String,
-        engine: EngineKind,
-        objects: Vec<SchemaObject>,
-    },
-    Error {
-        label: String,
-        message: String,
-    },
-}
-
-/// Reserved for per-connection expansion / cached schema.
-struct ConnState {
-    expanded: bool,
-    objects: Option<Vec<SchemaObject>>,
-    loading: bool,
-}
-
-#[derive(Clone)]
-pub enum TreeEvent {
-    OpenTab(TabSpec),
-}
+use types::{ActiveObjects, ConnState};
 
 pub struct ConnectionTree {
     pub registry: Entity<ConnectionRegistry>,
@@ -772,7 +689,12 @@ impl ConnectionTree {
         }));
     }
 
-    fn open_inspector_tab(&mut self, object: SchemaObject, conn_id: ConnectionId, cx: &mut Context<Self>) {
+    fn open_inspector_tab(
+        &mut self,
+        object: SchemaObject,
+        conn_id: ConnectionId,
+        cx: &mut Context<Self>,
+    ) {
         cx.emit(TreeEvent::OpenTab(TabSpec::Inspector {
             conn_id,
             object: object.display_name(),
@@ -1036,7 +958,7 @@ impl Render for ConnectionTree {
                 .get(idx)
                 .map(|e| e.read(cx).id.clone())
         });
-        let objects_pane = render_objects_pane(
+        let objects_pane = object_browser::render_objects_pane(
             self.active_objects.clone(),
             self.selected_object.clone(),
             conn_id_for_tabs,
@@ -1048,267 +970,6 @@ impl Render for ConnectionTree {
             .child(connections_pane)
             .child(objects_pane)
     }
-}
-
-fn render_objects_pane(
-    active_objects: ActiveObjects,
-    selected_object: Option<String>,
-    conn_id_for_tabs: Option<ConnectionId>,
-    cx: &mut Context<ConnectionTree>,
-) -> impl IntoElement {
-    let border = cx.theme().sidebar_border;
-    let muted = cx.theme().muted_foreground;
-
-    let body: AnyElement = match active_objects {
-        ActiveObjects::Empty => v_flex()
-            .flex_1()
-            .items_center()
-            .justify_center()
-            .p_3()
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(muted)
-                    .child("Select a connected database to browse objects."),
-            )
-            .into_any_element(),
-        ActiveObjects::Loading { label, engine } => v_flex()
-            .flex_1()
-            .p_3()
-            .gap_2()
-            .child(
-                h_flex()
-                    .gap_2()
-                    .items_center()
-                    .child(engine_chip(engine, cx))
-                    .child(div().text_xs().text_color(muted).truncate().child(label)),
-            )
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(muted)
-                    .child("Loading objects..."),
-            )
-            .into_any_element(),
-        ActiveObjects::Error { label, message } => v_flex()
-            .flex_1()
-            .p_3()
-            .gap_2()
-            .child(
-                div()
-                    .text_xs()
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .text_color(cx.theme().danger_foreground)
-                    .child(format!("Could not load {label}")),
-            )
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(muted)
-                    .child(notify::error_one_liner(&message)),
-            )
-            .into_any_element(),
-        ActiveObjects::Ready {
-            label,
-            engine,
-            objects,
-        } => {
-            let mut groups: Vec<(&'static str, Vec<SchemaObject>)> = Vec::new();
-            for object in objects {
-                let group = object.kind.group();
-                if let Some((_, rows)) = groups.iter_mut().find(|(name, _)| *name == group) {
-                    rows.push(object);
-                } else {
-                    groups.push((group, vec![object]));
-                }
-            }
-
-            v_flex()
-                .flex_1()
-                .min_h_0()
-                .overflow_y_scrollbar()
-                .child(
-                    h_flex()
-                        .px_2()
-                        .py_2()
-                        .gap_2()
-                        .items_center()
-                        .child(engine_chip(engine, cx))
-                        .child(div().text_xs().text_color(muted).truncate().child(label)),
-                )
-                .children(groups.into_iter().map(|(group_name, rows)| {
-                    v_flex()
-                        .mb(gpui::px(4.0))
-                        .child(
-                            h_flex()
-                                .px_2()
-                                .py_1()
-                                .items_center()
-                                .justify_between()
-                                .child(
-                                    div()
-                                        .text_xs()
-                                        .font_bold()
-                                        .font_family(cx.theme().mono_font_family.clone())
-                                        .text_color(muted.opacity(0.86))
-                                        .child(group_name),
-                                )
-                                .child(
-                                    div()
-                                        .text_xs()
-                                        .font_family(cx.theme().mono_font_family.clone())
-                                        .text_color(muted.opacity(0.76))
-                                        .child(rows.len().to_string()),
-                                ),
-                        )
-                        .children(rows.into_iter().map(|object| {
-                            let object_id = object.display_name();
-                            let mut hasher = DefaultHasher::new();
-                            object_id.hash(&mut hasher);
-                            object.kind.label().hash(&mut hasher);
-                            let object_key = hasher.finish();
-                            let is_selected =
-                                selected_object.as_deref() == Some(object_id.as_str());
-                            let kind = object.kind.label();
-                            let object_for_row_click = object.clone();
-
-                            h_flex()
-                                .id(("object-row", object_key))
-                                .mx_2()
-                                .mb(gpui::px(1.0))
-                                .px_2()
-                                .py(gpui::px(5.0))
-                                .gap_2()
-                                .items_center()
-                                .rounded(gpui::px(6.0))
-                                .cursor_pointer()
-                                .when(is_selected, |row| {
-                                    row.bg(cx.theme().accent.opacity(0.18))
-                                        .border_1()
-                                        .border_color(cx.theme().accent.opacity(0.28))
-                                })
-                                .hover(|row| row.bg(cx.theme().list_hover))
-                                .on_click(cx.listener(move |tree, _, window, cx| {
-                                    tree.on_object_clicked(object_for_row_click.clone(), window, cx);
-                                }))
-                                .child(
-                                    div()
-                                        .w(gpui::px(30.0))
-                                        .text_xs()
-                                        .font_family(cx.theme().mono_font_family.clone())
-                                        .text_color(muted)
-                                        .child(kind),
-                                )
-                                .child(
-                                    div()
-                                        .flex_1()
-                                        .min_w_0()
-                                        .text_sm()
-                                        .text_color(cx.theme().sidebar_foreground)
-                                        .truncate()
-                                        .child(object_id),
-                                )
-                                .when(
-                                    conn_id_for_tabs.is_some()
-                                        && matches!(
-                                            object.kind,
-                                            ObjectKind::Table
-                                                | ObjectKind::View
-                                                | ObjectKind::MaterializedView
-                                                | ObjectKind::Collection
-                                        ),
-                                    |row| {
-                                        let cid = conn_id_for_tabs.clone().unwrap();
-                                        let o = object.clone();
-                                        row.child(
-                                            Button::new(("obj-inspect", object_key))
-                                                .small()
-                                                .ghost()
-                                                .label("◇")
-                                                .on_click(cx.listener(move |tree, _, _, cx| {
-                                                    cx.stop_propagation();
-                                                    tree.open_inspector_tab(o.clone(), cid.clone(), cx);
-                                                })),
-                                        )
-                                    },
-                                )
-                                .when(
-                                    conn_id_for_tabs.is_some()
-                                        && matches!(engine, EngineKind::MongoDB)
-                                        && matches!(object.kind, ObjectKind::Collection),
-                                    |row| {
-                                        let cid = conn_id_for_tabs.clone().unwrap();
-                                        let o = object.clone();
-                                        row.child(
-                                            Button::new(("obj-insert", object_key))
-                                                .small()
-                                                .ghost()
-                                                .label("+")
-                                                .on_click(cx.listener(move |tree, _, _, cx| {
-                                                    cx.stop_propagation();
-                                                    tree.open_document_insert_tab(o.clone(), cid.clone(), cx);
-                                                })),
-                                        )
-                                    },
-                                )
-                        }))
-                }))
-                .into_any_element()
-        }
-    };
-
-    v_flex()
-        .flex_1()
-        .min_h_0()
-        .child(
-            h_flex()
-                .h(gpui::px(38.0))
-                .px_2()
-                .items_center()
-                .justify_between()
-                .border_b_1()
-                .border_color(border.opacity(0.86))
-                .child(
-                    div()
-                        .text_xs()
-                        .font_bold()
-                        .text_color(muted)
-                        .font_family(cx.theme().mono_font_family.clone())
-                        .child("OBJECTS"),
-                )
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(muted.opacity(0.78))
-                        .child("connection scoped"),
-                ),
-        )
-        .child(
-            h_flex()
-                .mx_2()
-                .my_2()
-                .h(gpui::px(28.0))
-                .items_center()
-                .gap_2()
-                .px_2()
-                .rounded(gpui::px(6.0))
-                .border_1()
-                .border_color(border.opacity(0.78))
-                .bg(cx.theme().muted.opacity(0.32))
-                .child(
-                    Icon::new(IconName::Search)
-                        .with_size(gpui_component::Size::XSmall)
-                        .text_color(muted),
-                )
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(muted)
-                        .truncate()
-                        .child("Search objects"),
-                ),
-        )
-        .child(body)
 }
 
 impl EventEmitter<TreeEvent> for ConnectionTree {}

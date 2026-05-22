@@ -8,9 +8,10 @@ use gpui::{
 };
 use gpui_component::{ActiveTheme, h_flex, scroll::ScrollableElement, v_flex};
 
-use crate::connection::registry::ConnectionRegistry;
 use crate::connection::EngineKind;
+use crate::connection::registry::ConnectionRegistry;
 use crate::query_store::QueryStore;
+use crate::widgets::list_row::palette_result_row;
 use crate::workspace::tab_spec::TabSpec;
 
 /// Emitted when the user picks a palette row — workspace opens the tab.
@@ -239,6 +240,8 @@ impl Render for CommandPalette {
         }
 
         let theme = cx.theme();
+        let muted = theme.muted_foreground;
+        let fg = theme.foreground;
 
         div()
             .absolute()
@@ -286,7 +289,9 @@ impl Render for CommandPalette {
                                     .min_w_0()
                                     .when(self.query.is_empty(), |row| {
                                         row.text_sm().text_color(theme.muted_foreground).child(
-                                            SharedString::from("Search tables, queries, connections…"),
+                                            SharedString::from(
+                                                "Search tables, queries, connections…",
+                                            ),
                                         )
                                     })
                                     .when(!self.query.is_empty(), |row| {
@@ -301,16 +306,27 @@ impl Render for CommandPalette {
                         v_flex()
                             .max_h(gpui::px(360.0))
                             .overflow_y_scrollbar()
-                            .children(self.results.iter().enumerate().map(|(i, r)| {
-                                let is_sel = i == self.selected;
-                                div()
-                                    .id(("palette-result", i))
-                                    .px_3()
-                                    .py_2()
-                                    .flex()
-                                    .gap_2()
-                                    .cursor_pointer()
-                                    .when(is_sel, |d| d.bg(theme.accent))
+                            .children({
+                                let results: Vec<_> = self
+                                    .results
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(i, r)| {
+                                        let is_sel = i == self.selected;
+                                        let conn_label: SharedString = r.conn_label.clone().into();
+                                        let label: SharedString = r.label.clone().into();
+                                        (i, is_sel, conn_label, label)
+                                    })
+                                    .collect();
+                                results.into_iter().map(|(i, is_sel, conn_label, label)| {
+                                    palette_result_row(
+                                        ("palette-result", i),
+                                        is_sel,
+                                        conn_label,
+                                        label,
+                                        muted,
+                                        fg,
+                                    )
                                     .on_mouse_down(
                                         MouseButton::Left,
                                         cx.listener(move |this, _, _, cx| {
@@ -319,14 +335,8 @@ impl Render for CommandPalette {
                                             this.open_selected(cx);
                                         }),
                                     )
-                                    .child(
-                                        div()
-                                            .text_xs()
-                                            .text_color(theme.muted_foreground)
-                                            .child(r.conn_label.clone()),
-                                    )
-                                    .child(div().flex_1().text_sm().child(r.label.clone()))
-                            })),
+                                })
+                            }),
                     )
                     .child(
                         h_flex()

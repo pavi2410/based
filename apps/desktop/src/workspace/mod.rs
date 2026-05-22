@@ -24,8 +24,8 @@ use std::sync::Arc;
 
 use crate::widgets::ui::{engine_chip, engine_name, metadata_pill};
 use gpui::{
-    AnyView, App, Bounds, Context, Entity, FocusHandle, Focusable, FontWeight, IntoElement,
-    Render, SharedString, Window, WindowBounds, WindowOptions, div, point, prelude::*, px, size,
+    AnyView, App, Bounds, Context, Entity, FocusHandle, Focusable, FontWeight, IntoElement, Render,
+    SharedString, Window, WindowBounds, WindowOptions, div, point, prelude::*, px, size,
 };
 use gpui_component::{
     ActiveTheme, Root, StyledExt, Theme, TitleBar,
@@ -37,8 +37,7 @@ use ::mongodb::bson::Document;
 use mongodb::Collection;
 
 use crate::bindings::{
-    CycleAppearance, DismissCommandPalette, OpenSettings, ToggleCommandPalette,
-    ToggleSidebarRail,
+    CycleAppearance, DismissCommandPalette, OpenSettings, ToggleCommandPalette, ToggleSidebarRail,
 };
 use crate::command_palette::CommandPalette;
 use crate::connection::registry::ConnectionRegistry;
@@ -173,7 +172,7 @@ impl Workspace {
             |win, cx| {
                 Theme::change(Theme::global(cx).mode, Some(win), cx);
                 win.set_window_title("Based — Settings");
-                let settings = cx.new(|_| crate::settings_window::SettingsWindow::new());
+                let settings = cx.new(|cx| crate::settings_window::SettingsWindow::new(cx));
                 cx.new(|cx| Root::new(settings, win, cx).bg(cx.theme().background))
             },
         );
@@ -338,7 +337,10 @@ impl Workspace {
                     }
                 }
             }
-            TabSpec::Pipeline { conn_id, collection } => {
+            TabSpec::Pipeline {
+                conn_id,
+                collection,
+            } => {
                 let Some(ent) = self.find_connection(&conn_id, cx) else {
                     return;
                 };
@@ -401,11 +403,7 @@ impl Workspace {
                         };
                         let panel_ent = cx.new(|cx| {
                             postgres::inspector::TableInspectorPanel::new(
-                                pool,
-                                schema,
-                                name,
-                                window,
-                                cx,
+                                pool, schema, name, window, cx,
                             )
                         });
                         let arc = Arc::new(panel_ent);
@@ -416,9 +414,7 @@ impl Workspace {
                         let coll: Collection<Document> = db.collection(&object);
                         let panel_ent = cx.new(|cx| {
                             crate::mongodb::inspector::CollectionInspectorPanel::new(
-                                coll,
-                                window,
-                                cx,
+                                coll, window, cx,
                             )
                         });
                         let arc = Arc::new(panel_ent);

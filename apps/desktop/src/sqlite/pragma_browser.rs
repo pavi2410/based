@@ -4,11 +4,12 @@ use gpui::{prelude::*, *};
 use gpui_component::{
     dock::{Panel, PanelEvent},
     menu::PopupMenu,
-    table::{Column, DataTable, TableState},
+    table::{Column, TableState},
     v_flex,
 };
 use sqlx::SqlitePool;
 
+use crate::widgets::data_table::read_only_striped;
 use crate::widgets::virtual_table::RowDelegate;
 
 const PRAGMA_LIST: &[&str] = &[
@@ -131,6 +132,6 @@ impl Render for PragmaBrowserPanel {
         v_flex()
             .w_full()
             .h_full()
-            .child(DataTable::new(&self.table).stripe(true).bordered(false))
+            .child(read_only_striped(&self.table))
     }
 }

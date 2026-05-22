@@ -7,11 +7,12 @@ use gpui_component::{
     dock::{Panel, PanelEvent},
     h_flex,
     menu::PopupMenu,
-    table::{Column as TableColumn, DataTable, TableState},
+    table::{Column as TableColumn, TableState},
     v_flex,
 };
 use sqlx::{Column, PgPool, Row};
 
+use crate::widgets::data_table::read_only_striped;
 use crate::widgets::virtual_table::RowDelegate;
 
 pub struct LiveMonitorPanel {
@@ -129,6 +130,6 @@ impl Render for LiveMonitorPanel {
                         .on_click(cx.listener(|panel, _, _, cx| panel.refresh(cx))),
                 ),
             )
-            .child(DataTable::new(&self.table).stripe(true).bordered(false))
+            .child(read_only_striped(&self.table))
     }
 }

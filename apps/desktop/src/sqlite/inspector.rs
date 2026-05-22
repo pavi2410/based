@@ -2,17 +2,17 @@
 
 use gpui::{prelude::*, *};
 use gpui_component::{
-    ActiveTheme,
+    ActiveTheme, Sizable,
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,
     menu::PopupMenu,
-    table::{Column, DataTable, TableState},
+    table::{Column, TableState},
     v_flex,
-    Sizable,
 };
 use sqlx::{Row, SqlitePool};
 
+use crate::widgets::data_table::read_only_striped;
 use crate::widgets::virtual_table::RowDelegate;
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -245,12 +245,12 @@ impl Render for TableInspectorPanel {
             SqliteInspectorTab::Columns => div()
                 .flex_1()
                 .min_h(px(160.0))
-                .child(DataTable::new(&self.col_table).stripe(true).bordered(false))
+                .child(read_only_striped(&self.col_table))
                 .into_any_element(),
             SqliteInspectorTab::Indexes => div()
                 .flex_1()
                 .min_h(px(160.0))
-                .child(DataTable::new(&self.idx_table).stripe(true).bordered(false))
+                .child(read_only_striped(&self.idx_table))
                 .into_any_element(),
             SqliteInspectorTab::Ddl => div()
                 .id("sqlite-inspector-ddl")
@@ -275,8 +275,18 @@ impl Render for TableInspectorPanel {
                 h_flex()
                     .gap_2()
                     .py_2()
-                    .child(self.tab_button("sql-insp-col", "Columns", SqliteInspectorTab::Columns, cx))
-                    .child(self.tab_button("sql-insp-ix", "Indexes", SqliteInspectorTab::Indexes, cx))
+                    .child(self.tab_button(
+                        "sql-insp-col",
+                        "Columns",
+                        SqliteInspectorTab::Columns,
+                        cx,
+                    ))
+                    .child(self.tab_button(
+                        "sql-insp-ix",
+                        "Indexes",
+                        SqliteInspectorTab::Indexes,
+                        cx,
+                    ))
                     .child(self.tab_button("sql-insp-ddl", "DDL", SqliteInspectorTab::Ddl, cx)),
             )
             .child(tables_block)

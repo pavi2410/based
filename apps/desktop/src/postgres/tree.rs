@@ -1,7 +1,8 @@
 // postgres::tree — schema-qualified relation list from information_schema.
 
-use gpui::{prelude::*, *};
+use gpui::{InteractiveElement, prelude::*, *};
 
+use crate::widgets::list_row::schema_object_row;
 use crate::widgets::ui::{metadata_pill, panel_header};
 use gpui_component::{
     ActiveTheme,
@@ -144,11 +145,10 @@ impl Panel for SchemaTreePanel {
 impl Render for SchemaTreePanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let border = cx.theme().border;
-        let fg = cx.theme().foreground;
-        let muted = cx.theme().muted_foreground;
-
         let rows: Vec<RelRef> = self.nodes.clone();
         let selected = self.selected.clone();
+        let muted = cx.theme().muted_foreground;
+        let fg = cx.theme().foreground;
 
         let list = rows
             .into_iter()
@@ -160,20 +160,13 @@ impl Render for SchemaTreePanel {
                 let label2: SharedString = format!("{}.{}", rel.schema, rel.name).into();
                 let picked = rel.clone();
 
-                h_flex()
-                    .id(("pg-rel", ix))
-                    .px(px(8.0))
-                    .py(px(4.0))
-                    .gap(px(6.0))
-                    .cursor_pointer()
-                    .when(is_sel, |d| d.bg(cx.theme().accent.opacity(0.12)))
-                    .on_click(cx.listener(move |panel, _, _, cx| {
+                schema_object_row(("pg-rel", ix), is_sel, badge, label2, muted, fg).on_click(
+                    cx.listener(move |panel, _, _, cx| {
                         panel.selected = Some(key.clone());
                         cx.emit(PgSchemaTreeEvent::RelationSelected(picked.clone()));
                         cx.notify();
-                    }))
-                    .child(div().text_xs().text_color(muted).w(px(28.0)).child(badge))
-                    .child(div().text_sm().text_color(fg).child(label2))
+                    }),
+                )
             })
             .collect::<Vec<_>>();
 

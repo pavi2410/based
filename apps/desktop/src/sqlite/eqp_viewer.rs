@@ -5,21 +5,18 @@ use gpui_component::{
     ActiveTheme,
     dock::{Panel, PanelEvent},
     menu::PopupMenu,
+    scroll::ScrollableElement,
     v_flex,
 };
 use sqlx::{Row, SqlitePool};
 
-pub struct EqpNode {
-    pub id: i64,
-    pub parent: i64,
-    pub detail: String,
-}
+use super::eqp_parse::{EqpNode, parse_eqp};
 
 pub struct EqpViewerPanel {
     focus_handle: FocusHandle,
     pool: SqlitePool,
     sql: String,
-    nodes: Vec<EqpNode>,
+    roots: Vec<EqpNode>,
 }
 
 impl EqpViewerPanel {
@@ -33,7 +30,7 @@ impl EqpViewerPanel {
             focus_handle: cx.focus_handle(),
             pool,
             sql,
-            nodes: vec![],
+            roots: vec![],
         };
         panel.load_plan(cx);
         panel
@@ -55,43 +52,25 @@ impl EqpViewerPanel {
                     Err(_) => return,
                 };
 
-            let nodes: Vec<EqpNode> = rows
+            let flat: Vec<(i64, i64, String)> = rows
                 .iter()
                 .map(|row| {
                     let id: i64 = row.try_get("id").unwrap_or(0);
                     let parent: i64 = row.try_get("parent").unwrap_or(0);
                     let detail: String = row.try_get("detail").unwrap_or_default();
-                    EqpNode { id, parent, detail }
+                    (id, parent, detail)
                 })
                 .collect();
+            let roots = parse_eqp(&flat);
 
             let _ = cx.update(|cx| {
                 this.update(cx, |panel, cx| {
-                    panel.nodes = nodes;
+                    panel.roots = roots;
                     cx.notify();
                 })
             });
         })
         .detach();
-    }
-
-    fn depth_of(id: i64, nodes: &[EqpNode]) -> usize {
-        let mut current = id;
-        let mut depth = 0usize;
-        loop {
-            let parent = nodes.iter().find(|n| n.id == current).map(|n| n.parent);
-            match parent {
-                Some(p) if p != 0 && p != current => {
-                    current = p;
-                    depth += 1;
-                    if depth > 64 {
-                        break;
-                    }
-                }
-                _ => break,
-            }
-        }
-        depth
     }
 }
 
@@ -126,31 +105,52 @@ impl Panel for EqpViewerPanel {
     }
 }
 
+fn render_eqp_node(node: &EqpNode, depth: usize, theme: &gpui_component::Theme) -> AnyElement {
+    let warn = theme.warning;
+    let fg = if node.is_table_scan {
+        warn
+    } else {
+        theme.foreground
+    };
+    let row = div()
+        .w_full()
+        .py(px(2.0))
+        .pl(px((depth * 16) as f32 + 8.0))
+        .pr(px(8.0))
+        .when(node.is_table_scan, |d| {
+            d.border_l_2().border_color(warn)
+        })
+        .text_sm()
+        .text_color(fg)
+        .child(node.detail.clone());
+
+    let children: Vec<AnyElement> = node
+        .children
+        .iter()
+        .map(|c| render_eqp_node(c, depth + 1, theme))
+        .collect();
+
+    v_flex()
+        .w_full()
+        .child(row)
+        .children(children)
+        .into_any_element()
+}
+
 impl Render for EqpViewerPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let fg = cx.theme().foreground;
-        let rows: Vec<_> = self
-            .nodes
+        let theme = cx.theme();
+        let rows: Vec<AnyElement> = self
+            .roots
             .iter()
-            .map(|node| {
-                let depth = Self::depth_of(node.id, &self.nodes);
-                let detail: SharedString = node.detail.clone().into();
-                div()
-                    .w_full()
-                    .py(px(2.0))
-                    .pl(px((depth * 16) as f32 + 8.0))
-                    .pr(px(8.0))
-                    .text_sm()
-                    .text_color(fg)
-                    .child(detail)
-            })
+            .map(|root| render_eqp_node(root, 0, theme))
             .collect();
 
         v_flex()
             .id("eqp-scroll")
             .w_full()
             .h_full()
-            .overflow_y_scroll()
+            .overflow_y_scrollbar()
             .p(px(8.0))
             .children(rows)
     }

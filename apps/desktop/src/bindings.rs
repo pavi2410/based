@@ -9,6 +9,7 @@ gpui::actions!([
     DismissCommandPalette,
     CloseTab,
     NewQuery,
+    OpenSettings,
 ]);
 
 pub fn init(cx: &mut App) {

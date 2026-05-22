@@ -24,11 +24,11 @@ use std::sync::Arc;
 
 use crate::widgets::ui::{engine_chip, engine_name, metadata_pill};
 use gpui::{
-    AnyView, App, Context, Entity, FocusHandle, Focusable, FontWeight, IntoElement, Render,
-    SharedString, Window, div, prelude::*,
+    AnyView, App, Bounds, Context, Entity, FocusHandle, Focusable, FontWeight, IntoElement,
+    Render, SharedString, Window, WindowBounds, WindowOptions, div, point, prelude::*, px, size,
 };
 use gpui_component::{
-    ActiveTheme, StyledExt,
+    ActiveTheme, Root, StyledExt, Theme, TitleBar,
     dock::{DockArea, DockEvent, DockItem, DockPlacement, PanelStyle},
     h_flex, v_flex,
 };
@@ -37,7 +37,8 @@ use ::mongodb::bson::Document;
 use mongodb::Collection;
 
 use crate::bindings::{
-    CycleAppearance, DismissCommandPalette, ToggleCommandPalette, ToggleSidebarRail,
+    CycleAppearance, DismissCommandPalette, OpenSettings, ToggleCommandPalette,
+    ToggleSidebarRail,
 };
 use crate::command_palette::CommandPalette;
 use crate::connection::registry::ConnectionRegistry;
@@ -157,6 +158,25 @@ impl Workspace {
         self.sidebar_collapsed = !self.sidebar_collapsed;
         crate::app::prefs::set_sidebar(self.sidebar_collapsed, cx);
         cx.notify();
+    }
+
+    pub fn open_settings(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+        let _ = cx.open_window(
+            WindowOptions {
+                window_bounds: Some(WindowBounds::Windowed(Bounds {
+                    origin: point(px(120.0), px(120.0)),
+                    size: size(px(480.0), px(360.0)),
+                })),
+                titlebar: Some(TitleBar::title_bar_options()),
+                ..Default::default()
+            },
+            |win, cx| {
+                Theme::change(Theme::global(cx).mode, Some(win), cx);
+                win.set_window_title("Based — Settings");
+                let settings = cx.new(|_| crate::settings_window::SettingsWindow::new());
+                cx.new(|cx| Root::new(settings, win, cx).bg(cx.theme().background))
+            },
+        );
     }
 
     fn flush_pending_open_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -550,6 +570,11 @@ impl Render for Workspace {
                             p.dismiss(cx);
                         }
                     });
+                }),
+            )
+            .on_action(
+                window.listener_for(&this, |ws, _: &OpenSettings, window, cx| {
+                    ws.open_settings(window, cx);
                 }),
             )
             .bg(cx.theme().background)

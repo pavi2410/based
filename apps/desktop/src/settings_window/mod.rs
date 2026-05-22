@@ -1,3 +1,99 @@
-// settings_window/ — root view for the separate Settings OS window.
-// Opened via cx.open_window in Phase 1.
-// Implemented in Phase 1.
+//! Separate settings window (theme, defaults).
+
+use gpui::{Context, FontWeight, IntoElement, Render, Window, div, prelude::*};
+use gpui_component::{
+    ActiveTheme,
+    StyledExt,
+    button::{Button, ButtonVariants},
+    h_flex, v_flex,
+};
+
+pub struct SettingsWindow {
+    pub page_size: u32,
+    pub query_timeout_secs: u32,
+}
+
+impl SettingsWindow {
+    pub fn new() -> Self {
+        Self {
+            page_size: 100,
+            query_timeout_secs: 30,
+        }
+    }
+}
+
+impl Render for SettingsWindow {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        v_flex()
+            .size_full()
+            .p_6()
+            .gap_6()
+            .bg(cx.theme().background)
+            .child(
+                div()
+                    .text_lg()
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(cx.theme().foreground)
+                    .child("Settings"),
+            )
+            .child(
+                v_flex()
+                    .gap_4()
+                    .child(
+                        h_flex()
+                            .gap_4()
+                            .items_center()
+                            .child(
+                                div()
+                                    .w(gpui::px(160.0))
+                                    .text_sm()
+                                    .text_color(cx.theme().foreground)
+                                    .child("Theme"),
+                            )
+                            .child(
+                                Button::new("theme-toggle")
+                                    .label("Toggle Dark / Light")
+                                    .on_click(cx.listener(|_, _, _, cx| {
+                                        crate::app::prefs::cycle_theme(cx);
+                                    })),
+                            ),
+                    )
+                    .child(
+                        h_flex()
+                            .gap_4()
+                            .items_center()
+                            .child(
+                                div()
+                                    .w(gpui::px(160.0))
+                                    .text_sm()
+                                    .text_color(cx.theme().foreground)
+                                    .child("Default page size"),
+                            )
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child(format!("{} rows", self.page_size)),
+                            ),
+                    )
+                    .child(
+                        h_flex()
+                            .gap_4()
+                            .items_center()
+                            .child(
+                                div()
+                                    .w(gpui::px(160.0))
+                                    .text_sm()
+                                    .text_color(cx.theme().foreground)
+                                    .child("Query timeout"),
+                            )
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child(format!("{}s", self.query_timeout_secs)),
+                            ),
+                    ),
+            )
+    }
+}

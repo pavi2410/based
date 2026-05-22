@@ -38,6 +38,7 @@ impl RenderOnce for Topbar {
     fn render(self, _: &mut gpui::Window, cx: &mut App) -> impl IntoElement {
         let workspace = self.workspace.clone();
         let workspace_rail = workspace.clone();
+        let workspace_settings = workspace.clone();
 
         let collapsed = prefs::collapsed_from(cx);
         let is_dark = cx.theme().is_dark();
@@ -147,8 +148,13 @@ impl RenderOnce for Topbar {
                                 .ghost()
                                 .xsmall()
                                 .icon(IconName::Settings)
-                                .tooltip(SharedString::from("Settings — coming soon"))
-                                .on_click(|_, _, _| eprintln!("settings — Phase 2 will wire this")),
+                                .tooltip(SharedString::from("Settings"))
+                                .on_click(move |_, window, cx| {
+                                    let ent = workspace_settings.clone();
+                                    let _ = ent.update(cx, |ws, cx| {
+                                        ws.open_settings(window, cx);
+                                    });
+                                }),
                         ),
                 ),
         )

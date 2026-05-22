@@ -58,6 +58,7 @@ fn main() {
                 })
                 .unwrap_or_default();
             cx.set_global(crate::project::ProjectVars { vars });
+            crate::project::install_config_watcher(project_root.clone(), cx);
 
             cx.on_window_closed(|cx, id| {
                 PopOutManager::on_any_window_closed(cx, id);

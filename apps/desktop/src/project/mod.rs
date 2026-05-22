@@ -27,6 +27,27 @@ pub struct ProjectVars {
 
 impl Global for ProjectVars {}
 
+/// Keeps the `.based/` filesystem watcher alive for the process lifetime.
+#[derive(Default)]
+pub struct ConfigWatcherGlobal {
+    _watcher: Option<watcher::ConfigWatcher>,
+}
+
+impl Global for ConfigWatcherGlobal {}
+
+/// Start watching `project_root/.based/` when a project is open.
+pub fn install_config_watcher(project_root: Option<PathBuf>, cx: &mut gpui::App) {
+    let watcher = project_root.and_then(|root| {
+        let root_log = root.clone();
+        watcher::ConfigWatcher::new(root, || {
+            log::info!("based config changed — reload pending");
+        })
+        .inspect_err(|e| log::warn!("config watcher ({root_log:?}): {e:#}"))
+        .ok()
+    });
+    cx.set_global(ConfigWatcherGlobal { _watcher: watcher });
+}
+
 pub enum ProjectEvent {
     ConfigReloaded,
 }
@@ -40,11 +61,15 @@ pub struct Project {
 impl Project {
     pub fn open(dir: PathBuf, _cx: &mut Context<Self>) -> Self {
         let config = ProjectConfig::load(&dir).unwrap_or_default();
-        // Watcher integration deferred to Phase 2b.
+        let watcher = watcher::ConfigWatcher::new(dir.clone(), || {
+            log::info!("based config changed — reload pending");
+        })
+        .inspect_err(|e| log::warn!("config watcher ({dir:?}): {e:#}"))
+        .ok();
         Self {
             dir,
             config,
-            _watcher: None,
+            _watcher: watcher,
         }
     }
 

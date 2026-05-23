@@ -1,7 +1,7 @@
-use gpui::{App, IntoElement, RenderOnce, SharedString, prelude::*};
+use gpui::{App, IntoElement, RenderOnce, SharedString, prelude::*, px};
 use gpui_component::{ActiveTheme, h_flex};
 
-use crate::widgets::status_chip::status_chip;
+use crate::widgets::status_item::{status_divider, status_segment, status_text};
 
 /// Context passed into the workspace status rail.
 #[derive(Clone, Debug)]
@@ -33,16 +33,27 @@ impl RenderOnce for StatusBar {
         } else {
             None
         };
+
+        let history_value = if self.model.history_ready {
+            "ready"
+        } else {
+            "empty"
+        };
+        let history_fg = if self.model.history_ready {
+            fg
+        } else {
+            cx.theme().warning_foreground
+        };
         let history_dot = if self.model.history_ready {
             Some(cx.theme().green_light.opacity(0.85))
         } else {
-            Some(muted.opacity(0.5))
+            None
         };
 
         h_flex()
-            .h_6()
+            .h(px(22.0))
             .w_full()
-            .px_2()
+            .px_3()
             .border_t_1()
             .border_color(cx.theme().border)
             .bg(cx.theme().tab_bar)
@@ -50,23 +61,25 @@ impl RenderOnce for StatusBar {
             .justify_between()
             .child(
                 h_flex()
-                    .gap_2()
+                    .gap(px(10.0))
                     .items_center()
-                    .child(status_chip(
+                    .child(status_segment(
                         "connections",
                         self.model.connection_count.to_string(),
                         muted,
                         fg,
                         None,
                     ))
-                    .child(status_chip(
+                    .child(status_divider(muted))
+                    .child(status_segment(
                         "live",
                         self.model.connected_count.to_string(),
                         muted,
                         fg,
                         live_dot,
                     ))
-                    .child(status_chip(
+                    .child(status_divider(muted))
+                    .child(status_segment(
                         "scope",
                         self.model.scope_label,
                         muted,
@@ -76,20 +89,17 @@ impl RenderOnce for StatusBar {
             )
             .child(
                 h_flex()
-                    .gap_2()
+                    .gap(px(10.0))
                     .items_center()
-                    .child(status_chip(
+                    .child(status_segment(
                         "history",
-                        SharedString::from(if self.model.history_ready {
-                            "ready"
-                        } else {
-                            "empty"
-                        }),
+                        history_value,
                         muted,
-                        fg,
+                        history_fg,
                         history_dot,
                     ))
-                    .child(status_chip("based", "v0.1.0", muted, fg, None)),
+                    .child(status_divider(muted))
+                    .child(status_text("based 0.1.0", muted)),
             )
     }
 }

@@ -1,10 +1,19 @@
-//! Status bar chips — at-a-glance contextual facts.
+//! Flat status bar segments — IDE-style label/value pairs without chip chrome.
 
 use gpui::{Hsla, IntoElement, ParentElement, SharedString, div, prelude::*, px};
 use gpui_component::h_flex;
 
-/// Small boxed label + value for the status rail.
-pub fn status_chip(
+/// Muted vertical rule between status segments.
+pub fn status_divider(muted: Hsla) -> impl IntoElement {
+    div()
+        .w(px(1.0))
+        .h(px(12.0))
+        .flex_shrink_0()
+        .bg(muted.opacity(0.22))
+}
+
+/// Plain label + value for the status rail (no border or background).
+pub fn status_segment(
     label: impl Into<SharedString>,
     value: impl Into<SharedString>,
     muted: Hsla,
@@ -12,14 +21,9 @@ pub fn status_chip(
     dot: Option<Hsla>,
 ) -> impl IntoElement {
     h_flex()
-        .h(px(18.0))
+        .h(px(22.0))
         .items_center()
-        .gap(px(5.0))
-        .px(px(7.0))
-        .rounded(px(4.0))
-        .border_1()
-        .border_color(muted.opacity(0.35))
-        .bg(muted.opacity(0.12))
+        .gap(px(4.0))
         .when_some(dot, |row, color| {
             row.child(
                 div()
@@ -34,8 +38,16 @@ pub fn status_chip(
         .child(
             div()
                 .text_xs()
-                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .font_weight(gpui::FontWeight::MEDIUM)
                 .text_color(fg.opacity(0.92))
                 .child(value.into()),
         )
+}
+
+/// Single muted string for the right side of the status bar (e.g. version).
+pub fn status_text(value: impl Into<SharedString>, muted: Hsla) -> impl IntoElement {
+    div()
+        .text_xs()
+        .text_color(muted.opacity(0.88))
+        .child(value.into())
 }

@@ -6,8 +6,8 @@ use std::time::Instant;
 
 use crate::widgets::ui::{engine_chip, engine_color};
 use gpui::{
-    Context, Entity, EventEmitter, IntoElement, MouseButton, Render, SharedString, Window, div,
-    prelude::*, px,
+    Context, Entity, EventEmitter, InteractiveElement, IntoElement, MouseButton, Render,
+    SharedString, Window, div, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme, Icon, IconName, Sizable as _, StyledExt,
@@ -821,6 +821,7 @@ impl Render for ConnectionTree {
             )
             .child(
                 h_flex()
+                    .id("connection-search-placeholder")
                     .mx_2()
                     .my_2()
                     .h(gpui::px(28.0))

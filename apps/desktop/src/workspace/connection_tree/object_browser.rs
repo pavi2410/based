@@ -248,6 +248,7 @@ pub(super) fn render_objects_pane(
         )
         .child(
             h_flex()
+                .id("object-search-placeholder")
                 .mx_2()
                 .my_2()
                 .h(gpui::px(28.0))

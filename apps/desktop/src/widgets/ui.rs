@@ -78,6 +78,14 @@ pub fn engine_chip(engine: EngineKind, cx: &mut App) -> impl IntoElement {
         )
 }
 
+/// Muted inline hint for window chrome (no border or fill).
+pub fn chrome_hint(text: impl Into<SharedString>, cx: &mut App) -> impl IntoElement {
+    div()
+        .text_xs()
+        .text_color(cx.theme().muted_foreground.opacity(0.9))
+        .child(text.into())
+}
+
 pub fn metadata_pill(
     label: impl Into<SharedString>,
     value: impl Into<SharedString>,

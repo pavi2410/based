@@ -7,7 +7,7 @@ use gpui_component::{
 
 use super::Workspace;
 use crate::app::prefs;
-use crate::widgets::ui::{command_shell, metadata_pill, toolbar_button};
+use crate::widgets::ui::{chrome_hint, command_shell, toolbar_button};
 
 /// A `RenderOnce` top bar that renders inside the window's `TitleBar`.
 #[derive(IntoElement)]
@@ -48,6 +48,7 @@ impl RenderOnce for Topbar {
         } else {
             format!("{}/{} live", self.connected_count, self.connection_count)
         };
+        let muted = cx.theme().muted_foreground;
 
         TitleBar::new().child(
             h_flex()
@@ -114,7 +115,7 @@ impl RenderOnce for Topbar {
                                 .truncate()
                                 .child(self.project_name.clone()),
                         )
-                        .child(metadata_pill("env", "local", cx)),
+                        .child(chrome_hint("env local", cx)),
                 )
                 .child(
                     h_flex()
@@ -129,7 +130,13 @@ impl RenderOnce for Topbar {
                         .items_center()
                         .justify_end()
                         .gap_1()
-                        .child(metadata_pill("workspace", health, cx))
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(muted.opacity(0.9))
+                                .truncate()
+                                .child(health),
+                        )
                         .child(toolbar_button(
                             "new-connection",
                             IconName::Plus,

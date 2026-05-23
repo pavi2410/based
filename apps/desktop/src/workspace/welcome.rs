@@ -1,4 +1,3 @@
-use crate::widgets::ui::metadata_pill;
 use gpui::{
     App, Context, FocusHandle, Focusable, IntoElement, Render, Window, div, prelude::*, px,
 };
@@ -76,19 +75,14 @@ impl Render for WelcomePanel {
                     ),
             )
             .child(
-                h_flex()
-                    .gap_2()
-                    .child(metadata_pill(
-                        "command",
-                        if cfg!(target_os = "macos") {
-                            "⌘K"
-                        } else {
-                            "Ctrl K"
-                        },
-                        cx,
-                    ))
-                    .child(metadata_pill("workspace", "local-first", cx))
-                    .child(metadata_pill("engines", "SQLite · Postgres · MongoDB", cx)),
+                div()
+                    .text_xs()
+                    .text_color(cx.theme().muted_foreground.opacity(0.9))
+                    .child(if cfg!(target_os = "macos") {
+                        "⌘K · local-first · SQLite · Postgres · MongoDB"
+                    } else {
+                        "Ctrl K · local-first · SQLite · Postgres · MongoDB"
+                    }),
             )
             .child(
                 h_flex()
@@ -124,12 +118,9 @@ fn action_card(
     div()
         .w(px(210.0))
         .p_3()
-        .rounded(px(8.0))
-        .border_1()
-        .border_color(cx.theme().border.opacity(0.84))
-        .bg(cx.theme().muted.opacity(0.22))
+        .rounded(px(6.0))
         .cursor_pointer()
-        .hover(|s| s.border_color(gpui::hsla(0.68, 0.45, 0.68, 0.56)))
+        .hover(|s| s.bg(cx.theme().muted.opacity(0.35)))
         .child(
             v_flex()
                 .gap_2()

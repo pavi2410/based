@@ -928,17 +928,21 @@ fn inspector_section(
             h_flex()
                 .h(gpui::px(24.0))
                 .items_center()
-                .justify_between()
+                .gap_2()
                 .border_b_1()
                 .border_color(cx.theme().border.opacity(0.42))
                 .child(
                     div()
+                        .w(gpui::px(88.0))
+                        .flex_shrink_0()
                         .text_xs()
                         .text_color(cx.theme().muted_foreground)
                         .child(label),
                 )
                 .child(
                     div()
+                        .flex_1()
+                        .min_w_0()
                         .text_xs()
                         .text_color(cx.theme().foreground.opacity(0.88))
                         .truncate()

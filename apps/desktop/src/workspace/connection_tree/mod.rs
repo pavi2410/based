@@ -867,6 +867,7 @@ impl Render for ConnectionTree {
                     let status_cell = if is_failed {
                         h_flex()
                             .flex_shrink_0()
+                            .pr_2()
                             .gap_1()
                             .items_center()
                             .child(

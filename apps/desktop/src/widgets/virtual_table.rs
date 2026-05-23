@@ -3,7 +3,10 @@
 // so this is a thin wrapper / type alias for the RowDelegate-based table.
 
 use gpui::{prelude::*, *};
-use gpui_component::{ActiveTheme, table::{Column, ColumnSort, TableState}};
+use gpui_component::{
+    ActiveTheme,
+    table::{Column, ColumnSort, TableState},
+};
 
 use crate::app::prefs::{self, TableDensity};
 
@@ -66,11 +69,7 @@ impl gpui_component::table::TableDelegate for RowDelegate {
             } else {
                 cx.theme().foreground
             });
-        el = if compact {
-            el.text_xs()
-        } else {
-            el.text_sm()
-        };
+        el = if compact { el.text_xs() } else { el.text_sm() };
         el.child(display)
     }
 

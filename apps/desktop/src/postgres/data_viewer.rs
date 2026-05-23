@@ -19,9 +19,10 @@ use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_display}
 use crate::widgets::data_table::read_only_striped;
 use crate::widgets::filter_bar::FilterBar;
 use crate::widgets::pagination::{offset_for_page, sql_pagination_controls, sql_row_range_label};
-use crate::widgets::ui::{metadata_pill, panel_shell};
 use crate::widgets::row_cell::pg_cell_display;
+use crate::widgets::ui::{metadata_pill, panel_shell};
 use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
+use crate::workspace::pop_out::{PopOutManager, PopOutWindowTitle};
 
 pub struct DataViewerPanel {
     focus_handle: FocusHandle,
@@ -211,6 +212,12 @@ impl Panel for DataViewerPanel {
     }
 }
 
+impl PopOutWindowTitle for DataViewerPanel {
+    fn pop_out_window_title(&mut self, _: &mut Window, _: &mut App) -> String {
+        format!("{}.{}", self.schema, self.table_name)
+    }
+}
+
 impl Render for DataViewerPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let total = self.total_rows;
@@ -265,15 +272,21 @@ impl Render for DataViewerPanel {
                 ),
             );
 
-        panel_shell(
-            cx,
-            "",
-            "Browse Postgres relation data",
-            v_flex()
-                .size_full()
-                .child(toolbar)
-                .child(div().flex_1().min_h_0().child(read_only_striped(&self.table)))
-                .child(self.cell_detail.clone()),
-        )
+        let body = v_flex()
+            .size_full()
+            .child(toolbar)
+            .child(
+                div()
+                    .flex_1()
+                    .min_h_0()
+                    .child(read_only_striped(&self.table)),
+            )
+            .child(self.cell_detail.clone());
+
+        if PopOutManager::is_pop_out_panel(cx.entity().entity_id(), cx) {
+            body.into_any_element()
+        } else {
+            panel_shell(cx, "", "Browse Postgres relation data", body).into_any_element()
+        }
     }
 }

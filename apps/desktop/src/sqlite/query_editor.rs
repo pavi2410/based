@@ -25,6 +25,7 @@ use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input, sql_from_in
 use crate::widgets::tab_chip::tab_chip;
 use crate::widgets::ui::{metadata_pill, panel_context_header};
 use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
+use crate::workspace::pop_out::{PopOutManager, PopOutWindowTitle};
 use crate::workspace::{TabSpec, enqueue_open_tab, notify, tab_open::take_sql_inject};
 
 pub enum QueryStatus {
@@ -226,6 +227,12 @@ impl Panel for QueryEditorPanel {
     }
 }
 
+impl PopOutWindowTitle for QueryEditorPanel {
+    fn pop_out_window_title(&mut self, _: &mut Window, _: &mut App) -> String {
+        "Query".into()
+    }
+}
+
 impl Render for QueryEditorPanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if let Some(sql) = take_sql_inject(&self.conn_id, cx) {
@@ -365,10 +372,15 @@ impl Render for QueryEditorPanel {
             .h_full()
             .min_h(px(0.0))
             .bg(cx.theme().background)
-            .child(panel_context_header(
-                "Run SQL, inspect result sets, recover history",
-                cx,
-            ))
+            .when(
+                !PopOutManager::is_pop_out_panel(cx.entity().entity_id(), cx),
+                |col| {
+                    col.child(panel_context_header(
+                        "Run SQL, inspect result sets, recover history",
+                        cx,
+                    ))
+                },
+            )
             .child(toolbar)
             .when_some(error_strip, |col, strip| col.child(strip))
             .child(editor_body)

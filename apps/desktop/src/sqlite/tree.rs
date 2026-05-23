@@ -154,15 +154,23 @@ impl Render for SchemaTreePanel {
                 .into();
                 let picked = node.name.clone();
 
-                schema_object_row(("sqlite-obj", ix), is_selected, kind_label, name, muted, fg, mono.clone())
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |panel, _, _window, cx| {
-                            panel.selected = Some(picked.clone());
-                            cx.emit(SchemaTreeEvent::TableSelected(picked.clone()));
-                            cx.notify();
-                        }),
-                    )
+                schema_object_row(
+                    ("sqlite-obj", ix),
+                    is_selected,
+                    kind_label,
+                    name,
+                    muted,
+                    fg,
+                    mono.clone(),
+                )
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |panel, _, _window, cx| {
+                        panel.selected = Some(picked.clone());
+                        cx.emit(SchemaTreeEvent::TableSelected(picked.clone()));
+                        cx.notify();
+                    }),
+                )
             })
             .collect();
 

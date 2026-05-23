@@ -14,7 +14,10 @@ pub struct SessionState {
 
 impl SessionState {
     pub fn path(project_root: &Path) -> PathBuf {
-        project_root.join(".based").join("local").join("workspace.json")
+        project_root
+            .join(".based")
+            .join("local")
+            .join("workspace.json")
     }
 
     pub fn load(project_root: &Path) -> Self {

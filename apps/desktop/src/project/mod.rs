@@ -5,8 +5,8 @@ pub mod based_config;
 pub mod config;
 pub mod discovery;
 pub mod queries;
-pub mod variables;
 pub mod reload;
+pub mod variables;
 pub mod watcher;
 
 pub use based_config::load_workspace_seed;

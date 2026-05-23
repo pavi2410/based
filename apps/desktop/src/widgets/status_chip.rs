@@ -30,12 +30,7 @@ pub fn status_chip(
                     .bg(color),
             )
         })
-        .child(
-            div()
-                .text_xs()
-                .text_color(muted)
-                .child(label.into()),
-        )
+        .child(div().text_xs().text_color(muted).child(label.into()))
         .child(
             div()
                 .text_xs()

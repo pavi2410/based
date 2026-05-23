@@ -36,12 +36,7 @@ pub fn text_from_input(input: &Entity<InputState>, cx: &App) -> String {
     input.read(cx).value().to_string()
 }
 
-pub fn set_input_text(
-    input: &Entity<InputState>,
-    text: &str,
-    window: &mut Window,
-    cx: &mut App,
-) {
+pub fn set_input_text(input: &Entity<InputState>, text: &str, window: &mut Window, cx: &mut App) {
     input.update(cx, |state, cx| {
         state.set_value(text, window, cx);
     });
@@ -52,12 +47,7 @@ pub fn sql_from_input(input: &Entity<InputState>, cx: &App) -> String {
     text_from_input(input, cx)
 }
 
-pub fn set_sql_input(
-    input: &Entity<InputState>,
-    sql: &str,
-    window: &mut Window,
-    cx: &mut App,
-) {
+pub fn set_sql_input(input: &Entity<InputState>, sql: &str, window: &mut Window, cx: &mut App) {
     set_input_text(input, sql, window, cx);
 }
 
@@ -69,11 +59,7 @@ pub fn code_editor_area(
     cx: &App,
 ) -> impl IntoElement {
     let theme = cx.theme();
-    let border: Hsla = if is_error {
-        theme.danger
-    } else {
-        theme.border
-    };
+    let border: Hsla = if is_error { theme.danger } else { theme.border };
 
     div()
         .h(px(height))

@@ -1,6 +1,9 @@
 //! Separate settings window (theme, typography, query defaults).
 
-use gpui::{Context, FocusHandle, Focusable, IntoElement, ParentElement, Render, Window, div, prelude::*, px};
+use gpui::{
+    Context, FocusHandle, Focusable, IntoElement, ParentElement, Render, Window, div, prelude::*,
+    px,
+};
 use gpui_component::{
     ActiveTheme, Icon, IconName, ThemeMode,
     group_box::GroupBoxVariant,
@@ -81,7 +84,8 @@ impl SettingsWindow {
                 ]),
             SettingPage::new("Query defaults")
                 .icon(Icon::new(IconName::Settings))
-                .groups(vec![SettingGroup::new().title("Data browsing").items(vec![
+                .groups(vec![SettingGroup::new().title("Data browsing").items(
+                    vec![
                     SettingItem::new(
                         "Page size",
                         SettingField::number_input(
@@ -133,7 +137,8 @@ impl SettingsWindow {
                     .description(
                         "Maximum seconds to wait for a query (enforcement in editors is planned).",
                     ),
-                ])]),
+                ],
+                )]),
         ]
     }
 }

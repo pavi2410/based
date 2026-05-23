@@ -1,6 +1,6 @@
 // postgres::query_editor — run ad-hoc SQL against a pool.
 
-use gpui::{prelude::*, App, RenderOnce, *};
+use gpui::{App, RenderOnce, prelude::*, *};
 use gpui_component::{
     ActiveTheme, Sizable as _,
     button::{Button, ButtonVariants},
@@ -27,6 +27,7 @@ use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input, sql_from_in
 use crate::widgets::tab_chip::tab_chip;
 use crate::widgets::ui::{metadata_pill, panel_context_header};
 use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
+use crate::workspace::pop_out::{PopOutManager, PopOutWindowTitle};
 use crate::workspace::{
     TabSpec, enqueue_open_tab, mark_query_tab_dirty, notify, tab_open::take_sql_inject,
 };
@@ -228,13 +229,13 @@ impl Panel for QueryEditorPanel {
     }
 
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        tab_chip(
-            EngineKind::Postgres,
-            "Query",
-            self.dirty,
-            false,
-            cx,
-        )
+        tab_chip(EngineKind::Postgres, "Query", self.dirty, false, cx)
+    }
+}
+
+impl PopOutWindowTitle for QueryEditorPanel {
+    fn pop_out_window_title(&mut self, _: &mut Window, _: &mut App) -> String {
+        "Query".into()
     }
 }
 
@@ -343,16 +344,12 @@ impl Render for QueryEditorPanel {
         let main_column = v_flex()
             .flex_1()
             .min_w(px(0.0))
-            .child(
-                div()
-                    .p_2()
-                    .child(sql_editor::code_editor_area(
-                        &self.sql_input,
-                        is_error,
-                        200.0,
-                        cx,
-                    )),
-            )
+            .child(div().p_2().child(sql_editor::code_editor_area(
+                &self.sql_input,
+                is_error,
+                200.0,
+                cx,
+            )))
             .child(
                 div()
                     .flex_1()
@@ -363,11 +360,7 @@ impl Render for QueryEditorPanel {
         let panel_ent = cx.entity();
         let history_entries = if self.show_history {
             let store = cx.global::<QueryStore>();
-            Some(filtered_history(
-                store,
-                &self.conn_id,
-                self.history_filter,
-            ))
+            Some(filtered_history(store, &self.conn_id, self.history_filter))
         } else {
             None
         };
@@ -402,10 +395,15 @@ impl Render for QueryEditorPanel {
             .h_full()
             .min_h(px(0.0))
             .bg(cx.theme().background)
-            .child(panel_context_header(
-                "Run SQL, inspect plans, compare result sets",
-                cx,
-            ))
+            .when(
+                !PopOutManager::is_pop_out_panel(cx.entity().entity_id(), cx),
+                |col| {
+                    col.child(panel_context_header(
+                        "Run SQL, inspect plans, compare result sets",
+                        cx,
+                    ))
+                },
+            )
             .child(toolbar)
             .when_some(error_strip, |col, strip| col.child(strip))
             .child(editor_body)
@@ -462,23 +460,21 @@ impl RenderOnce for HistorySidebarView {
                             .font_weight(FontWeight::SEMIBOLD)
                             .child("History"),
                     )
-                    .child(h_flex().gap_1().children(
-                        HistoryFilter::ALL.map(|f| {
-                            let active = filter == f;
-                            let panel_ent = panel_ent.clone();
-                            Button::new(SharedString::from(format!("pg-hist-filter-{}", f.label())))
-                                .ghost()
-                                .xsmall()
-                                .label(f.label())
-                                .when(active, |b| b.primary())
-                                .on_click(move |_, _, cx| {
-                                    let _ = panel_ent.update(cx, |panel, cx| {
-                                        panel.history_filter = f;
-                                        cx.notify();
-                                    });
-                                })
-                        }),
-                    ))
+                    .child(h_flex().gap_1().children(HistoryFilter::ALL.map(|f| {
+                        let active = filter == f;
+                        let panel_ent = panel_ent.clone();
+                        Button::new(SharedString::from(format!("pg-hist-filter-{}", f.label())))
+                            .ghost()
+                            .xsmall()
+                            .label(f.label())
+                            .when(active, |b| b.primary())
+                            .on_click(move |_, _, cx| {
+                                let _ = panel_ent.update(cx, |panel, cx| {
+                                    panel.history_filter = f;
+                                    cx.notify();
+                                });
+                            })
+                    })))
                     .when_some(star_name, |col, name| {
                         let panel_save = panel_ent.clone();
                         let panel_cancel = panel_ent.clone();
@@ -503,12 +499,7 @@ impl RenderOnce for HistorySidebarView {
                                                 let conn = panel.conn_id.clone();
                                                 cx.update_global(|store: &mut QueryStore, _| {
                                                     save_starred_query(
-                                                        store,
-                                                        conn,
-                                                        &name,
-                                                        &sql,
-                                                        false,
-                                                        None,
+                                                        store, conn, &name, &sql, false, None,
                                                     );
                                                 });
                                                 panel.star_name = None;

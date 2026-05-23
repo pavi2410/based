@@ -10,6 +10,7 @@ use gpui_component::{
     button::{Button, ButtonVariants},
     h_flex,
     scroll::ScrollableElement,
+    tooltip::Tooltip,
     v_flex,
 };
 
@@ -204,9 +205,15 @@ pub(super) fn render_objects_pane(
                             .mx_2()
                             .mb(gpui::px(1.0))
                             .rounded(gpui::px(6.0))
-                            .on_click(cx.listener(move |tree, _, window, cx| {
-                                tree.on_object_clicked(object_for_row_click.clone(), window, cx);
-                            }))
+                            .on_click(cx.listener(
+                                move |tree, _, window, cx| {
+                                    tree.on_object_clicked(
+                                        object_for_row_click.clone(),
+                                        window,
+                                        cx,
+                                    );
+                                },
+                            ))
                         }))
                 }))
                 .into_any_element()
@@ -251,6 +258,10 @@ pub(super) fn render_objects_pane(
                 .border_1()
                 .border_color(border.opacity(0.78))
                 .bg(cx.theme().muted.opacity(0.32))
+                .cursor_default()
+                .tooltip(|window, app| {
+                    Tooltip::new("Object filter coming soon — use ⌘K for now").build(window, app)
+                })
                 .child(
                     Icon::new(IconName::Search)
                         .with_size(gpui_component::Size::XSmall)

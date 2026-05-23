@@ -1,6 +1,6 @@
 //! Format sqlx row values as display strings for data grids.
 
-use sqlx::{Row, sqlite::SqliteRow, postgres::PgRow};
+use sqlx::{Row, postgres::PgRow, sqlite::SqliteRow};
 
 use super::virtual_table::NULL_CELL_DISPLAY;
 
@@ -26,7 +26,8 @@ pub fn sqlite_cell_display(row: &SqliteRow, col: usize) -> String {
         return v.unwrap_or_else(|| NULL_DISPLAY.into());
     }
     if let Ok(v) = row.try_get::<Option<Vec<u8>>, _>(col) {
-        return v.map(|b| format!("<{} bytes>", b.len()))
+        return v
+            .map(|b| format!("<{} bytes>", b.len()))
             .unwrap_or_else(|| NULL_DISPLAY.into());
     }
     NULL_DISPLAY.into()
@@ -50,7 +51,8 @@ pub fn pg_cell_display(row: &PgRow, col: usize) -> String {
         return v.unwrap_or_else(|| NULL_DISPLAY.into());
     }
     if let Ok(v) = row.try_get::<Option<Vec<u8>>, _>(col) {
-        return v.map(|b| format!("<{} bytes>", b.len()))
+        return v
+            .map(|b| format!("<{} bytes>", b.len()))
             .unwrap_or_else(|| NULL_DISPLAY.into());
     }
     NULL_DISPLAY.into()

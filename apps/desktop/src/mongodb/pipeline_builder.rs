@@ -250,7 +250,12 @@ impl Render for PipelineBuilderPanel {
                 div()
                     .flex_1()
                     .min_h(px(160.0))
-                    .child(sql_editor::code_editor_area(&self.pipeline_input, false, 200.0, cx)),
+                    .child(sql_editor::code_editor_area(
+                        &self.pipeline_input,
+                        false,
+                        200.0,
+                        cx,
+                    )),
             )
             .child(
                 h_flex()

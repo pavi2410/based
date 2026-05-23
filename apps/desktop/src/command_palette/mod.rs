@@ -9,8 +9,8 @@ use gpui::{
 };
 use gpui_component::{ActiveTheme, h_flex, scroll::ScrollableElement, v_flex};
 
-use crate::connection::{ConnectionId, EngineKind};
 use crate::connection::registry::ConnectionRegistry;
+use crate::connection::{ConnectionId, EngineKind};
 use crate::query_store::QueryStore;
 use crate::widgets::list_row::palette_result_row;
 use crate::workspace::connection_tree::ConnectionTree;
@@ -21,7 +21,10 @@ use crate::workspace::tab_spec::TabSpec;
 pub enum PaletteEvent {
     OpenTab(TabSpec),
     /// Load SQL into the active query editor when conn matches.
-    InjectSql { conn_id: ConnectionId, sql: String },
+    InjectSql {
+        conn_id: ConnectionId,
+        sql: String,
+    },
 }
 
 /// A search result the palette can return.
@@ -236,10 +239,7 @@ impl CommandPalette {
         let mut seen_history: HashSet<(ConnectionId, String)> = HashSet::new();
         for entry in store.history.recent(100) {
             if q.is_empty() || entry.query.to_lowercase().contains(&q) {
-                let key = (
-                    entry.conn_id.clone(),
-                    entry.query.trim().to_lowercase(),
-                );
+                let key = (entry.conn_id.clone(), entry.query.trim().to_lowercase());
                 if !seen_history.insert(key) {
                     continue;
                 }
@@ -266,7 +266,9 @@ impl CommandPalette {
                 };
                 let meta = format!(
                     "history · {}",
-                    entry.ran_at.format(&time::format_description::well_known::Rfc3339)
+                    entry
+                        .ran_at
+                        .format(&time::format_description::well_known::Rfc3339)
                         .unwrap_or_else(|_| "recent".into())
                 );
                 results.push(PaletteResult {
@@ -349,9 +351,7 @@ impl Render for CommandPalette {
                                     .min_w_0()
                                     .when(self.query.is_empty(), |row| {
                                         row.text_sm().text_color(theme.muted_foreground).child(
-                                            SharedString::from(
-                                                "Search tables, queries, connections…",
-                                            ),
+                                            SharedString::from("Search tables, queries, history…"),
                                         )
                                     })
                                     .when(!self.query.is_empty(), |row| {
@@ -381,24 +381,25 @@ impl Render for CommandPalette {
                                     .collect();
                                 results.into_iter().map(
                                     |(i, is_sel, conn_label, label, sublabel)| {
-                                    palette_result_row(
-                                        ("palette-result", i),
-                                        is_sel,
-                                        conn_label,
-                                        label,
-                                        sublabel,
-                                        muted,
-                                        fg,
-                                    )
-                                    .on_mouse_down(
-                                        MouseButton::Left,
-                                        cx.listener(move |this, _, _, cx| {
-                                            cx.stop_propagation();
-                                            this.selected = i;
-                                            this.open_selected(false, cx);
-                                        }),
-                                    )
-                                })
+                                        palette_result_row(
+                                            ("palette-result", i),
+                                            is_sel,
+                                            conn_label,
+                                            label,
+                                            sublabel,
+                                            muted,
+                                            fg,
+                                        )
+                                        .on_mouse_down(
+                                            MouseButton::Left,
+                                            cx.listener(move |this, _, _, cx| {
+                                                cx.stop_propagation();
+                                                this.selected = i;
+                                                this.open_selected(false, cx);
+                                            }),
+                                        )
+                                    },
+                                )
                             }),
                     )
                     .child(

@@ -89,13 +89,7 @@ impl RenderOnce for StatusBar {
                         fg,
                         history_dot,
                     ))
-                    .child(status_chip(
-                        "based",
-                        "v0.1.0",
-                        muted,
-                        fg,
-                        None,
-                    )),
+                    .child(status_chip("based", "v0.1.0", muted, fg, None)),
             )
     }
 }

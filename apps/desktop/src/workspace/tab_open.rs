@@ -23,9 +23,7 @@ pub fn mark_query_tab_dirty(conn_id: &ConnectionId, cx: &mut App) {
         let Some(tab) = tm.tabs.get_mut(active) else {
             return;
         };
-        if tab.spec.conn_id() == conn_id
-            && matches!(tab.spec, TabSpec::QueryEditor { .. })
-        {
+        if tab.spec.conn_id() == conn_id && matches!(tab.spec, TabSpec::QueryEditor { .. }) {
             tab.dirty = true;
             cx.notify();
         }
@@ -47,19 +45,22 @@ pub struct SqlInject {
 
 impl Global for SqlInject {}
 
-pub fn enqueue_sql_inject(conn_id: crate::connection::ConnectionId, sql: String, cx: &mut impl BorrowAppContext) {
+pub fn enqueue_sql_inject(
+    conn_id: crate::connection::ConnectionId,
+    sql: String,
+    cx: &mut impl BorrowAppContext,
+) {
     cx.update_global(|inj: &mut SqlInject, _| {
         inj.target = Some((conn_id, sql));
     });
 }
 
-pub fn take_sql_inject(conn_id: &crate::connection::ConnectionId, cx: &mut impl BorrowAppContext) -> Option<String> {
+pub fn take_sql_inject(
+    conn_id: &crate::connection::ConnectionId,
+    cx: &mut impl BorrowAppContext,
+) -> Option<String> {
     cx.update_global(|inj: &mut SqlInject, _| {
-        if inj
-            .target
-            .as_ref()
-            .is_some_and(|(c, _)| c == conn_id)
-        {
+        if inj.target.as_ref().is_some_and(|(c, _)| c == conn_id) {
             inj.target.take().map(|(_, sql)| sql)
         } else {
             None

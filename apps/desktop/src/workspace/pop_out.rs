@@ -15,6 +15,13 @@ use gpui_component::{
     menu::{PopupMenu, PopupMenuItem},
 };
 
+/// Human-readable OS window title for a popped-out panel.
+pub trait PopOutWindowTitle: Panel {
+    fn pop_out_window_title(&mut self, _window: &mut Window, _cx: &mut App) -> String {
+        self.panel_name().to_string()
+    }
+}
+
 /// Tracks the main window and child pop-out windows (for cascade-close and de-duplication).
 pub struct PopOutManager {
     pub(crate) main_window_id: Option<WindowId>,
@@ -29,6 +36,10 @@ impl PopOutManager {
             main_window_id: None,
             windows: HashMap::new(),
         });
+    }
+
+    pub fn is_pop_out_panel(entity_id: EntityId, cx: &App) -> bool {
+        Self::global(cx).windows.contains_key(&entity_id)
     }
 
     pub fn on_any_window_closed(cx: &mut App, closed_id: WindowId) {
@@ -55,13 +66,12 @@ impl PopOutManager {
 ///
 /// Pass the panel as `&self` — do not call `cx.entity().read(cx)` here: `dropdown_menu` runs inside
 /// `Entity::update`, and reading the same entity would panic.
-pub fn append_pop_out_to_panel_menu<T: Panel + 'static>(
+pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
     menu: PopupMenu,
     panel: &T,
     cx: &mut Context<T>,
 ) -> PopupMenu {
     let weak = cx.entity().downgrade();
-    let title: SharedString = format!("{} — based", panel.panel_name()).into();
 
     menu.separator()
         .item(
@@ -76,8 +86,9 @@ pub fn append_pop_out_to_panel_menu<T: Panel + 'static>(
                     return;
                 }
 
-                let window_title = title.clone();
-                let title_for_window = window_title.to_string();
+                let title_for_window = ent.update(app, |panel, cx| {
+                    format!("{} — based", panel.pop_out_window_title(src_window, cx))
+                });
                 let origin = {
                     let b = src_window.bounds();
                     b.origin + point(px(48.0), px(48.0))

@@ -20,6 +20,7 @@ pub mod notify;
 pub mod object_info;
 pub mod pane;
 pub mod pop_out;
+mod pop_out_impls;
 pub use pop_out::PopOutManager;
 pub mod sidebar;
 pub mod status_bar;
@@ -116,9 +117,8 @@ impl Workspace {
             cx.set_global(crate::project::RegistryRef(registry.clone()));
             cx.set_global(crate::project::ProjectRoot(root));
         }
-        let command_palette = cx.new(|cx| {
-            CommandPalette::new(registry.clone(), connection_tree.clone(), cx)
-        });
+        let command_palette =
+            cx.new(|cx| CommandPalette::new(registry.clone(), connection_tree.clone(), cx));
         let palette_observe = command_palette.clone();
 
         let tree_observe = connection_tree.clone();
@@ -576,9 +576,8 @@ impl Workspace {
                 match ac {
                     AnyConnection::Postgres(conn) => {
                         let pool = conn.read(cx).pool.clone();
-                        let panel_ent = cx.new(|cx| {
-                            postgres::explain::ExplainPanel::new(pool, sql, window, cx)
-                        });
+                        let panel_ent = cx
+                            .new(|cx| postgres::explain::ExplainPanel::new(pool, sql, window, cx));
                         let arc = Arc::new(panel_ent);
                         self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
                     }

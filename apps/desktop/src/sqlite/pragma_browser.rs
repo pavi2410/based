@@ -13,6 +13,7 @@ use crate::connection::EngineKind;
 use crate::widgets::data_table::read_only_striped;
 use crate::widgets::tab_chip::tab_chip;
 use crate::widgets::virtual_table::{RowDelegate, replace_table_rows};
+use crate::workspace::pop_out::PopOutWindowTitle;
 
 const PRAGMA_LIST: &[&str] = &[
     "page_size",
@@ -130,6 +131,12 @@ impl Panel for PragmaBrowserPanel {
 
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         tab_chip(EngineKind::SQLite, "PRAGMAs", false, false, cx)
+    }
+}
+
+impl PopOutWindowTitle for PragmaBrowserPanel {
+    fn pop_out_window_title(&mut self, _: &mut Window, _: &mut App) -> String {
+        "PRAGMAs".into()
     }
 }
 

@@ -124,13 +124,11 @@ impl Render for CollectionsTreePanel {
                 let n = name.clone();
                 let label: SharedString = name.into();
                 schema_object_row(("coll", ix), sel, "coll", label, muted, fg, mono.clone())
-                    .on_click(
-                    cx.listener(move |panel, _, _, cx| {
+                    .on_click(cx.listener(move |panel, _, _, cx| {
                         panel.selected = Some(n.clone());
                         cx.emit(CollectionTreeEvent::CollectionSelected(n.clone()));
                         cx.notify();
-                    }),
-                )
+                    }))
             }))
     }
 }

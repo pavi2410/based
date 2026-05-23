@@ -6,8 +6,8 @@ use std::time::Instant;
 
 use crate::widgets::ui::{engine_chip, engine_color};
 use gpui::{
-    Context, Entity, EventEmitter, IntoElement, MouseButton, Render, SharedString, Window, div, px,
-    prelude::*,
+    Context, Entity, EventEmitter, IntoElement, MouseButton, Render, SharedString, Window, div,
+    prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme, Icon, IconName, Sizable as _, StyledExt,
@@ -116,12 +116,7 @@ impl ConnectionTree {
     }
 
     fn disconnect_at(&mut self, idx: usize, cx: &mut Context<Self>) {
-        let ent = self
-            .registry
-            .read(cx)
-            .connections()
-            .get(idx)
-            .cloned();
+        let ent = self.registry.read(cx).connections().get(idx).cloned();
         let Some(ent) = ent else {
             return;
         };
@@ -836,6 +831,11 @@ impl Render for ConnectionTree {
                     .border_1()
                     .border_color(border.opacity(0.78))
                     .bg(cx.theme().muted.opacity(0.32))
+                    .cursor_default()
+                    .tooltip(|window, app| {
+                        Tooltip::new("Connection filter coming soon — use ⌘K for now")
+                            .build(window, app)
+                    })
                     .child(
                         Icon::new(IconName::Search)
                             .with_size(gpui_component::Size::XSmall)
@@ -997,9 +997,7 @@ impl Render for ConnectionTree {
                     .read(cx)
                     .connections()
                     .get(idx)
-                    .is_some_and(|e| {
-                        matches!(e.read(cx).state, ConnectionState::Connected(_))
-                    });
+                    .is_some_and(|e| matches!(e.read(cx).state, ConnectionState::Connected(_)));
                 pane.child(
                     v_flex()
                         .mx_2()

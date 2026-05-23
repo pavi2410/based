@@ -45,11 +45,6 @@ pub fn tab_chip(
                 .child(title),
         )
         .when(dirty, |row| {
-            row.child(
-                div()
-                    .text_xs()
-                    .text_color(cx.theme().accent)
-                    .child("●"),
-            )
+            row.child(div().text_xs().text_color(cx.theme().accent).child("●"))
         })
 }

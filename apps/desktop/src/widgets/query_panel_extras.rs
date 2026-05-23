@@ -46,7 +46,9 @@ pub fn open_vars_file(project_dir: &PathBuf) {
     #[cfg(target_os = "macos")]
     let _ = std::process::Command::new("open").arg(&path_str).spawn();
     #[cfg(target_os = "linux")]
-    let _ = std::process::Command::new("xdg-open").arg(&path_str).spawn();
+    let _ = std::process::Command::new("xdg-open")
+        .arg(&path_str)
+        .spawn();
     #[cfg(target_os = "windows")]
     let _ = std::process::Command::new("cmd")
         .args(["/C", "start", "", &path_str])
@@ -127,55 +129,56 @@ pub fn variables_footer(
     muted: Hsla,
     muted_bg: Hsla,
 ) -> impl IntoElement {
-    v_flex()
-        .when(show, |col| {
-            col.border_t_1()
-                .border_color(border)
-                .bg(muted_bg)
-                .child(
-                    h_flex()
-                        .px_3()
-                        .py_2()
-                        .items_center()
-                        .justify_between()
-                        .child(
-                            div()
-                                .text_xs()
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .child("Variables (.based/vars.toml)"),
+    v_flex().when(show, |col| {
+        col.border_t_1()
+            .border_color(border)
+            .bg(muted_bg)
+            .child(
+                h_flex()
+                    .px_3()
+                    .py_2()
+                    .items_center()
+                    .justify_between()
+                    .child(
+                        div()
+                            .text_xs()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .child("Variables (.based/vars.toml)"),
+                    )
+                    .when_some(project_dir.clone(), |row, root| {
+                        row.child(
+                            Button::new("vars-edit")
+                                .ghost()
+                                .xsmall()
+                                .label("Edit file")
+                                .on_click(move |_, _, _| open_vars_file(&root)),
                         )
-                        .when_some(project_dir.clone(), |row, root| {
-                            row.child(
-                                Button::new("vars-edit")
-                                    .ghost()
-                                    .xsmall()
-                                    .label("Edit file")
-                                    .on_click(move |_, _, _| open_vars_file(&root)),
-                            )
-                        }),
-                )
-                .children({
-                    if vars.is_empty() {
-                        vec![div()
+                    }),
+            )
+            .children({
+                if vars.is_empty() {
+                    vec![
+                        div()
                             .px_3()
                             .pb_2()
                             .text_xs()
                             .text_color(muted)
                             .child("No variables defined. Use $NAME in queries.")
-                            .into_any_element()]
-                    } else {
-                        vars.iter()
-                            .map(|(k, v)| {
-                                div()
-                                    .px_3()
-                                    .py_1()
-                                    .text_xs()
-                                    .font_family(mono_font.clone())
-                                    .child(format!("${k} = {v}"))
-                                    .into_any_element()
-                            })
-                            .collect()
-                    }
-                })
-        })
+                            .into_any_element(),
+                    ]
+                } else {
+                    vars.iter()
+                        .map(|(k, v)| {
+                            div()
+                                .px_3()
+                                .py_1()
+                                .text_xs()
+                                .font_family(mono_font.clone())
+                                .child(format!("${k} = {v}"))
+                                .into_any_element()
+                        })
+                        .collect()
+                }
+            })
+    })
 }

@@ -121,10 +121,7 @@ impl RenderOnce for Topbar {
                         .flex_1()
                         .items_center()
                         .justify_center()
-                        .child(command_shell(
-                            cx,
-                            "Open table, run query, switch connection...",
-                        )),
+                        .child(command_shell(cx, "Search tables, queries, history…")),
                 )
                 .child(
                     h_flex()

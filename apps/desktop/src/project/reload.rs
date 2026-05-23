@@ -8,7 +8,7 @@ use gpui::{App, BorrowAppContext, Entity, Global};
 use crate::connection::registry::ConnectionRegistry;
 use crate::query_store::{QueryHistory, QueryStore, SavedQueries};
 
-use super::{load_variables, load_workspace_seed, ProjectVars};
+use super::{ProjectVars, load_variables, load_workspace_seed};
 
 pub struct ConfigReloadSignal {
     tx: Sender<()>,

@@ -22,7 +22,7 @@ use crate::widgets::data_table::read_only_striped;
 use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input, sql_from_input};
 use crate::widgets::ui::{metadata_pill, panel_header};
 use crate::widgets::virtual_table::RowDelegate;
-use crate::workspace::notify;
+use crate::workspace::{TabSpec, enqueue_open_tab, notify};
 
 pub enum QueryStatus {
     Idle,
@@ -105,6 +105,22 @@ impl QueryEditorPanel {
 
     pub fn current_sql(&self, cx: &App) -> String {
         sql_from_input(&self.sql_input, cx)
+    }
+
+    fn open_explain(&mut self, cx: &mut Context<Self>) {
+        let sql = self.current_sql(cx);
+        if sql.trim().is_empty() {
+            return;
+        }
+        enqueue_open_tab(
+            TabSpec::Explain {
+                conn_id: self.conn_id.clone(),
+                label: "explain".into(),
+                sql,
+            },
+            cx,
+        );
+        cx.refresh_windows();
     }
 
     fn run(&mut self, cx: &mut Context<Self>) {
@@ -231,6 +247,12 @@ impl Render for QueryEditorPanel {
                     .primary()
                     .label("Run")
                     .on_click(cx.listener(|panel, _, _, cx| panel.run(cx))),
+            )
+            .child(
+                Button::new("pg-explain")
+                    .ghost()
+                    .label("Explain")
+                    .on_click(cx.listener(|panel, _, _, cx| panel.open_explain(cx))),
             )
             .child(
                 Button::new("pg-history-toggle")

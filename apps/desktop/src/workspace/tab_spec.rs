@@ -25,6 +25,7 @@ pub enum TabSpec {
     Explain {
         conn_id: ConnectionId,
         label: String,
+        sql: String,
     },
     Inspector {
         conn_id: ConnectionId,

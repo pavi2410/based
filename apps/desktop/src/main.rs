@@ -23,7 +23,7 @@ use gpui::prelude::*;
 use gpui::*;
 use gpui_component::{ActiveTheme, Root, TitleBar};
 
-use workspace::{PopOutManager, Workspace};
+use workspace::{PopOutManager, TabOpenQueue, Workspace};
 
 // ── Entry point ──────────────────────────────────────────────────────────────
 
@@ -44,6 +44,7 @@ fn main() {
 
             db::init(cx);
             PopOutManager::init(cx);
+            cx.set_global(TabOpenQueue::default());
 
             let project_root = crate::project::find_project_root();
             query_store::init(project_root.clone(), cx);

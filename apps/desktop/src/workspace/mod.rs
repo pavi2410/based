@@ -1,6 +1,8 @@
 // workspace/ — Workspace entity, DockArea, sidebar, status bar, connection wiring.
 
+pub mod tab_open;
 pub mod tab_spec;
+pub use tab_open::{TabOpenQueue, enqueue_open_tab};
 pub use tab_spec::TabSpec;
 
 pub mod tab_manager;
@@ -177,7 +179,14 @@ impl Workspace {
         );
     }
 
+    fn drain_tab_open_queue(&mut self, cx: &mut Context<Self>) {
+        if let Some(spec) = cx.update_global(|q: &mut TabOpenQueue, _| q.pending.take()) {
+            self.pending_open_tab = Some(spec);
+        }
+    }
+
     fn flush_pending_open_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.drain_tab_open_queue(cx);
         if let Some(spec) = self.pending_open_tab.take() {
             self.dispatch_open_tab(spec, window, cx);
         }
@@ -466,8 +475,42 @@ impl Workspace {
                 let arc = Arc::new(panel_ent);
                 self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
             }
-            TabSpec::Explain { conn_id, label } => {
-                log::debug!("explain viewer deferred (phase 9): {:?} {}", conn_id, label);
+            TabSpec::Explain {
+                conn_id,
+                label: _,
+                sql,
+            } => {
+                let Some(ent) = self.find_connection(&conn_id, cx) else {
+                    return;
+                };
+                let ac = match &ent.read(cx).state {
+                    ConnectionState::Connected(ac) => ac.clone(),
+                    _ => return,
+                };
+                let tab_spec_for_manager = TabSpec::Explain {
+                    conn_id: conn_id.clone(),
+                    label: "explain".to_string(),
+                    sql: sql.clone(),
+                };
+                match ac {
+                    AnyConnection::Postgres(conn) => {
+                        let pool = conn.read(cx).pool.clone();
+                        let panel_ent = cx.new(|cx| {
+                            postgres::explain::ExplainPanel::new(pool, sql, window, cx)
+                        });
+                        let arc = Arc::new(panel_ent);
+                        self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                    }
+                    AnyConnection::SQLite(conn) => {
+                        let pool = conn.read(cx).pool.clone();
+                        let panel_ent = cx.new(|cx| {
+                            sqlite::eqp_viewer::EqpViewerPanel::new(pool, sql, window, cx)
+                        });
+                        let arc = Arc::new(panel_ent);
+                        self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                    }
+                    AnyConnection::MongoDB(_) => {}
+                }
             }
         }
     }

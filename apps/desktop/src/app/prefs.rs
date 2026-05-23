@@ -237,15 +237,21 @@ pub fn set_sidebar(collapsed: bool, cx: &mut App) {
     });
 }
 
+/// Switch theme mode, persist, and repaint every window.
+pub fn apply_theme(mode: ThemeMode, cx: &mut App) {
+    Theme::change(mode, None, cx);
+    cx.update_global(|p: &mut NativePreferences, _| {
+        p.theme_mode = mode;
+        p.save_best_effort();
+    });
+    apply_font_sizes(cx);
+    cx.refresh_windows();
+}
+
 pub fn cycle_theme(cx: &mut App) {
     let next = match Theme::global(cx).mode {
         ThemeMode::Dark => ThemeMode::Light,
         ThemeMode::Light => ThemeMode::Dark,
     };
-    Theme::change(next, None, cx);
-    cx.update_global(|p: &mut NativePreferences, _| {
-        p.theme_mode = next;
-        p.save_best_effort();
-    });
-    apply_font_sizes(cx);
+    apply_theme(next, cx);
 }

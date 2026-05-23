@@ -1,13 +1,14 @@
 //! Separate settings window (theme, typography, query defaults).
 
-use gpui::{Context, FocusHandle, Focusable, IntoElement, Render, Window, prelude::*};
+use gpui::{Context, FocusHandle, Focusable, IntoElement, ParentElement, Render, Window, div, prelude::*, px};
 use gpui_component::{
-    ActiveTheme, Icon, IconName, Theme, ThemeMode,
+    ActiveTheme, Icon, IconName, ThemeMode,
     group_box::GroupBoxVariant,
     setting::{NumberFieldOptions, SettingField, SettingGroup, SettingItem, SettingPage, Settings},
+    v_flex,
 };
 
-use crate::app::prefs::{self, DEFAULT_PAGE_SIZE, DEFAULT_QUERY_TIMEOUT_SECS, NativePreferences};
+use crate::app::prefs::{self, DEFAULT_PAGE_SIZE, DEFAULT_QUERY_TIMEOUT_SECS};
 
 pub struct SettingsWindow {
     focus_handle: FocusHandle,
@@ -32,17 +33,14 @@ impl SettingsWindow {
                             SettingField::switch(
                                 |cx| cx.theme().mode.is_dark(),
                                 |enabled, cx| {
-                                    let mode = if enabled {
-                                        ThemeMode::Dark
-                                    } else {
-                                        ThemeMode::Light
-                                    };
-                                    Theme::change(mode, None, cx);
-                                    cx.update_global(|p: &mut NativePreferences, _| {
-                                        p.theme_mode = mode;
-                                        p.save_best_effort();
-                                    });
-                                    prefs::apply_font_sizes(cx);
+                                    prefs::apply_theme(
+                                        if enabled {
+                                            ThemeMode::Dark
+                                        } else {
+                                            ThemeMode::Light
+                                        },
+                                        cx,
+                                    )
                                 },
                             ),
                         )
@@ -83,8 +81,7 @@ impl SettingsWindow {
                 ]),
             SettingPage::new("Query defaults")
                 .icon(Icon::new(IconName::Settings))
-                .groups(vec![SettingGroup::new().title("Data browsing").items(
-                    vec![
+                .groups(vec![SettingGroup::new().title("Data browsing").items(vec![
                     SettingItem::new(
                         "Page size",
                         SettingField::number_input(
@@ -117,8 +114,7 @@ impl SettingsWindow {
                     .description(
                         "Maximum seconds to wait for a query (enforcement in editors is planned).",
                     ),
-                ],
-                )]),
+                ])]),
         ]
     }
 }
@@ -131,8 +127,29 @@ impl Focusable for SettingsWindow {
 
 impl Render for SettingsWindow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        Settings::new("based-settings")
+        let bg = cx.theme().background;
+        let fg = cx.theme().foreground;
+
+        let settings = Settings::new("based-settings")
             .with_group_variant(GroupBoxVariant::Outline)
-            .pages(self.pages(window, cx))
+            .pages(self.pages(window, cx));
+
+        // Paint the full client area with the active theme. The sidebar sets its own
+        // background; the content pane is otherwise transparent and can show a stale
+        // color if Root carried a frozen `.bg()` from window creation.
+        v_flex()
+            .size_full()
+            .bg(bg)
+            .text_color(fg)
+            .pt(px(36.0))
+            .child(
+                div()
+                    .flex_1()
+                    .min_h_0()
+                    .size_full()
+                    .bg(bg)
+                    .text_color(fg)
+                    .child(settings),
+            )
     }
 }

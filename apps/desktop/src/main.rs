@@ -78,7 +78,7 @@ fn main() {
                         },
                         |window, cx| {
                             let workspace = cx.new(|cx| Workspace::new(window, cx));
-                            cx.new(|cx| Root::new(workspace, window, cx).bg(cx.theme().background))
+                            cx.new(|cx| Root::new(workspace, window, cx))
                         },
                     )
                     .expect("Failed to open main window");

@@ -42,6 +42,7 @@ psm = { git = "https://github.com/rust-lang/stacker", rev = "1d45da4653e1d6e5d27
 [profile.dev]
 debug = "limited"
 split-debuginfo = "unpacked"
+incremental = true
 
 [profile.dev.package]
 gpui = { opt-level = 3 }

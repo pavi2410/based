@@ -164,16 +164,15 @@ impl Workspace {
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(Bounds {
                     origin: point(px(120.0), px(120.0)),
-                    size: size(px(480.0), px(420.0)),
+                    size: size(px(800.0), px(600.0)),
                 })),
                 titlebar: Some(TitleBar::title_bar_options()),
                 ..Default::default()
             },
             |win, cx| {
-                Theme::change(Theme::global(cx).mode, Some(win), cx);
                 win.set_window_title("Based — Settings");
                 let settings = cx.new(|cx| crate::settings_window::SettingsWindow::new(cx));
-                cx.new(|cx| Root::new(settings, win, cx).bg(cx.theme().background))
+                cx.new(|cx| Root::new(settings, win, cx))
             },
         );
     }

@@ -96,7 +96,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + 'static>(
                         Theme::change(Theme::global(cx).mode, Some(win), cx);
                         win.set_window_title(&title_for_window);
                         let v: AnyView = ent.clone().into();
-                        cx.new(|cx| Root::new(v, win, cx).bg(cx.theme().background))
+                        cx.new(|cx| Root::new(v, win, cx))
                     },
                 ) {
                     Ok(handle) => {

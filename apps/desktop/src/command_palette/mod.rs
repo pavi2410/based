@@ -1,5 +1,6 @@
 //! Command palette (⌘K / Ctrl+K): quick jump to connections, saved queries, and history.
 
+use std::collections::HashSet;
 use std::ops::DerefMut;
 
 use gpui::{
@@ -93,9 +94,20 @@ impl CommandPalette {
         };
         match (&entry.kind, secondary) {
             (ResultKind::History, false) => {
+                let sql = match &entry.spec {
+                    TabSpec::QueryEditor {
+                        initial_sql: Some(s),
+                        ..
+                    } => s.clone(),
+                    TabSpec::QueryEditor {
+                        initial_pipeline: Some(p),
+                        ..
+                    } => p.clone(),
+                    _ => entry.label.clone(),
+                };
                 cx.emit(PaletteEvent::InjectSql {
                     conn_id: entry.spec.conn_id().clone(),
-                    sql: entry.sublabel.clone(),
+                    sql,
                 });
             }
             _ => {
@@ -205,7 +217,10 @@ impl CommandPalette {
                 results.push(PaletteResult {
                     kind: ResultKind::SavedQuery,
                     label: saved.name.clone(),
-                    sublabel: saved.query_text().chars().take(60).collect(),
+                    sublabel: format!(
+                        "saved · {}",
+                        saved.query_text().chars().take(60).collect::<String>()
+                    ),
                     conn_label: saved.connection.0.clone(),
                     spec: TabSpec::QueryEditor {
                         conn_id: saved.connection.clone(),
@@ -218,8 +233,16 @@ impl CommandPalette {
             }
         }
 
+        let mut seen_history: HashSet<(ConnectionId, String)> = HashSet::new();
         for entry in store.history.recent(100) {
             if q.is_empty() || entry.query.to_lowercase().contains(&q) {
+                let key = (
+                    entry.conn_id.clone(),
+                    entry.query.trim().to_lowercase(),
+                );
+                if !seen_history.insert(key) {
+                    continue;
+                }
                 let engine = self
                     .registry
                     .read(cx)
@@ -241,10 +264,15 @@ impl CommandPalette {
                         auto_run: false,
                     },
                 };
+                let meta = format!(
+                    "history · {}",
+                    entry.ran_at.format(&time::format_description::well_known::Rfc3339)
+                        .unwrap_or_else(|_| "recent".into())
+                );
                 results.push(PaletteResult {
                     kind: ResultKind::History,
                     label: entry.query.chars().take(72).collect(),
-                    sublabel: entry.query.clone(),
+                    sublabel: meta,
                     conn_label: entry.conn_id.0.clone(),
                     spec,
                 });
@@ -347,15 +375,18 @@ impl Render for CommandPalette {
                                         let is_sel = i == self.selected;
                                         let conn_label: SharedString = r.conn_label.clone().into();
                                         let label: SharedString = r.label.clone().into();
-                                        (i, is_sel, conn_label, label)
+                                        let sublabel: SharedString = r.sublabel.clone().into();
+                                        (i, is_sel, conn_label, label, sublabel)
                                     })
                                     .collect();
-                                results.into_iter().map(|(i, is_sel, conn_label, label)| {
+                                results.into_iter().map(
+                                    |(i, is_sel, conn_label, label, sublabel)| {
                                     palette_result_row(
                                         ("palette-result", i),
                                         is_sel,
                                         conn_label,
                                         label,
+                                        sublabel,
                                         muted,
                                         fg,
                                     )

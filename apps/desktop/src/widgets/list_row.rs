@@ -1,14 +1,15 @@
 //! Shared `ListItem` row chrome for selectable lists.
 
 use gpui::{ElementId, Hsla, IntoElement, ParentElement, SharedString, div, prelude::*, px};
-use gpui_component::{Selectable, StyledExt, h_flex, list::ListItem};
+use gpui_component::{Selectable, StyledExt, h_flex, list::ListItem, v_flex};
 
-/// Command palette result row (connection hint + primary label).
+/// Command palette result row (connection hint + primary label + meta).
 pub fn palette_result_row(
     id: impl Into<ElementId>,
     selected: bool,
     conn_label: SharedString,
     label: SharedString,
+    sublabel: SharedString,
     muted: Hsla,
     fg: Hsla,
 ) -> ListItem {
@@ -19,9 +20,32 @@ pub fn palette_result_row(
         .cursor_pointer()
         .child(
             h_flex()
+                .w_full()
                 .gap_2()
-                .child(div().text_xs().text_color(muted).child(conn_label))
-                .child(div().flex_1().text_sm().text_color(fg).child(label)),
+                .items_center()
+                .child(
+                    div()
+                        .flex_shrink_0()
+                        .w(px(72.0))
+                        .text_xs()
+                        .text_color(muted)
+                        .truncate()
+                        .child(conn_label),
+                )
+                .child(
+                    v_flex()
+                        .flex_1()
+                        .min_w_0()
+                        .gap(px(1.0))
+                        .child(div().text_sm().text_color(fg).truncate().child(label))
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(muted.opacity(0.9))
+                                .truncate()
+                                .child(sublabel),
+                        ),
+                ),
         )
 }
 

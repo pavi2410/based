@@ -4,7 +4,7 @@ pub mod session;
 pub mod tab_open;
 pub mod tab_spec;
 pub use tab_open::{
-    SqlInject, TabManagerRef, TabOpenQueue, enqueue_open_tab, enqueue_sql_inject,
+    SqlInject, TabManagerRef, TabOpenQueue, WorkspaceRef, enqueue_open_tab, enqueue_sql_inject,
     mark_query_tab_dirty,
 };
 pub use tab_spec::TabSpec;
@@ -32,12 +32,13 @@ use std::sync::Arc;
 
 use crate::widgets::ui::{engine_chip, engine_name, metadata_pill};
 use gpui::{
-    AnyView, App, Bounds, Context, Entity, FocusHandle, Focusable, FontWeight, IntoElement, Render,
-    SharedString, Window, WindowBounds, WindowOptions, div, point, prelude::*, px, size,
+    AnyView, App, Bounds, Context, Entity, EntityId, FocusHandle, Focusable, FontWeight,
+    IntoElement, Render, SharedString, Window, WindowBounds, WindowOptions, div, point, prelude::*,
+    px, size,
 };
 use gpui_component::{
     ActiveTheme, Root, StyledExt, TitleBar,
-    dock::{DockArea, DockEvent, DockItem, DockPlacement, PanelStyle},
+    dock::{DockArea, DockEvent, DockItem, DockPlacement, PanelStyle, PanelView},
     h_flex, v_flex,
 };
 
@@ -45,7 +46,8 @@ use ::mongodb::bson::Document;
 use mongodb::Collection;
 
 use crate::bindings::{
-    CycleAppearance, DismissCommandPalette, OpenSettings, ToggleCommandPalette, ToggleSidebarRail,
+    CloseTab, CycleAppearance, DismissCommandPalette, OpenSettings, ToggleCommandPalette,
+    ToggleSidebarRail,
 };
 use crate::command_palette::CommandPalette;
 use crate::connection::registry::ConnectionRegistry;
@@ -611,6 +613,52 @@ impl Workspace {
         });
         cx.notify();
     }
+
+    /// Whether the given center-dock panel may be closed (gpui-component hides Close for center tabs).
+    pub fn can_close_center_panel(&self, panel_id: EntityId, cx: &App) -> bool {
+        let dock = self.dock_area.read(cx);
+        let Some(items) = center_tab_items(dock.center()) else {
+            return false;
+        };
+        if items.len() <= 1 {
+            return false;
+        }
+        let Some(panel) = items.iter().find(|p| p.panel_id(cx) == panel_id) else {
+            return false;
+        };
+        panel.closable(cx)
+    }
+
+    /// Close a specific panel in the center tab strip (tab ⋮ menu).
+    pub fn close_center_panel(
+        &mut self,
+        panel_id: EntityId,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.can_close_center_panel(panel_id, cx) {
+            return;
+        }
+        let dock = self.dock_area.read(cx);
+        let Some(items) = center_tab_items(dock.center()) else {
+            return;
+        };
+        let Some(panel) = items.iter().find(|p| p.panel_id(cx) == panel_id).cloned() else {
+            return;
+        };
+        self.dock_area.update(cx, |dock, ecx| {
+            dock.remove_panel(panel, DockPlacement::Center, window, ecx);
+        });
+    }
+
+    /// Close the active center tab (⌘W / CloseTab).
+    pub fn close_active_center_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let dock = self.dock_area.read(cx);
+        let Some((panel, _)) = active_center_tab(dock.center(), cx) else {
+            return;
+        };
+        self.close_center_panel(panel.panel_id(cx), window, cx);
+    }
 }
 
 impl Focusable for Workspace {
@@ -700,6 +748,9 @@ impl Render for Workspace {
                     ws.open_settings(window, cx);
                 }),
             )
+            .on_action(window.listener_for(&this, |ws, _: &CloseTab, window, cx| {
+                ws.close_active_center_tab(window, cx);
+            }))
             .bg(cx.theme().background)
             .child(Topbar::new(
                 self.project_title.clone(),
@@ -719,6 +770,29 @@ impl Render for Workspace {
                     .is_empty(),
             }))
             .child(self.command_palette.clone())
+    }
+}
+
+fn center_tab_items(item: &DockItem) -> Option<&[Arc<dyn PanelView>]> {
+    match item {
+        DockItem::Tabs { items, .. } => Some(items),
+        DockItem::Split { items, .. } => items.iter().find_map(center_tab_items),
+        _ => None,
+    }
+}
+
+fn active_center_tab(item: &DockItem, _cx: &App) -> Option<(Arc<dyn PanelView>, usize)> {
+    match item {
+        DockItem::Tabs {
+            items, active_ix, ..
+        } => {
+            let panel = items.get(*active_ix)?.clone();
+            Some((panel, items.len()))
+        }
+        DockItem::Split { items, .. } => {
+            items.iter().find_map(|child| active_center_tab(child, _cx))
+        }
+        _ => None,
     }
 }
 

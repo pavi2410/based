@@ -11,6 +11,12 @@ pub struct TabManagerRef(pub Entity<TabManager>);
 
 impl Global for TabManagerRef {}
 
+/// Main workspace entity (tab close menu, ⌘W).
+#[derive(Clone)]
+pub struct WorkspaceRef(pub Entity<crate::workspace::Workspace>);
+
+impl Global for WorkspaceRef {}
+
 /// Mark the active query tab for this connection as having unsaved edits.
 pub fn mark_query_tab_dirty(conn_id: &ConnectionId, cx: &mut App) {
     let Some(handle) = cx.try_global::<TabManagerRef>().map(|h| h.0.clone()) else {

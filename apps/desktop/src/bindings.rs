@@ -21,5 +21,7 @@ pub fn init(cx: &mut App) {
         KeyBinding::new("cmd-k", ToggleCommandPalette, None),
         KeyBinding::new("ctrl-k", ToggleCommandPalette, None),
         KeyBinding::new("escape", DismissCommandPalette, None),
+        KeyBinding::new("cmd-w", CloseTab, None),
+        KeyBinding::new("ctrl-w", CloseTab, None),
     ]);
 }

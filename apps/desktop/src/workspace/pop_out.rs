@@ -15,6 +15,8 @@ use gpui_component::{
     menu::{PopupMenu, PopupMenuItem},
 };
 
+use super::tab_open::WorkspaceRef;
+
 /// Human-readable OS window title for a popped-out panel.
 pub trait PopOutWindowTitle: Panel {
     fn pop_out_window_title(&mut self, _window: &mut Window, _cx: &mut App) -> String {
@@ -72,8 +74,25 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
     cx: &mut Context<T>,
 ) -> PopupMenu {
     let weak = cx.entity().downgrade();
+    let panel_id = cx.entity().entity_id();
+    let close_disabled = cx
+        .try_global::<WorkspaceRef>()
+        .is_none_or(|ws| !ws.0.read(cx).can_close_center_panel(panel_id, cx));
 
     menu.separator()
+        .item(
+            PopupMenuItem::new("Close tab")
+                .disabled(close_disabled)
+                .on_click(move |_ev, window, app| {
+                    let Some(workspace) = app.try_global::<WorkspaceRef>().map(|ws| ws.0.clone())
+                    else {
+                        return;
+                    };
+                    workspace.update(app, |ws, cx| {
+                        ws.close_center_panel(panel_id, window, cx);
+                    });
+                }),
+        )
         .item(
             PopupMenuItem::new("Open in new window").on_click(move |_ev, src_window, app| {
                 let Some(ent) = weak.upgrade() else {

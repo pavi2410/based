@@ -82,6 +82,7 @@ fn main() {
                         },
                         |window, cx| {
                             let workspace = cx.new(|cx| Workspace::new(window, cx));
+                            cx.set_global(crate::workspace::WorkspaceRef(workspace.clone()));
                             cx.new(|cx| Root::new(workspace, window, cx))
                         },
                     )

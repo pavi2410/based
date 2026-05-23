@@ -7,7 +7,7 @@ use gpui_component::{
     table::{Column, TableState},
     v_flex,
 };
-use sqlx::SqlitePool;
+use sqlx::{Row, SqlitePool};
 
 use crate::widgets::data_table::read_only_striped;
 use crate::widgets::virtual_table::{RowDelegate, replace_table_rows};
@@ -64,12 +64,17 @@ impl PragmaBrowserPanel {
                 let mut rows: Vec<(String, String)> = vec![];
                 for &name in PRAGMA_LIST {
                     let sql = format!("PRAGMA {name}");
-                    let val: Option<String> = sqlx::query_scalar(&sql)
-                        .fetch_optional(&pool)
-                        .await
-                        .ok()
-                        .flatten();
-                    rows.push((name.to_string(), val.unwrap_or_default()));
+                    let value = match sqlx::query(&sql).fetch_optional(&pool).await {
+                        Ok(Some(row)) => {
+                            let parts: Vec<String> = (0..row.len())
+                                .map(|i| crate::widgets::row_cell::sqlite_cell_display(&row, i))
+                                .collect();
+                            parts.join(", ")
+                        }
+                        Ok(None) => String::new(),
+                        Err(_) => String::new(),
+                    };
+                    rows.push((name.to_string(), value));
                 }
                 rows
             })

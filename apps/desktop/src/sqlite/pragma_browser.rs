@@ -10,7 +10,7 @@ use gpui_component::{
 use sqlx::SqlitePool;
 
 use crate::widgets::data_table::read_only_striped;
-use crate::widgets::virtual_table::RowDelegate;
+use crate::widgets::virtual_table::{RowDelegate, replace_table_rows};
 
 const PRAGMA_LIST: &[&str] = &[
     "page_size",
@@ -86,8 +86,7 @@ impl PragmaBrowserPanel {
 
             let _ = this.update(cx, |panel, cx| {
                 panel.table.update(cx, |state, cx| {
-                    state.delegate_mut().rows = data_rows;
-                    cx.notify();
+                    replace_table_rows(state, data_rows, cx);
                 });
                 cx.notify();
             });

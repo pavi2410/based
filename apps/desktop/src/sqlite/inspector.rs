@@ -13,7 +13,7 @@ use gpui_component::{
 use sqlx::{Row, SqlitePool};
 
 use crate::widgets::data_table::read_only_striped;
-use crate::widgets::virtual_table::RowDelegate;
+use crate::widgets::virtual_table::{RowDelegate, replace_table_rows};
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 enum SqliteInspectorTab {
@@ -169,12 +169,10 @@ impl TableInspectorPanel {
                     panel.indexes = indexes;
                     panel.ddl_text = ddl_ss;
                     panel.col_table.update(cx, |state, cx| {
-                        state.delegate_mut().rows = col_data;
-                        cx.notify();
+                        replace_table_rows(state, col_data, cx);
                     });
                     panel.idx_table.update(cx, |state, cx| {
-                        state.delegate_mut().rows = idx_data;
-                        cx.notify();
+                        replace_table_rows(state, idx_data, cx);
                     });
                     cx.notify();
                 })

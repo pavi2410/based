@@ -5,6 +5,8 @@
 use gpui::{prelude::*, *};
 use gpui_component::{ActiveTheme, table::{Column, ColumnSort, TableState}};
 
+pub const NULL_CELL_DISPLAY: &str = "NULL";
+
 /// Generic row data: column names + string-valued cells.
 #[derive(Default)]
 pub struct RowDelegate {
@@ -40,10 +42,21 @@ impl gpui_component::table::TableDelegate for RowDelegate {
             .and_then(|row| row.get(col_ix))
             .cloned()
             .unwrap_or_default();
+        let is_null = cell.is_empty() || cell.as_ref() == NULL_CELL_DISPLAY;
+        let display: SharedString = if cell.is_empty() {
+            NULL_CELL_DISPLAY.into()
+        } else {
+            cell
+        };
         div()
+            .truncate()
             .text_sm()
-            .text_color(cx.theme().foreground)
-            .child(cell)
+            .text_color(if is_null {
+                cx.theme().muted_foreground
+            } else {
+                cx.theme().foreground
+            })
+            .child(display)
     }
 
     fn cell_text(&self, row_ix: usize, col_ix: usize, _: &App) -> String {
@@ -83,5 +96,15 @@ pub fn replace_table_data(
     delegate.columns = columns;
     delegate.rows = rows;
     state.refresh(cx);
+    cx.notify();
+}
+
+/// Replace row data when columns are unchanged.
+pub fn replace_table_rows(
+    state: &mut TableState<RowDelegate>,
+    rows: Vec<Vec<SharedString>>,
+    cx: &mut Context<TableState<RowDelegate>>,
+) {
+    state.delegate_mut().rows = rows;
     cx.notify();
 }

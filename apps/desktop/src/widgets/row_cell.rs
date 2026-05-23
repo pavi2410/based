@@ -2,7 +2,9 @@
 
 use sqlx::{Row, sqlite::SqliteRow, postgres::PgRow};
 
-const NULL_DISPLAY: &str = "NULL";
+use super::virtual_table::NULL_CELL_DISPLAY;
+
+const NULL_DISPLAY: &str = NULL_CELL_DISPLAY;
 
 fn format_optional<T: std::fmt::Display>(v: Option<T>) -> String {
     v.map(|x| x.to_string())

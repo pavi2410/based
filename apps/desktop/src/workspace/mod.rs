@@ -2,7 +2,7 @@
 
 pub mod tab_open;
 pub mod tab_spec;
-pub use tab_open::{TabOpenQueue, enqueue_open_tab};
+pub use tab_open::{SqlInject, TabOpenQueue, enqueue_open_tab, enqueue_sql_inject};
 pub use tab_spec::TabSpec;
 
 pub mod tab_manager;
@@ -102,7 +102,9 @@ impl Workspace {
             cx.new(|cx| ConnectionTree::new(registry.clone(), dock_area.clone(), cx));
 
         let tab_manager = cx.new(|_| TabManager::new());
-        let command_palette = cx.new(|cx| CommandPalette::new(registry.clone(), cx));
+        let command_palette = cx.new(|cx| {
+            CommandPalette::new(registry.clone(), connection_tree.clone(), cx)
+        });
         let palette_observe = command_palette.clone();
 
         let tree_observe = connection_tree.clone();
@@ -128,8 +130,32 @@ impl Workspace {
         .detach();
 
         cx.subscribe(&palette_observe, |ws, _, event, ecx| {
-            let crate::command_palette::PaletteEvent::OpenTab(spec) = event;
-            ws.pending_open_tab = Some(spec.clone());
+            match event {
+                crate::command_palette::PaletteEvent::OpenTab(spec) => {
+                    ws.pending_open_tab = Some(spec.clone());
+                }
+                crate::command_palette::PaletteEvent::InjectSql { conn_id, sql } => {
+                    let active_matches = ws.tab_manager.read(ecx).active_tab().is_some_and(|t| {
+                        matches!(
+                            &t.spec,
+                            TabSpec::QueryEditor {
+                                conn_id: active, ..
+                            } if active == conn_id
+                        )
+                    });
+                    if active_matches {
+                        enqueue_sql_inject(conn_id.clone(), sql.clone(), ecx);
+                    } else {
+                        ws.pending_open_tab = Some(TabSpec::QueryEditor {
+                            conn_id: conn_id.clone(),
+                            initial_sql: Some(sql.clone()),
+                            initial_pipeline: None,
+                            mongo_collection: None,
+                            auto_run: false,
+                        });
+                    }
+                }
+            }
             ecx.notify();
         })
         .detach();

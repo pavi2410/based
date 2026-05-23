@@ -11,6 +11,34 @@ pub struct TabOpenQueue {
 
 impl Global for TabOpenQueue {}
 
+/// Inject SQL into the active query editor for `conn_id` (command palette history).
+#[derive(Default)]
+pub struct SqlInject {
+    pub target: Option<(crate::connection::ConnectionId, String)>,
+}
+
+impl Global for SqlInject {}
+
+pub fn enqueue_sql_inject(conn_id: crate::connection::ConnectionId, sql: String, cx: &mut impl BorrowAppContext) {
+    cx.update_global(|inj: &mut SqlInject, _| {
+        inj.target = Some((conn_id, sql));
+    });
+}
+
+pub fn take_sql_inject(conn_id: &crate::connection::ConnectionId, cx: &mut impl BorrowAppContext) -> Option<String> {
+    cx.update_global(|inj: &mut SqlInject, _| {
+        if inj
+            .target
+            .as_ref()
+            .is_some_and(|(c, _)| c == conn_id)
+        {
+            inj.target.take().map(|(_, sql)| sql)
+        } else {
+            None
+        }
+    })
+}
+
 pub fn enqueue_open_tab(spec: TabSpec, cx: &mut impl BorrowAppContext) {
     cx.update_global(|q: &mut TabOpenQueue, _| {
         q.pending = Some(spec);

@@ -23,7 +23,7 @@ use gpui::prelude::*;
 use gpui::*;
 use gpui_component::{ActiveTheme, Root, TitleBar};
 
-use workspace::{PopOutManager, TabOpenQueue, Workspace};
+use workspace::{PopOutManager, SqlInject, TabOpenQueue, Workspace};
 
 // ── Entry point ──────────────────────────────────────────────────────────────
 
@@ -45,6 +45,7 @@ fn main() {
             db::init(cx);
             PopOutManager::init(cx);
             cx.set_global(TabOpenQueue::default());
+            cx.set_global(SqlInject::default());
 
             let project_root = crate::project::find_project_root();
             query_store::init(project_root.clone(), cx);

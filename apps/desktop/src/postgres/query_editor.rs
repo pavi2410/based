@@ -22,7 +22,7 @@ use crate::widgets::data_table::read_only_striped;
 use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input, sql_from_input};
 use crate::widgets::ui::{metadata_pill, panel_header};
 use crate::widgets::virtual_table::RowDelegate;
-use crate::workspace::{TabSpec, enqueue_open_tab, notify};
+use crate::workspace::{TabSpec, enqueue_open_tab, notify, tab_open::take_sql_inject};
 
 pub enum QueryStatus {
     Idle,
@@ -212,7 +212,10 @@ impl Panel for QueryEditorPanel {
 }
 
 impl Render for QueryEditorPanel {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if let Some(sql) = take_sql_inject(&self.conn_id, cx) {
+            set_sql_input(&self.sql_input, &sql, window, cx);
+        }
         let border = cx.theme().border;
         let muted = cx.theme().muted_foreground;
         let err_fg = cx.theme().danger_foreground;

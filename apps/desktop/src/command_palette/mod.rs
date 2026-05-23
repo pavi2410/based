@@ -8,16 +8,19 @@ use gpui::{
 };
 use gpui_component::{ActiveTheme, h_flex, scroll::ScrollableElement, v_flex};
 
-use crate::connection::EngineKind;
+use crate::connection::{ConnectionId, EngineKind};
 use crate::connection::registry::ConnectionRegistry;
 use crate::query_store::QueryStore;
 use crate::widgets::list_row::palette_result_row;
+use crate::workspace::connection_tree::ConnectionTree;
 use crate::workspace::tab_spec::TabSpec;
 
 /// Emitted when the user picks a palette row — workspace opens the tab.
 #[derive(Clone, Debug)]
 pub enum PaletteEvent {
     OpenTab(TabSpec),
+    /// Load SQL into the active query editor when conn matches.
+    InjectSql { conn_id: ConnectionId, sql: String },
 }
 
 /// A search result the palette can return.
@@ -40,6 +43,7 @@ pub enum ResultKind {
 
 pub struct CommandPalette {
     registry: Entity<ConnectionRegistry>,
+    connection_tree: Entity<ConnectionTree>,
     query: String,
     results: Vec<PaletteResult>,
     selected: usize,
@@ -48,9 +52,14 @@ pub struct CommandPalette {
 }
 
 impl CommandPalette {
-    pub fn new(registry: Entity<ConnectionRegistry>, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        registry: Entity<ConnectionRegistry>,
+        connection_tree: Entity<ConnectionTree>,
+        cx: &mut Context<Self>,
+    ) -> Self {
         Self {
             registry,
+            connection_tree,
             query: String::new(),
             results: vec![],
             selected: 0,
@@ -78,12 +87,34 @@ impl CommandPalette {
         cx.notify();
     }
 
-    fn open_selected(&mut self, cx: &mut Context<Self>) {
+    fn open_selected(&mut self, secondary: bool, cx: &mut Context<Self>) {
         let Some(entry) = self.results.get(self.selected) else {
             return;
         };
-        let spec = entry.spec.clone();
-        cx.emit(PaletteEvent::OpenTab(spec));
+        match (&entry.kind, secondary) {
+            (ResultKind::History, false) => {
+                cx.emit(PaletteEvent::InjectSql {
+                    conn_id: entry.spec.conn_id().clone(),
+                    sql: entry.sublabel.clone(),
+                });
+            }
+            _ => {
+                let spec = match (&entry.kind, secondary) {
+                    (ResultKind::SchemaObject, true) => {
+                        let table = entry.label.clone();
+                        TabSpec::QueryEditor {
+                            conn_id: entry.spec.conn_id().clone(),
+                            initial_sql: Some(format!("SELECT * FROM {table} LIMIT 100")),
+                            initial_pipeline: None,
+                            mongo_collection: None,
+                            auto_run: false,
+                        }
+                    }
+                    _ => entry.spec.clone(),
+                };
+                cx.emit(PaletteEvent::OpenTab(spec));
+            }
+        }
         self.dismiss(cx);
     }
 
@@ -106,13 +137,14 @@ impl CommandPalette {
             return;
         }
 
-        if key == "enter" && !mods.secondary() && !mods.control {
+        if key == "enter" && !mods.control && !mods.alt && !mods.function {
             cx.stop_propagation();
-            self.open_selected(cx);
+            let secondary = mods.secondary();
+            self.open_selected(secondary, cx);
             return;
         }
 
-        if mods.secondary() || mods.control || mods.alt || mods.function {
+        if mods.control || mods.alt || mods.function {
             return;
         }
 
@@ -152,19 +184,19 @@ impl CommandPalette {
         let q = self.query.to_lowercase();
         let mut results = vec![];
 
-        let ids = self.registry.read(cx).ordered_ids(cx);
-        for conn_id in &ids {
-            if self.registry.read(cx).get(conn_id, cx).is_some() {
-                if q.is_empty() || conn_id.0.to_lowercase().contains(&q) {
-                    results.push(PaletteResult {
-                        kind: ResultKind::SchemaObject,
-                        label: conn_id.0.clone(),
-                        sublabel: String::new(),
-                        conn_label: conn_id.0.clone(),
-                        spec: TabSpec::Dashboard(conn_id.clone()),
-                    });
-                }
-            }
+        let tree = self.connection_tree.read(cx);
+        for (conn_id, obj, _engine) in tree.schema_palette_matches(&q, cx) {
+            let display = obj.display_name();
+            results.push(PaletteResult {
+                kind: ResultKind::SchemaObject,
+                label: display.clone(),
+                sublabel: obj.kind.group().to_string(),
+                conn_label: conn_id.0.clone(),
+                spec: TabSpec::DataViewer {
+                    conn_id: conn_id.clone(),
+                    object: display,
+                },
+            });
         }
 
         let store = cx.global::<QueryStore>();
@@ -212,7 +244,7 @@ impl CommandPalette {
                 results.push(PaletteResult {
                     kind: ResultKind::History,
                     label: entry.query.chars().take(72).collect(),
-                    sublabel: String::new(),
+                    sublabel: entry.query.clone(),
                     conn_label: entry.conn_id.0.clone(),
                     spec,
                 });
@@ -332,7 +364,7 @@ impl Render for CommandPalette {
                                         cx.listener(move |this, _, _, cx| {
                                             cx.stop_propagation();
                                             this.selected = i;
-                                            this.open_selected(cx);
+                                            this.open_selected(false, cx);
                                         }),
                                     )
                                 })
@@ -347,7 +379,7 @@ impl Render for CommandPalette {
                             .gap_3()
                             .text_xs()
                             .text_color(theme.muted_foreground)
-                            .child("↑↓ navigate · type to filter · ↵ open · esc dismiss"),
+                            .child("↑↓ navigate · ↵ open · ⌘↵ query · esc dismiss"),
                     ),
             )
             .into_any_element()

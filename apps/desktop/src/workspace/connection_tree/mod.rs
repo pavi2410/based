@@ -982,3 +982,38 @@ fn connection_state_dot(state: &ConnectionState, t: &gpui_component::Theme) -> g
         ConnectionState::Failed { .. } => t.red,
     }
 }
+
+impl ConnectionTree {
+    /// Connected connections' cached schema objects matching `query` (palette search).
+    pub fn schema_palette_matches(
+        &self,
+        query: &str,
+        cx: &gpui::App,
+    ) -> Vec<(ConnectionId, SchemaObject, EngineKind)> {
+        let q = query.to_lowercase();
+        let mut out = Vec::new();
+        for (conn_id, state) in &self.conn_states {
+            let Some(entry) = self.registry.read(cx).get(conn_id, cx) else {
+                continue;
+            };
+            let entry = entry.read(cx);
+            if !matches!(entry.state, ConnectionState::Connected(_)) {
+                continue;
+            }
+            let engine = entry.config.engine();
+            let Some(objects) = state.objects.as_ref() else {
+                continue;
+            };
+            for obj in objects {
+                let name = obj.display_name();
+                if q.is_empty()
+                    || name.to_lowercase().contains(&q)
+                    || conn_id.0.to_lowercase().contains(&q)
+                {
+                    out.push((conn_id.clone(), obj.clone(), engine));
+                }
+            }
+        }
+        out
+    }
+}

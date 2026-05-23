@@ -9,6 +9,7 @@ pub mod list_row;
 pub mod pagination;
 pub mod sql_editor;
 pub mod status_glyph;
+pub mod query_panel_extras;
 pub mod tab_chip;
 pub mod ui;
 pub mod virtual_table;

@@ -1,8 +1,8 @@
 // postgres::query_editor — run ad-hoc SQL against a pool.
 
-use gpui::{prelude::*, *};
+use gpui::{prelude::*, App, RenderOnce, *};
 use gpui_component::{
-    ActiveTheme,
+    ActiveTheme, Sizable as _,
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,
@@ -15,14 +15,21 @@ use gpui_component::{
 use sqlx::PgPool;
 use time::OffsetDateTime;
 
-use crate::connection::ConnectionId;
+use crate::connection::{ConnectionId, EngineKind};
 use crate::postgres::mutations::execute_sql;
+use crate::project::ProjectRoot;
 use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::read_only_striped;
+use crate::widgets::query_panel_extras::{
+    self, HistoryFilter, filtered_history, save_starred_query,
+};
 use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input, sql_from_input};
+use crate::widgets::tab_chip::tab_chip;
 use crate::widgets::ui::{metadata_pill, panel_header};
 use crate::widgets::virtual_table::RowDelegate;
-use crate::workspace::{TabSpec, enqueue_open_tab, notify, tab_open::take_sql_inject};
+use crate::workspace::{
+    TabSpec, enqueue_open_tab, mark_query_tab_dirty, notify, tab_open::take_sql_inject,
+};
 
 pub enum QueryStatus {
     Idle,
@@ -43,6 +50,10 @@ pub struct QueryEditorPanel {
     result: Entity<TableState<RowDelegate>>,
     status: QueryStatus,
     show_history: bool,
+    show_variables: bool,
+    history_filter: HistoryFilter,
+    star_name: Option<String>,
+    dirty: bool,
 }
 
 impl QueryEditorPanel {
@@ -79,7 +90,20 @@ impl QueryEditorPanel {
             result,
             status: QueryStatus::Idle,
             show_history: false,
+            show_variables: false,
+            history_filter: HistoryFilter::default(),
+            star_name: None,
+            dirty: false,
         };
+        let conn_for_dirty = panel.conn_id.clone();
+        cx.observe(&sql_input, move |panel, _, cx| {
+            if !panel.dirty {
+                panel.dirty = true;
+                mark_query_tab_dirty(&conn_for_dirty, cx);
+            }
+            cx.notify();
+        })
+        .detach();
         cx.subscribe_in(&sql_input, window, |panel, _, event, _, cx| {
             if let InputEvent::PressEnter {
                 secondary: true,
@@ -206,8 +230,14 @@ impl Panel for QueryEditorPanel {
         true
     }
 
-    fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        "Query Editor"
+    fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        tab_chip(
+            EngineKind::Postgres,
+            "Query",
+            self.dirty,
+            false,
+            cx,
+        )
     }
 }
 
@@ -270,6 +300,19 @@ impl Render for QueryEditorPanel {
                         cx.notify();
                     })),
             )
+            .child(
+                Button::new("pg-vars-toggle")
+                    .ghost()
+                    .label(if self.show_variables {
+                        "Hide vars"
+                    } else {
+                        "Variables"
+                    })
+                    .on_click(cx.listener(|panel, _, _, cx| {
+                        panel.show_variables = !panel.show_variables;
+                        cx.notify();
+                    })),
+            )
             .child(metadata_pill(
                 "shortcut",
                 if cfg!(target_os = "macos") {
@@ -320,66 +363,42 @@ impl Render for QueryEditorPanel {
                     .child(read_only_striped(&self.result)),
             );
 
-        let editor_body =
-            h_flex()
-                .flex_1()
-                .min_h(px(0.0))
-                .child(main_column)
-                .when(self.show_history, |row| {
-                    row.child(
-                        v_flex()
-                            .w(px(260.0))
-                            .min_h(px(0.0))
-                            .border_l_1()
-                            .border_color(border)
-                            .bg(cx.theme().muted.opacity(0.08))
-                            .child(
-                                div()
-                                    .px_3()
-                                    .py_2()
-                                    .border_b_1()
-                                    .border_color(border)
-                                    .text_xs()
-                                    .font_weight(FontWeight::SEMIBOLD)
-                                    .child("Recent (this connection)"),
-                            )
-                            .children(
-                                cx.global::<QueryStore>()
-                                    .history_for(&self.conn_id)
-                                    .into_iter()
-                                    .take(20)
-                                    .enumerate()
-                                    .map(|(i, e)| {
-                                        let preview: SharedString =
-                                            e.query.chars().take(80).collect::<String>().into();
-                                        let full_query = e.query.clone();
-                                        div()
-                                            .id(("pg-hist", i))
-                                            .px_3()
-                                            .py_2()
-                                            .border_b_1()
-                                            .border_color(border)
-                                            .cursor_pointer()
-                                            .text_xs()
-                                            .font_family("monospace")
-                                            .text_color(muted)
-                                            .child(preview)
-                                            .on_mouse_down(
-                                                MouseButton::Left,
-                                                cx.listener(move |panel, _, window, cx| {
-                                                    set_sql_input(
-                                                        &panel.sql_input,
-                                                        &full_query,
-                                                        window,
-                                                        cx,
-                                                    );
-                                                    cx.notify();
-                                                }),
-                                            )
-                                    }),
-                            ),
-                    )
-                });
+        let panel_ent = cx.entity();
+        let history_entries = if self.show_history {
+            let store = cx.global::<QueryStore>();
+            Some(filtered_history(
+                store,
+                &self.conn_id,
+                self.history_filter,
+            ))
+        } else {
+            None
+        };
+        let history_filter = self.history_filter;
+        let star_name = self.star_name.clone();
+
+        let editor_body = h_flex()
+            .flex_1()
+            .min_h(px(0.0))
+            .child(main_column)
+            .when_some(history_entries, |row, entries| {
+                row.child(HistorySidebarView {
+                    panel: panel_ent.clone(),
+                    filter: history_filter,
+                    star_name: star_name.clone(),
+                    entries,
+                    border,
+                    muted,
+                })
+            });
+
+        let project_dir = cx.try_global::<ProjectRoot>().map(|p| p.0.clone());
+        let show_variables = self.show_variables;
+        let var_map = cx.global::<crate::project::ProjectVars>().vars.clone();
+        let mono_font = cx.theme().mono_font_family.clone();
+        let border_v = border;
+        let muted_v = muted;
+        let muted_bg = cx.theme().muted.opacity(0.06);
 
         v_flex()
             .w_full()
@@ -394,5 +413,170 @@ impl Render for QueryEditorPanel {
             .child(toolbar)
             .when_some(error_strip, |col, strip| col.child(strip))
             .child(editor_body)
+            .child(query_panel_extras::variables_footer(
+                project_dir,
+                show_variables,
+                var_map,
+                mono_font,
+                border_v,
+                muted_v,
+                muted_bg,
+            ))
+    }
+}
+
+#[derive(IntoElement)]
+struct HistorySidebarView {
+    panel: Entity<QueryEditorPanel>,
+    filter: HistoryFilter,
+    star_name: Option<String>,
+    entries: Vec<HistoryEntry>,
+    border: gpui::Hsla,
+    muted: gpui::Hsla,
+}
+
+impl RenderOnce for HistorySidebarView {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        use gpui::BorrowAppContext as _;
+        use gpui_component::Sizable as _;
+
+        let panel_ent = self.panel;
+        let filter = self.filter;
+        let border = self.border;
+        let muted = self.muted;
+        let star_name = self.star_name;
+        let entries = self.entries;
+
+        v_flex()
+            .w(px(260.0))
+            .min_h(px(0.0))
+            .border_l_1()
+            .border_color(border)
+            .bg(cx.theme().muted.opacity(0.08))
+            .child(
+                v_flex()
+                    .px_3()
+                    .py_2()
+                    .gap_2()
+                    .border_b_1()
+                    .border_color(border)
+                    .child(
+                        div()
+                            .text_xs()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .child("History"),
+                    )
+                    .child(h_flex().gap_1().children(
+                        HistoryFilter::ALL.map(|f| {
+                            let active = filter == f;
+                            let panel_ent = panel_ent.clone();
+                            Button::new(SharedString::from(format!("pg-hist-filter-{}", f.label())))
+                                .ghost()
+                                .xsmall()
+                                .label(f.label())
+                                .when(active, |b| b.primary())
+                                .on_click(move |_, _, cx| {
+                                    let _ = panel_ent.update(cx, |panel, cx| {
+                                        panel.history_filter = f;
+                                        cx.notify();
+                                    });
+                                })
+                        }),
+                    ))
+                    .when_some(star_name, |col, name| {
+                        let panel_save = panel_ent.clone();
+                        let panel_cancel = panel_ent.clone();
+                        let name = name.clone();
+                        col.child(
+                            h_flex()
+                                .gap_1()
+                                .child(
+                                    div()
+                                        .text_xs()
+                                        .text_color(muted)
+                                        .child(format!("Save as \"{name}\"")),
+                                )
+                                .child(
+                                    Button::new("pg-star-save")
+                                        .primary()
+                                        .xsmall()
+                                        .label("Save")
+                                        .on_click(move |_, _, cx| {
+                                            let _ = panel_save.update(cx, |panel, cx| {
+                                                let sql = panel.current_sql(cx);
+                                                let conn = panel.conn_id.clone();
+                                                cx.update_global(|store: &mut QueryStore, _| {
+                                                    save_starred_query(
+                                                        store,
+                                                        conn,
+                                                        &name,
+                                                        &sql,
+                                                        false,
+                                                        None,
+                                                    );
+                                                });
+                                                panel.star_name = None;
+                                                cx.notify();
+                                            });
+                                        }),
+                                )
+                                .child(
+                                    Button::new("pg-star-cancel")
+                                        .ghost()
+                                        .xsmall()
+                                        .label("Cancel")
+                                        .on_click(move |_, _, cx| {
+                                            let _ = panel_cancel.update(cx, |panel, cx| {
+                                                panel.star_name = None;
+                                                cx.notify();
+                                            });
+                                        }),
+                                ),
+                        )
+                    }),
+            )
+            .children(entries.into_iter().enumerate().map(|(i, e)| {
+                let preview: SharedString = e.query.chars().take(80).collect::<String>().into();
+                let full_query = e.query.clone();
+                let panel_click = panel_ent.clone();
+                let panel_star = panel_ent.clone();
+                let sql_input = panel_click.read(cx).sql_input.clone();
+                h_flex()
+                    .id(SharedString::from(format!("pg-hist-{i}")))
+                    .px_3()
+                    .py_2()
+                    .gap_1()
+                    .border_b_1()
+                    .border_color(border)
+                    .items_start()
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .cursor_pointer()
+                            .text_xs()
+                            .font_family("monospace")
+                            .text_color(muted)
+                            .child(preview)
+                            .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                                let _ = panel_click.update(cx, |panel, cx| {
+                                    set_sql_input(&sql_input, &full_query, window, cx);
+                                    cx.notify();
+                                });
+                            }),
+                    )
+                    .child(
+                        Button::new(SharedString::from(format!("pg-star-{i}")))
+                            .ghost()
+                            .xsmall()
+                            .label("★")
+                            .on_click(move |_, _, cx| {
+                                let _ = panel_star.update(cx, |panel, cx| {
+                                    panel.star_name = Some(format!("query_{i}"));
+                                    cx.notify();
+                                });
+                            }),
+                    )
+            }))
     }
 }

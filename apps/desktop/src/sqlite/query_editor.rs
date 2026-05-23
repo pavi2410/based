@@ -21,6 +21,7 @@ use crate::db;
 use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::read_only_striped;
 use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input, sql_from_input};
+use crate::widgets::row_cell::sqlite_cell_display;
 use crate::widgets::ui::{metadata_pill, panel_header};
 use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
 use crate::workspace::{TabSpec, enqueue_open_tab, notify, tab_open::take_sql_inject};
@@ -150,10 +151,7 @@ impl QueryEditorPanel {
                         .iter()
                         .map(|row| {
                             (0..row.len())
-                                .map(|i| {
-                                    let val: Option<String> = row.try_get(i).ok();
-                                    SharedString::from(val.unwrap_or_default())
-                                })
+                                .map(|i| SharedString::from(sqlite_cell_display(row, i)))
                                 .collect()
                         })
                         .collect();

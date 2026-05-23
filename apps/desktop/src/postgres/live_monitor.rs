@@ -13,6 +13,7 @@ use gpui_component::{
 use sqlx::{Column, PgPool, Row};
 
 use crate::widgets::data_table::read_only_striped;
+use crate::widgets::row_cell::pg_cell_display;
 use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
 
 pub struct LiveMonitorPanel {
@@ -59,10 +60,7 @@ impl LiveMonitorPanel {
                     .iter()
                     .map(|row| {
                         (0..row.len())
-                            .map(|i| {
-                                let val: Option<String> = row.try_get(i).ok();
-                                SharedString::from(val.unwrap_or_default())
-                            })
+                            .map(|i| SharedString::from(pg_cell_display(row, i)))
                             .collect()
                     })
                     .collect();

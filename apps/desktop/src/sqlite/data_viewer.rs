@@ -21,6 +21,7 @@ use crate::widgets::filter_bar::FilterBar;
 use crate::widgets::pagination::{offset_for_page, sql_pagination_controls, sql_row_range_label};
 use crate::widgets::ui::{metadata_pill, panel_header};
 use crate::widgets::pagination::sql_page_state;
+use crate::widgets::row_cell::sqlite_cell_display;
 use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
 
 pub struct DataViewerPanel {
@@ -140,10 +141,7 @@ impl DataViewerPanel {
                     .iter()
                     .map(|row| {
                         (0..row.len())
-                            .map(|i| {
-                                let val: Option<String> = row.try_get(i).ok();
-                                SharedString::from(val.unwrap_or_default())
-                            })
+                            .map(|i| SharedString::from(sqlite_cell_display(row, i)))
                             .collect()
                     })
                     .collect();

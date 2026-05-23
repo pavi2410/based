@@ -9,12 +9,12 @@ use gpui_component::{
     ActiveTheme, Icon, IconName, Sizable as _, StyledExt,
     button::{Button, ButtonVariants},
     h_flex,
-    list::ListItem,
     scroll::ScrollableElement,
     v_flex,
 };
 
 use crate::connection::{ConnectionId, EngineKind};
+use crate::widgets::list_row::schema_object_row_with_actions;
 use crate::widgets::ui::engine_chip;
 
 use super::types::{ActiveObjects, ObjectKind, SchemaObject};
@@ -29,6 +29,7 @@ pub(super) fn render_objects_pane(
     let border = cx.theme().sidebar_border;
     let muted = cx.theme().muted_foreground;
     let sfg = cx.theme().sidebar_foreground;
+    let mono = cx.theme().mono_font_family.clone();
 
     let body: AnyElement = match active_objects {
         ActiveObjects::Empty => v_flex()
@@ -140,7 +141,7 @@ pub(super) fn render_objects_pane(
                             let object_key = hasher.finish();
                             let is_selected =
                                 selected_object.as_deref() == Some(object_id.as_str());
-                            let kind: SharedString = object.kind.label().into();
+                            let kind: SharedString = object.kind.badge_label().into();
                             let object_id_label: SharedString = object_id.clone().into();
                             let object_for_row_click = object.clone();
 
@@ -190,44 +191,22 @@ pub(super) fn render_objects_pane(
                                 );
                             }
 
-                            ListItem::new(("object-row", object_key))
-                                .selected(is_selected)
-                                .mx_2()
-                                .mb(gpui::px(1.0))
-                                .px_2()
-                                .py(gpui::px(5.0))
-                                .rounded(gpui::px(6.0))
-                                .cursor_pointer()
-                                .on_click(cx.listener(move |tree, _, window, cx| {
-                                    tree.on_object_clicked(
-                                        object_for_row_click.clone(),
-                                        window,
-                                        cx,
-                                    );
-                                }))
-                                .child(
-                                    h_flex()
-                                        .gap_2()
-                                        .items_center()
-                                        .child(
-                                            div()
-                                                .w(gpui::px(30.0))
-                                                .text_xs()
-                                                .font_family(cx.theme().mono_font_family.clone())
-                                                .text_color(muted)
-                                                .child(kind),
-                                        )
-                                        .child(
-                                            div()
-                                                .flex_1()
-                                                .min_w_0()
-                                                .text_sm()
-                                                .text_color(sfg)
-                                                .truncate()
-                                                .child(object_id_label),
-                                        )
-                                        .child(actions),
-                                )
+                            schema_object_row_with_actions(
+                                ("object-row", object_key),
+                                is_selected,
+                                kind,
+                                object_id_label,
+                                muted,
+                                sfg,
+                                mono.clone(),
+                                actions,
+                            )
+                            .mx_2()
+                            .mb(gpui::px(1.0))
+                            .rounded(gpui::px(6.0))
+                            .on_click(cx.listener(move |tree, _, window, cx| {
+                                tree.on_object_clicked(object_for_row_click.clone(), window, cx);
+                            }))
                         }))
                 }))
                 .into_any_element()

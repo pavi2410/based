@@ -21,6 +21,17 @@ impl ObjectKind {
         }
     }
 
+    /// Short badge for sidebar object rows (fits fixed-width column).
+    pub(crate) fn badge_label(&self) -> &'static str {
+        match self {
+            Self::Table => "tbl",
+            Self::View => "view",
+            Self::MaterializedView => "mview",
+            Self::Trigger => "trig",
+            Self::Collection => "coll",
+        }
+    }
+
     pub fn group(&self) -> &'static str {
         match self {
             Self::Table => "Tables",

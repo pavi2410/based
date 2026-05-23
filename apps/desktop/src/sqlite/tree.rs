@@ -139,6 +139,7 @@ impl Render for SchemaTreePanel {
         let selected = self.selected.clone();
         let muted = cx.theme().muted_foreground;
         let fg = cx.theme().foreground;
+        let mono = cx.theme().mono_font_family.clone();
         let rows: Vec<_> = nodes
             .into_iter()
             .enumerate()
@@ -153,7 +154,7 @@ impl Render for SchemaTreePanel {
                 .into();
                 let picked = node.name.clone();
 
-                schema_object_row(("sqlite-obj", ix), is_selected, kind_label, name, muted, fg)
+                schema_object_row(("sqlite-obj", ix), is_selected, kind_label, name, muted, fg, mono.clone())
                     .on_mouse_down(
                         MouseButton::Left,
                         cx.listener(move |panel, _, _window, cx| {

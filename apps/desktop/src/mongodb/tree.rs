@@ -96,6 +96,7 @@ impl Render for CollectionsTreePanel {
         let selected = self.selected.clone();
         let muted = cx.theme().muted_foreground;
         let fg = cx.theme().foreground;
+        let mono = cx.theme().mono_font_family.clone();
 
         v_flex()
             .id("mongo-tree")
@@ -122,7 +123,8 @@ impl Render for CollectionsTreePanel {
                 let sel = selected.as_ref() == Some(&name);
                 let n = name.clone();
                 let label: SharedString = name.into();
-                schema_object_row(("coll", ix), sel, "coll", label, muted, fg).on_click(
+                schema_object_row(("coll", ix), sel, "coll", label, muted, fg, mono.clone())
+                    .on_click(
                     cx.listener(move |panel, _, _, cx| {
                         panel.selected = Some(n.clone());
                         cx.emit(CollectionTreeEvent::CollectionSelected(n.clone()));

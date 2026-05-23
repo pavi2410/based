@@ -149,6 +149,7 @@ impl Render for SchemaTreePanel {
         let selected = self.selected.clone();
         let muted = cx.theme().muted_foreground;
         let fg = cx.theme().foreground;
+        let mono = cx.theme().mono_font_family.clone();
 
         let list = rows
             .into_iter()
@@ -160,7 +161,8 @@ impl Render for SchemaTreePanel {
                 let label2: SharedString = format!("{}.{}", rel.schema, rel.name).into();
                 let picked = rel.clone();
 
-                schema_object_row(("pg-rel", ix), is_sel, badge, label2, muted, fg).on_click(
+                schema_object_row(("pg-rel", ix), is_sel, badge, label2, muted, fg, mono.clone())
+                    .on_click(
                     cx.listener(move |panel, _, _, cx| {
                         panel.selected = Some(key.clone());
                         cx.emit(PgSchemaTreeEvent::RelationSelected(picked.clone()));

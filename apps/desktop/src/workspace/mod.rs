@@ -3,7 +3,10 @@
 pub mod session;
 pub mod tab_open;
 pub mod tab_spec;
-pub use tab_open::{SqlInject, TabOpenQueue, enqueue_open_tab, enqueue_sql_inject};
+pub use tab_open::{
+    SqlInject, TabManagerRef, TabOpenQueue, enqueue_open_tab, enqueue_sql_inject,
+    mark_query_tab_dirty,
+};
 pub use tab_spec::TabSpec;
 
 pub mod tab_manager;
@@ -108,6 +111,11 @@ impl Workspace {
             cx.new(|cx| ConnectionTree::new(registry.clone(), dock_area.clone(), cx));
 
         let tab_manager = cx.new(|_| TabManager::new());
+        cx.set_global(TabManagerRef(tab_manager.clone()));
+        if let Some(root) = project_dir.clone() {
+            cx.set_global(crate::project::RegistryRef(registry.clone()));
+            cx.set_global(crate::project::ProjectRoot(root));
+        }
         let command_palette = cx.new(|cx| {
             CommandPalette::new(registry.clone(), connection_tree.clone(), cx)
         });
@@ -614,6 +622,7 @@ impl Focusable for Workspace {
 
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::project::drain_pending_reload(cx);
         if !self.session_restored {
             self.session_restored = true;
             self.restore_session(window, cx);

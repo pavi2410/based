@@ -6,6 +6,7 @@ pub mod config;
 pub mod discovery;
 pub mod queries;
 pub mod variables;
+pub mod reload;
 pub mod watcher;
 
 pub use based_config::load_workspace_seed;
@@ -35,18 +36,10 @@ pub struct ConfigWatcherGlobal {
 
 impl Global for ConfigWatcherGlobal {}
 
-/// Start watching `project_root/.based/` when a project is open.
-pub fn install_config_watcher(project_root: Option<PathBuf>, cx: &mut gpui::App) {
-    let watcher = project_root.and_then(|root| {
-        let root_log = root.clone();
-        watcher::ConfigWatcher::new(root, || {
-            log::info!("based config changed — reload pending");
-        })
-        .inspect_err(|e| log::warn!("config watcher ({root_log:?}): {e:#}"))
-        .ok()
-    });
-    cx.set_global(ConfigWatcherGlobal { _watcher: watcher });
-}
+pub use reload::{
+    ConfigReloadSignal, ProjectRoot, RegistryRef, drain_pending_reload, install_reload_watcher,
+    reload_from_disk,
+};
 
 pub enum ProjectEvent {
     ConfigReloaded,

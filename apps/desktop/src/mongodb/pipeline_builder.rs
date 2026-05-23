@@ -19,13 +19,14 @@ use uuid::Uuid;
 use crate::connection::ConnectionId;
 use crate::query_store::{HistoryEntry, QueryStore, SavedQuery};
 use crate::widgets::data_table::read_only_striped;
+use crate::widgets::sql_editor::{self, new_json_input, text_from_input};
 use crate::widgets::virtual_table::RowDelegate;
 
 pub struct PipelineBuilderPanel {
     focus_handle: FocusHandle,
     collection: Collection<Document>,
     conn_id: ConnectionId,
-    pipeline_json: String,
+    pipeline_input: Entity<InputState>,
     result: Entity<TableState<RowDelegate>>,
     status: SharedString,
     save_name_input: Entity<InputState>,
@@ -54,11 +55,12 @@ impl PipelineBuilderPanel {
         let save_name_input = cx.new(|cx| InputState::new(window, cx));
         let pipeline_json = initial_pipeline_json
             .unwrap_or_else(|| String::from("[{ \"$match\": {} }, { \"$limit\": 50 }]"));
+        let pipeline_input = new_json_input(&pipeline_json, window, cx);
         Self {
             focus_handle: cx.focus_handle(),
             collection,
             conn_id,
-            pipeline_json,
+            pipeline_input,
             result,
             status: SharedString::from(""),
             save_name_input,
@@ -68,7 +70,7 @@ impl PipelineBuilderPanel {
 
     fn run(&mut self, cx: &mut Context<Self>) {
         let coll = self.collection.clone();
-        let raw = self.pipeline_json.clone();
+        let raw = text_from_input(&self.pipeline_input, cx);
         let conn_id = self.conn_id.clone();
         cx.spawn(async move |this, cx| {
             let vals: Vec<serde_json::Value> = match serde_json::from_str(&raw) {
@@ -189,7 +191,7 @@ impl PipelineBuilderPanel {
             return;
         }
 
-        let pipeline = self.pipeline_json.clone();
+        let pipeline = text_from_input(&self.pipeline_input, cx);
         let conn_id = self.conn_id.clone();
         cx.update_global(|store: &mut QueryStore, _| {
             store.save_query(SavedQuery {
@@ -245,20 +247,13 @@ impl Panel for PipelineBuilderPanel {
 
 impl Render for PipelineBuilderPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let border = cx.theme().border;
-        let txt: SharedString = self.pipeline_json.clone().into();
         v_flex()
             .size_full()
             .child(
                 div()
                     .flex_1()
-                    .min_h(px(120.0))
-                    .p_2()
-                    .border_1()
-                    .border_color(border)
-                    .font_family("monospace")
-                    .text_xs()
-                    .child(txt),
+                    .min_h(px(160.0))
+                    .child(sql_editor::code_editor_area(&self.pipeline_input, false, 200.0, cx)),
             )
             .child(
                 h_flex()

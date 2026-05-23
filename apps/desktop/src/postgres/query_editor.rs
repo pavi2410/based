@@ -6,6 +6,7 @@ use gpui_component::{
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,
+    input::{InputEvent, InputState},
     menu::PopupMenu,
     table::TableState,
     tooltip::Tooltip,
@@ -18,6 +19,7 @@ use crate::connection::ConnectionId;
 use crate::postgres::mutations::execute_sql;
 use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::read_only_striped;
+use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input, sql_from_input};
 use crate::widgets::ui::{metadata_pill, panel_header};
 use crate::widgets::virtual_table::RowDelegate;
 use crate::workspace::notify;
@@ -37,7 +39,7 @@ pub struct QueryEditorPanel {
     focus_handle: FocusHandle,
     pool: PgPool,
     conn_id: ConnectionId,
-    sql_text: String,
+    sql_input: Entity<InputState>,
     result: Entity<TableState<RowDelegate>>,
     status: QueryStatus,
     show_history: bool,
@@ -68,16 +70,27 @@ impl QueryEditorPanel {
                 .cell_selectable(true)
         });
         let sql_text = initial_sql.unwrap_or_else(|| "SELECT 1 AS one;".to_string());
+        let sql_input = new_sql_input(&sql_text, window, cx);
         let panel = Self {
             focus_handle: cx.focus_handle(),
             pool,
             conn_id,
-            sql_text,
+            sql_input: sql_input.clone(),
             result,
             status: QueryStatus::Idle,
             show_history: false,
         };
-        if auto_run && !panel.sql_text.trim().is_empty() {
+        cx.subscribe_in(&sql_input, window, |panel, _, event, _, cx| {
+            if let InputEvent::PressEnter {
+                secondary: true,
+                shift: false,
+            } = event
+            {
+                panel.run(cx);
+            }
+        })
+        .detach();
+        if auto_run && !sql_text.trim().is_empty() {
             cx.defer_in(window, |panel, _, cx| {
                 panel.run(cx);
             });
@@ -85,8 +98,17 @@ impl QueryEditorPanel {
         panel
     }
 
+    pub fn load_sql(&mut self, sql: &str, window: &mut Window, cx: &mut Context<Self>) {
+        set_sql_input(&self.sql_input, sql, window, cx);
+        cx.notify();
+    }
+
+    pub fn current_sql(&self, cx: &App) -> String {
+        sql_from_input(&self.sql_input, cx)
+    }
+
     fn run(&mut self, cx: &mut Context<Self>) {
-        let sql_raw = self.sql_text.clone();
+        let sql_raw = self.current_sql(cx);
         if sql_raw.trim().is_empty() {
             return;
         }
@@ -177,9 +199,7 @@ impl Render for QueryEditorPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let border = cx.theme().border;
         let muted = cx.theme().muted_foreground;
-        let err_border = cx.theme().danger;
         let err_fg = cx.theme().danger_foreground;
-        let sql_val: SharedString = self.sql_text.clone().into();
 
         let is_error = matches!(self.status, QueryStatus::Error(_));
         let err_text = match &self.status {
@@ -258,20 +278,16 @@ impl Render for QueryEditorPanel {
         let main_column = v_flex()
             .flex_1()
             .min_w(px(0.0))
-            .child({
-                div().p_2().child(
-                    div()
-                        .h(px(180.0))
-                        .p_2()
-                        .border_1()
-                        .rounded(px(7.0))
-                        .bg(cx.theme().muted.opacity(0.14))
-                        .border_color(if is_error { err_border } else { border })
-                        .font_family("monospace")
-                        .text_sm()
-                        .child(sql_val),
-                )
-            })
+            .child(
+                div()
+                    .p_2()
+                    .child(sql_editor::code_editor_area(
+                        &self.sql_input,
+                        is_error,
+                        200.0,
+                        cx,
+                    )),
+            )
             .child(
                 div()
                     .flex_1()
@@ -325,8 +341,13 @@ impl Render for QueryEditorPanel {
                                             .child(preview)
                                             .on_mouse_down(
                                                 MouseButton::Left,
-                                                cx.listener(move |panel, _, _, cx| {
-                                                    panel.sql_text = full_query.clone();
+                                                cx.listener(move |panel, _, window, cx| {
+                                                    set_sql_input(
+                                                        &panel.sql_input,
+                                                        &full_query,
+                                                        window,
+                                                        cx,
+                                                    );
                                                     cx.notify();
                                                 }),
                                             )

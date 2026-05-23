@@ -10,7 +10,9 @@ gpui_platform = { git = "https://github.com/zed-industries/zed", features = [
     "font-kit",
     "runtime_shaders",
 ] }
-gpui-component = { git = "https://github.com/longbridge/gpui-component" }
+gpui-component = { git = "https://github.com/longbridge/gpui-component", features = [
+    "tree-sitter-sql",
+] }
 gpui-component-assets = { git = "https://github.com/longbridge/gpui-component" }
 # Same git rev as gpui / gpui_platform — bridges Tokio futures to GPUI tasks (see gpui_tokio::init).
 gpui_tokio = { git = "https://github.com/zed-industries/zed", package = "gpui_tokio" }

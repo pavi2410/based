@@ -15,6 +15,7 @@ use mongodb::bson::Document;
 use mongodb::bson::doc;
 
 use crate::mongodb::mutations::document_from_json;
+use crate::widgets::sql_editor::new_json_input;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum EditorMode {
@@ -46,7 +47,7 @@ impl DocumentEditorPanel {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let json_input = cx.new(|cx| InputState::new(window, cx).multi_line(true));
+        let json_input = new_json_input("{\n  \n}", window, cx);
         let panel = Self {
             focus_handle: cx.focus_handle(),
             collection,
@@ -56,9 +57,6 @@ impl DocumentEditorPanel {
             error: None,
             status: SharedString::default(),
         };
-        panel.json_input.update(cx, |state, cx| {
-            state.set_value("{\n  \n}", window, cx);
-        });
         panel
     }
 
@@ -68,8 +66,8 @@ impl DocumentEditorPanel {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let json_input = cx.new(|cx| InputState::new(window, cx).multi_line(true));
         let pretty = document_to_pretty_json(&doc);
+        let json_input = new_json_input(&pretty, window, cx);
         let panel = Self {
             focus_handle: cx.focus_handle(),
             collection,
@@ -79,9 +77,6 @@ impl DocumentEditorPanel {
             error: None,
             status: SharedString::default(),
         };
-        panel.json_input.update(cx, |state, cx| {
-            state.set_value(pretty, window, cx);
-        });
         panel
     }
 

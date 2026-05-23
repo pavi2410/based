@@ -40,6 +40,15 @@ fn default_query_timeout_secs() -> u32 {
     DEFAULT_QUERY_TIMEOUT_SECS
 }
 
+/// Data grid row density (monospace cells).
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TableDensity {
+    #[default]
+    Compact,
+    Comfortable,
+}
+
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct NativePreferences {
     #[serde(default)]
@@ -54,6 +63,8 @@ pub struct NativePreferences {
     pub page_size: u64,
     #[serde(default = "default_query_timeout_secs")]
     pub query_timeout_secs: u32,
+    #[serde(default)]
+    pub table_density: TableDensity,
 }
 
 impl Default for NativePreferences {
@@ -65,6 +76,7 @@ impl Default for NativePreferences {
             mono_font_size: DEFAULT_MONO_FONT_SIZE,
             page_size: DEFAULT_PAGE_SIZE,
             query_timeout_secs: DEFAULT_QUERY_TIMEOUT_SECS,
+            table_density: TableDensity::Compact,
         }
     }
 }
@@ -130,6 +142,24 @@ pub fn page_size(cx: &App) -> u64 {
 
 pub fn query_timeout_secs(cx: &App) -> u32 {
     cx.global::<NativePreferences>().query_timeout_secs
+}
+
+pub fn table_density(cx: &App) -> TableDensity {
+    cx.global::<NativePreferences>().table_density
+}
+
+pub fn set_table_density(density: TableDensity, cx: &mut App) {
+    let changed = cx.update_global(|p: &mut NativePreferences, _| {
+        if p.table_density == density {
+            return false;
+        }
+        p.table_density = density;
+        p.save_best_effort();
+        true
+    });
+    if changed {
+        cx.refresh_windows();
+    }
 }
 
 fn clamp_page_size(size: u64) -> u64 {

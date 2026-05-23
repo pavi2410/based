@@ -98,6 +98,25 @@ impl SettingsWindow {
                     )
                     .description("Rows fetched per page in SQL table viewers."),
                     SettingItem::new(
+                        "Compact tables",
+                        SettingField::switch(
+                            |cx| prefs::table_density(cx) == prefs::TableDensity::Compact,
+                            |on, cx| {
+                                prefs::set_table_density(
+                                    if on {
+                                        prefs::TableDensity::Compact
+                                    } else {
+                                        prefs::TableDensity::Comfortable
+                                    },
+                                    cx,
+                                );
+                            },
+                        ),
+                    )
+                    .description(
+                        "Tighter monospace rows in data grids; turn off for roomier cells.",
+                    ),
+                    SettingItem::new(
                         "Query timeout",
                         SettingField::number_input(
                             NumberFieldOptions {

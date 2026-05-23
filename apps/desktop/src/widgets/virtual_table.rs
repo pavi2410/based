@@ -5,6 +5,8 @@
 use gpui::{prelude::*, *};
 use gpui_component::{ActiveTheme, table::{Column, ColumnSort, TableState}};
 
+use crate::app::prefs::{self, TableDensity};
+
 pub const NULL_CELL_DISPLAY: &str = "NULL";
 
 /// Generic row data: column names + string-valued cells.
@@ -48,15 +50,28 @@ impl gpui_component::table::TableDelegate for RowDelegate {
         } else {
             cell
         };
-        div()
+        let compact = prefs::table_density(cx) == TableDensity::Compact;
+        let cell_pad = if compact {
+            (px(8.0), px(2.0))
+        } else {
+            (px(12.0), px(6.0))
+        };
+        let mut el = div()
             .truncate()
-            .text_sm()
+            .px(cell_pad.0)
+            .py(cell_pad.1)
+            .font_family(cx.theme().mono_font_family.clone())
             .text_color(if is_null {
                 cx.theme().muted_foreground
             } else {
                 cx.theme().foreground
-            })
-            .child(display)
+            });
+        el = if compact {
+            el.text_xs()
+        } else {
+            el.text_sm()
+        };
+        el.child(display)
     }
 
     fn cell_text(&self, row_ix: usize, col_ix: usize, _: &App) -> String {

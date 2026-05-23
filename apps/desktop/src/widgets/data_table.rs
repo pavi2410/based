@@ -8,5 +8,5 @@ pub fn read_only_striped<D>(table: &Entity<TableState<D>>) -> DataTable<D>
 where
     D: TableDelegate,
 {
-    DataTable::new(table).stripe(true).bordered(false)
+    DataTable::new(table).stripe(true).bordered(true)
 }

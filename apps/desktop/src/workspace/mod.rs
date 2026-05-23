@@ -1,5 +1,6 @@
 // workspace/ — Workspace entity, DockArea, sidebar, status bar, connection wiring.
 
+pub mod session;
 pub mod tab_open;
 pub mod tab_spec;
 pub use tab_open::{SqlInject, TabOpenQueue, enqueue_open_tab, enqueue_sql_inject};
@@ -22,6 +23,7 @@ pub mod status_bar;
 pub mod topbar;
 pub mod welcome;
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::widgets::ui::{engine_chip, engine_name, metadata_pill};
@@ -63,14 +65,18 @@ pub struct Workspace {
     inspector_collapsed: bool,
     focus_handle: FocusHandle,
     project_title: SharedString,
+    project_dir: Option<PathBuf>,
+    session_restored: bool,
     pending_open_tab: Option<TabSpec>,
 }
 
 impl Workspace {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let (project_title, entries) = find_project_root()
+        let project_dir = find_project_root();
+        let (project_title, entries) = project_dir
+            .as_ref()
             .map(|root| {
-                let (title, e) = load_workspace_seed(&root);
+                let (title, e) = load_workspace_seed(root);
                 (title.into(), e)
             })
             .unwrap_or_else(|| ("No Project".into(), vec![]));
@@ -119,6 +125,8 @@ impl Workspace {
             inspector_collapsed: false,
             focus_handle: cx.focus_handle(),
             project_title,
+            project_dir,
+            session_restored: false,
             pending_open_tab: None,
         };
 
@@ -178,7 +186,46 @@ impl Workspace {
         })
         .detach();
 
+        let tab_mgr_observe = workspace.tab_manager.clone();
+        cx.subscribe(&tab_mgr_observe, |ws, _, _: &tab_manager::TabEvent, ecx| {
+            ws.save_session(ecx);
+        })
+        .detach();
+
         workspace
+    }
+
+    fn save_session(&self, cx: &Context<Self>) {
+        let Some(root) = self.project_dir.as_ref() else {
+            return;
+        };
+        let tm = self.tab_manager.read(cx);
+        if tm.tabs.is_empty() {
+            return;
+        }
+        let state = session::SessionState {
+            tabs: tm.tabs.iter().map(|t| t.spec.clone()).collect(),
+            active: tm.active_idx,
+        };
+        let _ = state.save(root);
+    }
+
+    fn restore_session(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(root) = self.project_dir.clone() else {
+            return;
+        };
+        let session = session::SessionState::load(&root);
+        for spec in session.tabs {
+            self.pending_open_tab = Some(spec);
+            self.flush_pending_open_tab(window, cx);
+        }
+        if let Some(idx) = session.active {
+            self.tab_manager.update(cx, |tm, ecx| {
+                if idx < tm.tabs.len() {
+                    tm.activate(idx, ecx);
+                }
+            });
+        }
     }
 
     pub fn toggle_sidebar_rail(&mut self, cx: &mut Context<Self>) {
@@ -567,6 +614,10 @@ impl Focusable for Workspace {
 
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if !self.session_restored {
+            self.session_restored = true;
+            self.restore_session(window, cx);
+        }
         self.flush_pending_open_tab(window, cx);
         let this = cx.entity().clone();
         let conn_list: Vec<Entity<ConnectionEntry>> = self.registry.read(cx).connections().to_vec();

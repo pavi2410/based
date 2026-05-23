@@ -1,8 +1,11 @@
+use serde::{Deserialize, Serialize};
+
 use crate::connection::ConnectionId;
 
 /// Identifies what a tab shows. Used by TabManager to open-or-focus.
 /// Two specs are equal iff they refer to the same logical panel — prevents duplicate DataViewers.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum TabSpec {
     Dashboard(ConnectionId),
     DataViewer {

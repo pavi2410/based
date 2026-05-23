@@ -13,7 +13,7 @@ use gpui_component::{
 use sqlx::{PgPool, Row};
 
 use crate::widgets::data_table::read_only_striped;
-use crate::widgets::virtual_table::RowDelegate;
+use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 enum PgInspectorTab {
@@ -274,28 +274,16 @@ impl TableInspectorPanel {
             let _ = cx.update(|cx| {
                 this.update(cx, |panel, cx| {
                     panel.columns_tbl.update(cx, |state, cx| {
-                        let d = state.delegate_mut();
-                        d.columns = col_columns;
-                        d.rows = col_data;
-                        cx.notify();
+                        replace_table_data(state, col_columns, col_data, cx);
                     });
                     panel.indexes_tbl.update(cx, |state, cx| {
-                        let d = state.delegate_mut();
-                        d.columns = ix_columns;
-                        d.rows = ix_data;
-                        cx.notify();
+                        replace_table_data(state, ix_columns, ix_data, cx);
                     });
                     panel.constraints_tbl.update(cx, |state, cx| {
-                        let d = state.delegate_mut();
-                        d.columns = co_columns;
-                        d.rows = co_data;
-                        cx.notify();
+                        replace_table_data(state, co_columns, co_data, cx);
                     });
                     panel.stats_tbl.update(cx, |state, cx| {
-                        let d = state.delegate_mut();
-                        d.columns = st_columns;
-                        d.rows = st_data;
-                        cx.notify();
+                        replace_table_data(state, st_columns, st_data, cx);
                     });
                     cx.notify();
                 })

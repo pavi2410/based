@@ -13,7 +13,7 @@ use gpui_component::{
 use sqlx::{Column, PgPool, Row};
 
 use crate::widgets::data_table::read_only_striped;
-use crate::widgets::virtual_table::RowDelegate;
+use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
 
 pub struct LiveMonitorPanel {
     focus_handle: FocusHandle,
@@ -75,10 +75,7 @@ impl LiveMonitorPanel {
             };
             let _ = this.update(cx, |panel, cx| {
                 panel.table.update(cx, |state, cx| {
-                    let d = state.delegate_mut();
-                    d.columns = columns;
-                    d.rows = data;
-                    cx.notify();
+                    replace_table_data(state, columns, data, cx);
                 });
                 cx.notify();
             });

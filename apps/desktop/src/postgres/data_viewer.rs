@@ -20,7 +20,7 @@ use crate::widgets::data_table::read_only_striped;
 use crate::widgets::filter_bar::FilterBar;
 use crate::widgets::pagination::{offset_for_page, sql_pagination_controls, sql_row_range_label};
 use crate::widgets::ui::{metadata_pill, panel_header};
-use crate::widgets::virtual_table::RowDelegate;
+use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
 
 pub struct DataViewerPanel {
     focus_handle: FocusHandle,
@@ -164,10 +164,7 @@ impl DataViewerPanel {
                         fb.set_columns_if_empty(names, cx);
                     });
                     panel.table.update(cx, |state, cx| {
-                        let delegate = state.delegate_mut();
-                        delegate.columns = columns;
-                        delegate.rows = data_rows;
-                        cx.notify();
+                        replace_table_data(state, columns, data_rows, cx);
                     });
                     cx.notify();
                 }

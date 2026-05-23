@@ -3,7 +3,7 @@
 // so this is a thin wrapper / type alias for the RowDelegate-based table.
 
 use gpui::{prelude::*, *};
-use gpui_component::table::{Column, ColumnSort, TableState};
+use gpui_component::{ActiveTheme, table::{Column, ColumnSort, TableState}};
 
 /// Generic row data: column names + string-valued cells.
 #[derive(Default)]
@@ -32,9 +32,18 @@ impl gpui_component::table::TableDelegate for RowDelegate {
         row_ix: usize,
         col_ix: usize,
         _: &mut Window,
-        _cx: &mut Context<TableState<Self>>,
+        cx: &mut Context<TableState<Self>>,
     ) -> impl IntoElement {
-        div().child(self.rows[row_ix][col_ix].clone())
+        let cell = self
+            .rows
+            .get(row_ix)
+            .and_then(|row| row.get(col_ix))
+            .cloned()
+            .unwrap_or_default();
+        div()
+            .text_sm()
+            .text_color(cx.theme().foreground)
+            .child(cell)
     }
 
     fn cell_text(&self, row_ix: usize, col_ix: usize, _: &App) -> String {
@@ -59,3 +68,20 @@ impl gpui_component::table::TableDelegate for RowDelegate {
 }
 
 pub type VirtualTable = Entity<TableState<RowDelegate>>;
+
+/// Replace delegate data and rebuild gpui-component column layout.
+///
+/// [`TableState::refresh`] must run after columns change; otherwise `col_groups` stays
+/// empty from the initial delegate and body cells never render.
+pub fn replace_table_data(
+    state: &mut TableState<RowDelegate>,
+    columns: Vec<Column>,
+    rows: Vec<Vec<SharedString>>,
+    cx: &mut Context<TableState<RowDelegate>>,
+) {
+    let delegate = state.delegate_mut();
+    delegate.columns = columns;
+    delegate.rows = rows;
+    state.refresh(cx);
+    cx.notify();
+}

@@ -26,7 +26,7 @@ use crate::widgets::query_panel_extras::{
 use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input, sql_from_input};
 use crate::widgets::tab_chip::tab_chip;
 use crate::widgets::ui::{metadata_pill, panel_header};
-use crate::widgets::virtual_table::RowDelegate;
+use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
 use crate::workspace::{
     TabSpec, enqueue_open_tab, mark_query_tab_dirty, notify, tab_open::take_sql_inject,
 };
@@ -175,10 +175,7 @@ impl QueryEditorPanel {
                             .collect();
                         let row_count = data.len();
                         panel.result.update(cx, |state, cx| {
-                            let d = state.delegate_mut();
-                            d.columns = col_models;
-                            d.rows = data;
-                            cx.notify();
+                            replace_table_data(state, col_models, data, cx);
                         });
                         cx.update_global(|store: &mut QueryStore, _| {
                             store.push_history(HistoryEntry {

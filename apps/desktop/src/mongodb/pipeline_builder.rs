@@ -20,7 +20,7 @@ use crate::connection::ConnectionId;
 use crate::query_store::{HistoryEntry, QueryStore, SavedQuery};
 use crate::widgets::data_table::read_only_striped;
 use crate::widgets::sql_editor::{self, new_json_input, text_from_input};
-use crate::widgets::virtual_table::RowDelegate;
+use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
 
 pub struct PipelineBuilderPanel {
     focus_handle: FocusHandle,
@@ -171,10 +171,7 @@ impl PipelineBuilderPanel {
                         });
                     });
                     panel.result.update(cx, |state, cx| {
-                        let d = state.delegate_mut();
-                        d.columns = columns;
-                        d.rows = rows;
-                        cx.notify();
+                        replace_table_data(state, columns, rows, cx);
                     });
                     cx.notify();
                 })

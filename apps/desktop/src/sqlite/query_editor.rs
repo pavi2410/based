@@ -22,7 +22,7 @@ use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::read_only_striped;
 use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input, sql_from_input};
 use crate::widgets::ui::{metadata_pill, panel_header};
-use crate::widgets::virtual_table::RowDelegate;
+use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
 use crate::workspace::{TabSpec, enqueue_open_tab, notify, tab_open::take_sql_inject};
 
 pub enum QueryStatus {
@@ -168,10 +168,7 @@ impl QueryEditorPanel {
                     let row_count = data_rows.len();
                     if let Some(ref tbl) = panel.result_table {
                         tbl.update(cx, |state, cx| {
-                            let delegate = state.delegate_mut();
-                            delegate.columns = columns;
-                            delegate.rows = data_rows;
-                            cx.notify();
+                            replace_table_data(state, columns, data_rows, cx);
                         });
                     }
                     cx.update_global(|store: &mut QueryStore, _| {

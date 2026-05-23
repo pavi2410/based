@@ -20,7 +20,8 @@ use crate::widgets::data_table::read_only_striped;
 use crate::widgets::filter_bar::FilterBar;
 use crate::widgets::pagination::{offset_for_page, sql_pagination_controls, sql_row_range_label};
 use crate::widgets::ui::{metadata_pill, panel_header};
-use crate::widgets::virtual_table::RowDelegate;
+use crate::widgets::pagination::sql_page_state;
+use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
 
 pub struct DataViewerPanel {
     focus_handle: FocusHandle,
@@ -161,10 +162,7 @@ impl DataViewerPanel {
                             fb.set_columns_if_empty(names, cx);
                         });
                         panel.table.update(cx, |state, cx| {
-                            let delegate = state.delegate_mut();
-                            delegate.columns = columns;
-                            delegate.rows = data_rows;
-                            cx.notify();
+                            replace_table_data(state, columns, data_rows, cx);
                         });
                         cx.notify();
                     }
@@ -223,6 +221,8 @@ impl Render for DataViewerPanel {
 
         let table_name: SharedString = self.table_name.clone().into();
         let row_info: SharedString = sql_row_range_label(total, offset, page_size).into();
+        let (current_page, total_pages) = sql_page_state(total, offset, page_size);
+        let page_info: SharedString = format!("{current_page} / {total_pages}").into();
         let panel = cx.entity().downgrade();
 
         let muted = cx.theme().muted_foreground;
@@ -238,7 +238,7 @@ impl Render for DataViewerPanel {
             .border_color(border.opacity(0.72))
             .bg(cx.theme().muted.opacity(0.18))
             .child(metadata_pill("rows", row_info, cx))
-            .child(metadata_pill("page", page_size.to_string(), cx))
+            .child(metadata_pill("page", page_info, cx))
             .child(metadata_pill("mode", "read-only", cx))
             .child(self.filter_bar.clone())
             .child(
@@ -280,7 +280,7 @@ impl Render for DataViewerPanel {
                 cx,
             ))
             .child(toolbar)
-            .child(read_only_striped(&self.table))
+            .child(div().flex_1().child(read_only_striped(&self.table)))
             .child(self.cell_detail.clone())
     }
 }

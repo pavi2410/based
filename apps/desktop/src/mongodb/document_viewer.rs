@@ -19,7 +19,7 @@ use gpui_component::table::TableEvent;
 use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_display};
 use crate::widgets::data_table::read_only_striped;
 use crate::widgets::filter_bar::{FilterBar, FilterExpr};
-use crate::widgets::virtual_table::RowDelegate;
+use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
 
 fn mongo_filter_doc(expr: &FilterExpr) -> Document {
     let s = expr.to_mongo_filter();
@@ -162,10 +162,7 @@ impl DocumentViewerPanel {
                         fb.set_columns_if_empty(keys.clone(), cx);
                     });
                     panel.table.update(cx, |state, cx| {
-                        let del = state.delegate_mut();
-                        del.columns = columns;
-                        del.rows = rows;
-                        cx.notify();
+                        replace_table_data(state, columns, rows, cx);
                     });
                     cx.notify();
                 })

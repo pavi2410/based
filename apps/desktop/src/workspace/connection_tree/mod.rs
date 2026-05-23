@@ -118,7 +118,11 @@ impl ConnectionTree {
             return;
         };
         ent.update(cx, |e, cx| {
-            e.state = ConnectionState::Disconnected;
+            if let ConnectionState::Connected(ac) =
+                std::mem::replace(&mut e.state, ConnectionState::Disconnected)
+            {
+                crate::connection::close_any_connection(ac, cx);
+            }
             e.last_error = None;
             cx.notify();
         });
@@ -1016,6 +1020,7 @@ impl Render for ConnectionTree {
 
         v_flex()
             .size_full()
+            .min_h_0()
             .child(connections_pane)
             .child(objects_pane)
     }

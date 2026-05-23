@@ -269,5 +269,5 @@ pub(super) fn render_objects_pane(
                         .child("Search objects"),
                 ),
         )
-        .child(body)
+        .child(div().flex_1().min_h_0().child(body))
 }

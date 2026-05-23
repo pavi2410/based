@@ -2,10 +2,11 @@
 
 use gpui::{prelude::*, *};
 use gpui_component::{
-    ActiveTheme, Sizable,
+    Sizable,
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,
+    input::InputState,
     menu::PopupMenu,
     table::{Column, TableState},
     v_flex,
@@ -13,6 +14,7 @@ use gpui_component::{
 use sqlx::{Row, SqlitePool};
 
 use crate::widgets::data_table::read_only_striped;
+use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input};
 use crate::widgets::virtual_table::{RowDelegate, replace_table_rows};
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -43,6 +45,7 @@ pub struct TableInspectorPanel {
     columns: Vec<ColumnInfo>,
     indexes: Vec<IndexInfo>,
     ddl_text: SharedString,
+    ddl_input: Entity<InputState>,
     col_table: Entity<TableState<RowDelegate>>,
     idx_table: Entity<TableState<RowDelegate>>,
     tab: SqliteInspectorTab,
@@ -75,6 +78,7 @@ impl TableInspectorPanel {
         let idx_table = cx.new(|cx| TableState::new(idx_delegate, window, cx));
 
         let tab_label = format!("{table_name} (schema)").into();
+        let ddl_input = new_sql_input("(loading…)", window, cx);
         let mut panel = Self {
             focus_handle: cx.focus_handle(),
             pool,
@@ -82,6 +86,7 @@ impl TableInspectorPanel {
             columns: vec![],
             indexes: vec![],
             ddl_text: SharedString::from("(loading…)"),
+            ddl_input,
             col_table,
             idx_table,
             tab: SqliteInspectorTab::default(),
@@ -165,9 +170,14 @@ impl TableInspectorPanel {
             } else {
                 ddl.into()
             };
+            let ddl_for_input = ddl_ss.to_string();
 
             let _ = cx.update(|cx| {
-                this.update(cx, |panel, cx| {
+                let Some(panel_ent) = this.upgrade() else {
+                    return;
+                };
+                let ddl_input = panel_ent.read(cx).ddl_input.clone();
+                panel_ent.update(cx, |panel, cx| {
                     panel.columns = columns;
                     panel.indexes = indexes;
                     panel.ddl_text = ddl_ss;
@@ -178,7 +188,12 @@ impl TableInspectorPanel {
                         replace_table_rows(state, idx_data, cx);
                     });
                     cx.notify();
-                })
+                });
+                if let Some(handle) = cx.active_window() {
+                    let _ = handle.update(cx, |_root, window, cx| {
+                        set_sql_input(&ddl_input, &ddl_for_input, window, cx);
+                    });
+                }
             });
         })
         .detach();
@@ -240,10 +255,6 @@ impl Panel for TableInspectorPanel {
 
 impl Render for TableInspectorPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let fg = cx.theme().foreground;
-        let border = cx.theme().border;
-        let body: SharedString = self.ddl_text.clone();
-
         let tables_block = match self.tab {
             SqliteInspectorTab::Columns => div()
                 .flex_1()
@@ -259,14 +270,8 @@ impl Render for TableInspectorPanel {
                 .id("sqlite-inspector-ddl")
                 .flex_1()
                 .min_h(px(160.0))
-                .overflow_y_scroll()
-                .p_3()
-                .border_1()
-                .border_color(border)
-                .font_family("monospace")
-                .text_sm()
-                .text_color(fg)
-                .child(body)
+                .min_h_0()
+                .child(sql_editor::code_editor_flex(&self.ddl_input, false, cx))
                 .into_any_element(),
         };
 

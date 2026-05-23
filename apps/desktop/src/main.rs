@@ -28,9 +28,11 @@ use workspace::{PopOutManager, SqlInject, TabOpenQueue, Workspace};
 // ── Entry point ──────────────────────────────────────────────────────────────
 
 fn main() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn"))
-        .format_timestamp_millis()
-        .init();
+    env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or("warn,based_quit=warn"),
+    )
+    .format_timestamp_millis()
+    .init();
 
     gpui_platform::application()
         .with_assets(gpui_component_assets::Assets)

@@ -3,6 +3,8 @@
 use gpui::{App, Menu, MenuItem, SharedString, SystemMenuType, TitlebarOptions};
 use gpui_component::TitleBar;
 
+use super::quit;
+
 pub const APP_NAME: &str = "Based";
 
 gpui::actions!(app_shell, [QuitApp]);
@@ -16,7 +18,7 @@ pub fn titled_titlebar(window_title: impl Into<SharedString>) -> TitlebarOptions
 
 pub fn init(cx: &mut App) {
     cx.activate(true);
-    cx.on_action(|_: &QuitApp, cx| cx.quit());
+    cx.on_action(|_: &QuitApp, cx| quit::request_app_quit(cx));
     cx.bind_keys([
         gpui::KeyBinding::new("cmd-q", QuitApp, None),
         gpui::KeyBinding::new("ctrl-q", QuitApp, None),

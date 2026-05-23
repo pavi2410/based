@@ -70,3 +70,20 @@ pub fn code_editor_area(
         .border_color(border)
         .child(Input::new(input).h_full().cleanable(false))
 }
+
+/// Flex child that fills remaining panel height (schema DDL, read-only viewers).
+pub fn code_editor_flex(input: &Entity<InputState>, is_error: bool, cx: &App) -> impl IntoElement {
+    let theme = cx.theme();
+    let border: Hsla = if is_error { theme.danger } else { theme.border };
+
+    div()
+        .flex_1()
+        .min_h_0()
+        .h_full()
+        .p_2()
+        .border_1()
+        .rounded(px(7.0))
+        .bg(theme.muted.opacity(0.14))
+        .border_color(border)
+        .child(Input::new(input).h_full().cleanable(false))
+}

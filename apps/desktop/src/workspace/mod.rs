@@ -24,6 +24,7 @@ pub mod pane;
 pub mod pop_out;
 mod pop_out_impls;
 pub use pop_out::PopOutManager;
+mod overlays;
 pub mod sidebar;
 pub mod status_bar;
 pub mod topbar;
@@ -88,6 +89,8 @@ pub struct Workspace {
     project_dir: Option<PathBuf>,
     session_restored: bool,
     pending_open_tab: Option<TabSpec>,
+    /// Set by platform close; dialog is shown on the next [`Render`] (see `app::quit`).
+    pub(crate) pending_close_confirm: bool,
 }
 
 impl Workspace {
@@ -152,6 +155,7 @@ impl Workspace {
             project_dir,
             session_restored: false,
             pending_open_tab: None,
+            pending_close_confirm: false,
         };
 
         cx.subscribe(&tree_observe, |ws, _, event, ecx| {
@@ -216,7 +220,28 @@ impl Workspace {
         })
         .detach();
 
+        let registry_for_close = registry.clone();
+        let workspace_for_close = cx.entity();
+        window.on_window_should_close(cx, move |window, cx| {
+            let result = crate::app::quit::confirm_before_close_window(
+                &registry_for_close,
+                &workspace_for_close,
+                window,
+                cx,
+            );
+            log::warn!(
+                target: "based_quit",
+                "on_window_should_close handler returning allow_close={result}"
+            );
+            result
+        });
+        log::warn!(target: "based_quit", "registered on_window_should_close for main workspace");
+
         workspace
+    }
+
+    pub fn registry(&self) -> &Entity<ConnectionRegistry> {
+        &self.registry
     }
 
     fn save_session(&self, cx: &Context<Self>) {
@@ -677,6 +702,7 @@ impl Focusable for Workspace {
 
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::app::quit::maybe_show_pending_close_dialog(self, window, cx);
         crate::project::drain_pending_reload(cx);
         if !self.session_restored {
             self.session_restored = true;
@@ -696,7 +722,9 @@ impl Render for Workspace {
         let sidebar = v_flex()
             .w(gpui::px(274.0))
             .h_full()
+            .min_h_0()
             .flex_shrink_0()
+            .overflow_hidden()
             .border_r_1()
             .border_color(border)
             .bg(sidebar_bg)
@@ -726,7 +754,7 @@ impl Render for Workspace {
                 .when(!self.inspector_collapsed, |row| row.child(inspector))
         };
 
-        v_flex()
+        let main = v_flex()
             .size_full()
             .track_focus(&self.focus_handle)
             .on_action(
@@ -777,7 +805,9 @@ impl Render for Workspace {
                     .recent(1)
                     .is_empty(),
             }))
-            .child(self.command_palette.clone())
+            .child(self.command_palette.clone());
+
+        overlays::stack_gpui_overlays(main, window, cx)
     }
 }
 

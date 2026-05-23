@@ -175,3 +175,33 @@ pub enum TabKind {
     ChangeStream,
     LiveMonitor,
 }
+
+/// Count connections in [`ConnectionState::Connected`].
+pub fn live_connection_count(
+    registry: &gpui::Entity<registry::ConnectionRegistry>,
+    cx: &gpui::App,
+) -> usize {
+    registry
+        .read(cx)
+        .connections()
+        .iter()
+        .filter(|e| matches!(e.read(cx).state, ConnectionState::Connected(_)))
+        .count()
+}
+
+/// Close pools / clients held by a live connection handle.
+pub fn close_any_connection(ac: AnyConnection, cx: &gpui::App) {
+    match ac {
+        AnyConnection::Postgres(ent) => {
+            let pool = ent.read(cx).pool.clone();
+            crate::db::close_pg_pool(pool);
+        }
+        AnyConnection::SQLite(ent) => {
+            let pool = ent.read(cx).pool.clone();
+            crate::db::close_sqlite_pool(pool);
+        }
+        AnyConnection::MongoDB(_) => {
+            // Mongo client closes when the connection entity is dropped.
+        }
+    }
+}

@@ -4,10 +4,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::widgets::ui::{engine_chip, engine_color};
+use crate::widgets::ui::{SIDEBAR_INSET, engine_color, engine_label_inline};
 use gpui::{
     Context, Entity, EventEmitter, InteractiveElement, IntoElement, Render, SharedString, Window,
-    div, prelude::*,
+    div, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme, Icon, IconName, Sizable as _, StyledExt,
@@ -753,11 +753,6 @@ impl Render for ConnectionTree {
         }
 
         let conn_list: Vec<Entity<ConnectionEntry>> = self.registry.read(cx).connections().to_vec();
-        let conn_count = conn_list.len();
-        let connected_count = conn_list
-            .iter()
-            .filter(|ent| matches!(ent.read(cx).state, ConnectionState::Connected(_)))
-            .count();
         let border = cx.theme().sidebar_border;
         let muted = cx.theme().muted_foreground;
         let sfg = cx.theme().sidebar_foreground;
@@ -772,33 +767,21 @@ impl Render for ConnectionTree {
             .border_color(border)
             .child(
                 h_flex()
-                    .h(gpui::px(38.0))
-                    .px_2()
+                    .h(gpui::px(32.0))
+                    .px(px(SIDEBAR_INSET))
                     .gap_2()
                     .items_center()
                     .border_b_1()
                     .border_color(border.opacity(0.86))
                     .child(
-                        v_flex()
+                        div()
                             .flex_1()
                             .min_w_0()
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .font_bold()
-                                    .text_color(muted)
-                                    .font_family(cx.theme().mono_font_family.clone())
-                                    .child("CONNECTIONS"),
-                            )
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .text_color(muted.opacity(0.82))
-                                    .truncate()
-                                    .child(format!(
-                                        "{conn_count} connections · {connected_count} live"
-                                    )),
-                            ),
+                            .text_xs()
+                            .font_weight(gpui::FontWeight::MEDIUM)
+                            .text_color(muted)
+                            .truncate()
+                            .child("Connections"),
                     )
                     .child(
                         div()
@@ -818,12 +801,12 @@ impl Render for ConnectionTree {
             .child(
                 h_flex()
                     .id("connection-search-placeholder")
-                    .mx_2()
+                    .mx(px(SIDEBAR_INSET))
                     .my_2()
                     .h(gpui::px(28.0))
                     .items_center()
                     .gap_2()
-                    .px_2()
+                    .px(px(SIDEBAR_INSET))
                     .rounded(gpui::px(6.0))
                     .border_1()
                     .border_color(border.opacity(0.78))
@@ -865,7 +848,6 @@ impl Render for ConnectionTree {
                     let status_cell = if is_failed {
                         h_flex()
                             .flex_shrink_0()
-                            .pr_2()
                             .gap_1()
                             .items_center()
                             .child(
@@ -876,55 +858,60 @@ impl Render for ConnectionTree {
                             .child(
                                 div()
                                     .text_xs()
-                                    .font_semibold()
+                                    .font_weight(gpui::FontWeight::MEDIUM)
                                     .text_color(err_fg)
                                     .child("Failed"),
                             )
                     } else {
-                        h_flex()
-                            .flex_shrink_0()
-                            .child(div().text_xs().text_color(muted).child(state_label))
+                        h_flex().flex_shrink_0().child(
+                            div()
+                                .text_xs()
+                                .text_color(muted.opacity(0.88))
+                                .child(state_label),
+                        )
                     };
 
-                    let main_row = h_flex()
+                    let main_row = v_flex()
                         .w_full()
-                        .gap_2()
-                        .items_center()
+                        .gap(px(2.0))
                         .child(
-                            div()
-                                .w_2()
-                                .h_2()
-                                .rounded_full()
-                                .flex_shrink_0()
-                                .bg(state_color),
-                        )
-                        .child(
-                            v_flex()
-                                .flex_1()
-                                .min_w_0()
-                                .gap(gpui::px(1.0))
+                            h_flex()
+                                .w_full()
+                                .gap_2()
+                                .items_center()
                                 .child(
                                     div()
+                                        .w_2()
+                                        .h_2()
+                                        .rounded_full()
+                                        .flex_shrink_0()
+                                        .bg(state_color),
+                                )
+                                .child(
+                                    div()
+                                        .flex_1()
+                                        .min_w_0()
                                         .text_sm()
                                         .text_color(sfg)
                                         .truncate()
                                         .when(is_failed, |d| d.text_color(err_fg.opacity(0.92)))
                                         .child(conn_label.clone()),
                                 )
-                                .child(
-                                    h_flex()
-                                        .gap_1()
-                                        .items_center()
-                                        .child(engine_chip(engine, cx))
-                                        .child(
-                                            div()
-                                                .text_xs()
-                                                .text_color(muted.opacity(0.82))
-                                                .child("local"),
-                                        ),
-                                ),
+                                .child(status_cell),
                         )
-                        .child(status_cell);
+                        .child(
+                            h_flex()
+                                .gap_1()
+                                .items_center()
+                                .pl(px(10.0))
+                                .child(engine_label_inline(engine, cx))
+                                .child(
+                                    div()
+                                        .text_xs()
+                                        .text_color(muted.opacity(0.78))
+                                        .child("local"),
+                                ),
+                        );
 
                     let mut row = main_row.id(("conn-row", idx));
                     if let Some(reason) = fail_reason {
@@ -960,19 +947,16 @@ impl Render for ConnectionTree {
                         });
                     }
 
-                    row.px_2()
-                        .py_1()
+                    row.px(px(SIDEBAR_INSET))
+                        .py(px(4.0))
                         .cursor_pointer()
-                        .rounded(gpui::px(7.0))
-                        .mx_2()
-                        .mb(gpui::px(2.0))
                         .when(is_selected, |r| {
-                            r.bg(cx.theme().accent.opacity(0.22))
-                                .border_1()
-                                .border_color(engine_color(engine).opacity(0.26))
+                            r.bg(cx.theme().accent.opacity(0.15))
+                                .border_l_2()
+                                .border_color(engine_color(engine).opacity(0.55))
                         })
-                        .when(is_failed, |r| {
-                            r.border_1().border_color(cx.theme().danger.opacity(0.35))
+                        .when(is_failed && !is_selected, |r| {
+                            r.border_l_2().border_color(cx.theme().danger.opacity(0.5))
                         })
                         .hover(move |s| s.bg(list_hover))
                         .on_click(cx.listener(move |tree, _, window, cx| {

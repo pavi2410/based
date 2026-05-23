@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 
 use gpui::{
     AnyElement, Context, FontWeight, InteractiveElement, IntoElement, ParentElement, SharedString,
-    div, prelude::*,
+    div, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme, Icon, IconName, Sizable as _, StyledExt,
@@ -16,7 +16,7 @@ use gpui_component::{
 
 use crate::connection::{ConnectionId, EngineKind};
 use crate::widgets::list_row::{SchemaRowStyle, schema_object_row_with_actions};
-use crate::widgets::ui::engine_chip;
+use crate::widgets::ui::{SIDEBAR_INSET, engine_label_inline};
 
 use super::types::{ActiveObjects, ObjectKind, SchemaObject};
 use super::{ConnectionTree, notify};
@@ -53,7 +53,7 @@ pub(super) fn render_objects_pane(
                 h_flex()
                     .gap_2()
                     .items_center()
-                    .child(engine_chip(engine, cx))
+                    .child(engine_label_inline(engine, cx))
                     .child(div().text_xs().text_color(muted).truncate().child(label)),
             )
             .child(
@@ -102,11 +102,11 @@ pub(super) fn render_objects_pane(
                 .overflow_y_scrollbar()
                 .child(
                     h_flex()
-                        .px_2()
+                        .px(px(SIDEBAR_INSET))
                         .py_2()
                         .gap_2()
                         .items_center()
-                        .child(engine_chip(engine, cx))
+                        .child(engine_label_inline(engine, cx))
                         .child(div().text_xs().text_color(muted).truncate().child(label)),
                 )
                 .children(groups.into_iter().map(|(group_name, rows)| {
@@ -114,7 +114,7 @@ pub(super) fn render_objects_pane(
                         .mb(gpui::px(4.0))
                         .child(
                             h_flex()
-                                .px_2()
+                                .px(px(SIDEBAR_INSET))
                                 .py_1()
                                 .items_center()
                                 .justify_between()
@@ -204,9 +204,8 @@ pub(super) fn render_objects_pane(
                                 },
                                 actions,
                             )
-                            .mx_2()
+                            .px(px(SIDEBAR_INSET))
                             .mb(gpui::px(1.0))
-                            .rounded(gpui::px(6.0))
                             .on_click(cx.listener(
                                 move |tree, _, window, cx| {
                                     tree.on_object_clicked(
@@ -227,36 +226,28 @@ pub(super) fn render_objects_pane(
         .min_h_0()
         .child(
             h_flex()
-                .h(gpui::px(38.0))
-                .px_2()
+                .h(gpui::px(32.0))
+                .px(px(SIDEBAR_INSET))
                 .items_center()
-                .justify_between()
                 .border_b_1()
                 .border_color(border.opacity(0.86))
                 .child(
                     div()
                         .text_xs()
-                        .font_bold()
+                        .font_weight(FontWeight::MEDIUM)
                         .text_color(muted)
-                        .font_family(cx.theme().mono_font_family.clone())
-                        .child("OBJECTS"),
-                )
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(muted.opacity(0.78))
-                        .child("connection scoped"),
+                        .child("Objects"),
                 ),
         )
         .child(
             h_flex()
                 .id("object-search-placeholder")
-                .mx_2()
+                .mx(px(SIDEBAR_INSET))
                 .my_2()
                 .h(gpui::px(28.0))
                 .items_center()
                 .gap_2()
-                .px_2()
+                .px(px(SIDEBAR_INSET))
                 .rounded(gpui::px(6.0))
                 .border_1()
                 .border_color(border.opacity(0.78))

@@ -12,6 +12,8 @@ use crate::connection::EngineKind;
 /// Boxy panel corner radius (Linear / Vercel–style).
 pub const PANEL_RADIUS: f32 = 4.0;
 pub const PANEL_HEADER_H: f32 = 32.0;
+/// Horizontal inset for sidebar list rows and section headers.
+pub const SIDEBAR_INSET: f32 = 8.0;
 
 pub fn engine_label(engine: EngineKind) -> &'static str {
     match engine {
@@ -35,6 +37,17 @@ pub fn engine_color(engine: EngineKind) -> Hsla {
         EngineKind::MongoDB => hsla(0.38, 0.62, 0.54, 1.0),
         EngineKind::SQLite => hsla(0.10, 0.74, 0.59, 1.0),
     }
+}
+
+/// Compact engine label for sidebar rows (no border or fill).
+pub fn engine_label_inline(engine: EngineKind, cx: &mut App) -> impl IntoElement {
+    let color = engine_color(engine);
+    div()
+        .text_xs()
+        .font_weight(FontWeight::SEMIBOLD)
+        .font_family(cx.theme().mono_font_family.clone())
+        .text_color(color)
+        .child(engine_label(engine))
 }
 
 pub fn engine_chip(engine: EngineKind, cx: &mut App) -> impl IntoElement {

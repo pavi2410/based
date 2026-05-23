@@ -6,11 +6,12 @@ use std::time::Instant;
 
 use crate::widgets::ui::{engine_chip, engine_color};
 use gpui::{
-    Context, Entity, EventEmitter, IntoElement, Render, SharedString, Window, div, prelude::*,
+    Context, Entity, EventEmitter, IntoElement, MouseButton, Render, SharedString, Window, div, px,
+    prelude::*,
 };
 use gpui_component::{
     ActiveTheme, Icon, IconName, Sizable as _, StyledExt,
-    button::Button,
+    button::{Button, ButtonVariants},
     dock::{DockArea, DockItem},
     h_flex,
     scroll::ScrollableElement,
@@ -50,6 +51,7 @@ pub struct ConnectionTree {
     active_objects: ActiveObjects,
     selected_object: Option<String>,
     pending_open_connection: Option<usize>,
+    context_menu_conn: Option<usize>,
 }
 
 impl ConnectionTree {
@@ -100,7 +102,36 @@ impl ConnectionTree {
             active_objects: ActiveObjects::Empty,
             selected_object: None,
             pending_open_connection: None,
+            context_menu_conn: None,
         }
+    }
+
+    fn open_new_query(&mut self, idx: usize, cx: &mut Context<Self>) {
+        let Some(ent) = self.registry.read(cx).connections().get(idx) else {
+            return;
+        };
+        let conn_id = ent.read(cx).id.clone();
+        cx.emit(TreeEvent::OpenTab(TabSpec::blank_query_editor(conn_id)));
+        self.context_menu_conn = None;
+    }
+
+    fn disconnect_at(&mut self, idx: usize, cx: &mut Context<Self>) {
+        let ent = self
+            .registry
+            .read(cx)
+            .connections()
+            .get(idx)
+            .cloned();
+        let Some(ent) = ent else {
+            return;
+        };
+        ent.update(cx, |e, cx| {
+            e.state = ConnectionState::Disconnected;
+            e.last_error = None;
+            cx.notify();
+        });
+        self.context_menu_conn = None;
+        cx.notify();
     }
 
     pub fn selected_connection_entry(&self, cx: &gpui::App) -> Option<Entity<ConnectionEntry>> {
@@ -946,10 +977,59 @@ impl Render for ConnectionTree {
                         })
                         .hover(move |s| s.bg(list_hover))
                         .on_click(cx.listener(move |tree, _, window, cx| {
+                            tree.context_menu_conn = None;
                             tree.on_connection_row_clicked(idx, window, cx);
                         }))
+                        .on_mouse_down(
+                            MouseButton::Right,
+                            cx.listener(move |tree, _, _, cx| {
+                                tree.context_menu_conn = Some(idx);
+                                tree.selected_connection = Some(idx);
+                                cx.notify();
+                            }),
+                        )
                 }),
-            ));
+            ))
+            .when_some(self.context_menu_conn, |pane, idx| {
+                let is_connected = self
+                    .registry
+                    .read(cx)
+                    .connections()
+                    .get(idx)
+                    .is_some_and(|e| {
+                        matches!(e.read(cx).state, ConnectionState::Connected(_))
+                    });
+                pane.child(
+                    v_flex()
+                        .mx_2()
+                        .mb_2()
+                        .p_1()
+                        .rounded(px(6.0))
+                        .border_1()
+                        .border_color(border)
+                        .bg(cx.theme().popover)
+                        .child(
+                            Button::new("ctx-new-query")
+                                .ghost()
+                                .small()
+                                .label("New Query")
+                                .on_click(cx.listener(move |tree, _, _, cx| {
+                                    tree.open_new_query(idx, cx);
+                                })),
+                        )
+                        .when(is_connected, |menu| {
+                            menu.child(
+                                Button::new("ctx-disconnect")
+                                    .ghost()
+                                    .small()
+                                    .label("Disconnect")
+                                    .on_click(cx.listener(move |tree, _, _, cx| {
+                                        tree.disconnect_at(idx, cx);
+                                    })),
+                            )
+                        }),
+                )
+            });
 
         let conn_id_for_tabs = self.selected_connection.and_then(|idx| {
             self.registry

@@ -4,3 +4,4 @@
 pub mod actions;
 pub mod globals;
 pub mod prefs;
+pub mod shell;

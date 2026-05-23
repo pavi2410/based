@@ -21,7 +21,7 @@ mod workspace;
 
 use gpui::prelude::*;
 use gpui::*;
-use gpui_component::{Root, TitleBar};
+use gpui_component::Root;
 
 use workspace::{PopOutManager, SqlInject, TabOpenQueue, Workspace};
 
@@ -40,6 +40,7 @@ fn main() {
                 log::error!("failed to apply Based theme bundle: {err:#}");
             }
             bindings::init(cx);
+            app::shell::init(cx);
             app::prefs::install(cx);
 
             db::init(cx);
@@ -77,10 +78,11 @@ fn main() {
                                 origin: point(px(100.0), px(100.0)),
                                 size: size(px(1280.0), px(800.0)),
                             })),
-                            titlebar: Some(TitleBar::title_bar_options()),
+                            titlebar: Some(app::shell::titled_titlebar(app::shell::APP_NAME)),
                             ..Default::default()
                         },
                         |window, cx| {
+                            window.set_window_title(app::shell::APP_NAME);
                             let workspace = cx.new(|cx| Workspace::new(window, cx));
                             cx.set_global(crate::workspace::WorkspaceRef(workspace.clone()));
                             cx.new(|cx| Root::new(workspace, window, cx))

@@ -39,7 +39,7 @@ use gpui::{
     px, size,
 };
 use gpui_component::{
-    ActiveTheme, Root, StyledExt, TitleBar,
+    ActiveTheme, Root, StyledExt,
     dock::{DockArea, DockEvent, DockItem, DockPlacement, PanelStyle, PanelView},
     h_flex, v_flex,
 };
@@ -265,7 +265,7 @@ impl Workspace {
                     origin: point(px(120.0), px(120.0)),
                     size: size(px(800.0), px(600.0)),
                 })),
-                titlebar: Some(TitleBar::title_bar_options()),
+                titlebar: Some(crate::app::shell::titled_titlebar("Based — Settings")),
                 ..Default::default()
             },
             |win, cx| {

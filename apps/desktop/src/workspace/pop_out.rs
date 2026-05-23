@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use gpui::prelude::*;
 use gpui::*;
 use gpui_component::{
-    Root, Theme, TitleBar,
+    Root, Theme,
     dock::Panel,
     menu::{PopupMenu, PopupMenuItem},
 };
@@ -109,7 +109,11 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
                 }
 
                 let title_for_window = ent.update(app, |panel, cx| {
-                    format!("{} — based", panel.pop_out_window_title(src_window, cx))
+                    format!(
+                        "{} — {}",
+                        panel.pop_out_window_title(src_window, cx),
+                        crate::app::shell::APP_NAME
+                    )
                 });
                 let origin = {
                     let b = src_window.bounds();
@@ -122,7 +126,9 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
                 match app.open_window(
                     WindowOptions {
                         window_bounds: Some(WindowBounds::Windowed(pop_bounds)),
-                        titlebar: Some(TitleBar::title_bar_options()),
+                        titlebar: Some(crate::app::shell::titled_titlebar(
+                            title_for_window.clone(),
+                        )),
                         ..Default::default()
                     },
                     move |win, cx| {

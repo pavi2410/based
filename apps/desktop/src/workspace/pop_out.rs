@@ -70,14 +70,17 @@ impl PopOutManager {
 /// `Entity::update`, and reading the same entity would panic.
 pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
     menu: PopupMenu,
-    _panel: &T,
+    panel: &T,
     cx: &mut Context<T>,
 ) -> PopupMenu {
     let weak = cx.entity().downgrade();
     let panel_id = cx.entity().entity_id();
-    let close_disabled = cx
-        .try_global::<WorkspaceRef>()
-        .is_none_or(|ws| !ws.0.read(cx).can_close_center_panel(panel_id, cx));
+    // Do not read this panel's Entity or call `can_close_center_panel` here — `dropdown_menu`
+    // runs inside `Entity::update` and re-reading the panel panics.
+    let close_disabled = !panel.closable(cx)
+        || cx
+            .try_global::<WorkspaceRef>()
+            .is_none_or(|ws| ws.0.read(cx).center_tab_count(cx) <= 1);
 
     menu.separator()
         .item(

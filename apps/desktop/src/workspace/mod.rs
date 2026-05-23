@@ -614,15 +614,23 @@ impl Workspace {
         cx.notify();
     }
 
+    /// Number of panels in the center tab strip (dock layout only; does not read panel entities).
+    pub fn center_tab_count(&self, cx: &App) -> usize {
+        let dock = self.dock_area.read(cx);
+        center_tab_items(dock.center())
+            .map(|items| items.len())
+            .unwrap_or(0)
+    }
+
     /// Whether the given center-dock panel may be closed (gpui-component hides Close for center tabs).
     pub fn can_close_center_panel(&self, panel_id: EntityId, cx: &App) -> bool {
+        if self.center_tab_count(cx) <= 1 {
+            return false;
+        }
         let dock = self.dock_area.read(cx);
         let Some(items) = center_tab_items(dock.center()) else {
             return false;
         };
-        if items.len() <= 1 {
-            return false;
-        }
         let Some(panel) = items.iter().find(|p| p.panel_id(cx) == panel_id) else {
             return false;
         };

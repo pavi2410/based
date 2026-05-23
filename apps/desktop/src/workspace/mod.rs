@@ -709,7 +709,16 @@ impl Render for Workspace {
                 connected_count,
             ))
             .child(body)
-            .child(StatusBar::new(conn_count, connected_count))
+            .child(StatusBar::new(status_bar::StatusBarModel {
+                connection_count: conn_count,
+                connected_count,
+                scope_label: self.project_title.clone(),
+                history_ready: !cx
+                    .global::<crate::query_store::QueryStore>()
+                    .history
+                    .recent(1)
+                    .is_empty(),
+            }))
             .child(self.command_palette.clone())
     }
 }

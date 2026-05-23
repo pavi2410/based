@@ -58,6 +58,14 @@ apps/desktop/src/
 - **PopOutManager**: Tracks detached child windows and their lifecycle; consult before creating new window types.
 - **Project format**: `.based/config.toml` holds connection metadata; `.based/.env` holds secrets (git-ignored); `.based/state/` holds per-user workspace state.
 
+### Tab strip (dock)
+
+Center editor tabs use gpui-component `DockArea` + `PanelStyle::TabBar`, not the standalone Tabs story component. Labels come from `Panel::tab_name` (short plain text via [`tab_label_for_spec`](apps/desktop/src/workspace/tab_label.rs)); panel chrome uses `based_panel_tab_chrome!` (no zoom button in the tab suffix).
+
+**Close tabs:** gpui-component hides “Close” on the center `TabPanel` when `stack_panel` is unset. Based works around this with **Close tab** in the panel ⋯ menu and **⌘W / Ctrl+W** (`CloseTab` → `Workspace::close_active_center_tab` → `DockArea::remove_panel`). Welcome and the connection dashboard tab are not closable; the last center tab cannot be closed.
+
+Full Tabs-demo parity (per-tab ×, overflow chevron menu) needs upstream `TabPanel` API changes in [gpui-component](https://github.com/longbridge/gpui-component)—no fork in this repo.
+
 ### Clippy overrides
 
 The workspace allows `arc_with_non_send_sync` and `type_complexity` to match gpui-component conventions. Don't suppress other lints without justification.

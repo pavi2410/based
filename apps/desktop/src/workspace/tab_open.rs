@@ -1,8 +1,36 @@
 //! Cross-panel tab open requests (query editor → workspace).
 
-use gpui::{BorrowAppContext, Global};
+use gpui::{App, BorrowAppContext, Entity, Global};
 
-use super::TabSpec;
+use crate::connection::ConnectionId;
+
+use super::{TabManager, TabSpec};
+
+#[derive(Clone)]
+pub struct TabManagerRef(pub Entity<TabManager>);
+
+impl Global for TabManagerRef {}
+
+/// Mark the active query tab for this connection as having unsaved edits.
+pub fn mark_query_tab_dirty(conn_id: &ConnectionId, cx: &mut App) {
+    let Some(handle) = cx.try_global::<TabManagerRef>().map(|h| h.0.clone()) else {
+        return;
+    };
+    handle.update(cx, |tm, cx| {
+        let Some(active) = tm.active_idx else {
+            return;
+        };
+        let Some(tab) = tm.tabs.get_mut(active) else {
+            return;
+        };
+        if tab.spec.conn_id() == conn_id
+            && matches!(tab.spec, TabSpec::QueryEditor { .. })
+        {
+            tab.dirty = true;
+            cx.notify();
+        }
+    });
+}
 
 #[derive(Default)]
 pub struct TabOpenQueue {

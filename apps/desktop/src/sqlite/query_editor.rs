@@ -15,7 +15,8 @@ use gpui_component::{
 use sqlx::{Column as SqlxColumn, Row, SqlitePool};
 use time::OffsetDateTime;
 
-use crate::connection::ConnectionId;
+use crate::connection::{ConnectionId, EngineKind};
+use crate::widgets::tab_chip::tab_chip;
 use crate::db;
 use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::read_only_striped;
@@ -224,8 +225,8 @@ impl Panel for QueryEditorPanel {
         true
     }
 
-    fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        "Query Editor"
+    fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        tab_chip(EngineKind::SQLite, "Query", false, false, cx)
     }
 }
 

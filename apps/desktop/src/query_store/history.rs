@@ -37,7 +37,7 @@ impl QueryHistory {
         };
         let entries = BufReader::new(file)
             .lines()
-            .filter_map(|l| l.ok())
+            .map_while(Result::ok)
             .filter_map(|l| serde_json::from_str(&l).ok())
             .collect::<Vec<_>>();
         Self { entries }

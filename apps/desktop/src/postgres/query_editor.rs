@@ -2,7 +2,7 @@
 
 use gpui::{App, RenderOnce, prelude::*, *};
 use gpui_component::{
-    ActiveTheme, Sizable as _,
+    ActiveTheme,
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,

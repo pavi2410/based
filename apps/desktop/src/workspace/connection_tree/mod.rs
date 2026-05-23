@@ -61,7 +61,7 @@ impl ConnectionTree {
         cx: &mut Context<Self>,
     ) -> Self {
         cx.subscribe(&registry, |this, _, event, cx| match event {
-            RegistryEvent::ConnectionAdded(id) => {
+            RegistryEvent::Added(id) => {
                 this.conn_states.entry(id.clone()).or_insert(ConnState {
                     expanded: false,
                     objects: None,
@@ -69,7 +69,7 @@ impl ConnectionTree {
                 });
                 cx.notify();
             }
-            RegistryEvent::ConnectionRemoved(id) => {
+            RegistryEvent::Removed(id) => {
                 this.conn_states.remove(id);
                 this.selected_connection = None;
                 this.active_objects = ActiveObjects::Empty;
@@ -77,7 +77,7 @@ impl ConnectionTree {
                 this.pending_open_connection = None;
                 cx.notify();
             }
-            RegistryEvent::ConnectionStateChanged(_) => cx.notify(),
+            RegistryEvent::StateChanged(_) => cx.notify(),
         })
         .detach();
 

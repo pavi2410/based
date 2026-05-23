@@ -1,6 +1,6 @@
 // mongodb::tree — collection list for a database.
 
-use crate::widgets::list_row::schema_object_row;
+use crate::widgets::list_row::{SchemaRowStyle, schema_object_row};
 use crate::widgets::ui::{metadata_pill, panel_header};
 use gpui::{InteractiveElement, prelude::*, *};
 use gpui_component::{
@@ -123,12 +123,22 @@ impl Render for CollectionsTreePanel {
                 let sel = selected.as_ref() == Some(&name);
                 let n = name.clone();
                 let label: SharedString = name.into();
-                schema_object_row(("coll", ix), sel, "coll", label, muted, fg, mono.clone())
-                    .on_click(cx.listener(move |panel, _, _, cx| {
-                        panel.selected = Some(n.clone());
-                        cx.emit(CollectionTreeEvent::CollectionSelected(n.clone()));
-                        cx.notify();
-                    }))
+                schema_object_row(
+                    ("coll", ix),
+                    sel,
+                    "coll",
+                    label,
+                    SchemaRowStyle {
+                        muted,
+                        fg,
+                        mono_family: mono.clone(),
+                    },
+                )
+                .on_click(cx.listener(move |panel, _, _, cx| {
+                    panel.selected = Some(n.clone());
+                    cx.emit(CollectionTreeEvent::CollectionSelected(n.clone()));
+                    cx.notify();
+                }))
             }))
     }
 }

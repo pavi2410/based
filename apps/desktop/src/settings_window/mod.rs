@@ -57,7 +57,6 @@ impl SettingsWindow {
                                     min: 10.0,
                                     max: 24.0,
                                     step: 1.0,
-                                    ..Default::default()
                                 },
                                 |cx| prefs::ui_font_size(cx) as f64,
                                 |val, cx| prefs::set_ui_font_size(val as f32, cx),
@@ -72,7 +71,6 @@ impl SettingsWindow {
                                     min: 10.0,
                                     max: 22.0,
                                     step: 1.0,
-                                    ..Default::default()
                                 },
                                 |cx| prefs::mono_font_size(cx) as f64,
                                 |val, cx| prefs::set_mono_font_size(val as f32, cx),
@@ -93,7 +91,6 @@ impl SettingsWindow {
                                 min: 50.0,
                                 max: 5000.0,
                                 step: 50.0,
-                                ..Default::default()
                             },
                             |cx| prefs::page_size(cx) as f64,
                             |val, cx| prefs::set_page_size(val as u64, cx),
@@ -127,7 +124,6 @@ impl SettingsWindow {
                                 min: 5.0,
                                 max: 600.0,
                                 step: 5.0,
-                                ..Default::default()
                             },
                             |cx| prefs::query_timeout_secs(cx) as f64,
                             |val, cx| prefs::set_query_timeout_secs(val as u32, cx),

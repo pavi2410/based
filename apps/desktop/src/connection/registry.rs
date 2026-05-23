@@ -8,9 +8,9 @@ use gpui::{App, AppContext as _, Context, Entity, EventEmitter};
 use super::{ConnectionEntry, ConnectionId};
 
 pub enum RegistryEvent {
-    ConnectionAdded(ConnectionId),
-    ConnectionRemoved(ConnectionId),
-    ConnectionStateChanged(ConnectionId),
+    Added(ConnectionId),
+    Removed(ConnectionId),
+    StateChanged(ConnectionId),
 }
 
 pub struct ConnectionRegistry {
@@ -31,14 +31,14 @@ impl ConnectionRegistry {
     ) -> Entity<ConnectionEntry> {
         let entity = cx.new(|_| entry);
         self.connections.push(entity.clone());
-        cx.emit(RegistryEvent::ConnectionAdded(entity.read(cx).id.clone()));
+        cx.emit(RegistryEvent::Added(entity.read(cx).id.clone()));
         entity
     }
 
     pub fn remove(&mut self, id: &ConnectionId, cx: &mut Context<Self>) {
         if let Some(pos) = self.connections.iter().position(|e| e.read(cx).id == *id) {
             let entity = self.connections.remove(pos);
-            cx.emit(RegistryEvent::ConnectionRemoved(entity.read(cx).id.clone()));
+            cx.emit(RegistryEvent::Removed(entity.read(cx).id.clone()));
         }
     }
 

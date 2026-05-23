@@ -1,7 +1,14 @@
 //! Shared `ListItem` row chrome for selectable lists.
 
 use gpui::{ElementId, Hsla, IntoElement, ParentElement, SharedString, div, prelude::*, px};
-use gpui_component::{Selectable, h_flex, list::ListItem, v_flex};
+use gpui_component::{h_flex, list::ListItem, v_flex};
+
+/// Typography and colors for schema browser list rows.
+pub struct SchemaRowStyle {
+    pub muted: Hsla,
+    pub fg: Hsla,
+    pub mono_family: SharedString,
+}
 
 /// Command palette result row (connection hint + primary label + meta).
 pub fn palette_result_row(
@@ -54,11 +61,14 @@ const SCHEMA_BADGE_W: f32 = 40.0;
 fn schema_object_row_inner(
     badge: SharedString,
     label: SharedString,
-    muted: Hsla,
-    fg: Hsla,
-    mono_family: SharedString,
+    style: SchemaRowStyle,
     actions: Option<gpui::AnyElement>,
 ) -> impl IntoElement {
+    let SchemaRowStyle {
+        muted,
+        fg,
+        mono_family,
+    } = style;
     let mut row = h_flex()
         .w_full()
         .gap(px(6.0))
@@ -94,9 +104,7 @@ pub fn schema_object_row(
     selected: bool,
     badge: impl Into<SharedString>,
     label: impl Into<SharedString>,
-    muted: Hsla,
-    fg: Hsla,
-    mono_family: SharedString,
+    style: SchemaRowStyle,
 ) -> ListItem {
     ListItem::new(id)
         .selected(selected)
@@ -106,9 +114,7 @@ pub fn schema_object_row(
         .child(schema_object_row_inner(
             badge.into(),
             label.into(),
-            muted,
-            fg,
-            mono_family,
+            style,
             None,
         ))
 }
@@ -119,9 +125,7 @@ pub fn schema_object_row_with_actions(
     selected: bool,
     badge: impl Into<SharedString>,
     label: impl Into<SharedString>,
-    muted: Hsla,
-    fg: Hsla,
-    mono_family: SharedString,
+    style: SchemaRowStyle,
     actions: impl IntoElement,
 ) -> ListItem {
     ListItem::new(id)
@@ -132,9 +136,7 @@ pub fn schema_object_row_with_actions(
         .child(schema_object_row_inner(
             badge.into(),
             label.into(),
-            muted,
-            fg,
-            mono_family,
+            style,
             Some(actions.into_any_element()),
         ))
 }

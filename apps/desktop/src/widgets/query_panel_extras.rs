@@ -1,7 +1,7 @@
 //! Shared query-editor chrome: history sidebar filters, star-to-save, variables footer.
 
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use gpui::{FontWeight, Hsla, IntoElement, ParentElement, SharedString, Styled, div, prelude::*};
 use gpui_component::{
@@ -34,7 +34,7 @@ impl HistoryFilter {
     }
 }
 
-pub fn open_vars_file(project_dir: &PathBuf) {
+pub fn open_vars_file(project_dir: &Path) {
     let path = project_dir.join(".based").join("vars.toml");
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);

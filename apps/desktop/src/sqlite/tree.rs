@@ -2,7 +2,7 @@
 
 use gpui::{InteractiveElement, prelude::*, *};
 
-use crate::widgets::list_row::schema_object_row;
+use crate::widgets::list_row::{SchemaRowStyle, schema_object_row};
 use crate::widgets::ui::{metadata_pill, panel_header};
 use gpui_component::{
     ActiveTheme,
@@ -159,9 +159,11 @@ impl Render for SchemaTreePanel {
                     is_selected,
                     kind_label,
                     name,
-                    muted,
-                    fg,
-                    mono.clone(),
+                    SchemaRowStyle {
+                        muted,
+                        fg,
+                        mono_family: mono.clone(),
+                    },
                 )
                 .on_mouse_down(
                     MouseButton::Left,

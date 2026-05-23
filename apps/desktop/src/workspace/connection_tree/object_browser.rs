@@ -15,7 +15,7 @@ use gpui_component::{
 };
 
 use crate::connection::{ConnectionId, EngineKind};
-use crate::widgets::list_row::schema_object_row_with_actions;
+use crate::widgets::list_row::{SchemaRowStyle, schema_object_row_with_actions};
 use crate::widgets::ui::engine_chip;
 
 use super::types::{ActiveObjects, ObjectKind, SchemaObject};
@@ -197,9 +197,11 @@ pub(super) fn render_objects_pane(
                                 is_selected,
                                 kind,
                                 object_id_label,
-                                muted,
-                                sfg,
-                                mono.clone(),
+                                SchemaRowStyle {
+                                    muted,
+                                    fg: sfg,
+                                    mono_family: mono.clone(),
+                                },
                                 actions,
                             )
                             .mx_2()

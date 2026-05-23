@@ -44,10 +44,22 @@ impl QueryHistory {
     }
 
     pub fn push(&mut self, entry: HistoryEntry, local_dir: &Path) {
+        let conn_id = entry.conn_id.clone();
         self.entries.push(entry);
-        if self.entries.len() > MAX_HISTORY {
-            let drain = self.entries.len() - MAX_HISTORY;
-            self.entries.drain(0..drain);
+        let mut per_conn = 0usize;
+        for e in self.entries.iter().rev() {
+            if e.conn_id == conn_id {
+                per_conn += 1;
+                if per_conn > MAX_HISTORY {
+                    let idx = self
+                        .entries
+                        .iter()
+                        .position(|x| x.conn_id == conn_id)
+                        .expect("conn entry exists");
+                    self.entries.remove(idx);
+                    break;
+                }
+            }
         }
         persist_history_slice(&self.entries, local_dir);
     }
@@ -57,7 +69,7 @@ impl QueryHistory {
             .iter()
             .filter(|e| &e.conn_id == conn_id)
             .rev()
-            .take(200)
+            .take(MAX_HISTORY)
             .collect()
     }
 
@@ -122,15 +134,19 @@ mod tests {
     }
 
     #[test]
-    fn caps_at_500() {
+    fn caps_at_500_per_connection() {
         let dir = tempdir().unwrap();
         let mut h = QueryHistory::load(dir.path());
         for i in 0..510 {
             h.push(entry("pg", &format!("SELECT {i}")), dir.path());
         }
         assert_eq!(h.entries.len(), 500);
-        // disk file should stay bounded with in-memory entries
-        let disk = QueryHistory::load(dir.path()).entries.len();
-        assert_eq!(disk, 500);
+        h.push(entry("sqlite", "SELECT 1"), dir.path());
+        assert_eq!(h.entries.len(), 501);
+        for i in 0..510 {
+            h.push(entry("sqlite", &format!("SELECT s{i}")), dir.path());
+        }
+        assert_eq!(h.for_conn(&ConnectionId("sqlite".into())).len(), 500);
+        assert_eq!(h.for_conn(&ConnectionId("pg".into())).len(), 500);
     }
 }

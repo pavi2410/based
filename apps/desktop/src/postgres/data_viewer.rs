@@ -19,7 +19,7 @@ use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_display}
 use crate::widgets::data_table::read_only_striped;
 use crate::widgets::filter_bar::FilterBar;
 use crate::widgets::pagination::{offset_for_page, sql_pagination_controls, sql_row_range_label};
-use crate::widgets::ui::{metadata_pill, panel_header};
+use crate::widgets::ui::{metadata_pill, panel_shell};
 use crate::widgets::row_cell::pg_cell_display;
 use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
 
@@ -265,14 +265,15 @@ impl Render for DataViewerPanel {
                 ),
             );
 
-        v_flex()
-            .relative()
-            .w_full()
-            .h_full()
-            .bg(cx.theme().background)
-            .child(panel_header(title, "Browse Postgres relation data", cx))
-            .child(toolbar)
-            .child(read_only_striped(&self.table))
-            .child(self.cell_detail.clone())
+        panel_shell(
+            cx,
+            "",
+            "Browse Postgres relation data",
+            v_flex()
+                .size_full()
+                .child(toolbar)
+                .child(div().flex_1().min_h_0().child(read_only_striped(&self.table)))
+                .child(self.cell_detail.clone()),
+        )
     }
 }

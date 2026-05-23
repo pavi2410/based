@@ -22,7 +22,7 @@ use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::read_only_striped;
 use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input, sql_from_input};
 use crate::widgets::row_cell::sqlite_cell_display;
-use crate::widgets::ui::{metadata_pill, panel_header};
+use crate::widgets::ui::{metadata_pill, panel_context_header};
 use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
 use crate::workspace::{TabSpec, enqueue_open_tab, notify, tab_open::take_sql_inject};
 
@@ -412,8 +412,7 @@ impl Render for QueryEditorPanel {
             .h_full()
             .min_h(px(0.0))
             .bg(cx.theme().background)
-            .child(panel_header(
-                "Query Editor",
+            .child(panel_context_header(
                 "Run SQL, inspect result sets, recover history",
                 cx,
             ))

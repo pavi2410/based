@@ -269,7 +269,7 @@ impl Render for DataViewerPanel {
 
         panel_shell(
             cx,
-            table_name,
+            "",
             "Browse data, filter rows, inspect cells",
             v_flex()
                 .size_full()

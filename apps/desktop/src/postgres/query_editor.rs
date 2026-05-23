@@ -25,7 +25,7 @@ use crate::widgets::query_panel_extras::{
 };
 use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input, sql_from_input};
 use crate::widgets::tab_chip::tab_chip;
-use crate::widgets::ui::{metadata_pill, panel_header};
+use crate::widgets::ui::{metadata_pill, panel_context_header};
 use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
 use crate::workspace::{
     TabSpec, enqueue_open_tab, mark_query_tab_dirty, notify, tab_open::take_sql_inject,
@@ -402,8 +402,7 @@ impl Render for QueryEditorPanel {
             .h_full()
             .min_h(px(0.0))
             .bg(cx.theme().background)
-            .child(panel_header(
-                "Postgres Query",
+            .child(panel_context_header(
                 "Run SQL, inspect plans, compare result sets",
                 cx,
             ))

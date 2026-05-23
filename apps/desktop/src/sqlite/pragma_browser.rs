@@ -9,7 +9,9 @@ use gpui_component::{
 };
 use sqlx::{Row, SqlitePool};
 
+use crate::connection::EngineKind;
 use crate::widgets::data_table::read_only_striped;
+use crate::widgets::tab_chip::tab_chip;
 use crate::widgets::virtual_table::{RowDelegate, replace_table_rows};
 
 const PRAGMA_LIST: &[&str] = &[
@@ -126,8 +128,8 @@ impl Panel for PragmaBrowserPanel {
         true
     }
 
-    fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        "PRAGMAs"
+    fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        tab_chip(EngineKind::SQLite, "PRAGMAs", false, false, cx)
     }
 }
 

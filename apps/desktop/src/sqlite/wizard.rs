@@ -32,6 +32,7 @@ pub struct ConnectionWizardPanel {
     path: String,
     wal: bool,
     status: WizardStatus,
+    pub(crate) tab_label: SharedString,
 }
 
 impl ConnectionWizardPanel {
@@ -42,6 +43,7 @@ impl ConnectionWizardPanel {
             path: String::new(),
             wal: false,
             status: WizardStatus::Idle,
+            tab_label: "New SQLite Connection".into(),
         }
     }
 
@@ -126,8 +128,10 @@ impl Panel for ConnectionWizardPanel {
         true
     }
 
+    crate::based_panel_tab_chrome!();
+
     fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        "New SQLite Connection"
+        self.tab_label.clone()
     }
 }
 

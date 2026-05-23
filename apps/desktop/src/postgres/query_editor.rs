@@ -15,7 +15,7 @@ use gpui_component::{
 use sqlx::PgPool;
 use time::OffsetDateTime;
 
-use crate::connection::{ConnectionId, EngineKind};
+use crate::connection::ConnectionId;
 use crate::postgres::mutations::execute_sql;
 use crate::project::ProjectRoot;
 use crate::query_store::{HistoryEntry, QueryStore};
@@ -24,7 +24,6 @@ use crate::widgets::query_panel_extras::{
     self, HistoryFilter, filtered_history, save_starred_query,
 };
 use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input, sql_from_input};
-use crate::widgets::tab_chip::tab_chip;
 use crate::widgets::ui::{metadata_pill, panel_context_header};
 use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
 use crate::workspace::pop_out::{PopOutManager, PopOutWindowTitle};
@@ -55,6 +54,7 @@ pub struct QueryEditorPanel {
     history_filter: HistoryFilter,
     star_name: Option<String>,
     dirty: bool,
+    pub(crate) tab_label: SharedString,
 }
 
 impl QueryEditorPanel {
@@ -95,6 +95,7 @@ impl QueryEditorPanel {
             history_filter: HistoryFilter::default(),
             star_name: None,
             dirty: false,
+            tab_label: "Query".into(),
         };
         let conn_for_dirty = panel.conn_id.clone();
         cx.observe(&sql_input, move |panel, _, cx| {
@@ -228,8 +229,19 @@ impl Panel for QueryEditorPanel {
         true
     }
 
-    fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        tab_chip(EngineKind::Postgres, "Query", self.dirty, false, cx)
+    fn tab_name(&self, _: &gpui::App) -> Option<gpui::SharedString> {
+        Some(crate::workspace::tab_label::with_dirty_suffix(
+            &self.tab_label,
+            self.dirty,
+        ))
+    }
+
+    fn zoomable(&self, _: &gpui::App) -> Option<gpui_component::dock::PanelControl> {
+        None
+    }
+
+    fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        crate::workspace::tab_label::with_dirty_suffix(&self.tab_label, self.dirty)
     }
 }
 

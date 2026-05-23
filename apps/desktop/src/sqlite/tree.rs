@@ -36,6 +36,7 @@ pub struct SchemaTreePanel {
     pool: SqlitePool,
     nodes: Vec<TableNode>,
     selected: Option<String>,
+    pub(crate) tab_label: SharedString,
 }
 
 impl SchemaTreePanel {
@@ -45,6 +46,7 @@ impl SchemaTreePanel {
             pool,
             nodes: vec![],
             selected: None,
+            tab_label: "Schema".into(),
         };
         panel.load_tables(cx);
         panel
@@ -128,8 +130,10 @@ impl Panel for SchemaTreePanel {
         false
     }
 
+    crate::based_panel_tab_chrome!();
+
     fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        "Schema"
+        self.tab_label.clone()
     }
 }
 

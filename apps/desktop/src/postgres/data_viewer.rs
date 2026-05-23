@@ -36,6 +36,7 @@ pub struct DataViewerPanel {
     page_size: u64,
     total_rows: u64,
     loading: bool,
+    pub(crate) tab_label: SharedString,
 }
 
 impl DataViewerPanel {
@@ -55,6 +56,7 @@ impl DataViewerPanel {
         let filter_bar = cx.new(|cx| FilterBar::new(window, cx, vec![]));
         let cell_detail = cx.new(|_| CellDetail::new());
 
+        let tab_label = format!("{schema}.{table_name}").into();
         let mut panel = Self {
             focus_handle: cx.focus_handle(),
             pool,
@@ -67,6 +69,7 @@ impl DataViewerPanel {
             page_size: prefs::page_size(cx),
             total_rows: 0,
             loading: false,
+            tab_label,
         };
         cx.subscribe(&panel.table, |panel, _, event, cx| {
             if let TableEvent::DoubleClickedCell(row_ix, col_ix) = event {
@@ -207,8 +210,10 @@ impl Panel for DataViewerPanel {
         true
     }
 
+    crate::based_panel_tab_chrome!();
+
     fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        format!("{}.{}", self.schema, self.table_name)
+        self.tab_label.clone()
     }
 }
 

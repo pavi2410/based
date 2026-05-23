@@ -1,5 +1,6 @@
 use gpui::{
-    App, Context, FocusHandle, Focusable, IntoElement, Render, Window, div, prelude::*, px,
+    App, Context, FocusHandle, Focusable, IntoElement, Render, SharedString, Window, div,
+    prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme, IconName, Sizable as _, StyledExt,
@@ -11,12 +12,14 @@ use gpui_component::{
 
 pub struct WelcomePanel {
     focus_handle: FocusHandle,
+    pub(crate) tab_label: SharedString,
 }
 
 impl WelcomePanel {
     pub fn new(_window: &mut Window, cx: &mut Context<Self>) -> Self {
         Self {
             focus_handle: cx.focus_handle(),
+            tab_label: "Welcome".into(),
         }
     }
 }
@@ -46,6 +49,8 @@ impl Panel for WelcomePanel {
     fn closable(&self, _: &App) -> bool {
         false
     }
+
+    crate::based_panel_tab_chrome!();
 }
 
 impl Render for WelcomePanel {

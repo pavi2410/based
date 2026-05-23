@@ -37,6 +37,7 @@ pub struct SchemaTreePanel {
     pool: PgPool,
     nodes: Vec<RelRef>,
     selected: Option<(String, String)>,
+    pub(crate) tab_label: SharedString,
 }
 
 impl SchemaTreePanel {
@@ -46,6 +47,7 @@ impl SchemaTreePanel {
             pool,
             nodes: vec![],
             selected: None,
+            tab_label: "PostgreSQL objects".into(),
         };
         panel.load_relations(cx);
         panel
@@ -137,8 +139,10 @@ impl Panel for SchemaTreePanel {
         false
     }
 
+    crate::based_panel_tab_chrome!();
+
     fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        "PostgreSQL objects"
+        self.tab_label.clone()
     }
 }
 

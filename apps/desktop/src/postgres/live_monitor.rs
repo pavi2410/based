@@ -20,6 +20,7 @@ pub struct LiveMonitorPanel {
     focus_handle: FocusHandle,
     pool: PgPool,
     table: Entity<TableState<RowDelegate>>,
+    pub(crate) tab_label: SharedString,
 }
 
 impl LiveMonitorPanel {
@@ -30,6 +31,7 @@ impl LiveMonitorPanel {
             focus_handle: cx.focus_handle(),
             pool,
             table,
+            tab_label: "pg_stat_activity".into(),
         };
         p.refresh(cx);
         p
@@ -108,8 +110,10 @@ impl Panel for LiveMonitorPanel {
         true
     }
 
+    crate::based_panel_tab_chrome!();
+
     fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        "pg_stat_activity"
+        self.tab_label.clone()
     }
 }
 

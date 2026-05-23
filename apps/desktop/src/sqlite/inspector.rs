@@ -46,6 +46,7 @@ pub struct TableInspectorPanel {
     col_table: Entity<TableState<RowDelegate>>,
     idx_table: Entity<TableState<RowDelegate>>,
     tab: SqliteInspectorTab,
+    pub(crate) tab_label: SharedString,
 }
 
 impl TableInspectorPanel {
@@ -73,6 +74,7 @@ impl TableInspectorPanel {
         };
         let idx_table = cx.new(|cx| TableState::new(idx_delegate, window, cx));
 
+        let tab_label = format!("{table_name} (schema)").into();
         let mut panel = Self {
             focus_handle: cx.focus_handle(),
             pool,
@@ -83,6 +85,7 @@ impl TableInspectorPanel {
             col_table,
             idx_table,
             tab: SqliteInspectorTab::default(),
+            tab_label,
         };
         panel.load_info(cx);
         panel
@@ -228,8 +231,10 @@ impl Panel for TableInspectorPanel {
         true
     }
 
+    crate::based_panel_tab_chrome!();
+
     fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        format!("{} (schema)", self.table_name)
+        self.tab_label.clone()
     }
 }
 

@@ -17,6 +17,7 @@ pub struct EqpViewerPanel {
     pool: SqlitePool,
     sql: String,
     roots: Vec<EqpNode>,
+    pub(crate) tab_label: SharedString,
 }
 
 impl EqpViewerPanel {
@@ -31,6 +32,7 @@ impl EqpViewerPanel {
             pool,
             sql,
             roots: vec![],
+            tab_label: "Query Plan".into(),
         };
         panel.load_plan(cx);
         panel
@@ -100,8 +102,10 @@ impl Panel for EqpViewerPanel {
         true
     }
 
+    crate::based_panel_tab_chrome!();
+
     fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        "Query Plan"
+        self.tab_label.clone()
     }
 }
 

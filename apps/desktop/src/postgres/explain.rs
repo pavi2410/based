@@ -23,6 +23,7 @@ pub struct ExplainPanel {
     plan_root: Option<PlanNode>,
     plan_text: String,
     use_analyze: bool,
+    pub(crate) tab_label: SharedString,
 }
 
 impl ExplainPanel {
@@ -34,6 +35,7 @@ impl ExplainPanel {
             plan_root: None,
             plan_text: String::new(),
             use_analyze: true,
+            tab_label: "EXPLAIN plan".into(),
         };
         p.refresh(cx);
         p
@@ -114,8 +116,10 @@ impl Panel for ExplainPanel {
         true
     }
 
+    crate::based_panel_tab_chrome!();
+
     fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        "EXPLAIN plan"
+        self.tab_label.clone()
     }
 }
 

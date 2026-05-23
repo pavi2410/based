@@ -63,6 +63,18 @@ use status_bar::StatusBar;
 use topbar::Topbar;
 use welcome::WelcomePanel;
 
+/// Set dock tab label from [`TabSpec`] then register the panel.
+macro_rules! register_dock_panel {
+    ($ws:expr, $spec:expr, $ent:expr, $window:expr, $cx:expr) => {{
+        let label = tab_label_for_spec(&$spec, false);
+        $ent.update($cx, |panel, _| {
+            panel.tab_label = label;
+        });
+        let arc = std::sync::Arc::new($ent);
+        $ws.dock_add_and_register_tab($spec, arc, $window, $cx);
+    }};
+}
+
 pub struct Workspace {
     registry: Entity<ConnectionRegistry>,
     dock_area: Entity<DockArea>,
@@ -325,8 +337,7 @@ impl Workspace {
                         let panel_ent = cx.new(|cx| {
                             sqlite::data_viewer::DataViewerPanel::new(pool, object, window, cx)
                         });
-                        let arc = Arc::new(panel_ent);
-                        self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                        register_dock_panel!(self, tab_spec_for_manager, panel_ent, window, cx);
                     }
                     AnyConnection::Postgres(conn) => {
                         let pool = conn.read(cx).pool.clone();
@@ -339,8 +350,7 @@ impl Workspace {
                                 pool, schema, name, window, cx,
                             )
                         });
-                        let arc = Arc::new(panel_ent);
-                        self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                        register_dock_panel!(self, tab_spec_for_manager, panel_ent, window, cx);
                     }
                     AnyConnection::MongoDB(conn) => {
                         let db = conn.read(cx).database().clone();
@@ -350,8 +360,7 @@ impl Workspace {
                                 collection, window, cx,
                             )
                         });
-                        let arc = Arc::new(panel_ent);
-                        self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                        register_dock_panel!(self, tab_spec_for_manager, panel_ent, window, cx);
                     }
                 }
             }
@@ -389,8 +398,7 @@ impl Workspace {
                                 cx,
                             )
                         });
-                        let arc = Arc::new(panel_ent);
-                        self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                        register_dock_panel!(self, tab_spec_for_manager, panel_ent, window, cx);
                     }
                     AnyConnection::Postgres(conn) => {
                         let pool = conn.read(cx).pool.clone();
@@ -404,8 +412,7 @@ impl Workspace {
                                 cx,
                             )
                         });
-                        let arc = Arc::new(panel_ent);
-                        self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                        register_dock_panel!(self, tab_spec_for_manager, panel_ent, window, cx);
                     }
                     AnyConnection::MongoDB(conn) => {
                         let db = conn.read(cx).database().clone();
@@ -425,8 +432,7 @@ impl Workspace {
                                 cx,
                             )
                         });
-                        let arc = Arc::new(panel_ent);
-                        self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                        register_dock_panel!(self, tab_spec_for_manager, panel_ent, window, cx);
                     }
                 }
             }
@@ -459,8 +465,7 @@ impl Workspace {
                         cx,
                     )
                 });
-                let arc = Arc::new(panel_ent);
-                self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                register_dock_panel!(self, tab_spec_for_manager, panel_ent, window, cx);
             }
             TabSpec::Inspector { conn_id, object } => {
                 let Some(ent) = self.find_connection(&conn_id, cx) else {
@@ -485,8 +490,7 @@ impl Workspace {
                                 cx,
                             )
                         });
-                        let arc = Arc::new(panel_ent);
-                        self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                        register_dock_panel!(self, tab_spec_for_manager, panel_ent, window, cx);
                     }
                     AnyConnection::Postgres(conn) => {
                         let pool = conn.read(cx).pool.clone();
@@ -499,8 +503,7 @@ impl Workspace {
                                 pool, schema, name, window, cx,
                             )
                         });
-                        let arc = Arc::new(panel_ent);
-                        self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                        register_dock_panel!(self, tab_spec_for_manager, panel_ent, window, cx);
                     }
                     AnyConnection::MongoDB(conn) => {
                         let db = conn.read(cx).database().clone();
@@ -510,8 +513,7 @@ impl Workspace {
                                 coll, window, cx,
                             )
                         });
-                        let arc = Arc::new(panel_ent);
-                        self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                        register_dock_panel!(self, tab_spec_for_manager, panel_ent, window, cx);
                     }
                 }
             }
@@ -528,8 +530,7 @@ impl Workspace {
                 let panel_ent = cx.new(|cx| {
                     ObjectInfoPanel::new(object_name.clone(), kind_label.clone(), window, cx)
                 });
-                let arc = Arc::new(panel_ent);
-                self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                register_dock_panel!(self, tab_spec_for_manager, panel_ent, window, cx);
             }
             TabSpec::DocumentInsert {
                 conn_id,
@@ -557,8 +558,7 @@ impl Workspace {
                         coll, window, cx,
                     )
                 });
-                let arc = Arc::new(panel_ent);
-                self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                register_dock_panel!(self, tab_spec_for_manager, panel_ent, window, cx);
             }
             TabSpec::Explain {
                 conn_id,
@@ -582,16 +582,14 @@ impl Workspace {
                         let pool = conn.read(cx).pool.clone();
                         let panel_ent = cx
                             .new(|cx| postgres::explain::ExplainPanel::new(pool, sql, window, cx));
-                        let arc = Arc::new(panel_ent);
-                        self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                        register_dock_panel!(self, tab_spec_for_manager, panel_ent, window, cx);
                     }
                     AnyConnection::SQLite(conn) => {
                         let pool = conn.read(cx).pool.clone();
                         let panel_ent = cx.new(|cx| {
                             sqlite::eqp_viewer::EqpViewerPanel::new(pool, sql, window, cx)
                         });
-                        let arc = Arc::new(panel_ent);
-                        self.dock_add_and_register_tab(tab_spec_for_manager, arc, window, cx);
+                        register_dock_panel!(self, tab_spec_for_manager, panel_ent, window, cx);
                     }
                     AnyConnection::MongoDB(_) => {}
                 }

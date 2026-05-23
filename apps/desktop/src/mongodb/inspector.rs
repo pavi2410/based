@@ -29,6 +29,7 @@ pub struct CollectionInspectorPanel {
     stats_tbl: Entity<TableState<RowDelegate>>,
     indexes_tbl: Entity<TableState<RowDelegate>>,
     tab: MongoInspectorTab,
+    pub(crate) tab_label: SharedString,
 }
 
 impl CollectionInspectorPanel {
@@ -41,12 +42,14 @@ impl CollectionInspectorPanel {
         let stats_tbl = cx.new(|cx| TableState::new(stats_del, window, cx));
         let idx_del = RowDelegate::default();
         let indexes_tbl = cx.new(|cx| TableState::new(idx_del, window, cx));
+        let tab_label = format!("{} (schema)", collection.name()).into();
         let mut p = Self {
             focus_handle: cx.focus_handle(),
             collection,
             stats_tbl,
             indexes_tbl,
             tab: MongoInspectorTab::default(),
+            tab_label,
         };
         p.reload(cx);
         p
@@ -218,8 +221,10 @@ impl Panel for CollectionInspectorPanel {
         true
     }
 
+    crate::based_panel_tab_chrome!();
+
     fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        format!("Inspector — {}", self.collection.name())
+        self.tab_label.clone()
     }
 }
 

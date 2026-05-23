@@ -37,6 +37,7 @@ pub struct ConnectionWizardPanel {
     ssl_mode: SslMode,
     uri: String,
     status: WizardStatus,
+    pub(crate) tab_label: SharedString,
 }
 
 impl ConnectionWizardPanel {
@@ -52,6 +53,7 @@ impl ConnectionWizardPanel {
             ssl_mode: SslMode::Prefer,
             uri: String::new(),
             status: WizardStatus::Idle,
+            tab_label: "New PostgreSQL connection".into(),
         }
     }
 
@@ -255,8 +257,10 @@ impl Panel for ConnectionWizardPanel {
         true
     }
 
+    crate::based_panel_tab_chrome!();
+
     fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        "New PostgreSQL connection"
+        self.tab_label.clone()
     }
 }
 

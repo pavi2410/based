@@ -17,6 +17,7 @@ pub struct ChangeStreamPanel {
     collection: Collection<Document>,
     lines: Vec<String>,
     busy: bool,
+    pub(crate) tab_label: SharedString,
 }
 
 impl ChangeStreamPanel {
@@ -25,6 +26,7 @@ impl ChangeStreamPanel {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        let tab_label = format!("Changes — {}", collection.name()).into();
         Self {
             focus_handle: cx.focus_handle(),
             collection,
@@ -34,6 +36,7 @@ impl ChangeStreamPanel {
                     .into(),
             ],
             busy: false,
+            tab_label,
         }
     }
 
@@ -120,8 +123,10 @@ impl Panel for ChangeStreamPanel {
         true
     }
 
+    crate::based_panel_tab_chrome!();
+
     fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        format!("Changes — {}", self.collection.name())
+        self.tab_label.clone()
     }
 }
 

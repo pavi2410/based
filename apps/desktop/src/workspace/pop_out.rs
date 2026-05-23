@@ -147,3 +147,17 @@ macro_rules! based_panel_dropdown {
         $crate::workspace::pop_out::append_pop_out_to_panel_menu($menu, $panel, $cx)
     };
 }
+
+/// Short dock tab label and no zoom control in the tab-strip suffix.
+#[macro_export]
+macro_rules! based_panel_tab_chrome {
+    () => {
+        fn tab_name(&self, _: &gpui::App) -> Option<gpui::SharedString> {
+            Some(self.tab_label.clone())
+        }
+
+        fn zoomable(&self, _: &gpui::App) -> Option<gpui_component::dock::PanelControl> {
+            None
+        }
+    };
+}

@@ -25,6 +25,7 @@ pub struct FtsConsolePanel {
     query: String,
     results: Vec<FtsResult>,
     no_fts: bool,
+    pub(crate) tab_label: SharedString,
 }
 
 impl FtsConsolePanel {
@@ -37,6 +38,7 @@ impl FtsConsolePanel {
             query: String::new(),
             results: vec![],
             no_fts: false,
+            tab_label: "FTS Console".into(),
         };
         panel.detect_fts_tables(cx);
         panel
@@ -139,8 +141,10 @@ impl Panel for FtsConsolePanel {
         true
     }
 
+    crate::based_panel_tab_chrome!();
+
     fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        "FTS Console"
+        self.tab_label.clone()
     }
 }
 

@@ -33,6 +33,7 @@ pub struct ConnectionWizardPanel {
     database: String,
     auth_source: String,
     status: WizardStatus,
+    pub(crate) tab_label: SharedString,
 }
 
 impl ConnectionWizardPanel {
@@ -44,6 +45,7 @@ impl ConnectionWizardPanel {
             database: String::new(),
             auth_source: String::new(),
             status: WizardStatus::Idle,
+            tab_label: "New MongoDB connection".into(),
         }
     }
 
@@ -135,8 +137,10 @@ impl Panel for ConnectionWizardPanel {
         true
     }
 
+    crate::based_panel_tab_chrome!();
+
     fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        "New MongoDB connection"
+        self.tab_label.clone()
     }
 }
 

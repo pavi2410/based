@@ -34,6 +34,7 @@ pub struct TableInspectorPanel {
     constraints_tbl: Entity<TableState<RowDelegate>>,
     stats_tbl: Entity<TableState<RowDelegate>>,
     tab: PgInspectorTab,
+    pub(crate) tab_label: SharedString,
 }
 
 impl TableInspectorPanel {
@@ -52,6 +53,7 @@ impl TableInspectorPanel {
         let constraints_tbl = cx.new(|cx| TableState::new(c3, window, cx));
         let c4 = RowDelegate::default();
         let stats_tbl = cx.new(|cx| TableState::new(c4, window, cx));
+        let tab_label = format!("{schema}.{table_name} (schema)").into();
         let mut p = Self {
             focus_handle: cx.focus_handle(),
             pool,
@@ -62,6 +64,7 @@ impl TableInspectorPanel {
             constraints_tbl,
             stats_tbl,
             tab: PgInspectorTab::default(),
+            tab_label,
         };
         p.load(cx);
         p
@@ -339,8 +342,10 @@ impl Panel for TableInspectorPanel {
         true
     }
 
+    crate::based_panel_tab_chrome!();
+
     fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        format!("{}.{} — schema", self.schema, self.table_name)
+        self.tab_label.clone()
     }
 }
 

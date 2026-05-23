@@ -19,7 +19,7 @@ pub fn tab_label_for_spec(spec: &TabSpec, dirty: bool) -> SharedString {
         } => format!("{object_name} ({kind_label})"),
         TabSpec::DocumentInsert { collection, .. } => format!("Insert · {collection}"),
     };
-    with_dirty_suffix(base, dirty).into()
+    with_dirty_suffix(base, dirty)
 }
 
 pub fn with_dirty_suffix(label: impl Into<SharedString>, dirty: bool) -> SharedString {

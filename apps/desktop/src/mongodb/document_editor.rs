@@ -39,6 +39,7 @@ pub struct DocumentEditorPanel {
     original: Option<Document>,
     error: Option<String>,
     status: SharedString,
+    pub(crate) tab_label: SharedString,
 }
 
 impl DocumentEditorPanel {
@@ -49,6 +50,8 @@ impl DocumentEditorPanel {
     ) -> Self {
         let json_input = new_json_input("{\n  \n}", window, cx);
 
+        let name = collection.name().to_string();
+        let tab_label = format!("Insert · {name}").into();
         Self {
             focus_handle: cx.focus_handle(),
             collection,
@@ -57,6 +60,7 @@ impl DocumentEditorPanel {
             original: None,
             error: None,
             status: SharedString::default(),
+            tab_label,
         }
     }
 
@@ -69,6 +73,8 @@ impl DocumentEditorPanel {
         let pretty = document_to_pretty_json(&doc);
         let json_input = new_json_input(&pretty, window, cx);
 
+        let name = collection.name().to_string();
+        let tab_label = format!("Edit · {name}").into();
         Self {
             focus_handle: cx.focus_handle(),
             collection,
@@ -77,6 +83,7 @@ impl DocumentEditorPanel {
             original: Some(doc),
             error: None,
             status: SharedString::default(),
+            tab_label,
         }
     }
 
@@ -177,11 +184,10 @@ impl Panel for DocumentEditorPanel {
         true
     }
 
+    crate::based_panel_tab_chrome!();
+
     fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        match self.mode {
-            EditorMode::Insert => format!("Insert — {}", self.collection.name()),
-            EditorMode::Edit => format!("Edit — {}", self.collection.name()),
-        }
+        self.tab_label.clone()
     }
 }
 

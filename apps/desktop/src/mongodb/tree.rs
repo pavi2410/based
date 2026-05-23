@@ -21,6 +21,7 @@ pub struct CollectionsTreePanel {
     database: Database,
     names: Vec<String>,
     selected: Option<String>,
+    pub(crate) tab_label: SharedString,
 }
 
 impl CollectionsTreePanel {
@@ -30,6 +31,7 @@ impl CollectionsTreePanel {
             database,
             names: vec![],
             selected: None,
+            tab_label: "Collections".into(),
         };
         p.reload(cx);
         p
@@ -84,8 +86,10 @@ impl Panel for CollectionsTreePanel {
         false
     }
 
+    crate::based_panel_tab_chrome!();
+
     fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        "Collections"
+        self.tab_label.clone()
     }
 }
 

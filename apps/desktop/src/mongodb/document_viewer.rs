@@ -37,6 +37,7 @@ pub struct DocumentViewerPanel {
     filter_bar: Entity<FilterBar>,
     limit: i64,
     loading: bool,
+    pub(crate) tab_label: SharedString,
 }
 
 impl DocumentViewerPanel {
@@ -46,6 +47,7 @@ impl DocumentViewerPanel {
         cx: &mut Context<Self>,
     ) -> Self {
         let delegate = RowDelegate::default();
+        let tab_label = collection.name().to_string().into();
         let table = cx.new(|cx| {
             TableState::new(delegate, window, cx)
                 .row_selectable(true)
@@ -61,6 +63,7 @@ impl DocumentViewerPanel {
             filter_bar,
             limit: 200,
             loading: false,
+            tab_label,
         };
         cx.subscribe(&p.table, |panel, _, event, cx| {
             if let TableEvent::DoubleClickedCell(row_ix, col_ix) = event {
@@ -198,8 +201,10 @@ impl Panel for DocumentViewerPanel {
         true
     }
 
+    crate::based_panel_tab_chrome!();
+
     fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        self.collection.name().to_string()
+        self.tab_label.clone()
     }
 }
 

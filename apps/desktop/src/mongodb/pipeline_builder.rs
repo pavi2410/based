@@ -30,6 +30,7 @@ pub struct PipelineBuilderPanel {
     status: SharedString,
     save_name_input: Entity<InputState>,
     show_save_prompt: bool,
+    pub(crate) tab_label: SharedString,
 }
 
 impl PipelineBuilderPanel {
@@ -55,6 +56,7 @@ impl PipelineBuilderPanel {
         let pipeline_json = initial_pipeline_json
             .unwrap_or_else(|| String::from("[{ \"$match\": {} }, { \"$limit\": 50 }]"));
         let pipeline_input = new_json_input(&pipeline_json, window, cx);
+        let tab_label = format!("Pipeline — {}", collection.name()).into();
         Self {
             focus_handle: cx.focus_handle(),
             collection,
@@ -64,6 +66,7 @@ impl PipelineBuilderPanel {
             status: SharedString::from(""),
             save_name_input,
             show_save_prompt: false,
+            tab_label,
         }
     }
 
@@ -236,8 +239,10 @@ impl Panel for PipelineBuilderPanel {
         true
     }
 
+    crate::based_panel_tab_chrome!();
+
     fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        format!("Pipeline — {}", self.collection.name())
+        self.tab_label.clone()
     }
 }
 

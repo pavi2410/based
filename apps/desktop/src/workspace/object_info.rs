@@ -63,6 +63,14 @@ impl Panel for ConnectionDashboardPanel {
         false
     }
 
+    fn tab_name(&self, cx: &gpui::App) -> Option<gpui::SharedString> {
+        Some(self.conn.read(cx).config.label().to_string().into())
+    }
+
+    fn zoomable(&self, _: &gpui::App) -> Option<gpui_component::dock::PanelControl> {
+        None
+    }
+
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.conn.read(cx).config.label().to_string()
     }
@@ -150,6 +158,7 @@ pub struct ObjectInfoPanel {
     focus_handle: FocusHandle,
     name: String,
     kind: String,
+    pub(crate) tab_label: gpui::SharedString,
 }
 
 impl ObjectInfoPanel {
@@ -159,10 +168,13 @@ impl ObjectInfoPanel {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        let kind = kind.into();
+        let tab_label = format!("{name} ({kind})").into();
         Self {
             focus_handle: cx.focus_handle(),
             name,
-            kind: kind.into(),
+            kind,
+            tab_label,
         }
     }
 }
@@ -193,8 +205,10 @@ impl Panel for ObjectInfoPanel {
         true
     }
 
+    crate::based_panel_tab_chrome!();
+
     fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        self.name.clone()
+        self.tab_label.clone()
     }
 }
 

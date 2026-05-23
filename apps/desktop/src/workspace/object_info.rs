@@ -233,10 +233,10 @@ fn dashboard_card(
     v_flex()
         .gap_1()
         .p_3()
-        .max_w(gpui::px(560.0))
-        .rounded(gpui::px(8.0))
+        .w_full()
+        .rounded(gpui::px(crate::widgets::ui::PANEL_RADIUS))
         .border_1()
-        .border_color(cx.theme().border.opacity(0.82))
+        .border_color(cx.theme().border.opacity(0.85))
         .bg(cx.theme().muted.opacity(0.22))
         .child(
             div()

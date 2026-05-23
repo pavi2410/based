@@ -881,9 +881,9 @@ fn inspector_note(
     v_flex()
         .gap_1()
         .p_2()
-        .rounded(gpui::px(7.0))
+        .rounded(gpui::px(crate::widgets::ui::PANEL_RADIUS))
         .border_1()
-        .border_color(cx.theme().border.opacity(0.82))
+        .border_color(cx.theme().border.opacity(0.85))
         .bg(cx.theme().muted.opacity(0.28))
         .child(
             div()

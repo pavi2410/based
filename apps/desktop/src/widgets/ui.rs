@@ -9,6 +9,10 @@ use gpui_component::{
 
 use crate::connection::EngineKind;
 
+/// Boxy panel corner radius (Linear / Vercel–style).
+pub const PANEL_RADIUS: f32 = 4.0;
+pub const PANEL_HEADER_H: f32 = 32.0;
+
 pub fn engine_label(engine: EngineKind) -> &'static str {
     match engine {
         EngineKind::Postgres => "PG",
@@ -130,20 +134,22 @@ pub fn command_shell(cx: &mut App, placeholder: &'static str) -> impl IntoElemen
         )
 }
 
-pub fn panel_header(
+/// Compact title strip for a boxed panel.
+pub fn panel_shell_header(
     title: impl Into<SharedString>,
     subtitle: impl Into<SharedString>,
     cx: &mut App,
 ) -> impl IntoElement {
+    let border = cx.theme().border.opacity(0.85);
     h_flex()
-        .h(px(38.0))
+        .h(px(PANEL_HEADER_H))
         .w_full()
+        .flex_shrink_0()
         .items_center()
-        .gap(px(10.0))
         .px(px(10.0))
         .border_b_1()
-        .border_color(cx.theme().border.opacity(0.82))
-        .bg(cx.theme().background.opacity(0.72))
+        .border_color(border)
+        .bg(cx.theme().muted.opacity(0.22))
         .child(
             v_flex()
                 .min_w_0()
@@ -164,6 +170,51 @@ pub fn panel_header(
                         .child(subtitle.into()),
                 ),
         )
+}
+
+pub fn panel_header(
+    title: impl Into<SharedString>,
+    subtitle: impl Into<SharedString>,
+    cx: &mut App,
+) -> impl IntoElement {
+    panel_shell_header(title, subtitle, cx)
+}
+
+/// Secondary toolbar row inside a panel shell.
+pub fn toolbar_strip(
+    cx: &mut App,
+    children: impl IntoIterator<Item = AnyElement>,
+) -> impl IntoElement {
+    h_flex()
+        .w_full()
+        .flex_shrink_0()
+        .flex_wrap()
+        .gap(px(8.0))
+        .px(px(8.0))
+        .py(px(6.0))
+        .border_b_1()
+        .border_color(cx.theme().border.opacity(0.72))
+        .bg(cx.theme().muted.opacity(0.18))
+        .children(children)
+}
+
+/// Bordered panel frame: optional header + flexible body.
+pub fn panel_shell(
+    cx: &mut App,
+    title: impl Into<SharedString>,
+    subtitle: impl Into<SharedString>,
+    body: impl IntoElement,
+) -> impl IntoElement {
+    let border = cx.theme().border.opacity(0.85);
+    v_flex()
+        .size_full()
+        .border_1()
+        .border_color(border)
+        .rounded(px(PANEL_RADIUS))
+        .overflow_hidden()
+        .bg(cx.theme().background)
+        .child(panel_shell_header(title, subtitle, cx))
+        .child(div().flex_1().min_h_0().child(body))
 }
 
 pub fn toolbar_button(id: &'static str, icon: IconName, tooltip: &'static str) -> Button {

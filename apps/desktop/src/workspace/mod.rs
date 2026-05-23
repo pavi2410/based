@@ -36,7 +36,7 @@ use gpui::{
     SharedString, Window, WindowBounds, WindowOptions, div, point, prelude::*, px, size,
 };
 use gpui_component::{
-    ActiveTheme, Root, StyledExt, Theme, TitleBar,
+    ActiveTheme, Root, StyledExt, TitleBar,
     dock::{DockArea, DockEvent, DockItem, DockPlacement, PanelStyle},
     h_flex, v_flex,
 };
@@ -254,7 +254,7 @@ impl Workspace {
             },
             |win, cx| {
                 win.set_window_title("Based — Settings");
-                let settings = cx.new(|cx| crate::settings_window::SettingsWindow::new(cx));
+                let settings = cx.new(crate::settings_window::SettingsWindow::new);
                 cx.new(|cx| Root::new(settings, win, cx))
             },
         );
@@ -276,7 +276,7 @@ impl Workspace {
     fn sync_tab_manager_from_dock(&mut self, cx: &mut Context<Self>) {
         let views = {
             let dock = self.dock_area.read(cx);
-            dock_area_present_views(&dock, cx)
+            dock_area_present_views(dock, cx)
         };
         self.tab_manager.update(cx, |tm, ecx| {
             tm.sync_open_tabs(&views, ecx);

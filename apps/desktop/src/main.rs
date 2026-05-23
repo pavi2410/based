@@ -21,7 +21,7 @@ mod workspace;
 
 use gpui::prelude::*;
 use gpui::*;
-use gpui_component::{ActiveTheme, Root, TitleBar};
+use gpui_component::{Root, TitleBar};
 
 use workspace::{PopOutManager, SqlInject, TabOpenQueue, Workspace};
 

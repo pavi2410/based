@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 
 use gpui::{
     AnyElement, Context, FontWeight, InteractiveElement, IntoElement, ParentElement, SharedString,
-    Window, div, prelude::*,
+    div, prelude::*,
 };
 use gpui_component::{
     ActiveTheme, Icon, IconName, Sizable as _, StyledExt,

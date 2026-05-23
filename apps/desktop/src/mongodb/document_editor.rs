@@ -48,7 +48,8 @@ impl DocumentEditorPanel {
         cx: &mut Context<Self>,
     ) -> Self {
         let json_input = new_json_input("{\n  \n}", window, cx);
-        let panel = Self {
+
+        Self {
             focus_handle: cx.focus_handle(),
             collection,
             mode: EditorMode::Insert,
@@ -56,8 +57,7 @@ impl DocumentEditorPanel {
             original: None,
             error: None,
             status: SharedString::default(),
-        };
-        panel
+        }
     }
 
     pub fn new_edit(
@@ -68,7 +68,8 @@ impl DocumentEditorPanel {
     ) -> Self {
         let pretty = document_to_pretty_json(&doc);
         let json_input = new_json_input(&pretty, window, cx);
-        let panel = Self {
+
+        Self {
             focus_handle: cx.focus_handle(),
             collection,
             mode: EditorMode::Edit,
@@ -76,8 +77,7 @@ impl DocumentEditorPanel {
             original: Some(doc),
             error: None,
             status: SharedString::default(),
-        };
-        panel
+        }
     }
 
     /// Kept for callers that open an editor without a pre-loaded document (same as insert).

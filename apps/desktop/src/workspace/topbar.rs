@@ -75,7 +75,7 @@ impl RenderOnce for Topbar {
                                 }))
                                 .on_click(move |_, _, cx| {
                                     let ent = workspace_rail.clone();
-                                    let _ = ent.update(cx, |ws, cx| {
+                                    ent.update(cx, |ws, cx| {
                                         ws.toggle_sidebar_rail(cx);
                                     });
                                 }),
@@ -148,7 +148,7 @@ impl RenderOnce for Topbar {
                                 .tooltip(SharedString::from("Settings"))
                                 .on_click(move |_, window, cx| {
                                     let ent = workspace_settings.clone();
-                                    let _ = ent.update(cx, |ws, cx| {
+                                    ent.update(cx, |ws, cx| {
                                         ws.open_settings(window, cx);
                                     });
                                 }),

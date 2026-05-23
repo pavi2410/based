@@ -12,7 +12,6 @@ pub mod watcher;
 pub use based_config::load_workspace_seed;
 pub use config::*;
 pub use discovery::find_project_root;
-pub use queries::*;
 pub use variables::*;
 
 use std::collections::HashMap;
@@ -36,10 +35,7 @@ pub struct ConfigWatcherGlobal {
 
 impl Global for ConfigWatcherGlobal {}
 
-pub use reload::{
-    ConfigReloadSignal, ProjectRoot, RegistryRef, drain_pending_reload, install_reload_watcher,
-    reload_from_disk,
-};
+pub use reload::{ProjectRoot, RegistryRef, drain_pending_reload, install_reload_watcher};
 
 pub enum ProjectEvent {
     ConfigReloaded,

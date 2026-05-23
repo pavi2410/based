@@ -224,7 +224,7 @@ impl Render for DataViewerPanel {
         let offset = self.offset;
         let page_size = self.page_size;
         let loading = self.loading;
-        let title: SharedString = format!("{}.{}", self.schema, self.table_name).into();
+        let _title: SharedString = format!("{}.{}", self.schema, self.table_name).into();
         let row_info: SharedString = sql_row_range_label(total, offset, page_size).into();
         let panel = cx.entity().downgrade();
         let muted = cx.theme().muted_foreground;
@@ -266,7 +266,7 @@ impl Render for DataViewerPanel {
                 sql_pagination_controls("pg-pager", total, offset, page_size, loading).on_click(
                     move |page, _, cx| {
                         if let Some(ent) = panel.upgrade() {
-                            let _ = ent.update(cx, |panel, cx| panel.go_to_page(*page, cx));
+                            ent.update(cx, |panel, cx| panel.go_to_page(*page, cx));
                         }
                     },
                 ),

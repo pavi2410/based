@@ -1,6 +1,6 @@
 // sqlite::query_editor — QueryEditorPanel: run arbitrary SQL and view results.
 
-use gpui::{App, RenderOnce, prelude::*, *};
+use gpui::{App, prelude::*, *};
 use gpui_component::{
     ActiveTheme,
     button::{Button, ButtonVariants},
@@ -127,7 +127,7 @@ impl QueryEditorPanel {
         cx.refresh_windows();
     }
 
-    fn run_query(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn run_query(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
         let pool = self.pool.clone();
         let sql_raw = self.current_sql(cx);
         let vars = cx.global::<crate::project::ProjectVars>().vars.clone();
@@ -440,7 +440,7 @@ impl gpui::RenderOnce for SqliteHistorySidebar {
                         .label(f.label())
                         .when(active, |b| b.primary())
                         .on_click(move |_, _, cx| {
-                            let _ = panel_ent.update(cx, |panel, cx| {
+                            panel_ent.update(cx, |panel, cx| {
                                 panel.history_filter = f;
                                 cx.notify();
                             });
@@ -465,7 +465,7 @@ impl gpui::RenderOnce for SqliteHistorySidebar {
                                         .xsmall()
                                         .label("Save")
                                         .on_click(move |_, _, cx| {
-                                            let _ = panel_save.update(cx, |panel, cx| {
+                                            panel_save.update(cx, |panel, cx| {
                                                 let sql = panel.current_sql(cx);
                                                 let conn = panel.conn_id.clone();
                                                 cx.update_global(|store: &mut QueryStore, _| {
@@ -484,7 +484,7 @@ impl gpui::RenderOnce for SqliteHistorySidebar {
                                         .xsmall()
                                         .label("Cancel")
                                         .on_click(move |_, _, cx| {
-                                            let _ = panel_cancel.update(cx, |panel, cx| {
+                                            panel_cancel.update(cx, |panel, cx| {
                                                 panel.star_name = None;
                                                 cx.notify();
                                             });
@@ -517,7 +517,7 @@ impl gpui::RenderOnce for SqliteHistorySidebar {
                             .text_color(muted)
                             .child(preview)
                             .on_mouse_down(MouseButton::Left, move |_, window, cx| {
-                                let _ = panel_click.update(cx, |panel, cx| {
+                                panel_click.update(cx, |_panel, cx| {
                                     set_sql_input(&sql_input, &full_query, window, cx);
                                     cx.notify();
                                 });
@@ -529,7 +529,7 @@ impl gpui::RenderOnce for SqliteHistorySidebar {
                             .xsmall()
                             .label("★")
                             .on_click(move |_, _, cx| {
-                                let _ = panel_star.update(cx, |panel, cx| {
+                                panel_star.update(cx, |panel, cx| {
                                     panel.star_name = Some(format!("query_{i}"));
                                     cx.notify();
                                 });

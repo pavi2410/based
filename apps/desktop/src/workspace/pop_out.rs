@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use gpui::prelude::*;
 use gpui::*;
 use gpui_component::{
-    ActiveTheme as _, Root, Theme, TitleBar,
+    Root, Theme, TitleBar,
     dock::Panel,
     menu::{PopupMenu, PopupMenuItem},
 };
@@ -68,7 +68,7 @@ impl PopOutManager {
 /// `Entity::update`, and reading the same entity would panic.
 pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
     menu: PopupMenu,
-    panel: &T,
+    _panel: &T,
     cx: &mut Context<T>,
 ) -> PopupMenu {
     let weak = cx.entity().downgrade();

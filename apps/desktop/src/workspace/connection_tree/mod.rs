@@ -201,7 +201,7 @@ impl ConnectionTree {
                 let task = SqliteConnection::open(cfg, cx);
                 cx.spawn(async move |_, cx| {
                     let result = task.await;
-                    let _ = cx.update(|app| {
+                    cx.update(|app| {
                         let mut tray_fail: Option<(String, String, String)> = None;
                         conn_ent.update(app, |entry, ecx| {
                             match result {
@@ -248,7 +248,7 @@ impl ConnectionTree {
                 let task = postgres::PgConnection::open(cfg, cx);
                 cx.spawn(async move |_, cx| {
                     let result = task.await;
-                    let _ = cx.update(|app| {
+                    cx.update(|app| {
                         let mut tray_fail: Option<(String, String, String)> = None;
                         conn_ent.update(app, |entry, ecx| {
                             match result {
@@ -295,7 +295,7 @@ impl ConnectionTree {
                 let task = MongoConnection::open(cfg, cx);
                 cx.spawn(async move |_, cx| {
                     let result = task.await;
-                    let _ = cx.update(|app| {
+                    cx.update(|app| {
                         let mut tray_fail: Option<(String, String, String)> = None;
                         conn_ent.update(app, |entry, ecx| {
                             match result {

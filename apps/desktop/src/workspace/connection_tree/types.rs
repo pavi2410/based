@@ -1,4 +1,4 @@
-use crate::connection::{ConnectionId, EngineKind};
+use crate::connection::EngineKind;
 use crate::workspace::tab_spec::TabSpec;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

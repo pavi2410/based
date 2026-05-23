@@ -1,7 +1,7 @@
 //! Shared `ListItem` row chrome for selectable lists.
 
 use gpui::{ElementId, Hsla, IntoElement, ParentElement, SharedString, div, prelude::*, px};
-use gpui_component::{Selectable, StyledExt, h_flex, list::ListItem, v_flex};
+use gpui_component::{Selectable, h_flex, list::ListItem, v_flex};
 
 /// Command palette result row (connection hint + primary label + meta).
 pub fn palette_result_row(

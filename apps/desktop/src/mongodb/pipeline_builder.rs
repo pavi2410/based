@@ -2,7 +2,6 @@
 
 use gpui::{prelude::*, *};
 use gpui_component::{
-    ActiveTheme,
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,

@@ -35,13 +35,11 @@ impl TabManager {
     pub fn open_or_focus(&mut self, spec: TabSpec, view: AnyView, cx: &mut Context<Self>) {
         // QueryEditor: always new
         let is_query = matches!(spec, TabSpec::QueryEditor { .. });
-        if !is_query {
-            if let Some(idx) = self.tabs.iter().position(|t| t.spec == spec) {
-                self.active_idx = Some(idx);
-                cx.emit(TabEvent::ActiveChanged(idx));
-                cx.notify();
-                return;
-            }
+        if !is_query && let Some(idx) = self.tabs.iter().position(|t| t.spec == spec) {
+            self.active_idx = Some(idx);
+            cx.emit(TabEvent::ActiveChanged(idx));
+            cx.notify();
+            return;
         }
         let idx = self.tabs.len();
         self.tabs.push(Tab {

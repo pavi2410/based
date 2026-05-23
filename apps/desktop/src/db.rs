@@ -40,7 +40,7 @@ pub fn close_sqlite_pool(pool: SqlitePool) {
     if let Some(h) = HANDLE.get() {
         let h = h.clone();
         std::thread::spawn(move || {
-            let _ = h.block_on(async move { pool.close().await });
+            h.block_on(async move { pool.close().await });
         });
     }
 }
@@ -49,7 +49,7 @@ pub fn close_pg_pool(pool: PgPool) {
     if let Some(h) = HANDLE.get() {
         let h = h.clone();
         std::thread::spawn(move || {
-            let _ = h.block_on(async move { pool.close().await });
+            h.block_on(async move { pool.close().await });
         });
     }
 }

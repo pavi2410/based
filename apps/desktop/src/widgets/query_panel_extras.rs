@@ -84,8 +84,8 @@ pub fn filtered_history(
                     == Some(d)
             }),
         })
-        .cloned()
         .take(50)
+        .cloned()
         .collect()
 }
 

@@ -214,11 +214,11 @@ fn url_decode(s: &str) -> String {
         if c == '%' {
             let a = chars.next();
             let b = chars.next();
-            if let (Some(a), Some(b)) = (a, b) {
-                if let Ok(byte) = u8::from_str_radix(&format!("{a}{b}"), 16) {
-                    out.push(byte as char);
-                    continue;
-                }
+            if let (Some(a), Some(b)) = (a, b)
+                && let Ok(byte) = u8::from_str_radix(&format!("{a}{b}"), 16)
+            {
+                out.push(byte as char);
+                continue;
             }
             out.push(c);
         } else {

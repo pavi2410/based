@@ -469,7 +469,7 @@ impl RenderOnce for HistorySidebarView {
                             .label(f.label())
                             .when(active, |b| b.primary())
                             .on_click(move |_, _, cx| {
-                                let _ = panel_ent.update(cx, |panel, cx| {
+                                panel_ent.update(cx, |panel, cx| {
                                     panel.history_filter = f;
                                     cx.notify();
                                 });
@@ -494,7 +494,7 @@ impl RenderOnce for HistorySidebarView {
                                         .xsmall()
                                         .label("Save")
                                         .on_click(move |_, _, cx| {
-                                            let _ = panel_save.update(cx, |panel, cx| {
+                                            panel_save.update(cx, |panel, cx| {
                                                 let sql = panel.current_sql(cx);
                                                 let conn = panel.conn_id.clone();
                                                 cx.update_global(|store: &mut QueryStore, _| {
@@ -513,7 +513,7 @@ impl RenderOnce for HistorySidebarView {
                                         .xsmall()
                                         .label("Cancel")
                                         .on_click(move |_, _, cx| {
-                                            let _ = panel_cancel.update(cx, |panel, cx| {
+                                            panel_cancel.update(cx, |panel, cx| {
                                                 panel.star_name = None;
                                                 cx.notify();
                                             });
@@ -546,7 +546,7 @@ impl RenderOnce for HistorySidebarView {
                             .text_color(muted)
                             .child(preview)
                             .on_mouse_down(MouseButton::Left, move |_, window, cx| {
-                                let _ = panel_click.update(cx, |panel, cx| {
+                                panel_click.update(cx, |_panel, cx| {
                                     set_sql_input(&sql_input, &full_query, window, cx);
                                     cx.notify();
                                 });
@@ -558,7 +558,7 @@ impl RenderOnce for HistorySidebarView {
                             .xsmall()
                             .label("★")
                             .on_click(move |_, _, cx| {
-                                let _ = panel_star.update(cx, |panel, cx| {
+                                panel_star.update(cx, |panel, cx| {
                                     panel.star_name = Some(format!("query_{i}"));
                                     cx.notify();
                                 });

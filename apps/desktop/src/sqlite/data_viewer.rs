@@ -224,7 +224,7 @@ impl Render for DataViewerPanel {
         let page_size = self.page_size;
         let loading = self.loading;
 
-        let table_name: SharedString = self.table_name.clone().into();
+        let _table_name: SharedString = self.table_name.clone().into();
         let row_info: SharedString = sql_row_range_label(total, offset, page_size).into();
         let (current_page, total_pages) = sql_page_state(total, offset, page_size);
         let page_info: SharedString = format!("{current_page} / {total_pages}").into();
@@ -269,7 +269,7 @@ impl Render for DataViewerPanel {
                 sql_pagination_controls("sqlite-pager", total, offset, page_size, loading)
                     .on_click(move |page, _, cx| {
                         if let Some(ent) = panel.upgrade() {
-                            let _ = ent.update(cx, |panel, cx| panel.go_to_page(*page, cx));
+                            ent.update(cx, |panel, cx| panel.go_to_page(*page, cx));
                         }
                     }),
             );

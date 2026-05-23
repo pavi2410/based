@@ -9,7 +9,7 @@ pub fn sql_page_state(total: u64, offset: u64, page_size: u64) -> (usize, usize)
     let total_pages = if total == 0 {
         1
     } else {
-        ((total + page_size - 1) / page_size) as usize
+        total.div_ceil(page_size) as usize
     };
     let current_page = (offset / page_size + 1) as usize;
     (current_page.min(total_pages).max(1), total_pages.max(1))

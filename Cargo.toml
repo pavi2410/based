@@ -1,6 +1,6 @@
 [workspace]
 members = ["apps/desktop"]
-resolver = "2"
+resolver = "3"
 
 # Shared GPUI ecosystem dependencies — pinned to what gpui-component v0.5.1 uses.
 # Re-pin only between phases; never mid-phase.

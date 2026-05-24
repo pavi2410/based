@@ -1,14 +1,18 @@
-use gpui::{Context, Entity, FontWeight, IntoElement, div, prelude::*};
+use gpui::{Context, Entity, FontWeight, IntoElement, Window, div, prelude::*};
 use gpui_component::{ActiveTheme, StyledExt, h_flex, v_flex};
 
 use crate::connection::{ConnectionEntry, ConnectionState};
-use crate::widgets::ui::{engine_chip, engine_name, inspector_description_section, metadata_pill};
+use crate::widgets::ui::{
+    engine_chip, engine_name, inspector_description_section, inspector_shortcuts_section,
+    metadata_pill,
+};
 
 use super::Workspace;
 use super::notify;
 
 pub(crate) fn render_inspector(
     selected: Option<Entity<ConnectionEntry>>,
+    window: &Window,
     cx: &mut Context<Workspace>,
 ) -> impl IntoElement {
     let border = cx.theme().border;
@@ -73,36 +77,7 @@ pub(crate) fn render_inspector(
                 "Choose a connection, table, cell, or query to see details here.",
                 cx,
             ))
-            .child(inspector_description_section(
-                "Shortcuts",
-                [
-                    (
-                        "Command",
-                        if cfg!(target_os = "macos") {
-                            "⌘K"
-                        } else {
-                            "Ctrl K"
-                        },
-                    ),
-                    (
-                        "Run query",
-                        if cfg!(target_os = "macos") {
-                            "⌘↵"
-                        } else {
-                            "Ctrl Enter"
-                        },
-                    ),
-                    (
-                        "Sidebar",
-                        if cfg!(target_os = "macos") {
-                            "⌘\\"
-                        } else {
-                            "Ctrl \\"
-                        },
-                    ),
-                ],
-                cx,
-            ))
+            .child(inspector_shortcuts_section(window, cx))
             .into_any_element()
     };
 

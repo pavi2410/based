@@ -7,6 +7,7 @@ use gpui_component::{
 
 use super::Workspace;
 use crate::app::prefs;
+use crate::bindings::{CycleAppearance, ToggleSidebarRail};
 use crate::widgets::ui::{chrome_hint, command_shell, toolbar_button};
 
 /// A `RenderOnce` top bar that renders inside the window's `TitleBar`.
@@ -35,7 +36,7 @@ impl Topbar {
 }
 
 impl RenderOnce for Topbar {
-    fn render(self, _: &mut gpui::Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut gpui::Window, cx: &mut App) -> impl IntoElement {
         let workspace = self.workspace.clone();
         let workspace_rail = workspace.clone();
         let workspace_settings = workspace.clone();
@@ -77,11 +78,11 @@ impl RenderOnce for Topbar {
                                     } else {
                                         IconName::PanelLeftClose
                                     })
-                                    .tooltip(SharedString::from(if cfg!(target_os = "macos") {
-                                        "Toggle connections (⌘\\)"
-                                    } else {
-                                        "Toggle connections (Ctrl+\\)"
-                                    }))
+                                    .tooltip_with_action(
+                                        "Toggle connections",
+                                        &ToggleSidebarRail,
+                                        None,
+                                    )
                                     .on_click(move |_, _, cx| {
                                         let ent = workspace_rail.clone();
                                         ent.update(cx, |ws, cx| {
@@ -98,11 +99,7 @@ impl RenderOnce for Topbar {
                                     } else {
                                         IconName::Moon
                                     })
-                                    .tooltip(SharedString::from(if cfg!(target_os = "macos") {
-                                        "Appearance (⇧⌥⌘T)"
-                                    } else {
-                                        "Appearance (Ctrl+Alt+Shift+T)"
-                                    }))
+                                    .tooltip_with_action("Appearance", &CycleAppearance, None)
                                     .on_click(move |_, _, cx| {
                                         prefs::cycle_theme(cx);
                                     }),
@@ -130,7 +127,11 @@ impl RenderOnce for Topbar {
                             .flex_1()
                             .items_center()
                             .justify_center()
-                            .child(command_shell(cx, "Search tables, queries, history…")),
+                            .child(command_shell(
+                                window,
+                                cx,
+                                "Search tables, queries, history…",
+                            )),
                     )
                     .child(
                         h_flex()

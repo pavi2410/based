@@ -22,7 +22,7 @@ use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::query_panel_extras::{HistoryFilter, filtered_history, save_starred_query};
 use crate::widgets::row_cell::sqlite_cell_display;
 use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input, sql_from_input};
-use crate::widgets::ui::{metadata_pill, panel_context_header};
+use crate::widgets::ui::{panel_context_header, shortcut_run_kbd_in_primary_button};
 use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
 use crate::workspace::pop_out::{PopOutManager, PopOutWindowTitle};
 use crate::workspace::{TabSpec, enqueue_open_tab, notify, tab_open::take_sql_inject};
@@ -268,6 +268,7 @@ impl Render for QueryEditorPanel {
                 Button::new("run")
                     .primary()
                     .label("Run")
+                    .child(shortcut_run_kbd_in_primary_button(cx))
                     .on_click(cx.listener(|panel, _, window, cx| panel.run_query(window, cx))),
             )
             .child(
@@ -289,15 +290,6 @@ impl Render for QueryEditorPanel {
                         cx.notify();
                     })),
             )
-            .child(metadata_pill(
-                "shortcut",
-                if cfg!(target_os = "macos") {
-                    "⌘↵"
-                } else {
-                    "Ctrl Enter"
-                },
-                cx,
-            ))
             .child(
                 div()
                     .text_sm()

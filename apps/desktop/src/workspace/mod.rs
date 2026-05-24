@@ -408,7 +408,7 @@ impl Render for Workspace {
             .child(self.dock_area.clone());
 
         let selected_connection = self.connection_tree.read(cx).selected_connection_entry(cx);
-        let inspector = render_inspector(selected_connection, cx);
+        let inspector = render_inspector(selected_connection, window, cx);
 
         let body = if self.sidebar_collapsed {
             h_flex()

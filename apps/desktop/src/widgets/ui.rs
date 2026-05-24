@@ -5,10 +5,96 @@ use gpui_component::{
     ActiveTheme, Icon, IconName, Sizable, StyledExt,
     button::{Button, ButtonVariants},
     description_list::{DescriptionItem, DescriptionList},
-    h_flex, v_flex,
+    h_flex,
+    kbd::Kbd,
+    v_flex,
 };
 
+use crate::bindings::{DismissCommandPalette, ToggleCommandPalette, ToggleSidebarRail};
 use crate::connection::EngineKind;
+
+/// Unbound / literal keys — `Kbd` formats symbols vs labels per platform.
+pub fn kbd(stroke: &str) -> Kbd {
+    Kbd::new(Keystroke::parse(stroke).expect("valid keystroke"))
+}
+
+/// Bound global action — uses the stroke GPUI registered (`cmd-*` vs `ctrl-*`).
+pub fn kbd_for_action(action: &dyn Action, window: &Window) -> Option<Kbd> {
+    Kbd::binding_for_action(action, None, window)
+}
+
+/// Run query (secondary Enter); not a global `KeyBinding` yet.
+pub fn shortcut_run_kbd() -> Kbd {
+    if cfg!(target_os = "macos") {
+        kbd("cmd-enter")
+    } else {
+        kbd("ctrl-enter")
+    }
+}
+
+/// Run shortcut on the primary Run button — default `Kbd` fill (not `.outline()`), tuned for inverted button colors.
+pub fn shortcut_run_kbd_in_primary_button(cx: &App) -> Kbd {
+    let fg = cx.theme().button_primary_foreground;
+    shortcut_run_kbd()
+        .text_color(fg.opacity(0.92))
+        .bg(fg.opacity(0.18))
+}
+
+/// Inspector empty-state shortcut list with styled `Kbd` chips.
+pub fn inspector_shortcuts_section(window: &Window, cx: &mut App) -> impl IntoElement {
+    let muted = cx.theme().muted_foreground;
+    let palette = kbd_for_action(&ToggleCommandPalette, window).unwrap_or_else(|| kbd("cmd-k"));
+    let sidebar = kbd_for_action(&ToggleSidebarRail, window).unwrap_or_else(|| kbd("cmd-\\"));
+    v_flex()
+        .gap_2()
+        .child(
+            div()
+                .text_xs()
+                .font_bold()
+                .font_family(cx.theme().mono_font_family.clone())
+                .text_color(muted)
+                .child("Shortcuts"),
+        )
+        .child(
+            v_flex()
+                .gap_2()
+                .child(shortcut_row_styled("Command", palette, muted))
+                .child(shortcut_row_styled("Run query", shortcut_run_kbd(), muted))
+                .child(shortcut_row_styled("Sidebar", sidebar, muted)),
+        )
+}
+
+fn shortcut_row_styled(label: &'static str, kbd_el: Kbd, muted: Hsla) -> impl IntoElement {
+    h_flex()
+        .w_full()
+        .justify_between()
+        .items_center()
+        .child(div().text_xs().text_color(muted).child(label))
+        .child(kbd_el)
+}
+
+/// Command palette footer key hints.
+pub fn palette_footer_hints(window: &Window, cx: &mut App) -> impl IntoElement {
+    let muted = cx.theme().muted_foreground;
+    let dismiss = kbd_for_action(&DismissCommandPalette, window).unwrap_or_else(|| kbd("escape"));
+    h_flex()
+        .gap_2()
+        .items_center()
+        .text_xs()
+        .text_color(muted)
+        .child(kbd("up"))
+        .child(kbd("down"))
+        .child("navigate")
+        .child("·")
+        .child(kbd("enter"))
+        .child("open")
+        .child("·")
+        .child(shortcut_run_kbd())
+        .child("query")
+        .child("·")
+        .child(dismiss)
+        .child("dismiss")
+}
 
 /// Boxy panel corner radius (Linear / Vercel–style).
 pub const PANEL_RADIUS: f32 = 4.0;
@@ -177,7 +263,8 @@ pub fn metadata_pill(
         )
 }
 
-pub fn command_shell(cx: &mut App, placeholder: &'static str) -> impl IntoElement {
+pub fn command_shell(window: &Window, cx: &mut App, placeholder: &'static str) -> impl IntoElement {
+    let hint = kbd_for_action(&ToggleCommandPalette, window).unwrap_or_else(|| kbd("cmd-k"));
     h_flex()
         .id("global-command-shell")
         .h(px(28.0))
@@ -204,17 +291,7 @@ pub fn command_shell(cx: &mut App, placeholder: &'static str) -> impl IntoElemen
                 .truncate()
                 .child(placeholder),
         )
-        .child(
-            div()
-                .text_xs()
-                .font_family(cx.theme().mono_font_family.clone())
-                .text_color(cx.theme().muted_foreground.opacity(0.82))
-                .child(if cfg!(target_os = "macos") {
-                    "⌘K"
-                } else {
-                    "Ctrl K"
-                }),
-        )
+        .child(hint)
 }
 
 /// Compact title strip for a boxed panel.

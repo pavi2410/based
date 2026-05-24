@@ -16,6 +16,7 @@ use gpui_component::{
 };
 
 use super::tab_open::WorkspaceRef;
+use crate::bindings::CloseTab;
 
 /// Human-readable OS window title for a popped-out panel.
 pub trait PopOutWindowTitle: Panel {
@@ -85,6 +86,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
     menu.separator()
         .item(
             PopupMenuItem::new("Close tab")
+                .action(CloseTab.boxed_clone())
                 .disabled(close_disabled)
                 .on_click(move |_ev, window, app| {
                     let Some(workspace) = app.try_global::<WorkspaceRef>().map(|ws| ws.0.clone())

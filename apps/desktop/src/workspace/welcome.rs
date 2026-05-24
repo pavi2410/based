@@ -10,6 +10,9 @@ use gpui_component::{
     v_flex,
 };
 
+use crate::bindings::ToggleCommandPalette;
+use crate::widgets::ui::kbd_for_action;
+
 pub struct WelcomePanel {
     focus_handle: FocusHandle,
     pub(crate) tab_label: SharedString,
@@ -54,7 +57,8 @@ impl Panel for WelcomePanel {
 }
 
 impl Render for WelcomePanel {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let palette_hint = kbd_for_action(&ToggleCommandPalette, window);
         v_flex()
             .size_full()
             .items_center()
@@ -79,16 +83,17 @@ impl Render for WelcomePanel {
                             .child("Graphite-native database workspace"),
                     ),
             )
-            .child(
-                div()
+            .child({
+                let mut row = h_flex()
+                    .gap_1()
+                    .items_center()
                     .text_xs()
-                    .text_color(cx.theme().muted_foreground.opacity(0.9))
-                    .child(if cfg!(target_os = "macos") {
-                        "⌘K · local-first · SQLite · Postgres · MongoDB"
-                    } else {
-                        "Ctrl K · local-first · SQLite · Postgres · MongoDB"
-                    }),
-            )
+                    .text_color(cx.theme().muted_foreground.opacity(0.9));
+                if let Some(hint) = palette_hint {
+                    row = row.child(hint);
+                }
+                row.child("· local-first · SQLite · Postgres · MongoDB")
+            })
             .child(
                 h_flex()
                     .gap_3()

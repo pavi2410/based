@@ -13,6 +13,7 @@ use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{ConnectionId, EngineKind};
 use crate::query_store::QueryStore;
 use crate::widgets::list_row::palette_result_row;
+use crate::widgets::ui::palette_footer_hints;
 use crate::workspace::connection_tree::ConnectionTree;
 use crate::workspace::tab_spec::TabSpec;
 
@@ -296,7 +297,7 @@ impl Focusable for CommandPalette {
 }
 
 impl Render for CommandPalette {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if !self.visible {
             return div().into_any_element();
         }
@@ -402,17 +403,7 @@ impl Render for CommandPalette {
                                 )
                             }),
                     )
-                    .child(
-                        h_flex()
-                            .px_3()
-                            .py_2()
-                            .border_t_1()
-                            .border_color(theme.border)
-                            .gap_3()
-                            .text_xs()
-                            .text_color(theme.muted_foreground)
-                            .child("↑↓ navigate · ↵ open · ⌘↵ query · esc dismiss"),
-                    ),
+                    .child(palette_footer_hints(window, cx)),
             )
             .into_any_element()
     }

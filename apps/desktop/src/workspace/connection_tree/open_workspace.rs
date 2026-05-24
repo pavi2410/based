@@ -1,0 +1,115 @@
+use std::sync::Arc;
+
+use ::mongodb::bson::Document;
+use gpui::{Context, Window, prelude::*};
+use gpui_component::dock::DockItem;
+
+use crate::connection::AnyConnection;
+use crate::postgres;
+use crate::sqlite;
+
+use super::ConnectionTree;
+use super::types::ActiveObjects;
+
+impl ConnectionTree {
+    pub(crate) fn open_connected_workspace(
+        &mut self,
+        idx: usize,
+        ac: &AnyConnection,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(conn_ent) = self.registry.read(cx).connections().get(idx).cloned() else {
+            return;
+        };
+        let (label, engine, conn_id) = {
+            let entry = conn_ent.read(cx);
+            (
+                entry.config.label().to_string(),
+                entry.config.engine(),
+                entry.id.clone(),
+            )
+        };
+
+        self.selected_connection = Some(idx);
+        self.selected_object = None;
+        self.active_objects = ActiveObjects::Loading {
+            label: label.clone(),
+            engine,
+        };
+        self.bump_object_list_epoch();
+        self.load_objects_for_connection(idx, ac.clone(), cx);
+
+        let weak = self.dock_area.downgrade();
+        let dashboard = cx.new(|cx| {
+            super::super::object_info::ConnectionDashboardPanel::new(conn_ent.clone(), window, cx)
+        });
+        let center = match ac {
+            AnyConnection::SQLite(ent) => {
+                let pool = ent.read(cx).pool.clone();
+                let query = cx.new(|cx| {
+                    sqlite::query_editor::QueryEditorPanel::new(
+                        pool.clone(),
+                        conn_id.clone(),
+                        window,
+                        cx,
+                    )
+                });
+                let pragma = cx.new(|cx| {
+                    sqlite::pragma_browser::PragmaBrowserPanel::new(pool.clone(), window, cx)
+                });
+                DockItem::tabs(
+                    vec![Arc::new(dashboard), Arc::new(query), Arc::new(pragma)],
+                    &weak,
+                    window,
+                    cx,
+                )
+            }
+            AnyConnection::Postgres(ent) => {
+                let pool = ent.read(cx).pool.clone();
+                let query = cx.new(|cx| {
+                    postgres::query_editor::QueryEditorPanel::new(
+                        pool.clone(),
+                        conn_id.clone(),
+                        window,
+                        cx,
+                    )
+                });
+                let monitor = cx.new(|cx| {
+                    postgres::live_monitor::LiveMonitorPanel::new(pool.clone(), window, cx)
+                });
+                DockItem::tabs(
+                    vec![Arc::new(dashboard), Arc::new(query), Arc::new(monitor)],
+                    &weak,
+                    window,
+                    cx,
+                )
+            }
+            AnyConnection::MongoDB(ent) => {
+                let db = ent.read(cx).database().clone();
+                let coll: ::mongodb::Collection<Document> = db.collection("based_explorer");
+                let builder = cx.new(|cx| {
+                    crate::mongodb::pipeline_builder::PipelineBuilderPanel::new(
+                        coll.clone(),
+                        conn_id.clone(),
+                        window,
+                        cx,
+                    )
+                });
+                let stream = cx.new(|cx| {
+                    crate::mongodb::change_stream::ChangeStreamPanel::new(coll, window, cx)
+                });
+                DockItem::tabs(
+                    vec![Arc::new(dashboard), Arc::new(builder), Arc::new(stream)],
+                    &weak,
+                    window,
+                    cx,
+                )
+            }
+        };
+
+        self.dock_area.update(cx, |dock, cx| {
+            dock.set_center(center, window, cx);
+        });
+    }
+}

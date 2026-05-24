@@ -5,8 +5,11 @@
 // APIs directly; nothing from this module leaks DB-querying concerns.
 
 pub mod lifecycle;
+pub mod open;
 pub mod persistence;
 pub mod registry;
+
+pub use open::{OpenedConnection, open_connection, opened_into_any};
 
 use std::time::Instant;
 

@@ -18,12 +18,12 @@ use time::OffsetDateTime;
 use crate::connection::ConnectionId;
 use crate::db;
 use crate::query_store::{HistoryEntry, QueryStore};
-use crate::widgets::data_table::read_only_striped;
+use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::query_panel_extras::{HistoryFilter, filtered_history, save_starred_query};
 use crate::widgets::row_cell::sqlite_cell_display;
 use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input, sql_from_input};
 use crate::widgets::ui::{metadata_pill, panel_context_header};
-use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
+use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
 use crate::workspace::pop_out::{PopOutManager, PopOutWindowTitle};
 use crate::workspace::{TabSpec, enqueue_open_tab, notify, tab_open::take_sql_inject};
 
@@ -68,11 +68,7 @@ impl QueryEditorPanel {
         let sql = initial_sql.unwrap_or_else(|| "SELECT * FROM sqlite_master LIMIT 20".to_string());
         let sql_input = new_sql_input(&sql, window, cx);
         let delegate = RowDelegate::default();
-        let result = cx.new(|cx| {
-            TableState::new(delegate, window, cx)
-                .row_selectable(true)
-                .cell_selectable(true)
-        });
+        let result = cx.new(|cx| configure_row_table(delegate, window, cx));
         let panel = Self {
             focus_handle: cx.focus_handle(),
             pool,
@@ -147,7 +143,7 @@ impl QueryEditorPanel {
                         first
                             .columns()
                             .iter()
-                            .map(|c| Column::new(c.name().to_string(), c.name().to_string()))
+                            .map(|c| data_column(c.name().to_string(), c.name().to_string()))
                             .collect()
                     } else {
                         vec![]
@@ -342,7 +338,7 @@ impl Render for QueryEditorPanel {
                 div()
                     .flex_1()
                     .min_h(px(0.0))
-                    .child(read_only_striped(&self.result)),
+                    .child(render_row_table(&self.result, cx)),
             );
 
         let panel_ent = cx.entity();

@@ -7,14 +7,14 @@ use gpui_component::{
     dock::{Panel, PanelEvent},
     h_flex,
     menu::PopupMenu,
-    table::{Column, TableState},
+    table::TableState,
     v_flex,
 };
 use mongodb::Collection;
 use mongodb::bson::{Document, doc};
 
-use crate::widgets::data_table::read_only_striped;
-use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
+use crate::widgets::data_table::{configure_row_table, render_row_table};
+use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 enum MongoInspectorTab {
@@ -39,9 +39,9 @@ impl CollectionInspectorPanel {
         cx: &mut Context<Self>,
     ) -> Self {
         let stats_del = RowDelegate::default();
-        let stats_tbl = cx.new(|cx| TableState::new(stats_del, window, cx));
+        let stats_tbl = cx.new(|cx| configure_row_table(stats_del, window, cx));
         let idx_del = RowDelegate::default();
-        let indexes_tbl = cx.new(|cx| TableState::new(idx_del, window, cx));
+        let indexes_tbl = cx.new(|cx| configure_row_table(idx_del, window, cx));
         let tab_label = format!("{} (schema)", collection.name()).into();
         let mut p = Self {
             focus_handle: cx.focus_handle(),
@@ -120,7 +120,7 @@ impl CollectionInspectorPanel {
                             panel.stats_tbl.update(cx, |state, cx| {
                                 replace_table_data(
                                     state,
-                                    vec![Column::new("error", "Error")],
+                                    vec![data_column("error", "Error")],
                                     vec![vec![SharedString::from(msg.clone())]],
                                     cx,
                                 );
@@ -128,7 +128,7 @@ impl CollectionInspectorPanel {
                             panel.indexes_tbl.update(cx, |state, cx| {
                                 replace_table_data(
                                     state,
-                                    vec![Column::new("error", "Error")],
+                                    vec![data_column("error", "Error")],
                                     vec![vec![SharedString::from(msg)]],
                                     cx,
                                 );
@@ -139,8 +139,8 @@ impl CollectionInspectorPanel {
                 }
                 Ok((stat_rows, ix_rows)) => {
                     let st_columns = vec![
-                        Column::new("metric", "Metric"),
-                        Column::new("value", "Value"),
+                        data_column("metric", "Metric"),
+                        data_column("value", "Value"),
                     ];
                     let st_data: Vec<Vec<SharedString>> = stat_rows
                         .into_iter()
@@ -148,9 +148,9 @@ impl CollectionInspectorPanel {
                         .collect();
 
                     let ix_columns = vec![
-                        Column::new("name", "Index"),
-                        Column::new("key", "Key"),
-                        Column::new("unique", "Unique"),
+                        data_column("name", "Index"),
+                        data_column("key", "Key"),
+                        data_column("unique", "Unique"),
                     ];
                     let ix_data: Vec<Vec<SharedString>> = ix_rows
                         .into_iter()
@@ -265,7 +265,7 @@ impl Render for CollectionInspectorPanel {
                     .min_h(px(200.0))
                     .border_1()
                     .border_color(border)
-                    .child(read_only_striped(active_tbl)),
+                    .child(render_row_table(active_tbl, cx)),
             )
     }
 }

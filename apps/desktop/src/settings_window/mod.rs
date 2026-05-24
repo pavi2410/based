@@ -79,62 +79,122 @@ impl SettingsWindow {
                         )
                         .description("Monospace font size for editors and SQL."),
                     ]),
+                    SettingGroup::new().title("Tables").items(vec![
+                        SettingItem::new(
+                            "Compact tables",
+                            SettingField::switch(
+                                |cx| prefs::table_density(cx) == prefs::TableDensity::Compact,
+                                |on, cx| {
+                                    prefs::set_table_density(
+                                        if on {
+                                            prefs::TableDensity::Compact
+                                        } else {
+                                            prefs::TableDensity::Comfortable
+                                        },
+                                        cx,
+                                    );
+                                },
+                            ),
+                        )
+                        .description(
+                            "Tighter monospace rows in data grids; turn off for roomier cells.",
+                        ),
+                        SettingItem::new(
+                            "Zebra striping",
+                            SettingField::switch(
+                                |cx| prefs::table_prefs(cx).stripe,
+                                prefs::set_table_stripe,
+                            ),
+                        )
+                        .description("Alternate row shading in data grids."),
+                    ]),
                 ]),
             SettingPage::new("Query defaults")
                 .icon(Icon::new(IconName::Settings))
-                .groups(vec![SettingGroup::new().title("Data browsing").items(
-                    vec![
-                    SettingItem::new(
-                        "Page size",
-                        SettingField::number_input(
-                            NumberFieldOptions {
-                                min: 50.0,
-                                max: 5000.0,
-                                step: 50.0,
-                            },
-                            |cx| prefs::page_size(cx) as f64,
-                            |val, cx| prefs::set_page_size(val as u64, cx),
+                .groups(vec![
+                    SettingGroup::new().title("Data fetching").items(vec![
+                        SettingItem::new(
+                            "Page size",
+                            SettingField::number_input(
+                                NumberFieldOptions {
+                                    min: 50.0,
+                                    max: 5000.0,
+                                    step: 50.0,
+                                },
+                                |cx| prefs::page_size(cx) as f64,
+                                |val, cx| prefs::set_page_size(val as u64, cx),
+                            )
+                            .default_value(DEFAULT_PAGE_SIZE as f64),
                         )
-                        .default_value(DEFAULT_PAGE_SIZE as f64),
-                    )
-                    .description("Rows fetched per page in SQL table viewers."),
-                    SettingItem::new(
-                        "Compact tables",
-                        SettingField::switch(
-                            |cx| prefs::table_density(cx) == prefs::TableDensity::Compact,
-                            |on, cx| {
-                                prefs::set_table_density(
-                                    if on {
-                                        prefs::TableDensity::Compact
-                                    } else {
-                                        prefs::TableDensity::Comfortable
-                                    },
-                                    cx,
-                                );
-                            },
+                        .description("Rows fetched per page in SQL table viewers."),
+                        SettingItem::new(
+                            "Query timeout",
+                            SettingField::number_input(
+                                NumberFieldOptions {
+                                    min: 5.0,
+                                    max: 600.0,
+                                    step: 5.0,
+                                },
+                                |cx| prefs::query_timeout_secs(cx) as f64,
+                                |val, cx| prefs::set_query_timeout_secs(val as u32, cx),
+                            )
+                            .default_value(DEFAULT_QUERY_TIMEOUT_SECS as f64),
+                        )
+                        .description(
+                            "Maximum seconds to wait for a query (enforcement in editors is planned).",
                         ),
-                    )
-                    .description(
-                        "Tighter monospace rows in data grids; turn off for roomier cells.",
-                    ),
-                    SettingItem::new(
-                        "Query timeout",
-                        SettingField::number_input(
-                            NumberFieldOptions {
-                                min: 5.0,
-                                max: 600.0,
-                                step: 5.0,
-                            },
-                            |cx| prefs::query_timeout_secs(cx) as f64,
-                            |val, cx| prefs::set_query_timeout_secs(val as u32, cx),
+                    ]),
+                    SettingGroup::new().title("Table interaction").items(vec![
+                        SettingItem::new(
+                            "Sortable columns",
+                            SettingField::switch(
+                                |cx| prefs::table_prefs(cx).sortable,
+                                prefs::set_table_sortable,
+                            ),
                         )
-                        .default_value(DEFAULT_QUERY_TIMEOUT_SECS as f64),
-                    )
-                    .description(
-                        "Maximum seconds to wait for a query (enforcement in editors is planned).",
-                    ),
-                ],
-                )]),
+                        .description("Click column headers to sort results."),
+                        SettingItem::new(
+                            "Resize columns",
+                            SettingField::switch(
+                                |cx| prefs::table_prefs(cx).col_resizable,
+                                prefs::set_table_col_resizable,
+                            ),
+                        )
+                        .description("Drag column borders to change width."),
+                        SettingItem::new(
+                            "Reorder columns",
+                            SettingField::switch(
+                                |cx| prefs::table_prefs(cx).col_movable,
+                                prefs::set_table_col_movable,
+                            ),
+                        )
+                        .description("Drag column headers to rearrange."),
+                        SettingItem::new(
+                            "Row selection",
+                            SettingField::switch(
+                                |cx| prefs::table_prefs(cx).row_selectable,
+                                prefs::set_table_row_selectable,
+                            ),
+                        )
+                        .description("Select entire rows in data grids."),
+                        SettingItem::new(
+                            "Cell selection",
+                            SettingField::switch(
+                                |cx| prefs::table_prefs(cx).cell_selectable,
+                                prefs::set_table_cell_selectable,
+                            ),
+                        )
+                        .description("Select individual cells; enables keyboard navigation."),
+                        SettingItem::new(
+                            "Loop selection",
+                            SettingField::switch(
+                                |cx| prefs::table_prefs(cx).loop_selection,
+                                prefs::set_table_loop_selection,
+                            ),
+                        )
+                        .description("Keyboard selection wraps at table edges."),
+                    ]),
+                ]),
         ]
     }
 }

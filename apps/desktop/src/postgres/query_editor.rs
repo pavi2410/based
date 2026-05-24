@@ -19,13 +19,13 @@ use crate::connection::ConnectionId;
 use crate::postgres::mutations::execute_sql;
 use crate::project::ProjectRoot;
 use crate::query_store::{HistoryEntry, QueryStore};
-use crate::widgets::data_table::read_only_striped;
+use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::query_panel_extras::{
     self, HistoryFilter, filtered_history, save_starred_query,
 };
 use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input, sql_from_input};
 use crate::widgets::ui::{metadata_pill, panel_context_header};
-use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
+use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
 use crate::workspace::pop_out::{PopOutManager, PopOutWindowTitle};
 use crate::workspace::{
     TabSpec, enqueue_open_tab, mark_query_tab_dirty, notify, tab_open::take_sql_inject,
@@ -76,11 +76,7 @@ impl QueryEditorPanel {
         cx: &mut Context<Self>,
     ) -> Self {
         let delegate = RowDelegate::default();
-        let result = cx.new(|cx| {
-            TableState::new(delegate, window, cx)
-                .row_selectable(true)
-                .cell_selectable(true)
-        });
+        let result = cx.new(|cx| configure_row_table(delegate, window, cx));
         let sql_text = initial_sql.unwrap_or_else(|| "SELECT 1 AS one;".to_string());
         let sql_input = new_sql_input(&sql_text, window, cx);
         let panel = Self {
@@ -169,7 +165,7 @@ impl QueryEditorPanel {
                     Ok((cols, rows, aff)) => {
                         let col_models: Vec<gpui_component::table::Column> = cols
                             .into_iter()
-                            .map(|c| gpui_component::table::Column::new(c.clone(), c))
+                            .map(|c| data_column(c.clone(), c))
                             .collect();
                         let data: Vec<Vec<SharedString>> = rows
                             .into_iter()
@@ -366,7 +362,7 @@ impl Render for QueryEditorPanel {
                 div()
                     .flex_1()
                     .min_h(px(0.0))
-                    .child(read_only_striped(&self.result)),
+                    .child(render_row_table(&self.result, cx)),
             );
 
         let panel_ent = cx.entity();

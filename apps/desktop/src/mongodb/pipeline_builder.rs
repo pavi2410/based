@@ -17,9 +17,9 @@ use uuid::Uuid;
 
 use crate::connection::ConnectionId;
 use crate::query_store::{HistoryEntry, QueryStore, SavedQuery};
-use crate::widgets::data_table::read_only_striped;
+use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::sql_editor::{self, new_json_input, text_from_input};
-use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
+use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
 
 pub struct PipelineBuilderPanel {
     focus_handle: FocusHandle,
@@ -51,7 +51,7 @@ impl PipelineBuilderPanel {
         cx: &mut Context<Self>,
     ) -> Self {
         let delegate = RowDelegate::default();
-        let result = cx.new(|cx| TableState::new(delegate, window, cx));
+        let result = cx.new(|cx| configure_row_table(delegate, window, cx));
         let save_name_input = cx.new(|cx| InputState::new(window, cx));
         let pipeline_json = initial_pipeline_json
             .unwrap_or_else(|| String::from("[{ \"$match\": {} }, { \"$limit\": 50 }]"));
@@ -145,7 +145,7 @@ impl PipelineBuilderPanel {
 
             let columns: Vec<Column> = keys
                 .iter()
-                .map(|k| Column::new(k.clone(), k.clone()))
+                .map(|k| data_column(k.clone(), k.clone()))
                 .collect();
             let rows: Vec<Vec<SharedString>> = docs
                 .iter()
@@ -315,6 +315,6 @@ impl Render for PipelineBuilderPanel {
                         ),
                 )
             })
-            .child(div().flex_1().child(read_only_striped(&self.result)))
+            .child(div().flex_1().child(render_row_table(&self.result, cx)))
     }
 }

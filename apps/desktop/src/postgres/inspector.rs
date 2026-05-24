@@ -7,13 +7,13 @@ use gpui_component::{
     dock::{Panel, PanelEvent},
     h_flex,
     menu::PopupMenu,
-    table::{Column, TableState},
+    table::TableState,
     v_flex,
 };
 use sqlx::{PgPool, Row};
 
-use crate::widgets::data_table::read_only_striped;
-use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
+use crate::widgets::data_table::{configure_row_table, render_row_table};
+use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 enum PgInspectorTab {
@@ -46,13 +46,13 @@ impl TableInspectorPanel {
         cx: &mut Context<Self>,
     ) -> Self {
         let c1 = RowDelegate::default();
-        let columns_tbl = cx.new(|cx| TableState::new(c1, window, cx));
+        let columns_tbl = cx.new(|cx| configure_row_table(c1, window, cx));
         let c2 = RowDelegate::default();
-        let indexes_tbl = cx.new(|cx| TableState::new(c2, window, cx));
+        let indexes_tbl = cx.new(|cx| configure_row_table(c2, window, cx));
         let c3 = RowDelegate::default();
-        let constraints_tbl = cx.new(|cx| TableState::new(c3, window, cx));
+        let constraints_tbl = cx.new(|cx| configure_row_table(c3, window, cx));
         let c4 = RowDelegate::default();
-        let stats_tbl = cx.new(|cx| TableState::new(c4, window, cx));
+        let stats_tbl = cx.new(|cx| configure_row_table(c4, window, cx));
         let tab_label = format!("{schema}.{table_name} (schema)").into();
         let mut p = Self {
             focus_handle: cx.focus_handle(),
@@ -138,11 +138,11 @@ impl TableInspectorPanel {
                 .unwrap_or(None);
 
                 let col_columns = vec![
-                    Column::new("pos", "#"),
-                    Column::new("name", "Column"),
-                    Column::new("type", "Type"),
-                    Column::new("nullable", "NULL"),
-                    Column::new("default", "Default"),
+                    data_column("pos", "#"),
+                    data_column("name", "Column"),
+                    data_column("type", "Type"),
+                    data_column("nullable", "NULL"),
+                    data_column("default", "Default"),
                 ];
                 let col_data: Vec<Vec<SharedString>> = col_rows
                     .iter()
@@ -167,8 +167,8 @@ impl TableInspectorPanel {
                     .collect();
 
                 let ix_columns = vec![
-                    Column::new("name", "Index"),
-                    Column::new("def", "Definition"),
+                    data_column("name", "Index"),
+                    data_column("def", "Definition"),
                 ];
                 let ix_data: Vec<Vec<SharedString>> = idx_rows
                     .iter()
@@ -185,9 +185,9 @@ impl TableInspectorPanel {
                     .collect();
 
                 let co_columns = vec![
-                    Column::new("name", "Constraint"),
-                    Column::new("typ", "Type"),
-                    Column::new("def", "Definition"),
+                    data_column("name", "Constraint"),
+                    data_column("typ", "Type"),
+                    data_column("def", "Definition"),
                 ];
                 let co_data: Vec<Vec<SharedString>> = con_rows
                     .iter()
@@ -207,8 +207,8 @@ impl TableInspectorPanel {
                     .collect();
 
                 let st_columns = vec![
-                    Column::new("metric", "Metric"),
-                    Column::new("value", "Value"),
+                    data_column("metric", "Metric"),
+                    data_column("value", "Value"),
                 ];
                 let st_data: Vec<Vec<SharedString>> = if let Some(sr) = stat_rows.as_ref() {
                     let rows_est: Option<i64> = sr.try_get("estimate_rows").ok();
@@ -395,7 +395,7 @@ impl Render for TableInspectorPanel {
                     .min_h(px(200.0))
                     .border_1()
                     .border_color(border)
-                    .child(read_only_striped(active_tbl)),
+                    .child(render_row_table(active_tbl, cx)),
             )
     }
 }

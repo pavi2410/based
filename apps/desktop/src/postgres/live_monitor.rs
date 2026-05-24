@@ -12,9 +12,9 @@ use gpui_component::{
 };
 use sqlx::{Column, PgPool, Row};
 
-use crate::widgets::data_table::read_only_striped;
+use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::row_cell::pg_cell_display;
-use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
+use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
 
 pub struct LiveMonitorPanel {
     focus_handle: FocusHandle,
@@ -26,7 +26,7 @@ pub struct LiveMonitorPanel {
 impl LiveMonitorPanel {
     pub fn new(pool: PgPool, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let delegate = RowDelegate::default();
-        let table = cx.new(|cx| TableState::new(delegate, window, cx).row_selectable(true));
+        let table = cx.new(|cx| configure_row_table(delegate, window, cx));
         let mut p = Self {
             focus_handle: cx.focus_handle(),
             pool,
@@ -53,7 +53,7 @@ impl LiveMonitorPanel {
                     first
                         .columns()
                         .iter()
-                        .map(|c| TableColumn::new(c.name().to_string(), c.name().to_string()))
+                        .map(|c| data_column(c.name().to_string(), c.name().to_string()))
                         .collect()
                 } else {
                     vec![]
@@ -129,6 +129,6 @@ impl Render for LiveMonitorPanel {
                         .on_click(cx.listener(|panel, _, _, cx| panel.refresh(cx))),
                 ),
             )
-            .child(read_only_striped(&self.table))
+            .child(render_row_table(&self.table, cx))
     }
 }

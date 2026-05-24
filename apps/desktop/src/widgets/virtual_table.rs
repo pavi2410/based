@@ -4,13 +4,18 @@
 
 use gpui::{prelude::*, *};
 use gpui_component::{
-    ActiveTheme,
+    ActiveTheme, StyleSized,
     table::{Column, ColumnSort, TableState},
 };
 
-use crate::app::prefs::{self, TableDensity};
+use crate::app::prefs;
 
 pub const NULL_CELL_DISPLAY: &str = "NULL";
+
+/// Sortable, resizable column for query/browse grids.
+pub fn data_column(key: impl Into<SharedString>, label: impl Into<SharedString>) -> Column {
+    Column::new(key, label).sortable().resizable(true)
+}
 
 /// Generic row data: column names + string-valued cells.
 #[derive(Default)]
@@ -53,28 +58,53 @@ impl gpui_component::table::TableDelegate for RowDelegate {
         } else {
             cell
         };
-        let compact = prefs::table_density(cx) == TableDensity::Compact;
-        let cell_pad = if compact {
-            (px(8.0), px(2.0))
-        } else {
-            (px(12.0), px(6.0))
-        };
-        let mut el = div()
+        div()
             .truncate()
-            .px(cell_pad.0)
-            .py(cell_pad.1)
+            .table_cell_size(prefs::table_cell_size(cx))
             .font_family(cx.theme().mono_font_family.clone())
             .text_color(if is_null {
                 cx.theme().muted_foreground
             } else {
                 cx.theme().foreground
-            });
-        el = if compact { el.text_xs() } else { el.text_sm() };
-        el.child(display)
+            })
+            .child(display)
     }
 
     fn cell_text(&self, row_ix: usize, col_ix: usize, _: &App) -> String {
         self.rows[row_ix][col_ix].to_string()
+    }
+
+    fn move_column(
+        &mut self,
+        col_ix: usize,
+        to_ix: usize,
+        _: &mut Window,
+        _: &mut Context<TableState<Self>>,
+    ) {
+        if col_ix >= self.columns.len() || to_ix > self.columns.len() {
+            return;
+        }
+        let col = self.columns.remove(col_ix);
+        let insert_at = if to_ix > col_ix { to_ix - 1 } else { to_ix };
+        self.columns.insert(insert_at, col);
+
+        for row in &mut self.rows {
+            if col_ix >= row.len() {
+                continue;
+            }
+            let cell = row.remove(col_ix);
+            let insert_at = insert_at.min(row.len());
+            row.insert(insert_at, cell);
+        }
+
+        if let Some(sort_col) = self.sort_col {
+            self.sort_col = Some(match sort_col {
+                c if c == col_ix => insert_at,
+                c if col_ix < to_ix && c > col_ix && c < to_ix => c - 1,
+                c if col_ix > to_ix && c >= to_ix && c < col_ix => c + 1,
+                c => c,
+            });
+        }
     }
 
     fn perform_sort(
@@ -82,8 +112,11 @@ impl gpui_component::table::TableDelegate for RowDelegate {
         col_ix: usize,
         sort: ColumnSort,
         _: &mut Window,
-        _: &mut Context<TableState<Self>>,
+        cx: &mut Context<TableState<Self>>,
     ) {
+        if !prefs::table_prefs(cx).sortable {
+            return;
+        }
         self.sort_col = Some(col_ix);
         self.sort_asc = matches!(sort, ColumnSort::Ascending);
         if self.sort_asc {
@@ -109,6 +142,7 @@ pub fn replace_table_data(
     let delegate = state.delegate_mut();
     delegate.columns = columns;
     delegate.rows = rows;
+    delegate.sort_col = None;
     state.refresh(cx);
     cx.notify();
 }
@@ -120,5 +154,6 @@ pub fn replace_table_rows(
     cx: &mut Context<TableState<RowDelegate>>,
 ) {
     state.delegate_mut().rows = rows;
+    state.delegate_mut().sort_col = None;
     cx.notify();
 }

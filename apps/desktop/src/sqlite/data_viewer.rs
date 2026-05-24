@@ -16,13 +16,13 @@ use gpui_component::table::TableEvent;
 
 use crate::app::prefs;
 use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_display};
-use crate::widgets::data_table::read_only_striped;
+use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::filter_bar::FilterBar;
 use crate::widgets::pagination::sql_page_state;
 use crate::widgets::pagination::{offset_for_page, sql_pagination_controls, sql_row_range_label};
 use crate::widgets::row_cell::sqlite_cell_display;
 use crate::widgets::ui::{metadata_pill, panel_shell};
-use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
+use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
 use crate::workspace::pop_out::{PopOutManager, PopOutWindowTitle};
 
 pub struct DataViewerPanel {
@@ -47,11 +47,7 @@ impl DataViewerPanel {
         cx: &mut Context<Self>,
     ) -> Self {
         let delegate = RowDelegate::default();
-        let table = cx.new(|cx| {
-            TableState::new(delegate, window, cx)
-                .row_selectable(true)
-                .cell_selectable(true)
-        });
+        let table = cx.new(|cx| configure_row_table(delegate, window, cx));
         let filter_bar = cx.new(|cx| FilterBar::new(window, cx, vec![]));
         let cell_detail = cx.new(|_| CellDetail::new());
 
@@ -135,7 +131,7 @@ impl DataViewerPanel {
                     first
                         .columns()
                         .iter()
-                        .map(|c| Column::new(c.name().to_string(), c.name().to_string()))
+                        .map(|c| data_column(c.name().to_string(), c.name().to_string()))
                         .collect()
                 } else {
                     vec![]
@@ -286,7 +282,7 @@ impl Render for DataViewerPanel {
                 div()
                     .flex_1()
                     .min_h_0()
-                    .child(read_only_striped(&self.table)),
+                    .child(render_row_table(&self.table, cx)),
             )
             .child(self.cell_detail.clone());
 

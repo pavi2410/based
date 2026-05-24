@@ -8,14 +8,14 @@ use gpui_component::{
     h_flex,
     input::InputState,
     menu::PopupMenu,
-    table::{Column, TableState},
+    table::TableState,
     v_flex,
 };
 use sqlx::{Row, SqlitePool};
 
-use crate::widgets::data_table::read_only_striped;
+use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input};
-use crate::widgets::virtual_table::{RowDelegate, replace_table_rows};
+use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_rows};
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 enum SqliteInspectorTab {
@@ -61,21 +61,21 @@ impl TableInspectorPanel {
     ) -> Self {
         let col_delegate = RowDelegate {
             columns: vec![
-                Column::new("cid", "cid"),
-                Column::new("name", "Name"),
-                Column::new("type", "Type"),
-                Column::new("notnull", "NOT NULL"),
-                Column::new("pk", "PK"),
+                data_column("cid", "cid"),
+                data_column("name", "Name"),
+                data_column("type", "Type"),
+                data_column("notnull", "NOT NULL"),
+                data_column("pk", "PK"),
             ],
             ..Default::default()
         };
-        let col_table = cx.new(|cx| TableState::new(col_delegate, window, cx));
+        let col_table = cx.new(|cx| configure_row_table(col_delegate, window, cx));
 
         let idx_delegate = RowDelegate {
-            columns: vec![Column::new("name", "Name"), Column::new("unique", "Unique")],
+            columns: vec![data_column("name", "Name"), data_column("unique", "Unique")],
             ..Default::default()
         };
-        let idx_table = cx.new(|cx| TableState::new(idx_delegate, window, cx));
+        let idx_table = cx.new(|cx| configure_row_table(idx_delegate, window, cx));
 
         let tab_label = format!("{table_name} (schema)").into();
         let ddl_input = new_sql_input("(loading…)", window, cx);
@@ -259,12 +259,12 @@ impl Render for TableInspectorPanel {
             SqliteInspectorTab::Columns => div()
                 .flex_1()
                 .min_h(px(160.0))
-                .child(read_only_striped(&self.col_table))
+                .child(render_row_table(&self.col_table, cx))
                 .into_any_element(),
             SqliteInspectorTab::Indexes => div()
                 .flex_1()
                 .min_h(px(160.0))
-                .child(read_only_striped(&self.idx_table))
+                .child(render_row_table(&self.idx_table, cx))
                 .into_any_element(),
             SqliteInspectorTab::Ddl => div()
                 .id("sqlite-inspector-ddl")

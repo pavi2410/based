@@ -17,9 +17,9 @@ use mongodb::options::FindOptions;
 use gpui_component::table::TableEvent;
 
 use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_display};
-use crate::widgets::data_table::read_only_striped;
+use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::filter_bar::{FilterBar, FilterExpr};
-use crate::widgets::virtual_table::{RowDelegate, replace_table_data};
+use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
 
 fn mongo_filter_doc(expr: &FilterExpr) -> Document {
     let s = expr.to_mongo_filter();
@@ -48,11 +48,7 @@ impl DocumentViewerPanel {
     ) -> Self {
         let delegate = RowDelegate::default();
         let tab_label = collection.name().to_string().into();
-        let table = cx.new(|cx| {
-            TableState::new(delegate, window, cx)
-                .row_selectable(true)
-                .cell_selectable(true)
-        });
+        let table = cx.new(|cx| configure_row_table(delegate, window, cx));
         let filter_bar = cx.new(|cx| FilterBar::new(window, cx, vec![]));
         let cell_detail = cx.new(|_| CellDetail::new());
         let mut p = Self {
@@ -142,7 +138,7 @@ impl DocumentViewerPanel {
 
             let columns: Vec<Column> = keys
                 .iter()
-                .map(|k| Column::new(k.clone(), k.clone()))
+                .map(|k| data_column(k.clone(), k.clone()))
                 .collect();
 
             let rows: Vec<Vec<SharedString>> = docs
@@ -248,7 +244,7 @@ impl Render for DocumentViewerPanel {
                         h.child(div().text_sm().text_color(muted).child("Loading…"))
                     }),
             )
-            .child(read_only_striped(&self.table))
+            .child(render_row_table(&self.table, cx))
             .child(self.cell_detail.clone())
     }
 }

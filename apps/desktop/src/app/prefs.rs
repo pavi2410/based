@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use gpui::{App, BorrowAppContext, Global, px};
-use gpui_component::{Theme, ThemeMode};
+use gpui_component::{Size, Theme, ThemeMode};
 use serde::{Deserialize, Serialize};
 
 /// UI base font size from `based_theme.json` (`font.size`).
@@ -49,6 +49,43 @@ pub enum TableDensity {
     Comfortable,
 }
 
+/// Interaction and chrome toggles for data grids (gpui-component DataTable).
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TablePreferences {
+    #[serde(default = "default_true")]
+    pub stripe: bool,
+    #[serde(default = "default_true")]
+    pub sortable: bool,
+    #[serde(default = "default_true")]
+    pub col_resizable: bool,
+    #[serde(default = "default_true")]
+    pub col_movable: bool,
+    #[serde(default = "default_true")]
+    pub row_selectable: bool,
+    #[serde(default = "default_true")]
+    pub cell_selectable: bool,
+    #[serde(default = "default_true")]
+    pub loop_selection: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+impl Default for TablePreferences {
+    fn default() -> Self {
+        Self {
+            stripe: true,
+            sortable: true,
+            col_resizable: true,
+            col_movable: true,
+            row_selectable: true,
+            cell_selectable: true,
+            loop_selection: true,
+        }
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct NativePreferences {
     #[serde(default)]
@@ -65,6 +102,8 @@ pub struct NativePreferences {
     pub query_timeout_secs: u32,
     #[serde(default)]
     pub table_density: TableDensity,
+    #[serde(default)]
+    pub table_prefs: TablePreferences,
 }
 
 impl Default for NativePreferences {
@@ -77,6 +116,7 @@ impl Default for NativePreferences {
             page_size: DEFAULT_PAGE_SIZE,
             query_timeout_secs: DEFAULT_QUERY_TIMEOUT_SECS,
             table_density: TableDensity::Compact,
+            table_prefs: TablePreferences::default(),
         }
     }
 }
@@ -146,6 +186,125 @@ pub fn query_timeout_secs(cx: &App) -> u32 {
 
 pub fn table_density(cx: &App) -> TableDensity {
     cx.global::<NativePreferences>().table_density
+}
+
+pub fn table_prefs(cx: &App) -> TablePreferences {
+    cx.global::<NativePreferences>().table_prefs
+}
+
+pub fn table_cell_size(cx: &App) -> Size {
+    match table_density(cx) {
+        TableDensity::Compact => Size::XSmall,
+        TableDensity::Comfortable => Size::Small,
+    }
+}
+
+fn refresh_table_windows(changed: bool, cx: &mut App) {
+    if changed {
+        cx.refresh_windows();
+    }
+}
+
+fn update_table_prefs(update: impl FnOnce(&mut TablePreferences) -> bool, cx: &mut App) {
+    let changed = cx.update_global(|p: &mut NativePreferences, _| {
+        let changed = update(&mut p.table_prefs);
+        if changed {
+            p.save_best_effort();
+        }
+        changed
+    });
+    refresh_table_windows(changed, cx);
+}
+
+pub fn set_table_stripe(stripe: bool, cx: &mut App) {
+    update_table_prefs(
+        |p| {
+            if p.stripe == stripe {
+                return false;
+            }
+            p.stripe = stripe;
+            true
+        },
+        cx,
+    );
+}
+
+pub fn set_table_sortable(sortable: bool, cx: &mut App) {
+    update_table_prefs(
+        |p| {
+            if p.sortable == sortable {
+                return false;
+            }
+            p.sortable = sortable;
+            true
+        },
+        cx,
+    );
+}
+
+pub fn set_table_col_resizable(col_resizable: bool, cx: &mut App) {
+    update_table_prefs(
+        |p| {
+            if p.col_resizable == col_resizable {
+                return false;
+            }
+            p.col_resizable = col_resizable;
+            true
+        },
+        cx,
+    );
+}
+
+pub fn set_table_col_movable(col_movable: bool, cx: &mut App) {
+    update_table_prefs(
+        |p| {
+            if p.col_movable == col_movable {
+                return false;
+            }
+            p.col_movable = col_movable;
+            true
+        },
+        cx,
+    );
+}
+
+pub fn set_table_row_selectable(row_selectable: bool, cx: &mut App) {
+    update_table_prefs(
+        |p| {
+            if p.row_selectable == row_selectable {
+                return false;
+            }
+            p.row_selectable = row_selectable;
+            true
+        },
+        cx,
+    );
+}
+
+pub fn set_table_cell_selectable(cell_selectable: bool, cx: &mut App) {
+    update_table_prefs(
+        |p| {
+            if p.cell_selectable == cell_selectable {
+                return false;
+            }
+            p.cell_selectable = cell_selectable;
+            true
+        },
+        cx,
+    );
+}
+
+pub fn set_table_loop_selection(loop_selection: bool, cx: &mut App) {
+    update_table_prefs(
+        |p| {
+            if p.loop_selection == loop_selection {
+                return false;
+            }
+            p.loop_selection = loop_selection;
+            true
+        },
+        cx,
+    );
 }
 
 pub fn set_table_density(density: TableDensity, cx: &mut App) {

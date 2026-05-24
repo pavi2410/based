@@ -4,13 +4,13 @@ use gpui::{prelude::*, *};
 use gpui_component::{
     dock::{Panel, PanelEvent},
     menu::PopupMenu,
-    table::{Column, TableState},
+    table::TableState,
     v_flex,
 };
 use sqlx::{Row, SqlitePool};
 
-use crate::widgets::data_table::read_only_striped;
-use crate::widgets::virtual_table::{RowDelegate, replace_table_rows};
+use crate::widgets::data_table::{configure_row_table, render_row_table};
+use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_rows};
 use crate::workspace::pop_out::PopOutWindowTitle;
 
 const PRAGMA_LIST: &[&str] = &[
@@ -42,12 +42,12 @@ impl PragmaBrowserPanel {
     pub fn new(pool: SqlitePool, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let delegate = RowDelegate {
             columns: vec![
-                Column::new("pragma", "PRAGMA"),
-                Column::new("value", "Value"),
+                data_column("pragma", "PRAGMA"),
+                data_column("value", "Value"),
             ],
             ..Default::default()
         };
-        let table = cx.new(|cx| TableState::new(delegate, window, cx));
+        let table = cx.new(|cx| configure_row_table(delegate, window, cx));
 
         let mut panel = Self {
             focus_handle: cx.focus_handle(),
@@ -143,10 +143,10 @@ impl PopOutWindowTitle for PragmaBrowserPanel {
 }
 
 impl Render for PragmaBrowserPanel {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         v_flex()
             .w_full()
             .h_full()
-            .child(read_only_striped(&self.table))
+            .child(render_row_table(&self.table, cx))
     }
 }

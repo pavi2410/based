@@ -14,6 +14,7 @@ use mongodb::Collection;
 use mongodb::bson::{Document, doc};
 
 use crate::widgets::data_table::{configure_row_table, render_row_table};
+use crate::widgets::ui::compact_description_list_vertical;
 use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -26,7 +27,7 @@ enum MongoInspectorTab {
 pub struct CollectionInspectorPanel {
     focus_handle: FocusHandle,
     collection: Collection<Document>,
-    stats_tbl: Entity<TableState<RowDelegate>>,
+    stats_rows: Vec<(SharedString, SharedString)>,
     indexes_tbl: Entity<TableState<RowDelegate>>,
     tab: MongoInspectorTab,
     pub(crate) tab_label: SharedString,
@@ -38,15 +39,13 @@ impl CollectionInspectorPanel {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let stats_del = RowDelegate::default();
-        let stats_tbl = cx.new(|cx| configure_row_table(stats_del, window, cx));
         let idx_del = RowDelegate::default();
         let indexes_tbl = cx.new(|cx| configure_row_table(idx_del, window, cx));
         let tab_label = format!("{} (schema)", collection.name()).into();
         let mut p = Self {
             focus_handle: cx.focus_handle(),
             collection,
-            stats_tbl,
+            stats_rows: vec![],
             indexes_tbl,
             tab: MongoInspectorTab::default(),
             tab_label,
@@ -117,14 +116,8 @@ impl CollectionInspectorPanel {
                     let msg = e.to_string();
                     let _ = cx.update(|cx| {
                         this.update(cx, |panel, cx| {
-                            panel.stats_tbl.update(cx, |state, cx| {
-                                replace_table_data(
-                                    state,
-                                    vec![data_column("error", "Error")],
-                                    vec![vec![SharedString::from(msg.clone())]],
-                                    cx,
-                                );
-                            });
+                            panel.stats_rows =
+                                vec![("Error".into(), SharedString::from(msg.clone()))];
                             panel.indexes_tbl.update(cx, |state, cx| {
                                 replace_table_data(
                                     state,
@@ -138,13 +131,13 @@ impl CollectionInspectorPanel {
                     });
                 }
                 Ok((stat_rows, ix_rows)) => {
-                    let st_columns = vec![
-                        data_column("metric", "Metric"),
-                        data_column("value", "Value"),
-                    ];
-                    let st_data: Vec<Vec<SharedString>> = stat_rows
+                    let stats_rows: Vec<(SharedString, SharedString)> = stat_rows
                         .into_iter()
-                        .map(|r| r.into_iter().map(SharedString::from).collect())
+                        .map(|r| {
+                            let label = r.first().cloned().unwrap_or_default();
+                            let value = r.get(1).cloned().unwrap_or_default();
+                            (label.into(), value.into())
+                        })
                         .collect();
 
                     let ix_columns = vec![
@@ -159,9 +152,7 @@ impl CollectionInspectorPanel {
 
                     let _ = cx.update(|cx| {
                         this.update(cx, |panel, cx| {
-                            panel.stats_tbl.update(cx, |state, cx| {
-                                replace_table_data(state, st_columns, st_data, cx);
-                            });
+                            panel.stats_rows = stats_rows;
                             panel.indexes_tbl.update(cx, |state, cx| {
                                 replace_table_data(state, ix_columns, ix_data, cx);
                             });
@@ -231,9 +222,16 @@ impl Panel for CollectionInspectorPanel {
 impl Render for CollectionInspectorPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let border = cx.theme().border;
-        let active_tbl = match self.tab {
-            MongoInspectorTab::Stats => &self.stats_tbl,
-            MongoInspectorTab::Indexes => &self.indexes_tbl,
+        let stats_rows = self.stats_rows.clone();
+
+        let body: AnyElement = match self.tab {
+            MongoInspectorTab::Stats => div()
+                .p_3()
+                .child(compact_description_list_vertical(stats_rows))
+                .into_any_element(),
+            MongoInspectorTab::Indexes => {
+                render_row_table(&self.indexes_tbl, cx).into_any_element()
+            }
         };
 
         v_flex()
@@ -265,7 +263,7 @@ impl Render for CollectionInspectorPanel {
                     .min_h(px(200.0))
                     .border_1()
                     .border_color(border)
-                    .child(render_row_table(active_tbl, cx)),
+                    .child(body),
             )
     }
 }

@@ -13,6 +13,7 @@ use gpui_component::{
 use sqlx::{PgPool, Row};
 
 use crate::widgets::data_table::{configure_row_table, render_row_table};
+use crate::widgets::ui::compact_description_list_vertical;
 use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -32,7 +33,7 @@ pub struct TableInspectorPanel {
     columns_tbl: Entity<TableState<RowDelegate>>,
     indexes_tbl: Entity<TableState<RowDelegate>>,
     constraints_tbl: Entity<TableState<RowDelegate>>,
-    stats_tbl: Entity<TableState<RowDelegate>>,
+    stats_rows: Vec<(SharedString, SharedString)>,
     tab: PgInspectorTab,
     pub(crate) tab_label: SharedString,
 }
@@ -51,8 +52,6 @@ impl TableInspectorPanel {
         let indexes_tbl = cx.new(|cx| configure_row_table(c2, window, cx));
         let c3 = RowDelegate::default();
         let constraints_tbl = cx.new(|cx| configure_row_table(c3, window, cx));
-        let c4 = RowDelegate::default();
-        let stats_tbl = cx.new(|cx| configure_row_table(c4, window, cx));
         let tab_label = format!("{schema}.{table_name} (schema)").into();
         let mut p = Self {
             focus_handle: cx.focus_handle(),
@@ -62,7 +61,7 @@ impl TableInspectorPanel {
             columns_tbl,
             indexes_tbl,
             constraints_tbl,
-            stats_tbl,
+            stats_rows: vec![],
             tab: PgInspectorTab::default(),
             tab_label,
         };
@@ -206,46 +205,42 @@ impl TableInspectorPanel {
                     })
                     .collect();
 
-                let st_columns = vec![
-                    data_column("metric", "Metric"),
-                    data_column("value", "Value"),
-                ];
-                let st_data: Vec<Vec<SharedString>> = if let Some(sr) = stat_rows.as_ref() {
-                    let rows_est: Option<i64> = sr.try_get("estimate_rows").ok();
-                    let ts: String = sr
-                        .try_get::<Option<String>, _>("table_size")
-                        .ok()
-                        .flatten()
-                        .unwrap_or_default();
-                    let isz: String = sr
-                        .try_get::<Option<String>, _>("indexes_size")
-                        .ok()
-                        .flatten()
-                        .unwrap_or_default();
-                    let tot: String = sr
-                        .try_get::<Option<String>, _>("total_size")
-                        .ok()
-                        .flatten()
-                        .unwrap_or_default();
-                    vec![
+                let stats_rows: Vec<(SharedString, SharedString)> =
+                    if let Some(sr) = stat_rows.as_ref() {
+                        let rows_est: Option<i64> = sr.try_get("estimate_rows").ok();
+                        let ts: String = sr
+                            .try_get::<Option<String>, _>("table_size")
+                            .ok()
+                            .flatten()
+                            .unwrap_or_default();
+                        let isz: String = sr
+                            .try_get::<Option<String>, _>("indexes_size")
+                            .ok()
+                            .flatten()
+                            .unwrap_or_default();
+                        let tot: String = sr
+                            .try_get::<Option<String>, _>("total_size")
+                            .ok()
+                            .flatten()
+                            .unwrap_or_default();
                         vec![
-                            SharedString::from("Estimated rows"),
-                            SharedString::from(
+                            (
+                                "Estimated rows".into(),
                                 rows_est
                                     .map(|n| n.to_string())
-                                    .unwrap_or_else(|| "—".into()),
+                                    .unwrap_or_else(|| "—".into())
+                                    .into(),
                             ),
-                        ],
-                        vec![SharedString::from("Table size"), ts.into()],
-                        vec![SharedString::from("Indexes size"), isz.into()],
-                        vec![SharedString::from("Total size"), tot.into()],
-                    ]
-                } else {
-                    vec![vec![
-                        SharedString::from("(no stats)"),
-                        SharedString::from("relation not found or not a regular table"),
-                    ]]
-                };
+                            ("Table size".into(), ts.into()),
+                            ("Indexes size".into(), isz.into()),
+                            ("Total size".into(), tot.into()),
+                        ]
+                    } else {
+                        vec![(
+                            "(no stats)".into(),
+                            "relation not found or not a regular table".into(),
+                        )]
+                    };
 
                 (
                     col_columns,
@@ -254,22 +249,13 @@ impl TableInspectorPanel {
                     ix_data,
                     co_columns,
                     co_data,
-                    st_columns,
-                    st_data,
+                    stats_rows,
                 )
             })
             .await;
 
-            let Ok((
-                col_columns,
-                col_data,
-                ix_columns,
-                ix_data,
-                co_columns,
-                co_data,
-                st_columns,
-                st_data,
-            )) = loaded
+            let Ok((col_columns, col_data, ix_columns, ix_data, co_columns, co_data, stats_rows)) =
+                loaded
             else {
                 return;
             };
@@ -285,9 +271,7 @@ impl TableInspectorPanel {
                     panel.constraints_tbl.update(cx, |state, cx| {
                         replace_table_data(state, co_columns, co_data, cx);
                     });
-                    panel.stats_tbl.update(cx, |state, cx| {
-                        replace_table_data(state, st_columns, st_data, cx);
-                    });
+                    panel.stats_rows = stats_rows;
                     cx.notify();
                 })
             });
@@ -352,11 +336,18 @@ impl Panel for TableInspectorPanel {
 impl Render for TableInspectorPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let border = cx.theme().border;
-        let active_tbl = match self.tab {
-            PgInspectorTab::Columns => &self.columns_tbl,
-            PgInspectorTab::Indexes => &self.indexes_tbl,
-            PgInspectorTab::Constraints => &self.constraints_tbl,
-            PgInspectorTab::Stats => &self.stats_tbl,
+        let stats_rows = self.stats_rows.clone();
+
+        let body: AnyElement = match self.tab {
+            PgInspectorTab::Stats => div()
+                .p_3()
+                .child(compact_description_list_vertical(stats_rows))
+                .into_any_element(),
+            PgInspectorTab::Columns => render_row_table(&self.columns_tbl, cx).into_any_element(),
+            PgInspectorTab::Indexes => render_row_table(&self.indexes_tbl, cx).into_any_element(),
+            PgInspectorTab::Constraints => {
+                render_row_table(&self.constraints_tbl, cx).into_any_element()
+            }
         };
 
         v_flex()
@@ -395,7 +386,7 @@ impl Render for TableInspectorPanel {
                     .min_h(px(200.0))
                     .border_1()
                     .border_color(border)
-                    .child(render_row_table(active_tbl, cx)),
+                    .child(body),
             )
     }
 }

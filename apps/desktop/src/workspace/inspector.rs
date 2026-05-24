@@ -2,7 +2,7 @@ use gpui::{Context, Entity, FontWeight, IntoElement, div, prelude::*};
 use gpui_component::{ActiveTheme, StyledExt, h_flex, v_flex};
 
 use crate::connection::{ConnectionEntry, ConnectionState};
-use crate::widgets::ui::{engine_chip, engine_name, metadata_pill};
+use crate::widgets::ui::{engine_chip, engine_name, inspector_description_section, metadata_pill};
 
 use super::Workspace;
 use super::notify;
@@ -53,9 +53,9 @@ pub(crate) fn render_inspector(
                     .child(engine_chip(engine, cx))
                     .child(metadata_pill("state", state, cx)),
             )
-            .child(inspector_section(
+            .child(inspector_description_section(
                 "Activity",
-                vec![
+                [
                     ("Recent", "Schema refresh"),
                     ("Saved", "0 queries"),
                     ("Pinned", "No pinned objects"),
@@ -73,9 +73,9 @@ pub(crate) fn render_inspector(
                 "Choose a connection, table, cell, or query to see details here.",
                 cx,
             ))
-            .child(inspector_section(
+            .child(inspector_description_section(
                 "Shortcuts",
-                vec![
+                [
                     (
                         "Command",
                         if cfg!(target_os = "macos") {
@@ -157,46 +157,4 @@ fn inspector_note(
                 .text_color(cx.theme().muted_foreground)
                 .child(body.to_string()),
         )
-}
-
-fn inspector_section(
-    title: &'static str,
-    rows: Vec<(&'static str, &'static str)>,
-    cx: &mut Context<Workspace>,
-) -> impl IntoElement {
-    v_flex()
-        .gap_2()
-        .child(
-            div()
-                .text_xs()
-                .font_bold()
-                .font_family(cx.theme().mono_font_family.clone())
-                .text_color(cx.theme().muted_foreground)
-                .child(title),
-        )
-        .children(rows.into_iter().map(|(label, value)| {
-            h_flex()
-                .h(gpui::px(24.0))
-                .items_center()
-                .gap_2()
-                .border_b_1()
-                .border_color(cx.theme().border.opacity(0.42))
-                .child(
-                    div()
-                        .w(gpui::px(88.0))
-                        .flex_shrink_0()
-                        .text_xs()
-                        .text_color(cx.theme().muted_foreground)
-                        .child(label),
-                )
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .text_xs()
-                        .text_color(cx.theme().foreground.opacity(0.88))
-                        .truncate()
-                        .child(value),
-                )
-        }))
 }

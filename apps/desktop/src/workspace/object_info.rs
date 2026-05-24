@@ -12,7 +12,9 @@ use gpui_component::{
 
 use crate::connection::{AnyConnection, ConnectionEntry, ConnectionState};
 use crate::query_store::QueryStore;
-use crate::widgets::ui::{engine_chip, metadata_pill, panel_header};
+use crate::widgets::ui::{
+    compact_description_list_vertical, engine_chip, metadata_pill, panel_header,
+};
 
 pub struct ConnectionDashboardPanel {
     focus_handle: FocusHandle,
@@ -106,9 +108,10 @@ impl Render for ConnectionDashboardPanel {
         let history_len = store.history_for(&conn_id).len();
         let saved_len = store.saved.for_conn(&conn_id).len();
 
-        let stats_summary = format!(
-            "Recorded runs in session history: {history_len}. Saved queries tied to this connection: {saved_len}."
-        );
+        let stats_rows = [
+            ("Session history", history_len.to_string()),
+            ("Saved queries", saved_len.to_string()),
+        ];
 
         let mut header_row = h_flex()
             .gap_2()
@@ -135,11 +138,7 @@ impl Render for ConnectionDashboardPanel {
                     .p_4()
                     .gap_4()
                     .child(header_row)
-                    .child(dashboard_card(
-                        "Queries",
-                        stats_summary,
-                        cx,
-                    ))
+                    .child(dashboard_card_with_list("Queries", stats_rows, cx))
                     .child(dashboard_card(
                         "Start",
                         "Use the Objects pane to open tables, views, or collections. Use the query tab for ad-hoc work.",
@@ -235,6 +234,30 @@ impl Render for ObjectInfoPanel {
                     )),
             )
     }
+}
+
+fn dashboard_card_with_list(
+    title: impl Into<SharedString>,
+    rows: impl IntoIterator<Item = (impl Into<SharedString>, impl Into<SharedString>)>,
+    cx: &mut App,
+) -> impl IntoElement {
+    let title = title.into();
+    v_flex()
+        .gap_1()
+        .p_3()
+        .w_full()
+        .rounded(gpui::px(crate::widgets::ui::PANEL_RADIUS))
+        .border_1()
+        .border_color(cx.theme().border.opacity(0.85))
+        .bg(cx.theme().muted.opacity(0.22))
+        .child(
+            div()
+                .text_sm()
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .text_color(cx.theme().foreground)
+                .child(title),
+        )
+        .child(compact_description_list_vertical(rows))
 }
 
 fn dashboard_card(

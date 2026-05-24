@@ -4,13 +4,11 @@ use gpui::{prelude::*, *};
 use gpui_component::{
     dock::{Panel, PanelEvent},
     menu::PopupMenu,
-    table::TableState,
     v_flex,
 };
 use sqlx::{Row, SqlitePool};
 
-use crate::widgets::data_table::{configure_row_table, render_row_table};
-use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_rows};
+use crate::widgets::ui::compact_description_list_vertical;
 use crate::workspace::pop_out::PopOutWindowTitle;
 
 const PRAGMA_LIST: &[&str] = &[
@@ -25,35 +23,19 @@ const PRAGMA_LIST: &[&str] = &[
     "wal_checkpoint",
 ];
 
-pub struct PragmaRow {
-    pub name: &'static str,
-    pub value: String,
-}
-
 pub struct PragmaBrowserPanel {
     focus_handle: FocusHandle,
     pool: SqlitePool,
-    pragmas: Vec<PragmaRow>,
-    table: Entity<TableState<RowDelegate>>,
+    pragmas: Vec<(SharedString, SharedString)>,
     pub(crate) tab_label: SharedString,
 }
 
 impl PragmaBrowserPanel {
-    pub fn new(pool: SqlitePool, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let delegate = RowDelegate {
-            columns: vec![
-                data_column("pragma", "PRAGMA"),
-                data_column("value", "Value"),
-            ],
-            ..Default::default()
-        };
-        let table = cx.new(|cx| configure_row_table(delegate, window, cx));
-
+    pub fn new(pool: SqlitePool, _window: &mut Window, cx: &mut Context<Self>) -> Self {
         let mut panel = Self {
             focus_handle: cx.focus_handle(),
             pool,
             pragmas: vec![],
-            table,
             tab_label: "PRAGMAs".into(),
         };
         panel.load_pragmas(cx);
@@ -87,15 +69,13 @@ impl PragmaBrowserPanel {
                 Err(_) => return,
             };
 
-            let data_rows: Vec<Vec<SharedString>> = rows
-                .iter()
-                .map(|(k, v)| vec![SharedString::from(k.clone()), SharedString::from(v.clone())])
+            let pragmas: Vec<(SharedString, SharedString)> = rows
+                .into_iter()
+                .map(|(k, v)| (k.into(), v.into()))
                 .collect();
 
             let _ = this.update(cx, |panel, cx| {
-                panel.table.update(cx, |state, cx| {
-                    replace_table_rows(state, data_rows, cx);
-                });
+                panel.pragmas = pragmas;
                 cx.notify();
             });
         })
@@ -143,10 +123,12 @@ impl PopOutWindowTitle for PragmaBrowserPanel {
 }
 
 impl Render for PragmaBrowserPanel {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        let pragmas = self.pragmas.clone();
         v_flex()
             .w_full()
             .h_full()
-            .child(render_row_table(&self.table, cx))
+            .p_3()
+            .child(compact_description_list_vertical(pragmas))
     }
 }

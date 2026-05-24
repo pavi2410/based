@@ -4,7 +4,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::widgets::ui::{SIDEBAR_INSET, engine_color, engine_label_inline};
+use crate::{
+    widgets::ui::{SIDEBAR_INSET, engine_color, engine_label_inline},
+    workspace::connection_tree::object_list::ObjectListDelegate,
+};
 use gpui::{
     Context, Entity, EventEmitter, InteractiveElement, IntoElement, Render, SharedString, Window,
     div, prelude::*, px,
@@ -13,6 +16,7 @@ use gpui_component::{
     ActiveTheme, Icon, IconName, Sizable as _, StyledExt,
     dock::{DockArea, DockItem},
     h_flex,
+    list::ListState,
     menu::{ContextMenuExt, PopupMenuItem},
     scroll::ScrollableElement,
     tooltip::Tooltip,
@@ -35,6 +39,7 @@ use super::notify;
 use super::tab_spec::TabSpec;
 
 mod object_browser;
+mod object_list;
 mod types;
 
 pub use types::{ObjectKind, SchemaObject, TreeEvent};
@@ -48,8 +53,11 @@ pub struct ConnectionTree {
     #[allow(dead_code)]
     active_spec: Option<TabSpec>,
     selected_connection: Option<usize>,
-    active_objects: ActiveObjects,
-    selected_object: Option<String>,
+    pub(crate) active_objects: ActiveObjects,
+    pub(crate) selected_object: Option<String>,
+    pub(crate) object_list: Option<Entity<ListState<ObjectListDelegate>>>,
+    object_list_epoch: u64,
+    object_list_last_synced: u64,
     pending_open_connection: Option<usize>,
 }
 
@@ -73,6 +81,7 @@ impl ConnectionTree {
                 this.selected_connection = None;
                 this.active_objects = ActiveObjects::Empty;
                 this.selected_object = None;
+                this.bump_object_list_epoch();
                 this.pending_open_connection = None;
                 cx.notify();
             }
@@ -100,8 +109,15 @@ impl ConnectionTree {
             selected_connection: None,
             active_objects: ActiveObjects::Empty,
             selected_object: None,
+            object_list: None,
+            object_list_epoch: 0,
+            object_list_last_synced: u64::MAX,
             pending_open_connection: None,
         }
+    }
+
+    pub(crate) fn bump_object_list_epoch(&mut self) {
+        self.object_list_epoch = self.object_list_epoch.wrapping_add(1);
     }
 
     fn open_new_query(&mut self, idx: usize, cx: &mut Context<Self>) {
@@ -147,6 +163,7 @@ impl ConnectionTree {
         };
         self.selected_connection = Some(idx);
         self.selected_object = None;
+        self.bump_object_list_epoch();
         let conn_ent = self.registry.read(cx).connections()[idx].clone();
         if matches!(conn_ent.read(cx).state, ConnectionState::Connected(_)) {
             self.pending_open_connection = Some(idx);
@@ -162,6 +179,7 @@ impl ConnectionTree {
     ) {
         self.selected_connection = Some(idx);
         self.selected_object = None;
+        self.bump_object_list_epoch();
         let conn_ent = match self.registry.read(cx).connections().get(idx) {
             Some(e) => e.clone(),
             None => return,
@@ -182,6 +200,7 @@ impl ConnectionTree {
             label: config.label().to_string(),
             engine: config.engine(),
         };
+        self.bump_object_list_epoch();
         conn_ent.update(cx, |e, cx| {
             e.state = ConnectionState::Connecting {
                 since: Instant::now(),
@@ -366,6 +385,7 @@ impl ConnectionTree {
             label: label.clone(),
             engine,
         };
+        self.bump_object_list_epoch();
         self.load_objects_for_connection(idx, ac.clone(), cx);
 
         let weak = self.dock_area.downgrade();
@@ -483,6 +503,7 @@ impl ConnectionTree {
             label: label.clone(),
             engine,
         };
+        self.bump_object_list_epoch();
         cx.spawn(async move |this, cx| {
             let result = crate::db::run(cx, async move {
                 let rows = sqlx::query(
@@ -529,6 +550,7 @@ impl ConnectionTree {
                         message: err.to_string(),
                     },
                 };
+                tree.bump_object_list_epoch();
                 cx.notify();
             });
         })
@@ -547,6 +569,7 @@ impl ConnectionTree {
             label: label.clone(),
             engine,
         };
+        self.bump_object_list_epoch();
         cx.spawn(async move |this, cx| {
             let result = crate::db::run(cx, async move {
                 let rows = sqlx::query(
@@ -595,6 +618,7 @@ impl ConnectionTree {
                         message: err.to_string(),
                     },
                 };
+                tree.bump_object_list_epoch();
                 cx.notify();
             });
         })
@@ -613,6 +637,7 @@ impl ConnectionTree {
             label: label.clone(),
             engine,
         };
+        self.bump_object_list_epoch();
         cx.spawn(async move |this, cx| {
             let result = crate::db::run(cx, async move {
                 let names = db.list_collection_names(None).await?;
@@ -643,13 +668,14 @@ impl ConnectionTree {
                         message: err.to_string(),
                     },
                 };
+                tree.bump_object_list_epoch();
                 cx.notify();
             });
         })
         .detach();
     }
 
-    fn on_object_clicked(
+    pub(crate) fn on_object_clicked(
         &mut self,
         object: SchemaObject,
         _window: &mut Window,
@@ -715,7 +741,7 @@ impl ConnectionTree {
         }));
     }
 
-    fn open_inspector_tab(
+    pub(crate) fn open_inspector_tab(
         &mut self,
         object: SchemaObject,
         conn_id: ConnectionId,
@@ -727,7 +753,7 @@ impl ConnectionTree {
         }));
     }
 
-    fn open_document_insert_tab(
+    pub(crate) fn open_document_insert_tab(
         &mut self,
         object: SchemaObject,
         conn_id: ConnectionId,
@@ -833,7 +859,7 @@ impl Render for ConnectionTree {
                             .child("Search connections"),
                     ),
             )
-            .child(v_flex().flex_1().overflow_y_scrollbar().children(
+            .child(v_flex().flex_1().min_h_0().overflow_y_scrollbar().children(
                 conn_list.into_iter().enumerate().map(|(idx, ent)| {
                     let entry = ent.read(cx);
                     let state_color = connection_state_dot(&entry.state, cx.theme());
@@ -1004,19 +1030,8 @@ impl Render for ConnectionTree {
                 }),
             ));
 
-        let conn_id_for_tabs = self.selected_connection.and_then(|idx| {
-            self.registry
-                .read(cx)
-                .connections()
-                .get(idx)
-                .map(|e| e.read(cx).id.clone())
-        });
-        let objects_pane = object_browser::render_objects_pane(
-            self.active_objects.clone(),
-            self.selected_object.clone(),
-            conn_id_for_tabs,
-            cx,
-        );
+        let objects_pane =
+            object_browser::render_objects_pane(self.active_objects.clone(), self, window, cx);
 
         v_flex()
             .size_full()

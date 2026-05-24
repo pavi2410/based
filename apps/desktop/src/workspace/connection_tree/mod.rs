@@ -4,22 +4,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::{
-    widgets::ui::{SIDEBAR_INSET, engine_color, engine_label_inline},
-    workspace::connection_tree::object_list::ObjectListDelegate,
-};
-use gpui::{
-    Context, Entity, EventEmitter, InteractiveElement, IntoElement, Render, SharedString, Window,
-    div, prelude::*, px,
-};
+use crate::widgets::ui::SIDEBAR_INSET;
+use gpui::{Context, Entity, EventEmitter, IntoElement, Render, Window, div, prelude::*, px};
 use gpui_component::{
-    ActiveTheme, Icon, IconName, Sizable as _, StyledExt,
+    ActiveTheme,
     dock::{DockArea, DockItem},
-    h_flex,
     list::ListState,
-    menu::{ContextMenuExt, PopupMenuItem},
-    scroll::ScrollableElement,
-    tooltip::Tooltip,
     v_flex,
 };
 use mongodb::Database;
@@ -38,7 +28,8 @@ use ::mongodb::bson::Document;
 use super::notify;
 use super::tab_spec::TabSpec;
 
-mod object_browser;
+mod connection_browser;
+mod connection_list;
 mod object_list;
 mod types;
 
@@ -46,15 +37,19 @@ pub use types::{ObjectKind, SchemaObject, TreeEvent};
 
 use types::{ActiveObjects, ConnState};
 
+use connection_list::ConnectionListDelegate;
+use object_list::ObjectListDelegate;
+
 pub struct ConnectionTree {
     pub registry: Entity<ConnectionRegistry>,
     dock_area: Entity<DockArea>,
     conn_states: HashMap<crate::connection::ConnectionId, ConnState>,
     #[allow(dead_code)]
     active_spec: Option<TabSpec>,
-    selected_connection: Option<usize>,
+    pub(crate) selected_connection: Option<usize>,
     pub(crate) active_objects: ActiveObjects,
     pub(crate) selected_object: Option<String>,
+    pub(crate) connection_list: Option<Entity<ListState<ConnectionListDelegate>>>,
     pub(crate) object_list: Option<Entity<ListState<ObjectListDelegate>>>,
     object_list_epoch: u64,
     object_list_last_synced: u64,
@@ -109,6 +104,7 @@ impl ConnectionTree {
             selected_connection: None,
             active_objects: ActiveObjects::Empty,
             selected_object: None,
+            connection_list: None,
             object_list: None,
             object_list_epoch: 0,
             object_list_last_synced: u64::MAX,
@@ -120,7 +116,7 @@ impl ConnectionTree {
         self.object_list_epoch = self.object_list_epoch.wrapping_add(1);
     }
 
-    fn open_new_query(&mut self, idx: usize, cx: &mut Context<Self>) {
+    pub(crate) fn open_new_query(&mut self, idx: usize, cx: &mut Context<Self>) {
         let Some(ent) = self.registry.read(cx).connections().get(idx) else {
             return;
         };
@@ -128,7 +124,7 @@ impl ConnectionTree {
         cx.emit(TreeEvent::OpenTab(TabSpec::blank_query_editor(conn_id)));
     }
 
-    fn disconnect_at(&mut self, idx: usize, cx: &mut Context<Self>) {
+    pub(crate) fn disconnect_at(&mut self, idx: usize, cx: &mut Context<Self>) {
         let ent = self.registry.read(cx).connections().get(idx).cloned();
         let Some(ent) = ent else {
             return;
@@ -171,7 +167,7 @@ impl ConnectionTree {
         cx.notify();
     }
 
-    fn on_connection_row_clicked(
+    pub(crate) fn on_connection_row_clicked(
         &mut self,
         idx: usize,
         _window: &mut Window,
@@ -782,275 +778,28 @@ impl Render for ConnectionTree {
             }
         }
 
-        let conn_list: Vec<Entity<ConnectionEntry>> = self.registry.read(cx).connections().to_vec();
-        let border = cx.theme().sidebar_border;
-        let muted = cx.theme().muted_foreground;
-        let sfg = cx.theme().sidebar_foreground;
-        let list_hover = cx.theme().list_hover;
-
-        let connections_pane = v_flex()
-            .h(gpui::px(250.0))
-            .min_h(gpui::px(170.0))
-            .max_h(gpui::px(270.0))
-            .flex_shrink_0()
-            .border_b_1()
-            .border_color(border)
-            .child(
-                h_flex()
-                    .h(gpui::px(32.0))
-                    .px(px(SIDEBAR_INSET))
-                    .gap_2()
-                    .items_center()
-                    .border_b_1()
-                    .border_color(border.opacity(0.86))
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .text_xs()
-                            .font_weight(gpui::FontWeight::MEDIUM)
-                            .text_color(muted)
-                            .truncate()
-                            .child("Connections"),
-                    )
-                    .child(
-                        div()
-                            .h(gpui::px(22.0))
-                            .px(gpui::px(7.0))
-                            .rounded(gpui::px(5.0))
-                            .border_1()
-                            .border_color(border.opacity(0.8))
-                            .bg(cx.theme().muted.opacity(0.38))
-                            .text_xs()
-                            .text_color(muted)
-                            .flex()
-                            .items_center()
-                            .child("+"),
-                    ),
-            )
-            .child(
-                h_flex()
-                    .id("connection-search-placeholder")
-                    .mx(px(SIDEBAR_INSET))
-                    .my_2()
-                    .h(gpui::px(28.0))
-                    .items_center()
-                    .gap_2()
-                    .px(px(SIDEBAR_INSET))
-                    .rounded(gpui::px(6.0))
-                    .border_1()
-                    .border_color(border.opacity(0.78))
-                    .bg(cx.theme().muted.opacity(0.32))
-                    .cursor_default()
-                    .tooltip(|window, app| {
-                        Tooltip::new("Connection filter coming soon — use ⌘K for now")
-                            .build(window, app)
-                    })
-                    .child(
-                        Icon::new(IconName::Search)
-                            .with_size(gpui_component::Size::XSmall)
-                            .text_color(muted),
-                    )
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(muted)
-                            .truncate()
-                            .child("Search connections"),
-                    ),
-            )
-            .child(v_flex().flex_1().min_h_0().overflow_y_scrollbar().children(
-                conn_list.into_iter().enumerate().map(|(idx, ent)| {
-                    let entry = ent.read(cx);
-                    let state_color = connection_state_dot(&entry.state, cx.theme());
-                    let engine = entry.config.engine();
-                    let conn_label = entry.config.label().to_string();
-                    let state_label = entry.state.label();
-                    let is_selected = self.selected_connection == Some(idx);
-                    let is_connected = matches!(entry.state, ConnectionState::Connected(_));
-                    let is_failed = matches!(entry.state, ConnectionState::Failed { .. });
-                    let fail_reason = match &entry.state {
-                        ConnectionState::Failed { reason, .. } => Some(reason.clone()),
-                        _ => None,
-                    };
-                    let err_fg = cx.theme().danger_foreground;
-
-                    let status_cell = if is_failed {
-                        h_flex()
-                            .flex_shrink_0()
-                            .gap_1()
-                            .items_center()
-                            .child(
-                                Icon::new(IconName::CircleX)
-                                    .text_color(err_fg)
-                                    .with_size(gpui_component::Size::XSmall),
-                            )
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .font_weight(gpui::FontWeight::MEDIUM)
-                                    .text_color(err_fg)
-                                    .child("Failed"),
-                            )
-                    } else {
-                        h_flex().flex_shrink_0().child(
-                            div()
-                                .text_xs()
-                                .text_color(muted.opacity(0.88))
-                                .child(state_label),
-                        )
-                    };
-
-                    let main_row = v_flex()
-                        .w_full()
-                        .gap(px(2.0))
-                        .child(
-                            h_flex()
-                                .w_full()
-                                .gap_2()
-                                .items_center()
-                                .child(
-                                    div()
-                                        .w_2()
-                                        .h_2()
-                                        .rounded_full()
-                                        .flex_shrink_0()
-                                        .bg(state_color),
-                                )
-                                .child(
-                                    div()
-                                        .flex_1()
-                                        .min_w_0()
-                                        .text_sm()
-                                        .text_color(sfg)
-                                        .truncate()
-                                        .when(is_failed, |d| d.text_color(err_fg.opacity(0.92)))
-                                        .child(conn_label.clone()),
-                                )
-                                .child(status_cell),
-                        )
-                        .child(
-                            h_flex()
-                                .gap_1()
-                                .items_center()
-                                .pl(px(10.0))
-                                .child(engine_label_inline(engine, cx))
-                                .child(
-                                    div()
-                                        .text_xs()
-                                        .text_color(muted.opacity(0.78))
-                                        .child("local"),
-                                ),
-                        );
-
-                    let mut row = main_row.id(("conn-row", idx));
-                    if let Some(reason) = fail_reason {
-                        let reason_tip: SharedString = reason.clone().into();
-                        row = row.tooltip(move |window, app| {
-                            Tooltip::element({
-                                let reason_tip = reason_tip.clone();
-                                move |_w, tip_cx| {
-                                    let fg = tip_cx.theme().foreground;
-                                    let subtle = tip_cx.theme().muted_foreground;
-                                    v_flex()
-                                        .gap_1()
-                                        .max_w(gpui::px(400.0))
-                                        .child(
-                                            div()
-                                                .text_xs()
-                                                .font_semibold()
-                                                .text_color(fg)
-                                                .child("Could not connect"),
-                                        )
-                                        .child(
-                                            div()
-                                                .text_xs()
-                                                .text_color(subtle)
-                                                .font_family(
-                                                    tip_cx.theme().mono_font_family.clone(),
-                                                )
-                                                .child(reason_tip.clone()),
-                                        )
-                                }
-                            })
-                            .build(window, app)
-                        });
-                    }
-
-                    row.px(px(SIDEBAR_INSET))
-                        .py(px(4.0))
-                        .cursor_pointer()
-                        .when(is_selected, |r| {
-                            r.bg(cx.theme().accent.opacity(0.15))
-                                .border_l_2()
-                                .border_color(engine_color(engine).opacity(0.55))
-                        })
-                        .when(is_failed && !is_selected, |r| {
-                            r.border_l_2().border_color(cx.theme().danger.opacity(0.5))
-                        })
-                        .hover(move |s| s.bg(list_hover))
-                        .on_click(cx.listener(move |tree, _, window, cx| {
-                            tree.on_connection_row_clicked(idx, window, cx);
-                        }))
-                        .context_menu({
-                            let tree_weak = cx.entity().downgrade();
-                            move |menu, _window, cx| {
-                                if let Some(tree_ent) = tree_weak.upgrade() {
-                                    tree_ent.update(cx, |tree, cx| {
-                                        tree.selected_connection = Some(idx);
-                                        cx.notify();
-                                    });
-                                }
-                                let mut menu =
-                                    menu.item(PopupMenuItem::new("New Query").on_click({
-                                        let tree_weak = tree_weak.clone();
-                                        move |_, _window, cx| {
-                                            if let Some(tree_ent) = tree_weak.upgrade() {
-                                                tree_ent.update(cx, |tree, cx| {
-                                                    tree.open_new_query(idx, cx);
-                                                });
-                                            }
-                                        }
-                                    }));
-                                if is_connected {
-                                    menu = menu.item(PopupMenuItem::new("Disconnect").on_click({
-                                        let tree_weak = tree_weak.clone();
-                                        move |_, _window, cx| {
-                                            if let Some(tree_ent) = tree_weak.upgrade() {
-                                                tree_ent.update(cx, |tree, cx| {
-                                                    tree.disconnect_at(idx, cx);
-                                                });
-                                            }
-                                        }
-                                    }));
-                                }
-                                menu
-                            }
-                        })
-                }),
-            ));
-
-        let objects_pane =
-            object_browser::render_objects_pane(self.active_objects.clone(), self, window, cx);
+        let connection_list = connection_list::ensure_connection_list(self, window, cx);
+        connection_list::refresh_connection_list(self, cx);
+        let object_list = object_list::ensure_object_list(self, window, cx);
+        object_list::refresh_object_list(self, cx);
+        let active_objects = self.active_objects.clone();
 
         v_flex()
             .size_full()
             .min_h_0()
-            .child(connections_pane)
-            .child(objects_pane)
+            .child(connection_browser::render_connections_pane(
+                connection_list,
+                cx,
+            ))
+            .child(connection_browser::render_objects_pane(
+                active_objects,
+                object_list,
+                cx,
+            ))
     }
 }
 
 impl EventEmitter<TreeEvent> for ConnectionTree {}
-
-fn connection_state_dot(state: &ConnectionState, t: &gpui_component::Theme) -> gpui::Hsla {
-    match state {
-        ConnectionState::Disconnected => t.muted_foreground.opacity(0.75),
-        ConnectionState::Connecting { .. } => t.yellow.opacity(0.95),
-        ConnectionState::Connected(_) => t.green_light,
-        ConnectionState::Failed { .. } => t.red,
-    }
-}
 
 impl ConnectionTree {
     /// Connected connections' cached schema objects matching `query` (palette search).

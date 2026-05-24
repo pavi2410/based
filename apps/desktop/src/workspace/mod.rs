@@ -23,6 +23,7 @@ pub mod object_info;
 pub mod pane;
 pub mod pop_out;
 pub use pop_out::PopOutManager;
+pub mod env;
 pub mod sidebar;
 pub mod status_bar;
 pub mod topbar;
@@ -44,9 +45,11 @@ use gpui::{
     SharedString, Window, WindowBounds, WindowOptions, div, point, prelude::*, px, size,
 };
 use gpui_component::{
-    ActiveTheme, Root,
+    ActiveTheme, IndexPath, Root,
     dock::{DockArea, DockEvent, DockItem, DockPlacement, PanelStyle},
-    h_flex, v_flex,
+    h_flex,
+    select::{SelectEvent, SelectState},
+    v_flex,
 };
 
 use crate::bindings::{
@@ -77,6 +80,7 @@ pub struct Workspace {
     pending_open_tab: Option<TabSpec>,
     /// Set by platform close; dialog is shown on the next [`Render`] (see `app::quit`).
     pub(crate) pending_close_confirm: bool,
+    env_select: Entity<SelectState<Vec<&'static str>>>,
 }
 
 impl Workspace {
@@ -126,6 +130,16 @@ impl Workspace {
             cx.new(|cx| CommandPalette::new(registry.clone(), connection_tree.clone(), cx));
         let palette_observe = command_palette.clone();
 
+        let env_select = cx.new(|cx| {
+            SelectState::new(
+                env::ENV_OPTIONS.to_vec(),
+                Some(IndexPath::default()),
+                window,
+                cx,
+            )
+        });
+        let env_observe = env_select.clone();
+
         let tree_observe = connection_tree.clone();
 
         let workspace = Self {
@@ -142,7 +156,16 @@ impl Workspace {
             session_restored: false,
             pending_open_tab: None,
             pending_close_confirm: false,
+            env_select,
         };
+
+        cx.subscribe(
+            &env_observe,
+            |_, _, _: &SelectEvent<Vec<&'static str>>, ecx| {
+                ecx.notify();
+            },
+        )
+        .detach();
 
         cx.subscribe(&tree_observe, |ws, _, event, ecx| {
             let connection_tree::TreeEvent::OpenTab(spec) = event;
@@ -462,8 +485,7 @@ impl Render for Workspace {
             .child(Topbar::new(
                 self.project_title.clone(),
                 this.clone(),
-                conn_count,
-                connected_count,
+                self.env_select.clone(),
             ))
             .child(body)
             .child(StatusBar::new(status_bar::StatusBarModel {

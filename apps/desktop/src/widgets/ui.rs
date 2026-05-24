@@ -165,14 +165,6 @@ pub fn engine_chip(engine: EngineKind, cx: &mut App) -> impl IntoElement {
         )
 }
 
-/// Muted inline hint for window chrome (no border or fill).
-pub fn chrome_hint(text: impl Into<SharedString>, cx: &mut App) -> impl IntoElement {
-    div()
-        .text_xs()
-        .text_color(cx.theme().muted_foreground.opacity(0.9))
-        .child(text.into())
-}
-
 /// Horizontal key-value list for narrow panels (e.g. the right inspector).
 pub fn compact_description_list_horizontal(
     rows: impl IntoIterator<Item = (impl Into<SharedString>, impl Into<SharedString>)>,
@@ -275,9 +267,10 @@ pub fn command_shell(window: &Window, cx: &mut App, placeholder: &'static str) -
         .px(px(10.0))
         .rounded(px(7.0))
         .border_1()
-        .border_color(cx.theme().border.opacity(0.82))
-        .bg(cx.theme().muted.opacity(0.44))
-        .hover(|s| s.border_color(hsla(0.68, 0.45, 0.68, 0.58)))
+        .border_color(cx.theme().input)
+        .bg(cx.theme().tab_active)
+        .shadow_xs()
+        .hover(|s| s.border_color(cx.theme().border))
         .child(
             Icon::new(IconName::Search)
                 .text_color(cx.theme().muted_foreground)

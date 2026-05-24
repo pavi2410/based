@@ -1,5 +1,6 @@
-// workspace/ — Workspace entity, DockArea, sidebar, status bar, connection wiring.
+// workspace/ — Workspace entity, DockArea, tabs, connection tree; shell chrome in `chrome/`.
 
+pub mod chrome;
 pub mod session;
 pub mod tab_label;
 pub mod tab_open;
@@ -23,15 +24,10 @@ pub mod object_info;
 pub mod pane;
 pub mod pop_out;
 pub use pop_out::PopOutManager;
-pub mod env;
-pub mod sidebar;
-pub mod status_bar;
-pub mod topbar;
 pub mod welcome;
 
 mod dock_utils;
 mod inspector;
-mod overlays;
 mod pop_out_impls;
 mod tab_dispatch;
 
@@ -42,12 +38,11 @@ use std::path::PathBuf;
 
 use gpui::{
     App, Bounds, Context, Entity, EntityId, FocusHandle, Focusable, IntoElement, Render,
-    SharedString, Window, WindowBounds, WindowOptions, div, point, prelude::*, px, size,
+    SharedString, Window, WindowBounds, WindowOptions, point, prelude::*, px, size,
 };
 use gpui_component::{
     ActiveTheme, IndexPath, Root,
     dock::{DockArea, DockEvent, DockItem, DockPlacement, PanelStyle},
-    h_flex,
     select::{SelectEvent, SelectState},
     v_flex,
 };
@@ -58,11 +53,14 @@ use crate::bindings::{
 };
 use crate::command_palette::CommandPalette;
 use crate::connection::registry::ConnectionRegistry;
-use crate::connection::{ConnectionEntry, ConnectionId, ConnectionState};
+use crate::connection::{ConnectionEntry, ConnectionState};
 use crate::project::{find_project_root, load_workspace_seed};
 
-use status_bar::StatusBar;
-use topbar::Topbar;
+use chrome::{
+    layout,
+    status_bar::{StatusBar, StatusBarModel},
+    topbar::Topbar,
+};
 use welcome::WelcomePanel;
 
 pub struct Workspace {
@@ -132,7 +130,7 @@ impl Workspace {
 
         let env_select = cx.new(|cx| {
             SelectState::new(
-                env::ENV_OPTIONS.to_vec(),
+                chrome::env::ENV_OPTIONS.to_vec(),
                 Some(IndexPath::default()),
                 window,
                 cx,
@@ -410,43 +408,18 @@ impl Render for Workspace {
             .iter()
             .filter(|ent| matches!(ent.read(cx).state, ConnectionState::Connected(_)))
             .count();
-        let border = cx.theme().sidebar_border;
-        let sidebar_bg = cx.theme().sidebar;
-
-        let sidebar = v_flex()
-            .w(gpui::px(274.0))
-            .h_full()
-            .min_h_0()
-            .flex_shrink_0()
-            .overflow_hidden()
-            .border_r_1()
-            .border_color(border)
-            .bg(sidebar_bg)
-            .child(self.connection_tree.clone());
-
-        let dock_host = div()
-            .flex_1()
-            .size_full()
-            .overflow_hidden()
-            .child(self.dock_area.clone());
 
         let selected_connection = self.connection_tree.read(cx).selected_connection_entry(cx);
         let inspector = render_inspector(selected_connection, window, cx);
 
-        let body = if self.sidebar_collapsed {
-            h_flex()
-                .flex_1()
-                .overflow_hidden()
-                .child(dock_host)
-                .when(!self.inspector_collapsed, |row| row.child(inspector))
-        } else {
-            h_flex()
-                .flex_1()
-                .overflow_hidden()
-                .child(sidebar)
-                .child(dock_host)
-                .when(!self.inspector_collapsed, |row| row.child(inspector))
-        };
+        let body = layout::render_body_row(
+            self.sidebar_collapsed,
+            self.inspector_collapsed,
+            self.connection_tree.clone(),
+            self.dock_area.clone(),
+            inspector,
+            cx,
+        );
 
         let main = v_flex()
             .size_full()
@@ -488,7 +461,7 @@ impl Render for Workspace {
                 self.env_select.clone(),
             ))
             .child(body)
-            .child(StatusBar::new(status_bar::StatusBarModel {
+            .child(StatusBar::new(StatusBarModel {
                 connection_count: conn_count,
                 connected_count,
                 scope_label: self.project_title.clone(),
@@ -500,6 +473,6 @@ impl Render for Workspace {
             }))
             .child(self.command_palette.clone());
 
-        overlays::stack_gpui_overlays(main, window, cx)
+        chrome::overlays::stack_gpui_overlays(main, window, cx)
     }
 }

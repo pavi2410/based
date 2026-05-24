@@ -39,7 +39,8 @@ apps/desktop/src/
 ├── main.rs              # Entry: GPUI app/window setup
 ├── app/                 # Global state, actions, preferences
 ├── connection/          # Engine-agnostic connection registry & lifecycle
-├── workspace/           # Main UI shell: DockArea, panes, sidebar, status bar
+├── workspace/           # Workspace entity, tabs, dock, connection_tree
+│   └── chrome/          # Title bar, status bar, shell layout, overlays
 ├── sqlite/              # SQLite engine
 ├── postgres/            # PostgreSQL engine
 ├── mongodb/             # MongoDB engine

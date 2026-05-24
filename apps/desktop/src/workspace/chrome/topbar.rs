@@ -1,15 +1,15 @@
 use gpui::{App, Entity, IntoElement, ParentElement, RenderOnce, SharedString, Styled, div, px};
 use gpui_component::{
-    ActiveTheme as _, IconName, Sizable as _, StyledExt, TitleBar,
+    ActiveTheme as _, IconName, Sizable as _, TitleBar,
     button::{Button, ButtonVariants},
     h_flex,
     select::{Select, SelectState},
 };
 
-use super::Workspace;
 use crate::app::prefs;
 use crate::bindings::{CycleAppearance, ToggleSidebarRail};
 use crate::widgets::ui::command_shell;
+use crate::workspace::Workspace;
 
 /// A `RenderOnce` top bar that renders inside the window's `TitleBar`.
 #[derive(IntoElement)]
@@ -34,7 +34,7 @@ impl Topbar {
 }
 
 impl RenderOnce for Topbar {
-    fn render(self, window: &mut gpui::Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, _window: &mut gpui::Window, cx: &mut App) -> impl IntoElement {
         let registry = self.workspace.read(cx).registry().clone();
 
         TitleBar::new()
@@ -133,7 +133,7 @@ struct TopbarRight {
 }
 
 impl RenderOnce for TopbarRight {
-    fn render(self, window: &mut gpui::Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, _window: &mut gpui::Window, cx: &mut App) -> impl IntoElement {
         let workspace_settings = self.workspace.clone();
         let is_dark = cx.theme().is_dark();
 

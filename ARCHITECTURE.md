@@ -58,6 +58,24 @@ based/
 └── mise.toml
 ```
 
+## Desktop module layers
+
+`apps/desktop/src/` is organized by responsibility (single binary; no extra crates until a second target needs shared code):
+
+| Layer | Path | Role |
+|-------|------|------|
+| Project | `project/` | `.based/` config, queries, file watching — no GPUI |
+| Connection | `connection/` | Registry, open/close lifecycle — minimal engine tagging |
+| Engines | `postgres/`, `sqlite/`, `mongodb/` | Drivers, schema, execution, engine panels |
+| Workspace | `workspace/` | `Workspace` entity, tabs, dock, `tab_dispatch`, `connection_tree/` |
+| Chrome | `workspace/chrome/` | Title bar, status bar, shell layout, GPUI overlay stack |
+| Widgets | `widgets/` | Reusable panel UI (tables, editors, filters) |
+| App | `app/` | Globals, actions, prefs, keybindings |
+
+**Chrome dependency rule:** `workspace/chrome/` may use `widgets/`, `app/`, `bindings/`, and `connection/` types. It must not import engine modules, `tab_dispatch`, or `connection_tree/`.
+
+**Orchestration vs domain shell:** Tab open/focus and dock wiring stay in `workspace/`. `connection_tree/`, `inspector`, and `welcome` are workspace “domain shell” (navigation), not generic chrome. `command_palette` stays at workspace root (opens tabs via workspace events).
+
 ## Day-to-day invariants
 
 1. The `desktop` package is the only desktop runtime target.

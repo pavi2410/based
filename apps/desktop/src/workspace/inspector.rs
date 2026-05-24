@@ -14,7 +14,7 @@ pub(crate) fn render_inspector(
     selected: Option<Entity<ConnectionEntry>>,
     window: &Window,
     cx: &mut Context<Workspace>,
-) -> impl IntoElement {
+) -> impl IntoElement + use<> {
     let border = cx.theme().border;
     let muted = cx.theme().muted_foreground;
 

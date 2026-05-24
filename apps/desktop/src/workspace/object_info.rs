@@ -257,7 +257,7 @@ fn dashboard_card_with_list(
                 .text_color(cx.theme().foreground)
                 .child(title),
         )
-        .child(compact_description_list_vertical(rows))
+        .child(compact_description_list_vertical(rows, false))
 }
 
 fn dashboard_card(

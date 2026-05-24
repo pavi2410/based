@@ -109,6 +109,7 @@ pub fn compact_description_list_horizontal(
 /// Vertical key-value list for dashboard cards and schema stats.
 pub fn compact_description_list_vertical(
     rows: impl IntoIterator<Item = (impl Into<SharedString>, impl Into<SharedString>)>,
+    bordered: bool,
 ) -> DescriptionList {
     let items: Vec<DescriptionItem> = rows
         .into_iter()
@@ -120,7 +121,7 @@ pub fn compact_description_list_vertical(
         .collect();
     DescriptionList::vertical()
         .small()
-        .bordered(false)
+        .bordered(bordered)
         .children(items)
 }
 

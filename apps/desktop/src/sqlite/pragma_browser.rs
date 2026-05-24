@@ -129,6 +129,6 @@ impl Render for PragmaBrowserPanel {
             .w_full()
             .h_full()
             .p_3()
-            .child(compact_description_list_vertical(pragmas))
+            .child(compact_description_list_vertical(pragmas, true))
     }
 }

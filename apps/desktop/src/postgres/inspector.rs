@@ -341,7 +341,7 @@ impl Render for TableInspectorPanel {
         let body: AnyElement = match self.tab {
             PgInspectorTab::Stats => div()
                 .p_3()
-                .child(compact_description_list_vertical(stats_rows))
+                .child(compact_description_list_vertical(stats_rows, false))
                 .into_any_element(),
             PgInspectorTab::Columns => render_row_table(&self.columns_tbl, cx).into_any_element(),
             PgInspectorTab::Indexes => render_row_table(&self.indexes_tbl, cx).into_any_element(),

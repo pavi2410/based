@@ -227,7 +227,7 @@ impl Render for CollectionInspectorPanel {
         let body: AnyElement = match self.tab {
             MongoInspectorTab::Stats => div()
                 .p_3()
-                .child(compact_description_list_vertical(stats_rows))
+                .child(compact_description_list_vertical(stats_rows, false))
                 .into_any_element(),
             MongoInspectorTab::Indexes => {
                 render_row_table(&self.indexes_tbl, cx).into_any_element()

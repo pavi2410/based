@@ -1,6 +1,9 @@
 [package]
 name = "desktop"
-version = "0.1.0"
+# Permanent sentinel: CI rewrites this in-memory at build time via
+# `script/set-version.py` so the binary reports the real CalVer release
+# version (e.g. 2026.05.1). Local builds intentionally report `0.0.0-dev`.
+version = "0.0.0-dev"
 edition = "2024"
 description = "based — Git-Friendly Database Client (native GPUI build)"
 homepage = "https://github.com/pavi2410/based"

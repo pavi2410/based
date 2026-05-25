@@ -33,33 +33,22 @@ Installers are written to `apps/desktop/dist/`. Packager configuration lives in 
 
 ## Releasing
 
-Releases are published via the **Release** GitHub Actions workflow (`.github/workflows/release.yml`, `workflow_dispatch`). Pick a bump type only — the workflow computes semver, commits the version bump, builds all platforms, tags, and publishes to [GitHub Releases](https://github.com/pavi2410/based/releases).
+Releases use CalVer in the form `vYYYY.MM.N`, where `N` resets to `0` at the start of each calendar month (UTC) and increments per release within that month — for example, `v2026.05.0`, `v2026.05.1`, then `v2026.06.0`.
 
-Semver logic lives in [`script/bump-version.py`](script/bump-version.py).
+The version in [`apps/desktop/Cargo.toml`](apps/desktop/Cargo.toml) is **permanently `0.0.0-dev`**. The real CalVer version is computed by CI and stamped into `Cargo.toml` in-memory on each runner before `cargo build`, so the installed binary reports the correct version via `env!("CARGO_PKG_VERSION")`. Local builds from `main` intentionally report `0.0.0-dev` — they are not release builds.
 
-### Bump types
+### To ship a release
 
-| Bump | From | To | GitHub release |
-|------|------|----|----------------|
-| `minor` | `0.1.0` | `0.2.0-rc.1` | prerelease |
-| `rc` | `0.2.0-rc.1` | `0.2.0-rc.2` | prerelease |
-| `stable` | `0.2.0-rc.2` | `0.2.0` | latest stable |
-| `patch` | `0.2.0` | `0.2.1` | latest stable |
-| `major` | `0.2.0` | `1.0.0-rc.1` | prerelease |
+1. Go to **Actions → Release → Run workflow** on GitHub, select `main`, click **Run workflow**.
+2. CI:
+   - Computes the next CalVer using [energostack/calver-action](https://github.com/marketplace/actions/next-calver) over existing `v*` tags + current UTC date.
+   - Stamps it into `Cargo.toml` on each runner via [`script/set-version.py`](script/set-version.py).
+   - Builds installers for macOS (arm64, x64), Linux, and Windows with `cargo-packager`.
+   - Publishes a GitHub Release at the new tag with auto-generated notes from PRs/commits since the previous tag, all installers, and a `checksums.txt`.
+3. (Optional) Edit the release on GitHub afterward to polish the auto-generated notes.
 
-Versions containing `-rc` are published as GitHub prereleases; stable versions become the latest release.
+### Notes
 
-**Do not hand-edit** `version` in `apps/desktop/Cargo.toml` before a release — the workflow owns the bump. Hand-edit only when recovering from a failed run.
-
-### Example flow
-
-1. Merge features on `main`.
-2. Actions → **Release** → `bump: minor` → `v0.2.0-rc.1` + installers.
-3. Smoke-test; fix bugs on `main`.
-4. Actions → **Release** → `bump: rc` → `v0.2.0-rc.2`.
-5. When ready, `bump: stable` → `v0.2.0` as latest.
-6. Hotfix → `bump: patch` → `v0.2.1`.
-
-**First release from `0.1.0`:** use `bump: minor` (not `rc`) to open the `0.2.0-rc.1` line.
-
-Branch protection on `main` must allow `github-actions[bot]` to push version commits.
+- **No bot push to `main`.** The version is never committed back; the tag is created by `gh release create` pointing at the workflow's commit SHA.
+- **Do not hand-edit** the `[package].version` in `apps/desktop/Cargo.toml` — it should always be `0.0.0-dev`. The release flow owns the real version end-to-end.
+- **First release:** if no prior `v*` tag exists for the current month, the action starts at `.0`; no bootstrap tag is required.

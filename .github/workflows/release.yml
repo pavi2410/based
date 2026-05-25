@@ -2,65 +2,30 @@ name: Release
 
 on:
   workflow_dispatch:
-    inputs:
-      bump:
-        description: Release bump type
-        required: true
-        type: choice
-        options: [rc, stable, patch, minor, major]
-        default: rc
-      ref:
-        description: Git ref to release from
-        required: false
-        default: main
 
 permissions:
   contents: write
 
 jobs:
   prepare:
-    name: Prepare release
+    name: Compute CalVer version
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.bump.outputs.version }}
-      tag: ${{ steps.bump.outputs.tag }}
-      prerelease: ${{ steps.bump.outputs.prerelease }}
-      sha: ${{ steps.push.outputs.sha }}
+      version: ${{ steps.calver.outputs.next_version }}
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.ref }}
+          fetch-depth: 1
+          fetch-tags: true
 
-      - name: Bump version
-        id: bump
-        env:
-          BUMP: ${{ inputs.bump }}
-        run: |
-          NEW_VERSION="$(python3 script/bump-version.py "$BUMP" --write)"
-          echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=v${NEW_VERSION}" >> "$GITHUB_OUTPUT"
-          if [[ "${NEW_VERSION}" == *"-rc"* ]]; then
-            echo "prerelease=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "prerelease=false" >> "$GITHUB_OUTPUT"
-          fi
+      - name: Compute next CalVer
+        id: calver
+        uses: energostack/calver-action@v1
 
-      - name: Commit version bump
+      - name: Echo
         env:
-          NEW_VERSION: ${{ steps.bump.outputs.version }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/desktop/Cargo.toml
-          git commit -m "chore: release v${NEW_VERSION}"
-
-      - name: Push
-        id: push
-        env:
-          REF: ${{ inputs.ref }}
-        run: |
-          git push origin "HEAD:${REF}"
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          VERSION: ${{ steps.calver.outputs.next_version }}
+        run: echo "Next version is ${VERSION}"
 
   build:
     name: Build (${{ matrix.artifact }})
@@ -88,8 +53,6 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.prepare.outputs.sha }}
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -106,6 +69,12 @@ jobs:
         run: |
           curl -fsSL https://raw.githubusercontent.com/zed-industries/zed/main/script/linux -o /tmp/zed-linux-deps.sh
           bash /tmp/zed-linux-deps.sh
+
+      - name: Stamp CalVer into Cargo.toml
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: python3 script/set-version.py "${VERSION}"
 
       - name: Install cargo-packager
         run: cargo install cargo-packager --locked
@@ -135,8 +104,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ needs.prepare.outputs.sha }}
           fetch-depth: 0
+          fetch-tags: true
 
       - name: Download artifacts
         uses: actions/download-artifact@v7
@@ -149,29 +118,14 @@ jobs:
           cd dist
           find . -type f -print0 | sort -z | xargs -0 sha256sum > ../checksums.txt
 
-      - name: Create and push tag
-        env:
-          TAG: ${{ needs.prepare.outputs.tag }}
-          VERSION: ${{ needs.prepare.outputs.version }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists"
-            exit 1
-          fi
-          git tag -a "$TAG" -m "Based ${VERSION}"
-          git push origin "$TAG"
-
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ needs.prepare.outputs.tag }}
-          name: Based ${{ needs.prepare.outputs.version }}
-          prerelease: ${{ needs.prepare.outputs.prerelease == 'true' }}
-          make_latest: ${{ needs.prepare.outputs.prerelease != 'true' }}
-          draft: false
-          generate_release_notes: true
-          files: |
-            dist/**/*
-            checksums.txt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          SHA: ${{ github.sha }}
+        run: |
+          gh release create "${VERSION}" \
+            --title "Based ${VERSION#v}" \
+            --target "${SHA}" \
+            --generate-notes \
+            dist/* checksums.txt

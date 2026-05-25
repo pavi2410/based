@@ -11,7 +11,7 @@ jobs:
     name: Compute CalVer version
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.calver.outputs.next_version }}
+      version: ${{ steps.next.outputs.version }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -19,13 +19,11 @@ jobs:
           fetch-tags: true
 
       - name: Compute next CalVer
-        id: calver
-        uses: energostack/calver-action@v1
-
-      - name: Echo
-        env:
-          VERSION: ${{ steps.calver.outputs.next_version }}
-        run: echo "Next version is ${VERSION}"
+        id: next
+        run: |
+          VERSION=$(python3 script/next-version.py)
+          echo "Next version: ${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build (${{ matrix.artifact }})

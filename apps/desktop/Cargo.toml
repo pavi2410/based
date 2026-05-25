@@ -2,7 +2,9 @@
 name = "desktop"
 # Permanent sentinel: CI rewrites this in-memory at build time via
 # `script/set-version.py` so the binary reports the real CalVer release
-# version (e.g. 2026.05.1). Local builds intentionally report `0.0.0-dev`.
+# version (e.g. 2026.5.1). Local builds intentionally report `0.0.0-dev`.
+# Months are non-zero-padded (1-12) because Cargo enforces strict SemVer
+# and forbids leading zeros on numeric components.
 version = "0.0.0-dev"
 edition = "2024"
 description = "based — Git-Friendly Database Client (native GPUI build)"

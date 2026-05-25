@@ -35,3 +35,23 @@ based/
 | Lint | `mise run lint` |
 | Format | `mise run format` |
 | Test | `mise run test` |
+| Package installers | `mise run package` |
+
+## Installing
+
+Download the latest stable release from [GitHub Releases](https://github.com/pavi2410/based/releases). Stable builds are the latest non-prerelease; release candidates are tagged with `-rc.N` and marked as prereleases.
+
+| Platform | Artifact |
+|----------|----------|
+| macOS (Apple Silicon) | `.dmg` from the macOS arm64 job |
+| macOS (Intel) | `.dmg` from the macOS x64 job |
+| Linux | `.deb` or `.AppImage` |
+| Windows | `.exe` NSIS installer |
+
+Each release includes a `checksums.txt` with SHA-256 hashes for all assets.
+
+Installers are **unsigned**. macOS may show Gatekeeper warnings; open **System Settings → Privacy & Security** and choose **Open Anyway**, or right-click the app and choose **Open**. Windows SmartScreen may warn on first run — choose **More info → Run anyway**.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, local packaging, and the release workflow.

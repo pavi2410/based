@@ -2,6 +2,10 @@
 target
 **/target
 
+# Packaging outputs
+**/dist/
+**/.cargo-packager/
+
 # Logs
 *.log
 

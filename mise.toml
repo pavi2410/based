@@ -9,6 +9,11 @@ run = "cargo run -p desktop"
 description = "Build desktop app in release mode"
 run = "cargo build -p desktop --release"
 
+[tasks.package]
+description = "Build release installers locally (current platform)"
+depends = ["build"]
+run = "cargo packager --release -p desktop"
+
 [tasks.check]
 description = "Fast compile check (no linking)"
 run = "cargo check -p desktop"

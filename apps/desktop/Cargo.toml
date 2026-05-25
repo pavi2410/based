@@ -3,10 +3,37 @@ name = "desktop"
 version = "0.1.0"
 edition = "2024"
 description = "based — Git-Friendly Database Client (native GPUI build)"
+homepage = "https://github.com/pavi2410/based"
+publish = false
 
 [[bin]]
-name = "desktop"
+name = "based"
 path = "src/main.rs"
+
+[package.metadata.packager]
+product-name = "Based"
+identifier = "com.pavi2410.based"
+publisher = "Pavi2410"
+out-dir = "dist"
+category = "DeveloperTool"
+icons = [
+  "assets/icon.png",
+  "assets/icon@2x.png",
+]
+
+[package.metadata.packager.macos]
+minimum-system-version = "13.0"
+
+[package.metadata.packager.linux]
+generate-desktop-entry = true
+
+[package.metadata.packager.deb]
+depends = [
+  "libssl3",
+  "libfontconfig1",
+  "libvulkan1",
+  "libwayland-client0",
+]
 
 [dependencies]
 # GPUI ecosystem — versions flow from workspace Cargo.toml

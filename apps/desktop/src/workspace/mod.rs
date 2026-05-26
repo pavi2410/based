@@ -32,7 +32,7 @@ mod pop_out_impls;
 mod tab_dispatch;
 
 use dock_utils::{active_center_tab, center_tab_items, dock_area_present_views};
-use inspector::render_inspector;
+use inspector::render_inspector_body;
 
 use std::path::PathBuf;
 
@@ -49,15 +49,20 @@ use gpui_component::{
 
 use crate::bindings::{
     CloseTab, CycleAppearance, DismissCommandPalette, OpenSettings, ToggleCommandPalette,
-    ToggleSidebarRail,
+    ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane, ToggleSidebarRail,
 };
 use crate::command_palette::CommandPalette;
+use crate::connection::ConnectionId;
 use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{ConnectionEntry, ConnectionState};
 use crate::project::{find_project_root, load_workspace_seed};
+use crate::widgets::query_panel_extras::HistoryFilter;
 
 use chrome::{
+    activity_rail::render_activity_rail,
     layout,
+    panes::{history_pane::render_history_pane, saved_pane::render_saved_pane},
+    side_pane::{SidePane, render_side_pane},
     status_bar::{StatusBar, StatusBarModel},
     topbar::Topbar,
 };
@@ -70,7 +75,12 @@ pub struct Workspace {
     tab_manager: Entity<TabManager>,
     command_palette: Entity<CommandPalette>,
     sidebar_collapsed: bool,
-    inspector_collapsed: bool,
+    /// `None` collapses the right-hand column. Defaults to Inspector to preserve the prior UX.
+    active_side_pane: Option<SidePane>,
+    /// History pane filter chip (All / Saved / Today).
+    history_filter: HistoryFilter,
+    /// `(query_text, default_name)` when the user has clicked the star on a history row.
+    pending_star: Option<(String, String)>,
     focus_handle: FocusHandle,
     project_title: SharedString,
     project_dir: Option<PathBuf>,
@@ -147,7 +157,9 @@ impl Workspace {
             tab_manager,
             command_palette,
             sidebar_collapsed: crate::app::prefs::collapsed_from(cx),
-            inspector_collapsed: false,
+            active_side_pane: Some(SidePane::Inspector),
+            history_filter: HistoryFilter::default(),
+            pending_star: None,
             focus_handle: cx.focus_handle(),
             project_title,
             project_dir,
@@ -290,6 +302,41 @@ impl Workspace {
         cx.notify();
     }
 
+    /// Click a rail icon: switch to that pane, or collapse if it was already active.
+    pub fn toggle_side_pane(&mut self, pane: SidePane, cx: &mut Context<Self>) {
+        self.active_side_pane = if self.active_side_pane == Some(pane) {
+            None
+        } else {
+            // Switching panes drops any in-flight star prompt to avoid stale state.
+            self.pending_star = None;
+            Some(pane)
+        };
+        cx.notify();
+    }
+
+    pub fn set_history_filter(&mut self, filter: HistoryFilter, cx: &mut Context<Self>) {
+        self.history_filter = filter;
+        cx.notify();
+    }
+
+    pub fn set_pending_star(&mut self, query: String, name: String, cx: &mut Context<Self>) {
+        self.pending_star = Some((query, name));
+        cx.notify();
+    }
+
+    pub fn clear_pending_star(&mut self, cx: &mut Context<Self>) {
+        self.pending_star = None;
+        cx.notify();
+    }
+
+    /// Connection id of the currently focused center tab (used to scope History/Saved panes).
+    pub fn focused_conn_id(&self, cx: &App) -> Option<ConnectionId> {
+        self.tab_manager
+            .read(cx)
+            .active_tab()
+            .map(|t| t.spec.conn_id().clone())
+    }
+
     pub fn open_settings(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
         let _ = cx.open_window(
             WindowOptions {
@@ -410,14 +457,40 @@ impl Render for Workspace {
             .count();
 
         let selected_connection = self.connection_tree.read(cx).selected_connection_entry(cx);
-        let inspector = render_inspector(selected_connection, window, cx);
+        let focused_conn_id = self.focused_conn_id(cx);
+        let active_pane = self.active_side_pane;
+        let history_filter = self.history_filter;
+        let pending_star = self.pending_star.clone();
+        let workspace_for_panes = this.clone();
+
+        let side_pane: Option<gpui::AnyElement> = active_pane.map(|pane| {
+            let body: gpui::AnyElement = match pane {
+                SidePane::Inspector => {
+                    render_inspector_body(selected_connection, window, cx).into_any_element()
+                }
+                SidePane::History => render_history_pane(
+                    workspace_for_panes.clone(),
+                    focused_conn_id.clone(),
+                    history_filter,
+                    pending_star.clone(),
+                    cx,
+                )
+                .into_any_element(),
+                SidePane::Saved => {
+                    render_saved_pane(focused_conn_id.clone(), cx).into_any_element()
+                }
+            };
+            render_side_pane(pane, body, cx).into_any_element()
+        });
+
+        let activity_rail = render_activity_rail(this.clone(), active_pane, cx);
 
         let body = layout::render_body_row(
             self.sidebar_collapsed,
-            self.inspector_collapsed,
             self.connection_tree.clone(),
             self.dock_area.clone(),
-            inspector,
+            side_pane,
+            activity_rail,
             cx,
         );
 
@@ -454,6 +527,21 @@ impl Render for Workspace {
             .on_action(window.listener_for(&this, |ws, _: &CloseTab, window, cx| {
                 ws.close_active_center_tab(window, cx);
             }))
+            .on_action(
+                window.listener_for(&this, |ws, _: &ToggleInspectorPane, _, cx| {
+                    ws.toggle_side_pane(SidePane::Inspector, cx);
+                }),
+            )
+            .on_action(
+                window.listener_for(&this, |ws, _: &ToggleHistoryPane, _, cx| {
+                    ws.toggle_side_pane(SidePane::History, cx);
+                }),
+            )
+            .on_action(
+                window.listener_for(&this, |ws, _: &ToggleSavedPane, _, cx| {
+                    ws.toggle_side_pane(SidePane::Saved, cx);
+                }),
+            )
             .bg(cx.theme().background)
             .child(Topbar::new(
                 self.project_title.clone(),

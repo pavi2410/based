@@ -1,17 +1,19 @@
-//! Main workspace shell layout: connection rail, center dock, inspector column.
+//! Main workspace shell layout: connection rail | center dock | side pane | activity rail.
 
-use gpui::{App, Entity, IntoElement, ParentElement, div, prelude::*, px};
+use gpui::{AnyElement, App, Entity, IntoElement, ParentElement, div, prelude::*, px};
 use gpui_component::{ActiveTheme, dock::DockArea, h_flex, v_flex};
 
 use crate::workspace::connection_tree::ConnectionTree;
 
-/// Sidebar rail + center dock + optional inspector column.
+/// Build the workspace body: connection sidebar (toggleable) on the left, dock area in the
+/// middle, optional `side_pane` to its right, and the always-mounted activity rail on the
+/// far right.
 pub fn render_body_row(
     sidebar_collapsed: bool,
-    inspector_collapsed: bool,
     connection_tree: Entity<ConnectionTree>,
     dock_area: Entity<DockArea>,
-    inspector: impl IntoElement,
+    side_pane: Option<AnyElement>,
+    activity_rail: impl IntoElement,
     cx: &App,
 ) -> impl IntoElement {
     let border = cx.theme().sidebar_border;
@@ -34,18 +36,19 @@ pub fn render_body_row(
         .overflow_hidden()
         .child(dock_area);
 
-    if sidebar_collapsed {
-        h_flex()
-            .flex_1()
-            .overflow_hidden()
-            .child(dock_host)
-            .when(!inspector_collapsed, |row| row.child(inspector))
+    let row = h_flex().flex_1().overflow_hidden();
+
+    let row = if sidebar_collapsed {
+        row.child(dock_host)
     } else {
-        h_flex()
-            .flex_1()
-            .overflow_hidden()
-            .child(sidebar)
-            .child(dock_host)
-            .when(!inspector_collapsed, |row| row.child(inspector))
-    }
+        row.child(sidebar).child(dock_host)
+    };
+
+    let row = if let Some(pane) = side_pane {
+        row.child(pane)
+    } else {
+        row
+    };
+
+    row.child(activity_rail)
 }

@@ -177,9 +177,13 @@ pub fn compact_description_list_horizontal(
             DescriptionItem::new(label).value(value)
         })
         .collect();
+    // `DescriptionList` defaults to 3 columns per row, which character-wraps inside
+    // the 320 px Inspector side pane. Force one item per row so labels and values
+    // get the full column width.
     DescriptionList::horizontal()
         .small()
         .bordered(false)
+        .columns(1)
         .label_width(px(88.0))
         .children(items)
 }

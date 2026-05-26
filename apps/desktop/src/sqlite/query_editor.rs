@@ -19,7 +19,6 @@ use crate::connection::ConnectionId;
 use crate::db;
 use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
-use crate::widgets::query_panel_extras::{HistoryFilter, filtered_history, save_starred_query};
 use crate::widgets::row_cell::sqlite_cell_display;
 use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input, sql_from_input};
 use crate::widgets::ui::{panel_context_header, shortcut_run_kbd_in_primary_button};
@@ -41,9 +40,6 @@ pub struct QueryEditorPanel {
     sql_input: Entity<InputState>,
     result: Entity<TableState<RowDelegate>>,
     status: QueryStatus,
-    show_history: bool,
-    history_filter: HistoryFilter,
-    star_name: Option<String>,
     pub(crate) tab_label: SharedString,
 }
 
@@ -76,9 +72,6 @@ impl QueryEditorPanel {
             sql_input: sql_input.clone(),
             result,
             status: QueryStatus::Idle,
-            show_history: false,
-            history_filter: HistoryFilter::default(),
-            star_name: None,
             tab_label: "Query".into(),
         };
         cx.subscribe_in(&sql_input, window, |panel, _, event, window, cx| {
@@ -278,19 +271,6 @@ impl Render for QueryEditorPanel {
                     .on_click(cx.listener(|panel, _, _, cx| panel.open_explain(cx))),
             )
             .child(
-                Button::new("sqlite-history-toggle")
-                    .ghost()
-                    .label(if self.show_history {
-                        "Hide history"
-                    } else {
-                        "History"
-                    })
-                    .on_click(cx.listener(|panel, _, _, cx| {
-                        panel.show_history = !panel.show_history;
-                        cx.notify();
-                    })),
-            )
-            .child(
                 div()
                     .text_sm()
                     .text_color(if is_error { err_fg } else { muted })
@@ -333,30 +313,7 @@ impl Render for QueryEditorPanel {
                     .child(render_row_table(&self.result, cx)),
             );
 
-        let panel_ent = cx.entity();
-        let history_entries = if self.show_history {
-            let store = cx.global::<QueryStore>();
-            Some(filtered_history(store, &self.conn_id, self.history_filter))
-        } else {
-            None
-        };
-        let history_filter = self.history_filter;
-        let star_name = self.star_name.clone();
-
-        let editor_body = h_flex()
-            .flex_1()
-            .min_h(px(0.0))
-            .child(main_column)
-            .when_some(history_entries, |row, entries| {
-                row.child(SqliteHistorySidebar {
-                    panel: panel_ent.clone(),
-                    filter: history_filter,
-                    star_name: star_name.clone(),
-                    entries,
-                    border,
-                    muted,
-                })
-            });
+        let editor_body = h_flex().flex_1().min_h(px(0.0)).child(main_column);
 
         v_flex()
             .w_full()
@@ -375,157 +332,5 @@ impl Render for QueryEditorPanel {
             .child(toolbar)
             .when_some(error_strip, |col, strip| col.child(strip))
             .child(editor_body)
-    }
-}
-
-#[derive(IntoElement)]
-struct SqliteHistorySidebar {
-    panel: Entity<QueryEditorPanel>,
-    filter: HistoryFilter,
-    star_name: Option<String>,
-    entries: Vec<HistoryEntry>,
-    border: gpui::Hsla,
-    muted: gpui::Hsla,
-}
-
-impl gpui::RenderOnce for SqliteHistorySidebar {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        use gpui::BorrowAppContext as _;
-        use gpui_component::Sizable as _;
-
-        let panel_ent = self.panel;
-        let filter = self.filter;
-        let border = self.border;
-        let muted = self.muted;
-        let star_name = self.star_name;
-        let entries = self.entries;
-
-        v_flex()
-            .w(px(260.0))
-            .min_h(px(0.0))
-            .border_l_1()
-            .border_color(border)
-            .bg(cx.theme().muted.opacity(0.08))
-            .child(
-                v_flex()
-                    .px_3()
-                    .py_2()
-                    .gap_2()
-                    .border_b_1()
-                    .border_color(border)
-                    .child(
-                        div()
-                            .text_xs()
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .child("History"),
-                    )
-                    .child(h_flex().gap_1().children(HistoryFilter::ALL.map(|f| {
-                        let active = filter == f;
-                        let panel_ent = panel_ent.clone();
-                        Button::new(SharedString::from(format!(
-                            "sqlite-hist-filter-{}",
-                            f.label()
-                        )))
-                        .ghost()
-                        .xsmall()
-                        .label(f.label())
-                        .when(active, |b| b.primary())
-                        .on_click(move |_, _, cx| {
-                            panel_ent.update(cx, |panel, cx| {
-                                panel.history_filter = f;
-                                cx.notify();
-                            });
-                        })
-                    })))
-                    .when_some(star_name, |col, name| {
-                        let panel_save = panel_ent.clone();
-                        let panel_cancel = panel_ent.clone();
-                        let name = name.clone();
-                        col.child(
-                            h_flex()
-                                .gap_1()
-                                .child(
-                                    div()
-                                        .text_xs()
-                                        .text_color(muted)
-                                        .child(format!("Save as \"{name}\"")),
-                                )
-                                .child(
-                                    Button::new("sqlite-star-save")
-                                        .primary()
-                                        .xsmall()
-                                        .label("Save")
-                                        .on_click(move |_, _, cx| {
-                                            panel_save.update(cx, |panel, cx| {
-                                                let sql = panel.current_sql(cx);
-                                                let conn = panel.conn_id.clone();
-                                                cx.update_global(|store: &mut QueryStore, _| {
-                                                    save_starred_query(
-                                                        store, conn, &name, &sql, false, None,
-                                                    );
-                                                });
-                                                panel.star_name = None;
-                                                cx.notify();
-                                            });
-                                        }),
-                                )
-                                .child(
-                                    Button::new("sqlite-star-cancel")
-                                        .ghost()
-                                        .xsmall()
-                                        .label("Cancel")
-                                        .on_click(move |_, _, cx| {
-                                            panel_cancel.update(cx, |panel, cx| {
-                                                panel.star_name = None;
-                                                cx.notify();
-                                            });
-                                        }),
-                                ),
-                        )
-                    }),
-            )
-            .children(entries.into_iter().enumerate().map(|(i, e)| {
-                let preview: SharedString = e.query.chars().take(80).collect::<String>().into();
-                let full_query = e.query.clone();
-                let panel_click = panel_ent.clone();
-                let panel_star = panel_ent.clone();
-                let sql_input = panel_click.read(cx).sql_input.clone();
-                h_flex()
-                    .id(SharedString::from(format!("sqlite-hist-{i}")))
-                    .px_3()
-                    .py_2()
-                    .gap_1()
-                    .border_b_1()
-                    .border_color(border)
-                    .items_start()
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .cursor_pointer()
-                            .text_xs()
-                            .font_family(cx.theme().mono_font_family.clone())
-                            .text_color(muted)
-                            .child(preview)
-                            .on_mouse_down(MouseButton::Left, move |_, window, cx| {
-                                panel_click.update(cx, |_panel, cx| {
-                                    set_sql_input(&sql_input, &full_query, window, cx);
-                                    cx.notify();
-                                });
-                            }),
-                    )
-                    .child(
-                        Button::new(SharedString::from(format!("sqlite-star-{i}")))
-                            .ghost()
-                            .xsmall()
-                            .label("★")
-                            .on_click(move |_, _, cx| {
-                                panel_star.update(cx, |panel, cx| {
-                                    panel.star_name = Some(format!("query_{i}"));
-                                    cx.notify();
-                                });
-                            }),
-                    )
-            }))
     }
 }

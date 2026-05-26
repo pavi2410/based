@@ -1,6 +1,6 @@
 // postgres::query_editor — run ad-hoc SQL against a pool.
 
-use gpui::{App, RenderOnce, prelude::*, *};
+use gpui::{App, prelude::*, *};
 use gpui_component::{
     ActiveTheme, Icon, IconName, Selectable as _, Sizable as _,
     button::{Button, ButtonVariants},
@@ -20,9 +20,7 @@ use crate::postgres::mutations::execute_sql;
 use crate::project::ProjectRoot;
 use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
-use crate::widgets::query_panel_extras::{
-    self, HistoryFilter, filtered_history, save_starred_query,
-};
+use crate::widgets::query_panel_extras;
 use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input, sql_from_input};
 use crate::widgets::ui::{metadata_pill, shortcut_run_kbd_in_primary_button};
 use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
@@ -49,10 +47,7 @@ pub struct QueryEditorPanel {
     sql_input: Entity<InputState>,
     result: Entity<TableState<RowDelegate>>,
     status: QueryStatus,
-    show_history: bool,
     show_variables: bool,
-    history_filter: HistoryFilter,
-    star_name: Option<String>,
     dirty: bool,
     pub(crate) tab_label: SharedString,
 }
@@ -86,10 +81,7 @@ impl QueryEditorPanel {
             sql_input: sql_input.clone(),
             result,
             status: QueryStatus::Idle,
-            show_history: false,
             show_variables: false,
-            history_filter: HistoryFilter::default(),
-            star_name: None,
             dirty: false,
             tab_label: "Query".into(),
         };
@@ -325,7 +317,6 @@ impl Render for QueryEditorPanel {
             _ => None,
         };
 
-        let show_history = self.show_history;
         let show_variables = self.show_variables;
 
         let toolbar = h_flex()
@@ -351,17 +342,6 @@ impl Render for QueryEditorPanel {
                     .small()
                     .label("Explain")
                     .on_click(cx.listener(|panel, _, _, cx| panel.open_explain(cx))),
-            )
-            .child(
-                Button::new("pg-history-toggle")
-                    .ghost()
-                    .small()
-                    .selected(show_history)
-                    .label("History")
-                    .on_click(cx.listener(|panel, _, _, cx| {
-                        panel.show_history = !panel.show_history;
-                        cx.notify();
-                    })),
             )
             .child(
                 Button::new("pg-vars-toggle")
@@ -446,30 +426,7 @@ impl Render for QueryEditorPanel {
                     .child(render_row_table(&self.result, cx)),
             );
 
-        let panel_ent = cx.entity();
-        let history_entries = if self.show_history {
-            let store = cx.global::<QueryStore>();
-            Some(filtered_history(store, &self.conn_id, self.history_filter))
-        } else {
-            None
-        };
-        let history_filter = self.history_filter;
-        let star_name = self.star_name.clone();
-
-        let editor_body = h_flex()
-            .flex_1()
-            .min_h(px(0.0))
-            .child(main_column)
-            .when_some(history_entries, |row, entries| {
-                row.child(HistorySidebarView {
-                    panel: panel_ent.clone(),
-                    filter: history_filter,
-                    star_name: star_name.clone(),
-                    entries,
-                    border,
-                    muted,
-                })
-            });
+        let editor_body = h_flex().flex_1().min_h(px(0.0)).child(main_column);
 
         let project_dir = cx.try_global::<ProjectRoot>().map(|p| p.0.clone());
         let show_variables = self.show_variables;
@@ -496,154 +453,5 @@ impl Render for QueryEditorPanel {
                 muted_v,
                 muted_bg,
             ))
-    }
-}
-
-#[derive(IntoElement)]
-struct HistorySidebarView {
-    panel: Entity<QueryEditorPanel>,
-    filter: HistoryFilter,
-    star_name: Option<String>,
-    entries: Vec<HistoryEntry>,
-    border: gpui::Hsla,
-    muted: gpui::Hsla,
-}
-
-impl RenderOnce for HistorySidebarView {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        use gpui::BorrowAppContext as _;
-        use gpui_component::Sizable as _;
-
-        let panel_ent = self.panel;
-        let filter = self.filter;
-        let border = self.border;
-        let muted = self.muted;
-        let star_name = self.star_name;
-        let entries = self.entries;
-
-        v_flex()
-            .w(px(260.0))
-            .min_h(px(0.0))
-            .border_l_1()
-            .border_color(border)
-            .bg(cx.theme().muted.opacity(0.08))
-            .child(
-                v_flex()
-                    .px_3()
-                    .py_2()
-                    .gap_2()
-                    .border_b_1()
-                    .border_color(border)
-                    .child(
-                        div()
-                            .text_xs()
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .child("History"),
-                    )
-                    .child(h_flex().gap_1().children(HistoryFilter::ALL.map(|f| {
-                        let active = filter == f;
-                        let panel_ent = panel_ent.clone();
-                        Button::new(SharedString::from(format!("pg-hist-filter-{}", f.label())))
-                            .ghost()
-                            .xsmall()
-                            .label(f.label())
-                            .when(active, |b| b.primary())
-                            .on_click(move |_, _, cx| {
-                                panel_ent.update(cx, |panel, cx| {
-                                    panel.history_filter = f;
-                                    cx.notify();
-                                });
-                            })
-                    })))
-                    .when_some(star_name, |col, name| {
-                        let panel_save = panel_ent.clone();
-                        let panel_cancel = panel_ent.clone();
-                        let name = name.clone();
-                        col.child(
-                            h_flex()
-                                .gap_1()
-                                .child(
-                                    div()
-                                        .text_xs()
-                                        .text_color(muted)
-                                        .child(format!("Save as \"{name}\"")),
-                                )
-                                .child(
-                                    Button::new("pg-star-save")
-                                        .primary()
-                                        .xsmall()
-                                        .label("Save")
-                                        .on_click(move |_, _, cx| {
-                                            panel_save.update(cx, |panel, cx| {
-                                                let sql = panel.current_sql(cx);
-                                                let conn = panel.conn_id.clone();
-                                                cx.update_global(|store: &mut QueryStore, _| {
-                                                    save_starred_query(
-                                                        store, conn, &name, &sql, false, None,
-                                                    );
-                                                });
-                                                panel.star_name = None;
-                                                cx.notify();
-                                            });
-                                        }),
-                                )
-                                .child(
-                                    Button::new("pg-star-cancel")
-                                        .ghost()
-                                        .xsmall()
-                                        .label("Cancel")
-                                        .on_click(move |_, _, cx| {
-                                            panel_cancel.update(cx, |panel, cx| {
-                                                panel.star_name = None;
-                                                cx.notify();
-                                            });
-                                        }),
-                                ),
-                        )
-                    }),
-            )
-            .children(entries.into_iter().enumerate().map(|(i, e)| {
-                let preview: SharedString = e.query.chars().take(80).collect::<String>().into();
-                let full_query = e.query.clone();
-                let panel_click = panel_ent.clone();
-                let panel_star = panel_ent.clone();
-                let sql_input = panel_click.read(cx).sql_input.clone();
-                h_flex()
-                    .id(SharedString::from(format!("pg-hist-{i}")))
-                    .px_3()
-                    .py_2()
-                    .gap_1()
-                    .border_b_1()
-                    .border_color(border)
-                    .items_start()
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .cursor_pointer()
-                            .text_xs()
-                            .font_family("monospace")
-                            .text_color(muted)
-                            .child(preview)
-                            .on_mouse_down(MouseButton::Left, move |_, window, cx| {
-                                panel_click.update(cx, |_panel, cx| {
-                                    set_sql_input(&sql_input, &full_query, window, cx);
-                                    cx.notify();
-                                });
-                            }),
-                    )
-                    .child(
-                        Button::new(SharedString::from(format!("pg-star-{i}")))
-                            .ghost()
-                            .xsmall()
-                            .label("★")
-                            .on_click(move |_, _, cx| {
-                                panel_star.update(cx, |panel, cx| {
-                                    panel.star_name = Some(format!("query_{i}"));
-                                    cx.notify();
-                                });
-                            }),
-                    )
-            }))
     }
 }

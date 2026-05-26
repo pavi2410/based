@@ -10,6 +10,9 @@ gpui::actions!([
     CloseTab,
     NewQuery,
     OpenSettings,
+    ToggleInspectorPane,
+    ToggleHistoryPane,
+    ToggleSavedPane,
 ]);
 
 pub fn init(cx: &mut App) {
@@ -23,5 +26,11 @@ pub fn init(cx: &mut App) {
         KeyBinding::new("escape", DismissCommandPalette, None),
         KeyBinding::new("cmd-w", CloseTab, None),
         KeyBinding::new("ctrl-w", CloseTab, None),
+        KeyBinding::new("cmd-alt-i", ToggleInspectorPane, None),
+        KeyBinding::new("ctrl-alt-i", ToggleInspectorPane, None),
+        KeyBinding::new("cmd-alt-h", ToggleHistoryPane, None),
+        KeyBinding::new("ctrl-alt-h", ToggleHistoryPane, None),
+        KeyBinding::new("cmd-alt-s", ToggleSavedPane, None),
+        KeyBinding::new("ctrl-alt-s", ToggleSavedPane, None),
     ]);
 }

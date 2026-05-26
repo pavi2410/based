@@ -1,5 +1,5 @@
-use gpui::{Context, Entity, FontWeight, IntoElement, Window, div, prelude::*};
-use gpui_component::{ActiveTheme, StyledExt, h_flex, v_flex};
+use gpui::{AnyElement, Context, Entity, FontWeight, IntoElement, Window, div, prelude::*};
+use gpui_component::{ActiveTheme, h_flex, v_flex};
 
 use crate::connection::{ConnectionEntry, ConnectionState};
 use crate::widgets::ui::{
@@ -10,15 +10,16 @@ use crate::widgets::ui::{
 use super::Workspace;
 use super::notify;
 
-pub(crate) fn render_inspector(
+/// Body of the Inspector side pane. The 320 px column chrome (border + header)
+/// comes from [`crate::workspace::chrome::side_pane::render_side_pane`].
+pub(crate) fn render_inspector_body(
     selected: Option<Entity<ConnectionEntry>>,
     window: &Window,
     cx: &mut Context<Workspace>,
-) -> impl IntoElement + use<> {
-    let border = cx.theme().border;
+) -> AnyElement {
     let muted = cx.theme().muted_foreground;
 
-    let content = if let Some(ent) = selected {
+    if let Some(ent) = selected {
         let entry = ent.read(cx);
         let engine = entry.config.engine();
         let label = entry.config.label().to_string();
@@ -79,32 +80,7 @@ pub(crate) fn render_inspector(
             ))
             .child(inspector_shortcuts_section(window, cx))
             .into_any_element()
-    };
-
-    v_flex()
-        .w(gpui::px(286.0))
-        .h_full()
-        .flex_shrink_0()
-        .border_l_1()
-        .border_color(border)
-        .bg(cx.theme().background)
-        .child(
-            h_flex()
-                .h(gpui::px(38.0))
-                .px_3()
-                .items_center()
-                .border_b_1()
-                .border_color(border.opacity(0.86))
-                .child(
-                    div()
-                        .text_xs()
-                        .font_bold()
-                        .font_family(cx.theme().mono_font_family.clone())
-                        .text_color(muted)
-                        .child("INSPECTOR"),
-                ),
-        )
-        .child(content)
+    }
 }
 
 fn inspector_note(

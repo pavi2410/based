@@ -427,12 +427,18 @@ impl Render for QueryEditorPanel {
         let main_column = v_flex()
             .flex_1()
             .min_w(px(0.0))
-            .child(div().p_2().child(sql_editor::code_editor_area(
-                &self.sql_input,
-                is_error,
-                200.0,
-                cx,
-            )))
+            .min_h(px(0.0))
+            .child(
+                div()
+                    .flex_shrink_0()
+                    .p_2()
+                    .child(sql_editor::code_editor_area(
+                        &self.sql_input,
+                        is_error,
+                        200.0,
+                        cx,
+                    )),
+            )
             .child(
                 div()
                     .flex_1()

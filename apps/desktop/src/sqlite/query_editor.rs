@@ -11,6 +11,7 @@ use gpui_component::{
     input::{InputEvent, InputState},
     menu::PopupMenu,
     resizable::{ResizableState, resizable_panel, v_resizable},
+    spinner::Spinner,
     table::{Column, TableState},
     v_flex,
 };
@@ -28,9 +29,9 @@ use crate::widgets::query_panel_extras;
 use crate::widgets::result_tabs::{BottomTab, result_tab_strip};
 use crate::widgets::row_cell::sqlite_cell_display;
 use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input, sql_from_input};
-use crate::widgets::ui::{panel_context_header, shortcut_run_kbd_in_primary_button};
+use crate::widgets::ui::{metadata_pill, shortcut_run_kbd_in_primary_button};
 use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
-use crate::workspace::pop_out::{PopOutManager, PopOutWindowTitle};
+use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::tab_open::take_sql_inject;
 
 pub enum QueryStatus {
@@ -415,25 +416,72 @@ impl QueryEditorPanel {
     }
 }
 
+/// Right-aligned status cluster shown at the end of the toolbar.
+fn render_status_cluster(status: &QueryStatus, cx: &mut App) -> AnyElement {
+    let muted = cx.theme().muted_foreground;
+    match status {
+        QueryStatus::Idle => h_flex()
+            .gap(px(6.0))
+            .items_center()
+            .child(
+                div()
+                    .w(px(6.0))
+                    .h(px(6.0))
+                    .rounded_full()
+                    .bg(muted.opacity(0.55)),
+            )
+            .child(div().text_xs().text_color(muted).child("Ready"))
+            .into_any_element(),
+        QueryStatus::Running => h_flex()
+            .gap(px(6.0))
+            .items_center()
+            .child(Spinner::new().xsmall().color(cx.theme().primary))
+            .child(div().text_xs().text_color(muted).child("Running"))
+            .into_any_element(),
+        QueryStatus::Done { rows, elapsed_ms } => {
+            let success = cx.theme().success_foreground;
+            h_flex()
+                .gap(px(6.0))
+                .items_center()
+                .child(
+                    Icon::new(IconName::CircleCheck)
+                        .text_color(success)
+                        .xsmall(),
+                )
+                .child(metadata_pill("rows", rows.to_string(), cx))
+                .child(metadata_pill("time", format!("{elapsed_ms} ms"), cx))
+                .into_any_element()
+        }
+        QueryStatus::Error(_) => {
+            let danger = cx.theme().danger_foreground;
+            h_flex()
+                .gap(px(6.0))
+                .items_center()
+                .child(
+                    Icon::new(IconName::TriangleAlert)
+                        .text_color(danger)
+                        .xsmall(),
+                )
+                .child(
+                    div()
+                        .text_xs()
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(danger)
+                        .child("Failed"),
+                )
+                .into_any_element()
+        }
+    }
+}
+
 impl Render for QueryEditorPanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if let Some(sql) = take_sql_inject(&self.conn_id, cx) {
             set_sql_input(&self.sql_input, &sql, window, cx);
         }
-        let muted = cx.theme().muted_foreground;
         let border = cx.theme().border;
-        let err_fg = cx.theme().danger_foreground;
 
         let is_error = matches!(self.status, QueryStatus::Error(_));
-
-        let status_text: SharedString = match &self.status {
-            QueryStatus::Idle => "Ready".into(),
-            QueryStatus::Running => "Running…".into(),
-            QueryStatus::Done { rows, elapsed_ms } => {
-                format!("{rows} rows in {elapsed_ms}ms").into()
-            }
-            QueryStatus::Error(_) => "Query failed".into(),
-        };
 
         let project_dir = cx
             .try_global::<crate::project::ProjectRoot>()
@@ -442,16 +490,18 @@ impl Render for QueryEditorPanel {
         let mono_font = cx.theme().mono_font_family.clone();
 
         let toolbar = h_flex()
-            .w_full()
-            .px(px(8.0))
-            .py(px(6.0))
-            .gap(px(8.0))
+            .gap(px(6.0))
+            .px_2()
+            .py(px(4.0))
+            .items_center()
             .border_b_1()
             .border_color(border.opacity(0.72))
             .bg(cx.theme().muted.opacity(0.18))
             .child(
-                Button::new("run")
+                Button::new("sqlite-run")
                     .primary()
+                    .small()
+                    .icon(IconName::Play)
                     .label("Run")
                     .child(shortcut_run_kbd_in_primary_button(cx))
                     .on_click(cx.listener(|panel, _, window, cx| panel.run_query(window, cx))),
@@ -459,6 +509,7 @@ impl Render for QueryEditorPanel {
             .child(
                 Button::new("sqlite-explain")
                     .ghost()
+                    .small()
                     .label("Explain")
                     .on_click(cx.listener(|panel, _, _, cx| panel.switch_to_explain(cx))),
             )
@@ -469,12 +520,8 @@ impl Render for QueryEditorPanel {
                 mono_font,
                 cx,
             ))
-            .child(
-                div()
-                    .text_sm()
-                    .text_color(if is_error { err_fg } else { muted })
-                    .child(status_text),
-            );
+            .child(div().flex_1())
+            .child(render_status_cluster(&self.status, cx));
 
         let editor_pane = div().size_full().p_2().child(sql_editor::code_editor_flex(
             &self.sql_input,
@@ -501,21 +548,12 @@ impl Render for QueryEditorPanel {
             .h_full()
             .min_h(px(0.0))
             .bg(cx.theme().background)
-            .when(
-                !PopOutManager::is_pop_out_panel(cx.entity().entity_id(), cx),
-                |col| {
-                    col.child(panel_context_header(
-                        "Run SQL, inspect result sets, recover history",
-                        cx,
-                    ))
-                },
-            )
             .child(toolbar)
             .child(
                 div().flex_1().min_h(px(0.0)).child(
                     v_resizable("sqlite-query-split")
                         .with_state(&self.split_state)
-                        .child(resizable_panel().size(px(180.0)).child(editor_pane))
+                        .child(resizable_panel().size(px(220.0)).child(editor_pane))
                         .child(resizable_panel().child(bottom_pane)),
                 ),
             )

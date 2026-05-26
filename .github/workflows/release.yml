@@ -34,12 +34,8 @@ jobs:
         include:
           - runner: macos-latest
             target: aarch64-apple-darwin
-            formats: dmg,app
+            formats: dmg
             artifact: macos-arm64
-          - runner: macos-latest
-            target: x86_64-apple-darwin
-            formats: dmg,app
-            artifact: macos-x64
           - runner: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             formats: deb,appimage
@@ -93,12 +89,11 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
-          # Only upload finished installer files. cargo-packager produces a
-          # .app bundle as a build-time intermediate for the .dmg, but the
-          # .dmg already contains the .app — shipping the bare bundle
-          # separately is redundant. Listing concrete extensions also keeps
-          # the upload step from accidentally including a directory, which
-          # is what broke gh release create in the past.
+          # Match installer extensions only. `formats: dmg` already keeps
+          # cargo-packager from leaving a .app bundle in dist/, but listing
+          # extensions explicitly is also a safety net against any future
+          # packager output that's a directory (which would crash the
+          # release uploader the way Based.app/ did once before).
           path: |
             apps/desktop/dist/*.dmg
             apps/desktop/dist/*.deb
@@ -138,9 +133,9 @@ jobs:
           generate_release_notes: true
           make_latest: "true"
           draft: false
-          # `dist/*` matches one level only so .app directories are filtered as
-          # directories by the action (which uploads files only), not recursed
-          # into. The .dmg next to each .app is what end users actually install.
+          # `dist/*` matches one level only. softprops-gh-release uploads
+          # files and silently skips directories from glob matches, so any
+          # stray directory landing in dist/ would not break the release.
           files: |
             dist/*
             checksums.txt

@@ -2,14 +2,14 @@
 
 use gpui::{App, RenderOnce, prelude::*, *};
 use gpui_component::{
-    ActiveTheme,
+    ActiveTheme, Icon, IconName, Selectable as _, Sizable as _,
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,
     input::{InputEvent, InputState},
     menu::PopupMenu,
+    spinner::Spinner,
     table::TableState,
-    tooltip::Tooltip,
     v_flex,
 };
 use sqlx::PgPool;
@@ -24,11 +24,11 @@ use crate::widgets::query_panel_extras::{
     self, HistoryFilter, filtered_history, save_starred_query,
 };
 use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input, sql_from_input};
-use crate::widgets::ui::{panel_context_header, shortcut_run_kbd_in_primary_button};
+use crate::widgets::ui::{metadata_pill, shortcut_run_kbd_in_primary_button};
 use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
-use crate::workspace::pop_out::{PopOutManager, PopOutWindowTitle};
+use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::{
-    TabSpec, enqueue_open_tab, mark_query_tab_dirty, notify, tab_open::take_sql_inject,
+    TabSpec, enqueue_open_tab, mark_query_tab_dirty, tab_open::take_sql_inject,
 };
 
 pub enum QueryStatus {
@@ -247,6 +247,69 @@ impl PopOutWindowTitle for QueryEditorPanel {
     }
 }
 
+/// Right-aligned status cluster shown at the end of the toolbar.
+fn render_status_cluster(status: &QueryStatus, cx: &mut App) -> AnyElement {
+    let muted = cx.theme().muted_foreground;
+    match status {
+        QueryStatus::Idle => h_flex()
+            .gap(px(6.0))
+            .items_center()
+            .child(
+                div()
+                    .w(px(6.0))
+                    .h(px(6.0))
+                    .rounded_full()
+                    .bg(muted.opacity(0.55)),
+            )
+            .child(div().text_xs().text_color(muted).child("Ready"))
+            .into_any_element(),
+        QueryStatus::Running => h_flex()
+            .gap(px(6.0))
+            .items_center()
+            .child(Spinner::new().xsmall().color(cx.theme().primary))
+            .child(div().text_xs().text_color(muted).child("Running"))
+            .into_any_element(),
+        QueryStatus::Done {
+            rows,
+            affected,
+            elapsed_ms,
+        } => {
+            let success = cx.theme().success_foreground;
+            h_flex()
+                .gap(px(6.0))
+                .items_center()
+                .child(
+                    Icon::new(IconName::CircleCheck)
+                        .text_color(success)
+                        .xsmall(),
+                )
+                .child(metadata_pill("rows", rows.to_string(), cx))
+                .child(metadata_pill("affected", affected.to_string(), cx))
+                .child(metadata_pill("time", format!("{elapsed_ms} ms"), cx))
+                .into_any_element()
+        }
+        QueryStatus::Error(_) => {
+            let danger = cx.theme().danger_foreground;
+            h_flex()
+                .gap(px(6.0))
+                .items_center()
+                .child(
+                    Icon::new(IconName::TriangleAlert)
+                        .text_color(danger)
+                        .xsmall(),
+                )
+                .child(
+                    div()
+                        .text_xs()
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(danger)
+                        .child("Failed"),
+                )
+                .into_any_element()
+        }
+    }
+}
+
 impl Render for QueryEditorPanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if let Some(sql) = take_sql_inject(&self.conn_id, cx) {
@@ -262,21 +325,13 @@ impl Render for QueryEditorPanel {
             _ => None,
         };
 
-        let status_line: SharedString = match &self.status {
-            QueryStatus::Idle => "Ready.".into(),
-            QueryStatus::Running => "Running…".into(),
-            QueryStatus::Done {
-                rows,
-                affected,
-                elapsed_ms,
-            } => format!("{rows} rows — {affected} affected — {elapsed_ms} ms").into(),
-            QueryStatus::Error(_) => "Query failed.".into(),
-        };
+        let show_history = self.show_history;
+        let show_variables = self.show_variables;
 
         let toolbar = h_flex()
-            .gap_2()
+            .gap(px(6.0))
             .px_2()
-            .py(px(6.0))
+            .py(px(4.0))
             .items_center()
             .border_b_1()
             .border_color(border.opacity(0.72))
@@ -284,6 +339,8 @@ impl Render for QueryEditorPanel {
             .child(
                 Button::new("pg-run")
                     .primary()
+                    .small()
+                    .icon(IconName::Play)
                     .label("Run")
                     .child(shortcut_run_kbd_in_primary_button(cx))
                     .on_click(cx.listener(|panel, _, _, cx| panel.run(cx))),
@@ -291,17 +348,16 @@ impl Render for QueryEditorPanel {
             .child(
                 Button::new("pg-explain")
                     .ghost()
+                    .small()
                     .label("Explain")
                     .on_click(cx.listener(|panel, _, _, cx| panel.open_explain(cx))),
             )
             .child(
                 Button::new("pg-history-toggle")
                     .ghost()
-                    .label(if self.show_history {
-                        "Hide history"
-                    } else {
-                        "History"
-                    })
+                    .small()
+                    .selected(show_history)
+                    .label("History")
                     .on_click(cx.listener(|panel, _, _, cx| {
                         panel.show_history = !panel.show_history;
                         cx.notify();
@@ -310,35 +366,62 @@ impl Render for QueryEditorPanel {
             .child(
                 Button::new("pg-vars-toggle")
                     .ghost()
-                    .label(if self.show_variables {
-                        "Hide vars"
-                    } else {
-                        "Variables"
-                    })
+                    .small()
+                    .selected(show_variables)
+                    .label("Variables")
                     .on_click(cx.listener(|panel, _, _, cx| {
                         panel.show_variables = !panel.show_variables;
                         cx.notify();
                     })),
             )
-            .child(
-                div()
-                    .text_sm()
-                    .text_color(if is_error { err_fg } else { muted })
-                    .child(status_line),
-            );
+            .child(div().flex_1())
+            .child(render_status_cluster(&self.status, cx));
 
+        let mono_font_err = cx.theme().mono_font_family.clone();
+        let danger_bg = cx.theme().danger.opacity(0.06);
+        let danger_border = cx.theme().danger.opacity(0.20);
         let error_strip = err_text.map(|full| {
-            let tip = full.clone();
-            let line = notify::error_one_liner(&full);
-            div()
-                .id("pg-query-error-strip")
-                .px_2()
-                .pb_1()
-                .text_xs()
-                .text_color(err_fg)
-                .truncate()
-                .child(line)
-                .tooltip(move |window, app| Tooltip::new(tip.clone()).build(window, app))
+            let copy_text = full.clone();
+            h_flex()
+                .id("pg-query-error-card")
+                .mx_2()
+                .my_1()
+                .px_3()
+                .py_2()
+                .gap_2()
+                .items_start()
+                .rounded(px(6.0))
+                .border_1()
+                .border_color(danger_border)
+                .bg(danger_bg)
+                .child(
+                    div().mt(px(2.0)).child(
+                        Icon::new(IconName::TriangleAlert)
+                            .text_color(err_fg)
+                            .xsmall(),
+                    ),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .max_h(px(72.0))
+                        .overflow_hidden()
+                        .text_xs()
+                        .font_family(mono_font_err.clone())
+                        .text_color(err_fg)
+                        .child(full),
+                )
+                .child(
+                    Button::new("pg-error-copy")
+                        .ghost()
+                        .xsmall()
+                        .icon(IconName::Copy)
+                        .tooltip(SharedString::from("Copy error"))
+                        .on_click(move |_, _, cx| {
+                            cx.write_to_clipboard(ClipboardItem::new_string(copy_text.clone()));
+                        }),
+                )
         });
 
         let main_column = v_flex()
@@ -395,15 +478,6 @@ impl Render for QueryEditorPanel {
             .h_full()
             .min_h(px(0.0))
             .bg(cx.theme().background)
-            .when(
-                !PopOutManager::is_pop_out_panel(cx.entity().entity_id(), cx),
-                |col| {
-                    col.child(panel_context_header(
-                        "Run SQL, inspect plans, compare result sets",
-                        cx,
-                    ))
-                },
-            )
             .child(toolbar)
             .when_some(error_strip, |col, strip| col.child(strip))
             .child(editor_body)

@@ -66,7 +66,6 @@ pub fn code_editor_area(
         .p_2()
         .border_1()
         .rounded(px(7.0))
-        .bg(theme.muted.opacity(0.14))
         .border_color(border)
         .child(Input::new(input).h_full().cleanable(false))
 }
@@ -83,7 +82,6 @@ pub fn code_editor_flex(input: &Entity<InputState>, is_error: bool, cx: &App) ->
         .p_2()
         .border_1()
         .rounded(px(7.0))
-        .bg(theme.muted.opacity(0.14))
         .border_color(border)
         .child(Input::new(input).h_full().cleanable(false))
 }

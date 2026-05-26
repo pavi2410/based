@@ -93,7 +93,19 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
-          path: apps/desktop/dist/
+          # Only upload finished installer files. cargo-packager produces a
+          # .app bundle as a build-time intermediate for the .dmg, but the
+          # .dmg already contains the .app — shipping the bare bundle
+          # separately is redundant. Listing concrete extensions also keeps
+          # the upload step from accidentally including a directory, which
+          # is what broke gh release create in the past.
+          path: |
+            apps/desktop/dist/*.dmg
+            apps/desktop/dist/*.deb
+            apps/desktop/dist/*.AppImage
+            apps/desktop/dist/*.exe
+            apps/desktop/dist/*.msi
+          if-no-files-found: ignore
 
   release:
     name: Publish GitHub Release
@@ -114,16 +126,21 @@ jobs:
       - name: Generate checksums
         run: |
           cd dist
-          find . -type f -print0 | sort -z | xargs -0 sha256sum > ../checksums.txt
+          # -maxdepth 1: don't descend into Based.app bundles, only checksum the top-level installer files.
+          find . -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum > ../checksums.txt
 
       - name: Publish GitHub Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ needs.prepare.outputs.version }}
-          SHA: ${{ github.sha }}
-        run: |
-          gh release create "${VERSION}" \
-            --title "Based ${VERSION#v}" \
-            --target "${SHA}" \
-            --generate-notes \
-            dist/* checksums.txt
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.prepare.outputs.version }}
+          name: Based ${{ needs.prepare.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          make_latest: "true"
+          draft: false
+          # `dist/*` matches one level only so .app directories are filtered as
+          # directories by the action (which uploads files only), not recursed
+          # into. The .dmg next to each .app is what end users actually install.
+          files: |
+            dist/*
+            checksums.txt

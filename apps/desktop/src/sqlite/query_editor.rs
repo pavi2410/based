@@ -1,36 +1,51 @@
 // sqlite::query_editor — QueryEditorPanel: run arbitrary SQL and view results.
 
+use std::rc::Rc;
+
 use gpui::{App, prelude::*, *};
 use gpui_component::{
-    ActiveTheme,
+    ActiveTheme, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,
     input::{InputEvent, InputState},
     menu::PopupMenu,
+    resizable::{ResizableState, resizable_panel, v_resizable},
     table::{Column, TableState},
-    tooltip::Tooltip,
     v_flex,
 };
 use sqlx::{Column as SqlxColumn, Row, SqlitePool};
 use time::OffsetDateTime;
 
+use super::eqp_parse::{EqpNode, parse_eqp};
+use super::eqp_viewer::render_eqp_body;
+
 use crate::connection::ConnectionId;
 use crate::db;
 use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
+use crate::widgets::query_panel_extras;
+use crate::widgets::result_tabs::{BottomTab, result_tab_strip};
 use crate::widgets::row_cell::sqlite_cell_display;
 use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input, sql_from_input};
 use crate::widgets::ui::{panel_context_header, shortcut_run_kbd_in_primary_button};
 use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
 use crate::workspace::pop_out::{PopOutManager, PopOutWindowTitle};
-use crate::workspace::{TabSpec, enqueue_open_tab, notify, tab_open::take_sql_inject};
+use crate::workspace::tab_open::take_sql_inject;
 
 pub enum QueryStatus {
     Idle,
     Running,
     Done { rows: usize, elapsed_ms: u64 },
     Error(String),
+}
+
+/// Result of an inline EXPLAIN QUERY PLAN run.
+enum ExplainView {
+    Empty,
+    Running,
+    Plan(Vec<EqpNode>),
+    Text(String),
 }
 
 pub struct QueryEditorPanel {
@@ -40,6 +55,9 @@ pub struct QueryEditorPanel {
     sql_input: Entity<InputState>,
     result: Entity<TableState<RowDelegate>>,
     status: QueryStatus,
+    split_state: Entity<ResizableState>,
+    bottom_tab: BottomTab,
+    explain: ExplainView,
     pub(crate) tab_label: SharedString,
 }
 
@@ -65,6 +83,7 @@ impl QueryEditorPanel {
         let sql_input = new_sql_input(&sql, window, cx);
         let delegate = RowDelegate::default();
         let result = cx.new(|cx| configure_row_table(delegate, window, cx));
+        let split_state = cx.new(|_| ResizableState::default());
         let panel = Self {
             focus_handle: cx.focus_handle(),
             pool,
@@ -72,6 +91,9 @@ impl QueryEditorPanel {
             sql_input: sql_input.clone(),
             result,
             status: QueryStatus::Idle,
+            split_state,
+            bottom_tab: BottomTab::Results,
+            explain: ExplainView::Empty,
             tab_label: "Query".into(),
         };
         cx.subscribe_in(&sql_input, window, |panel, _, event, window, cx| {
@@ -101,20 +123,52 @@ impl QueryEditorPanel {
         sql_from_input(&self.sql_input, cx)
     }
 
-    fn open_explain(&mut self, cx: &mut Context<Self>) {
+    /// Switch the bottom dock to the Explain tab and (re)run EXPLAIN QUERY PLAN inline.
+    fn switch_to_explain(&mut self, cx: &mut Context<Self>) {
         let sql = self.current_sql(cx);
+        self.bottom_tab = BottomTab::Explain;
         if sql.trim().is_empty() {
+            self.explain = ExplainView::Empty;
+            cx.notify();
             return;
         }
-        enqueue_open_tab(
-            TabSpec::Explain {
-                conn_id: self.conn_id.clone(),
-                label: "explain".into(),
-                sql,
-            },
-            cx,
-        );
-        cx.refresh_windows();
+        self.explain = ExplainView::Running;
+        cx.notify();
+        let pool = self.pool.clone();
+        cx.spawn(async move |this, cx| {
+            let outcome = db::run(cx, async move {
+                let q = format!("EXPLAIN QUERY PLAN {sql}");
+                Ok(sqlx::query(&q).fetch_all(&pool).await?)
+            })
+            .await;
+            let view = match outcome {
+                Ok(rows) => {
+                    let flat: Vec<(i64, i64, String)> = rows
+                        .iter()
+                        .map(|row| {
+                            let id: i64 = row.try_get("id").unwrap_or(0);
+                            let parent: i64 = row.try_get("parent").unwrap_or(0);
+                            let detail: String = row.try_get("detail").unwrap_or_default();
+                            (id, parent, detail)
+                        })
+                        .collect();
+                    let roots = parse_eqp(&flat);
+                    if roots.is_empty() {
+                        ExplainView::Text("(no plan rows)".to_string())
+                    } else {
+                        ExplainView::Plan(roots)
+                    }
+                }
+                Err(e) => ExplainView::Text(format!("({e})")),
+            };
+            let _ = cx.update(|cx| {
+                this.update(cx, |panel, cx| {
+                    panel.explain = view;
+                    cx.notify();
+                })
+            });
+        })
+        .detach();
     }
 
     fn run_query(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
@@ -125,6 +179,7 @@ impl QueryEditorPanel {
         let sql_executed = sql.clone();
         let conn_id = self.conn_id.clone();
         self.status = QueryStatus::Running;
+        self.bottom_tab = BottomTab::Results;
 
         cx.spawn(async move |this, cx| {
             let start = std::time::Instant::now();
@@ -177,6 +232,7 @@ impl QueryEditorPanel {
                     cx.notify();
                 }
                 Err(e) => {
+                    panel.bottom_tab = BottomTab::Messages;
                     panel.status = QueryStatus::Error(e.to_string());
                     cx.notify();
                 }
@@ -225,6 +281,140 @@ impl PopOutWindowTitle for QueryEditorPanel {
     }
 }
 
+impl QueryEditorPanel {
+    fn render_bottom_body(&self, cx: &mut Context<Self>) -> AnyElement {
+        match self.bottom_tab {
+            BottomTab::Results => div()
+                .flex_1()
+                .min_h(px(0.0))
+                .child(render_row_table(&self.result, cx))
+                .into_any_element(),
+            BottomTab::Messages => self.render_messages(cx),
+            BottomTab::Explain => self.render_explain(cx),
+        }
+    }
+
+    fn render_messages(&self, cx: &mut Context<Self>) -> AnyElement {
+        let theme = cx.theme();
+        let muted = theme.muted_foreground;
+        match &self.status {
+            QueryStatus::Error(full) => {
+                let err_fg = theme.danger_foreground;
+                let danger_bg = theme.danger.opacity(0.06);
+                let danger_border = theme.danger.opacity(0.20);
+                let mono = theme.mono_font_family.clone();
+                let copy_text = full.clone();
+                div()
+                    .flex_1()
+                    .min_h(px(0.0))
+                    .p_3()
+                    .child(
+                        h_flex()
+                            .id("sqlite-query-error-card")
+                            .p_3()
+                            .gap_2()
+                            .items_start()
+                            .rounded(px(6.0))
+                            .border_1()
+                            .border_color(danger_border)
+                            .bg(danger_bg)
+                            .child(
+                                div().mt(px(2.0)).child(
+                                    Icon::new(IconName::TriangleAlert)
+                                        .text_color(err_fg)
+                                        .xsmall(),
+                                ),
+                            )
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .text_xs()
+                                    .font_family(mono)
+                                    .text_color(err_fg)
+                                    .child(full.clone()),
+                            )
+                            .child(
+                                Button::new("sqlite-error-copy")
+                                    .ghost()
+                                    .xsmall()
+                                    .icon(IconName::Copy)
+                                    .tooltip(SharedString::from("Copy error"))
+                                    .on_click(move |_, _, cx| {
+                                        cx.write_to_clipboard(ClipboardItem::new_string(
+                                            copy_text.clone(),
+                                        ));
+                                    }),
+                            ),
+                    )
+                    .into_any_element()
+            }
+            QueryStatus::Done { rows, elapsed_ms } => div()
+                .flex_1()
+                .min_h(px(0.0))
+                .p_3()
+                .text_xs()
+                .text_color(muted)
+                .child(format!("Query OK · {rows} rows · {elapsed_ms} ms"))
+                .into_any_element(),
+            QueryStatus::Running => div()
+                .flex_1()
+                .min_h(px(0.0))
+                .p_3()
+                .text_xs()
+                .text_color(muted)
+                .child("Running…")
+                .into_any_element(),
+            QueryStatus::Idle => div()
+                .flex_1()
+                .min_h(px(0.0))
+                .p_3()
+                .text_xs()
+                .text_color(muted)
+                .child("No messages yet. Run a query to see output here.")
+                .into_any_element(),
+        }
+    }
+
+    fn render_explain(&self, cx: &mut Context<Self>) -> AnyElement {
+        let theme = cx.theme();
+        let muted = theme.muted_foreground;
+        let mono = theme.mono_font_family.clone();
+        match &self.explain {
+            ExplainView::Empty => div()
+                .flex_1()
+                .min_h(px(0.0))
+                .p_3()
+                .text_xs()
+                .text_color(muted)
+                .child("Click Explain in the toolbar to see the query plan.")
+                .into_any_element(),
+            ExplainView::Running => div()
+                .flex_1()
+                .min_h(px(0.0))
+                .p_3()
+                .text_xs()
+                .text_color(muted)
+                .child("Running EXPLAIN QUERY PLAN…")
+                .into_any_element(),
+            ExplainView::Plan(roots) => div()
+                .flex_1()
+                .min_h(px(0.0))
+                .child(render_eqp_body("sqlite-inline-eqp", roots, theme))
+                .into_any_element(),
+            ExplainView::Text(text) => div()
+                .flex_1()
+                .min_h(px(0.0))
+                .p_3()
+                .text_sm()
+                .font_family(mono)
+                .text_color(theme.foreground)
+                .child(text.clone())
+                .into_any_element(),
+        }
+    }
+}
+
 impl Render for QueryEditorPanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if let Some(sql) = take_sql_inject(&self.conn_id, cx) {
@@ -235,10 +425,6 @@ impl Render for QueryEditorPanel {
         let err_fg = cx.theme().danger_foreground;
 
         let is_error = matches!(self.status, QueryStatus::Error(_));
-        let err_text = match &self.status {
-            QueryStatus::Error(s) => Some(s.clone()),
-            _ => None,
-        };
 
         let status_text: SharedString = match &self.status {
             QueryStatus::Idle => "Ready".into(),
@@ -248,6 +434,12 @@ impl Render for QueryEditorPanel {
             }
             QueryStatus::Error(_) => "Query failed".into(),
         };
+
+        let project_dir = cx
+            .try_global::<crate::project::ProjectRoot>()
+            .map(|p| p.0.clone());
+        let var_map = cx.global::<crate::project::ProjectVars>().vars.clone();
+        let mono_font = cx.theme().mono_font_family.clone();
 
         let toolbar = h_flex()
             .w_full()
@@ -268,8 +460,15 @@ impl Render for QueryEditorPanel {
                 Button::new("sqlite-explain")
                     .ghost()
                     .label("Explain")
-                    .on_click(cx.listener(|panel, _, _, cx| panel.open_explain(cx))),
+                    .on_click(cx.listener(|panel, _, _, cx| panel.switch_to_explain(cx))),
             )
+            .child(query_panel_extras::variables_popover(
+                "sqlite-vars-popover",
+                project_dir,
+                var_map,
+                mono_font,
+                cx,
+            ))
             .child(
                 div()
                     .text_sm()
@@ -277,43 +476,25 @@ impl Render for QueryEditorPanel {
                     .child(status_text),
             );
 
-        let error_strip = err_text.map(|full| {
-            let tip = full.clone();
-            let line = notify::error_one_liner(&full);
-            div()
-                .id("sqlite-query-error-strip")
-                .px(px(8.0))
-                .pb(px(4.0))
-                .text_xs()
-                .text_color(err_fg)
-                .truncate()
-                .child(line)
-                .tooltip(move |window, app| Tooltip::new(tip.clone()).build(window, app))
-        });
+        let editor_pane = div().size_full().p_2().child(sql_editor::code_editor_flex(
+            &self.sql_input,
+            is_error,
+            cx,
+        ));
 
-        let main_column = v_flex()
-            .flex_1()
-            .min_w(px(0.0))
-            .min_h(px(0.0))
-            .child(
-                div()
-                    .flex_shrink_0()
-                    .p_2()
-                    .child(sql_editor::code_editor_area(
-                        &self.sql_input,
-                        is_error,
-                        120.0,
-                        cx,
-                    )),
-            )
-            .child(
-                div()
-                    .flex_1()
-                    .min_h(px(0.0))
-                    .child(render_row_table(&self.result, cx)),
-            );
-
-        let editor_body = h_flex().flex_1().min_h(px(0.0)).child(main_column);
+        let on_select: Rc<dyn Fn(BottomTab, &mut Window, &mut App)> = {
+            let entity = cx.entity();
+            Rc::new(move |tab, _, cx| {
+                entity.update(cx, |panel, cx| {
+                    panel.bottom_tab = tab;
+                    cx.notify();
+                });
+            })
+        };
+        let has_error = matches!(self.status, QueryStatus::Error(_));
+        let strip = result_tab_strip("sqlite-bt", self.bottom_tab, has_error, on_select, cx);
+        let bottom_body = self.render_bottom_body(cx);
+        let bottom_pane = v_flex().size_full().child(strip).child(bottom_body);
 
         v_flex()
             .w_full()
@@ -330,7 +511,13 @@ impl Render for QueryEditorPanel {
                 },
             )
             .child(toolbar)
-            .when_some(error_strip, |col, strip| col.child(strip))
-            .child(editor_body)
+            .child(
+                div().flex_1().min_h(px(0.0)).child(
+                    v_resizable("sqlite-query-split")
+                        .with_state(&self.split_state)
+                        .child(resizable_panel().size(px(180.0)).child(editor_pane))
+                        .child(resizable_panel().child(bottom_pane)),
+                ),
+            )
     }
 }

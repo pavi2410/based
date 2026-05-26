@@ -1,33 +1,36 @@
 // postgres::query_editor — run ad-hoc SQL against a pool.
 
+use std::rc::Rc;
+
 use gpui::{App, prelude::*, *};
 use gpui_component::{
-    ActiveTheme, Icon, IconName, Selectable as _, Sizable as _,
+    ActiveTheme, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,
     input::{InputEvent, InputState},
     menu::PopupMenu,
+    resizable::{ResizableState, resizable_panel, v_resizable},
+    scroll::ScrollableElement as _,
     spinner::Spinner,
     table::TableState,
     v_flex,
 };
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use time::OffsetDateTime;
 
 use crate::connection::ConnectionId;
+use crate::postgres::explain_plan::{PlanNode, parse_pg_explain_json, render_plan_node};
 use crate::postgres::mutations::execute_sql;
-use crate::project::ProjectRoot;
 use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::query_panel_extras;
+use crate::widgets::result_tabs::{BottomTab, result_tab_strip};
 use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input, sql_from_input};
 use crate::widgets::ui::{metadata_pill, shortcut_run_kbd_in_primary_button};
 use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
 use crate::workspace::pop_out::PopOutWindowTitle;
-use crate::workspace::{
-    TabSpec, enqueue_open_tab, mark_query_tab_dirty, tab_open::take_sql_inject,
-};
+use crate::workspace::{mark_query_tab_dirty, tab_open::take_sql_inject};
 
 pub enum QueryStatus {
     Idle,
@@ -40,6 +43,18 @@ pub enum QueryStatus {
     Error(String),
 }
 
+/// Result of an inline EXPLAIN (FORMAT JSON) run.
+enum ExplainView {
+    /// No explain has been requested yet — the tab shows an empty hint.
+    Empty,
+    /// Currently fetching the plan.
+    Running,
+    /// Parsed plan tree.
+    Plan(PlanNode),
+    /// Plan was returned as raw text (parsing failed or analyze disabled).
+    Text(String),
+}
+
 pub struct QueryEditorPanel {
     focus_handle: FocusHandle,
     pool: PgPool,
@@ -47,7 +62,9 @@ pub struct QueryEditorPanel {
     sql_input: Entity<InputState>,
     result: Entity<TableState<RowDelegate>>,
     status: QueryStatus,
-    show_variables: bool,
+    split_state: Entity<ResizableState>,
+    bottom_tab: BottomTab,
+    explain: ExplainView,
     dirty: bool,
     pub(crate) tab_label: SharedString,
 }
@@ -74,6 +91,7 @@ impl QueryEditorPanel {
         let result = cx.new(|cx| configure_row_table(delegate, window, cx));
         let sql_text = initial_sql.unwrap_or_else(|| "SELECT 1 AS one;".to_string());
         let sql_input = new_sql_input(&sql_text, window, cx);
+        let split_state = cx.new(|_| ResizableState::default());
         let panel = Self {
             focus_handle: cx.focus_handle(),
             pool,
@@ -81,7 +99,9 @@ impl QueryEditorPanel {
             sql_input: sql_input.clone(),
             result,
             status: QueryStatus::Idle,
-            show_variables: false,
+            split_state,
+            bottom_tab: BottomTab::Results,
+            explain: ExplainView::Empty,
             dirty: false,
             tab_label: "Query".into(),
         };
@@ -121,20 +141,47 @@ impl QueryEditorPanel {
         sql_from_input(&self.sql_input, cx)
     }
 
-    fn open_explain(&mut self, cx: &mut Context<Self>) {
+    /// Switch the bottom dock to the Explain tab and (re)run EXPLAIN inline.
+    fn switch_to_explain(&mut self, cx: &mut Context<Self>) {
         let sql = self.current_sql(cx);
+        self.bottom_tab = BottomTab::Explain;
         if sql.trim().is_empty() {
+            self.explain = ExplainView::Empty;
+            cx.notify();
             return;
         }
-        enqueue_open_tab(
-            TabSpec::Explain {
-                conn_id: self.conn_id.clone(),
-                label: "explain".into(),
-                sql,
-            },
-            cx,
-        );
-        cx.refresh_windows();
+        self.explain = ExplainView::Running;
+        cx.notify();
+        let pool = self.pool.clone();
+        cx.spawn(async move |this, cx| {
+            let outcome = crate::db::run_infallible(cx, async move {
+                let q = format!("EXPLAIN (FORMAT JSON) {sql}");
+                let rows = sqlx::query(&q).fetch_all(&pool).await.unwrap_or_default();
+                let raw: String = rows
+                    .first()
+                    .and_then(|row| row.try_get::<String, usize>(0).ok())
+                    .unwrap_or_default();
+                if raw.is_empty() {
+                    return ExplainView::Text("(no plan rows)".to_string());
+                }
+                match serde_json::from_str::<serde_json::Value>(&raw) {
+                    Ok(json) => match parse_pg_explain_json(&json) {
+                        Some(plan) => ExplainView::Plan(plan),
+                        None => ExplainView::Text(raw),
+                    },
+                    Err(e) => ExplainView::Text(format!("(invalid JSON: {e})")),
+                }
+            })
+            .await;
+            let view = outcome.unwrap_or(ExplainView::Text("(error)".to_string()));
+            let _ = cx.update(|cx| {
+                this.update(cx, |panel, cx| {
+                    panel.explain = view;
+                    cx.notify();
+                })
+            });
+        })
+        .detach();
     }
 
     fn run(&mut self, cx: &mut Context<Self>) {
@@ -147,6 +194,7 @@ impl QueryEditorPanel {
         let sql_executed = sql.clone();
         let conn_id = self.conn_id.clone();
         self.status = QueryStatus::Running;
+        self.bottom_tab = BottomTab::Results;
         let pool = self.pool.clone();
         cx.spawn(async move |this, cx| {
             let start = std::time::Instant::now();
@@ -182,7 +230,10 @@ impl QueryEditorPanel {
                             elapsed_ms: ms,
                         }
                     }
-                    Err(e) => QueryStatus::Error(e.to_string()),
+                    Err(e) => {
+                        panel.bottom_tab = BottomTab::Messages;
+                        QueryStatus::Error(e.to_string())
+                    }
                 };
                 cx.notify();
             });
@@ -302,22 +353,164 @@ fn render_status_cluster(status: &QueryStatus, cx: &mut App) -> AnyElement {
     }
 }
 
+impl QueryEditorPanel {
+    /// Render the body for the currently selected bottom tab.
+    fn render_bottom_body(&self, cx: &mut Context<Self>) -> AnyElement {
+        match self.bottom_tab {
+            BottomTab::Results => div()
+                .flex_1()
+                .min_h(px(0.0))
+                .child(render_row_table(&self.result, cx))
+                .into_any_element(),
+            BottomTab::Messages => self.render_messages(cx),
+            BottomTab::Explain => self.render_explain(cx),
+        }
+    }
+
+    fn render_messages(&self, cx: &mut Context<Self>) -> AnyElement {
+        let theme = cx.theme();
+        let muted = theme.muted_foreground;
+        match &self.status {
+            QueryStatus::Error(full) => {
+                let err_fg = theme.danger_foreground;
+                let danger_bg = theme.danger.opacity(0.06);
+                let danger_border = theme.danger.opacity(0.20);
+                let mono = theme.mono_font_family.clone();
+                let copy_text = full.clone();
+                div()
+                    .flex_1()
+                    .min_h(px(0.0))
+                    .p_3()
+                    .child(
+                        h_flex()
+                            .id("pg-query-error-card")
+                            .p_3()
+                            .gap_2()
+                            .items_start()
+                            .rounded(px(6.0))
+                            .border_1()
+                            .border_color(danger_border)
+                            .bg(danger_bg)
+                            .child(
+                                div().mt(px(2.0)).child(
+                                    Icon::new(IconName::TriangleAlert)
+                                        .text_color(err_fg)
+                                        .xsmall(),
+                                ),
+                            )
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .text_xs()
+                                    .font_family(mono)
+                                    .text_color(err_fg)
+                                    .child(full.clone()),
+                            )
+                            .child(
+                                Button::new("pg-error-copy")
+                                    .ghost()
+                                    .xsmall()
+                                    .icon(IconName::Copy)
+                                    .tooltip(SharedString::from("Copy error"))
+                                    .on_click(move |_, _, cx| {
+                                        cx.write_to_clipboard(ClipboardItem::new_string(
+                                            copy_text.clone(),
+                                        ));
+                                    }),
+                            ),
+                    )
+                    .into_any_element()
+            }
+            QueryStatus::Done {
+                rows,
+                affected,
+                elapsed_ms,
+            } => div()
+                .flex_1()
+                .min_h(px(0.0))
+                .p_3()
+                .text_xs()
+                .text_color(muted)
+                .child(format!(
+                    "Query OK · {rows} rows · {affected} affected · {elapsed_ms} ms"
+                ))
+                .into_any_element(),
+            QueryStatus::Running => div()
+                .flex_1()
+                .min_h(px(0.0))
+                .p_3()
+                .text_xs()
+                .text_color(muted)
+                .child("Running…")
+                .into_any_element(),
+            QueryStatus::Idle => div()
+                .flex_1()
+                .min_h(px(0.0))
+                .p_3()
+                .text_xs()
+                .text_color(muted)
+                .child("No messages yet. Run a query to see output here.")
+                .into_any_element(),
+        }
+    }
+
+    fn render_explain(&self, cx: &mut Context<Self>) -> AnyElement {
+        let theme = cx.theme();
+        let muted = theme.muted_foreground;
+        let mono = theme.mono_font_family.clone();
+        match &self.explain {
+            ExplainView::Empty => div()
+                .flex_1()
+                .min_h(px(0.0))
+                .p_3()
+                .text_xs()
+                .text_color(muted)
+                .child("Click Explain in the toolbar to see the query plan.")
+                .into_any_element(),
+            ExplainView::Running => div()
+                .flex_1()
+                .min_h(px(0.0))
+                .p_3()
+                .text_xs()
+                .text_color(muted)
+                .child("Running EXPLAIN…")
+                .into_any_element(),
+            ExplainView::Plan(plan) => div()
+                .id("pg-inline-explain")
+                .flex_1()
+                .min_h(px(0.0))
+                .overflow_y_scrollbar()
+                .p(px(8.0))
+                .child(render_plan_node(plan, 0, theme))
+                .into_any_element(),
+            ExplainView::Text(text) => div()
+                .flex_1()
+                .min_h(px(0.0))
+                .p_3()
+                .text_sm()
+                .font_family(mono)
+                .text_color(theme.foreground)
+                .child(text.clone())
+                .into_any_element(),
+        }
+    }
+}
+
 impl Render for QueryEditorPanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if let Some(sql) = take_sql_inject(&self.conn_id, cx) {
             set_sql_input(&self.sql_input, &sql, window, cx);
         }
         let border = cx.theme().border;
-        let muted = cx.theme().muted_foreground;
-        let err_fg = cx.theme().danger_foreground;
 
         let is_error = matches!(self.status, QueryStatus::Error(_));
-        let err_text = match &self.status {
-            QueryStatus::Error(s) => Some(s.clone()),
-            _ => None,
-        };
 
-        let show_variables = self.show_variables;
+        let project_dir = cx
+            .try_global::<crate::project::ProjectRoot>()
+            .map(|p| p.0.clone());
+        let var_map = cx.global::<crate::project::ProjectVars>().vars.clone();
+        let mono_font = cx.theme().mono_font_family.clone();
 
         let toolbar = h_flex()
             .gap(px(6.0))
@@ -341,100 +534,37 @@ impl Render for QueryEditorPanel {
                     .ghost()
                     .small()
                     .label("Explain")
-                    .on_click(cx.listener(|panel, _, _, cx| panel.open_explain(cx))),
+                    .on_click(cx.listener(|panel, _, _, cx| panel.switch_to_explain(cx))),
             )
-            .child(
-                Button::new("pg-vars-toggle")
-                    .ghost()
-                    .small()
-                    .selected(show_variables)
-                    .label("Variables")
-                    .on_click(cx.listener(|panel, _, _, cx| {
-                        panel.show_variables = !panel.show_variables;
-                        cx.notify();
-                    })),
-            )
+            .child(query_panel_extras::variables_popover(
+                "pg-vars-popover",
+                project_dir,
+                var_map,
+                mono_font,
+                cx,
+            ))
             .child(div().flex_1())
             .child(render_status_cluster(&self.status, cx));
 
-        let mono_font_err = cx.theme().mono_font_family.clone();
-        let danger_bg = cx.theme().danger.opacity(0.06);
-        let danger_border = cx.theme().danger.opacity(0.20);
-        let error_strip = err_text.map(|full| {
-            let copy_text = full.clone();
-            h_flex()
-                .id("pg-query-error-card")
-                .mx_2()
-                .my_1()
-                .px_3()
-                .py_2()
-                .gap_2()
-                .items_start()
-                .rounded(px(6.0))
-                .border_1()
-                .border_color(danger_border)
-                .bg(danger_bg)
-                .child(
-                    div().mt(px(2.0)).child(
-                        Icon::new(IconName::TriangleAlert)
-                            .text_color(err_fg)
-                            .xsmall(),
-                    ),
-                )
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .max_h(px(72.0))
-                        .overflow_hidden()
-                        .text_xs()
-                        .font_family(mono_font_err.clone())
-                        .text_color(err_fg)
-                        .child(full),
-                )
-                .child(
-                    Button::new("pg-error-copy")
-                        .ghost()
-                        .xsmall()
-                        .icon(IconName::Copy)
-                        .tooltip(SharedString::from("Copy error"))
-                        .on_click(move |_, _, cx| {
-                            cx.write_to_clipboard(ClipboardItem::new_string(copy_text.clone()));
-                        }),
-                )
-        });
+        let editor_pane = div().size_full().p_2().child(sql_editor::code_editor_flex(
+            &self.sql_input,
+            is_error,
+            cx,
+        ));
 
-        let main_column = v_flex()
-            .flex_1()
-            .min_w(px(0.0))
-            .min_h(px(0.0))
-            .child(
-                div()
-                    .flex_shrink_0()
-                    .p_2()
-                    .child(sql_editor::code_editor_area(
-                        &self.sql_input,
-                        is_error,
-                        200.0,
-                        cx,
-                    )),
-            )
-            .child(
-                div()
-                    .flex_1()
-                    .min_h(px(0.0))
-                    .child(render_row_table(&self.result, cx)),
-            );
-
-        let editor_body = h_flex().flex_1().min_h(px(0.0)).child(main_column);
-
-        let project_dir = cx.try_global::<ProjectRoot>().map(|p| p.0.clone());
-        let show_variables = self.show_variables;
-        let var_map = cx.global::<crate::project::ProjectVars>().vars.clone();
-        let mono_font = cx.theme().mono_font_family.clone();
-        let border_v = border;
-        let muted_v = muted;
-        let muted_bg = cx.theme().muted.opacity(0.06);
+        let on_select: Rc<dyn Fn(BottomTab, &mut Window, &mut App)> = {
+            let entity = cx.entity();
+            Rc::new(move |tab, _, cx| {
+                entity.update(cx, |panel, cx| {
+                    panel.bottom_tab = tab;
+                    cx.notify();
+                });
+            })
+        };
+        let has_error = matches!(self.status, QueryStatus::Error(_));
+        let strip = result_tab_strip("pg-bt", self.bottom_tab, has_error, on_select, cx);
+        let bottom_body = self.render_bottom_body(cx);
+        let bottom_pane = v_flex().size_full().child(strip).child(bottom_body);
 
         v_flex()
             .w_full()
@@ -442,16 +572,13 @@ impl Render for QueryEditorPanel {
             .min_h(px(0.0))
             .bg(cx.theme().background)
             .child(toolbar)
-            .when_some(error_strip, |col, strip| col.child(strip))
-            .child(editor_body)
-            .child(query_panel_extras::variables_footer(
-                project_dir,
-                show_variables,
-                var_map,
-                mono_font,
-                border_v,
-                muted_v,
-                muted_bg,
-            ))
+            .child(
+                div().flex_1().min_h(px(0.0)).child(
+                    v_resizable("pg-query-split")
+                        .with_state(&self.split_state)
+                        .child(resizable_panel().size(px(220.0)).child(editor_pane))
+                        .child(resizable_panel().child(bottom_pane)),
+                ),
+            )
     }
 }

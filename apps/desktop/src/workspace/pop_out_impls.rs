@@ -9,12 +9,10 @@ use crate::mongodb::inspector::CollectionInspectorPanel;
 use crate::mongodb::pipeline_builder::PipelineBuilderPanel;
 use crate::mongodb::tree::CollectionsTreePanel;
 use crate::mongodb::wizard::ConnectionWizardPanel as MongoWizardPanel;
-use crate::postgres::explain::ExplainPanel;
 use crate::postgres::inspector::TableInspectorPanel as PgInspectorPanel;
 use crate::postgres::live_monitor::LiveMonitorPanel;
 use crate::postgres::tree::SchemaTreePanel as PgSchemaTreePanel;
 use crate::postgres::wizard::ConnectionWizardPanel as PgWizardPanel;
-use crate::sqlite::eqp_viewer::EqpViewerPanel;
 use crate::sqlite::fts_console::FtsConsolePanel;
 use crate::sqlite::inspector::TableInspectorPanel as SqliteInspectorPanel;
 use crate::sqlite::tree::SchemaTreePanel as SqliteSchemaTreePanel;
@@ -31,12 +29,10 @@ impl PopOutWindowTitle for CollectionInspectorPanel {}
 impl PopOutWindowTitle for PipelineBuilderPanel {}
 impl PopOutWindowTitle for CollectionsTreePanel {}
 impl PopOutWindowTitle for MongoWizardPanel {}
-impl PopOutWindowTitle for ExplainPanel {}
 impl PopOutWindowTitle for PgInspectorPanel {}
 impl PopOutWindowTitle for LiveMonitorPanel {}
 impl PopOutWindowTitle for PgSchemaTreePanel {}
 impl PopOutWindowTitle for PgWizardPanel {}
-impl PopOutWindowTitle for EqpViewerPanel {}
 impl PopOutWindowTitle for FtsConsolePanel {}
 impl PopOutWindowTitle for SqliteInspectorPanel {}
 impl PopOutWindowTitle for SqliteSchemaTreePanel {}

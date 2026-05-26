@@ -3,8 +3,7 @@
 // Implemented in Phase 4.
 
 pub mod data_viewer;
-pub mod explain;
-mod explain_plan;
+pub mod explain_plan;
 pub mod grammar;
 pub mod inspector;
 pub mod live_monitor;

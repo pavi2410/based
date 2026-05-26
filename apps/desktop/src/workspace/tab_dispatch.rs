@@ -289,40 +289,6 @@ impl Workspace {
                 });
                 register_dock_panel!(self, tab_spec_for_manager, panel_ent, window, cx);
             }
-            TabSpec::Explain {
-                conn_id,
-                label: _,
-                sql,
-            } => {
-                let Some(ent) = self.find_connection(&conn_id, cx) else {
-                    return;
-                };
-                let ac = match &ent.read(cx).state {
-                    ConnectionState::Connected(ac) => ac.clone(),
-                    _ => return,
-                };
-                let tab_spec_for_manager = TabSpec::Explain {
-                    conn_id: conn_id.clone(),
-                    label: "explain".to_string(),
-                    sql: sql.clone(),
-                };
-                match ac {
-                    AnyConnection::Postgres(conn) => {
-                        let pool = conn.read(cx).pool.clone();
-                        let panel_ent = cx
-                            .new(|cx| postgres::explain::ExplainPanel::new(pool, sql, window, cx));
-                        register_dock_panel!(self, tab_spec_for_manager, panel_ent, window, cx);
-                    }
-                    AnyConnection::SQLite(conn) => {
-                        let pool = conn.read(cx).pool.clone();
-                        let panel_ent = cx.new(|cx| {
-                            sqlite::eqp_viewer::EqpViewerPanel::new(pool, sql, window, cx)
-                        });
-                        register_dock_panel!(self, tab_spec_for_manager, panel_ent, window, cx);
-                    }
-                    AnyConnection::MongoDB(_) => {}
-                }
-            }
         }
     }
 

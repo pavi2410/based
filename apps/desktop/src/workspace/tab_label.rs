@@ -10,7 +10,6 @@ pub fn tab_label_for_spec(spec: &TabSpec, dirty: bool) -> SharedString {
         TabSpec::DataViewer { object, .. } => short_object_name(object),
         TabSpec::QueryEditor { .. } => "Query".to_string(),
         TabSpec::Pipeline { collection, .. } => collection.clone(),
-        TabSpec::Explain { label, .. } => label.clone(),
         TabSpec::Inspector { object, .. } => format!("{} (schema)", short_object_name(object)),
         TabSpec::ObjectInfo {
             object_name,

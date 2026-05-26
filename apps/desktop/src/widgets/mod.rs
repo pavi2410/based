@@ -8,6 +8,7 @@ pub mod filter_bar;
 pub mod list_row;
 pub mod pagination;
 pub mod query_panel_extras;
+pub mod result_tabs;
 pub mod row_cell;
 pub mod sql_editor;
 pub mod status_glyph;

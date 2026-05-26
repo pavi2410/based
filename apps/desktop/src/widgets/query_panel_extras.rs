@@ -1,13 +1,18 @@
-//! Shared query-editor chrome: history sidebar filters, star-to-save, variables footer.
+//! Shared query-editor chrome: history sidebar filters, star-to-save, variables popover.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use gpui::{FontWeight, Hsla, IntoElement, ParentElement, SharedString, Styled, div, prelude::*};
+use gpui::{
+    Anchor, ElementId, FontWeight, IntoElement, ParentElement, SharedString, Styled, div,
+    prelude::*, px,
+};
 use gpui_component::{
-    Sizable as _,
+    ActiveTheme, Sizable as _,
     button::{Button, ButtonVariants},
-    h_flex, v_flex,
+    h_flex,
+    popover::Popover,
+    v_flex,
 };
 use time::{Date, OffsetDateTime};
 
@@ -120,65 +125,75 @@ pub fn save_starred_query(
     store.save_query(q);
 }
 
-pub fn variables_footer(
+/// Build a `Variables` toolbar trigger that opens a popover with the project's
+/// `.based/vars.toml` map. The trigger button looks the same as before; clicking
+/// it shows a panel listing the variables (mono font) and a shortcut to open
+/// the vars file in the system editor.
+pub fn variables_popover(
+    id: impl Into<ElementId>,
     project_dir: Option<PathBuf>,
-    show: bool,
     vars: std::collections::HashMap<String, String>,
     mono_font: SharedString,
-    border: Hsla,
-    muted: Hsla,
-    muted_bg: Hsla,
-) -> impl IntoElement {
-    v_flex().when(show, |col| {
-        col.border_t_1()
-            .border_color(border)
-            .bg(muted_bg)
-            .child(
-                h_flex()
-                    .px_3()
-                    .py_2()
-                    .items_center()
-                    .justify_between()
-                    .child(
-                        div()
-                            .text_xs()
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .child("Variables (.based/vars.toml)"),
-                    )
-                    .when_some(project_dir.clone(), |row, root| {
-                        row.child(
-                            Button::new("vars-edit")
-                                .ghost()
-                                .xsmall()
-                                .label("Edit file")
-                                .on_click(move |_, _, _| open_vars_file(&root)),
-                        )
-                    }),
-            )
-            .children({
-                if vars.is_empty() {
-                    vec![
-                        div()
-                            .px_3()
-                            .pb_2()
-                            .text_xs()
-                            .text_color(muted)
-                            .child("No variables defined. Use $NAME in queries.")
-                            .into_any_element(),
-                    ]
-                } else {
-                    vars.iter()
-                        .map(|(k, v)| {
+    cx: &gpui::App,
+) -> Popover {
+    let muted = cx.theme().muted_foreground;
+    let trigger = Button::new("query-vars-trigger")
+        .ghost()
+        .small()
+        .label("Variables");
+
+    Popover::new(id)
+        .anchor(Anchor::TopRight)
+        .trigger(trigger)
+        .content(move |_, _, _| {
+            let project_dir = project_dir.clone();
+            let mono = mono_font.clone();
+            let vars = vars.clone();
+            v_flex()
+                .min_w(px(320.0))
+                .gap(px(4.0))
+                .child(
+                    h_flex()
+                        .items_center()
+                        .justify_between()
+                        .child(
                             div()
-                                .px_3()
-                                .py_1()
                                 .text_xs()
-                                .font_family(mono_font.clone())
-                                .child(format!("${k} = {v}"))
-                                .into_any_element()
-                        })
-                        .collect()
-                }
-            })
-    })
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .child("Variables (.based/vars.toml)"),
+                        )
+                        .when_some(project_dir.clone(), |row, root| {
+                            row.child(
+                                Button::new("vars-edit")
+                                    .ghost()
+                                    .xsmall()
+                                    .label("Edit file")
+                                    .on_click(move |_, _, _| open_vars_file(&root)),
+                            )
+                        }),
+                )
+                .children({
+                    if vars.is_empty() {
+                        vec![
+                            div()
+                                .py(px(4.0))
+                                .text_xs()
+                                .text_color(muted)
+                                .child("No variables defined. Use $NAME in queries.")
+                                .into_any_element(),
+                        ]
+                    } else {
+                        vars.iter()
+                            .map(|(k, v)| {
+                                div()
+                                    .py(px(2.0))
+                                    .text_xs()
+                                    .font_family(mono.clone())
+                                    .child(format!("${k} = {v}"))
+                                    .into_any_element()
+                            })
+                            .collect()
+                    }
+                })
+        })
 }

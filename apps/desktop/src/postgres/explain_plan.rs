@@ -1,4 +1,8 @@
-//! Parse PostgreSQL `EXPLAIN (FORMAT JSON)` output into a plan tree.
+//! Parse PostgreSQL `EXPLAIN (FORMAT JSON)` output into a plan tree
+//! and render it as an indented list of nodes.
+
+use gpui::{AnyElement, IntoElement, ParentElement, Styled, div, prelude::*, px};
+use gpui_component::v_flex;
 
 #[derive(Debug, Clone)]
 pub struct PlanNode {
@@ -41,6 +45,68 @@ fn parse_node(node: &serde_json::Value) -> PlanNode {
             .map(|plans| plans.iter().map(parse_node).collect())
             .unwrap_or_default(),
     }
+}
+
+/// Slow-node threshold (ms) used by [`render_plan_node`] to highlight hot rows.
+pub const SLOW_MS: f64 = 100.0;
+
+/// Render a [`PlanNode`] tree as an indented list. Slow rows get a warning
+/// border accent. The result is a single `v_flex`.
+pub fn render_plan_node(
+    node: &PlanNode,
+    depth: usize,
+    theme: &gpui_component::Theme,
+) -> AnyElement {
+    let slow = node.is_slow(SLOW_MS);
+    let relation = node
+        .relation
+        .as_deref()
+        .map(|r| format!(" on {r}"))
+        .unwrap_or_default();
+    let index = node
+        .index_name
+        .as_deref()
+        .map(|i| format!(" ({i})"))
+        .unwrap_or_default();
+    let rows = match (node.rows_actual, node.rows_estimated) {
+        (Some(actual), est) => format!("rows {actual} / est {est}"),
+        (None, est) => format!("rows est {est}"),
+    };
+    let time = node
+        .time_actual_ms
+        .map(|t| format!(" — {t:.2} ms"))
+        .unwrap_or_default();
+    let title = format!("{}{}{} — {}{}", node.node_type, relation, index, rows, time);
+    let warn = theme.warning;
+
+    let row = div()
+        .w_full()
+        .py(px(4.0))
+        .pl(px((depth * 16) as f32 + 8.0))
+        .pr(px(8.0))
+        .when(slow, |d| {
+            d.border_l_2()
+                .border_color(warn)
+                .pl(px((depth * 16) as f32 + 6.0))
+        })
+        .child(
+            div()
+                .text_sm()
+                .text_color(if slow { warn } else { theme.foreground })
+                .child(title),
+        );
+
+    let children: Vec<AnyElement> = node
+        .children
+        .iter()
+        .map(|c| render_plan_node(c, depth + 1, theme))
+        .collect();
+
+    v_flex()
+        .w_full()
+        .child(row)
+        .children(children)
+        .into_any_element()
 }
 
 #[cfg(test)]

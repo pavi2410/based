@@ -1,112 +1,28 @@
-// sqlite::eqp_viewer — EqpViewerPanel: EXPLAIN QUERY PLAN tree viewer.
+//! Inline EXPLAIN QUERY PLAN renderer shared by the SQLite query editor.
 
-use gpui::{prelude::*, *};
-use gpui_component::{
-    ActiveTheme,
-    dock::{Panel, PanelEvent},
-    menu::PopupMenu,
-    scroll::ScrollableElement,
-    v_flex,
-};
-use sqlx::{Row, SqlitePool};
+use gpui::{AnyElement, IntoElement, ParentElement, Styled, div, prelude::*, px};
+use gpui_component::{scroll::ScrollableElement, v_flex};
 
-use super::eqp_parse::{EqpNode, parse_eqp};
+use super::eqp_parse::EqpNode;
 
-pub struct EqpViewerPanel {
-    focus_handle: FocusHandle,
-    pool: SqlitePool,
-    sql: String,
-    roots: Vec<EqpNode>,
-    pub(crate) tab_label: SharedString,
-}
+/// Render a list of EQP roots as a scrollable indented tree.
+pub fn render_eqp_body(
+    id: impl Into<gpui::ElementId>,
+    roots: &[EqpNode],
+    theme: &gpui_component::Theme,
+) -> impl IntoElement {
+    let rows: Vec<AnyElement> = roots
+        .iter()
+        .map(|root| render_eqp_node(root, 0, theme))
+        .collect();
 
-impl EqpViewerPanel {
-    pub fn new(
-        pool: SqlitePool,
-        sql: String,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Self {
-        let mut panel = Self {
-            focus_handle: cx.focus_handle(),
-            pool,
-            sql,
-            roots: vec![],
-            tab_label: "Query Plan".into(),
-        };
-        panel.load_plan(cx);
-        panel
-    }
-
-    fn load_plan(&mut self, cx: &mut Context<Self>) {
-        let pool = self.pool.clone();
-        let sql = format!("EXPLAIN QUERY PLAN {}", self.sql);
-
-        cx.spawn(async move |this, cx| {
-            let rows =
-                match crate::db::run(
-                    cx,
-                    async move { Ok(sqlx::query(&sql).fetch_all(&pool).await?) },
-                )
-                .await
-                {
-                    Ok(r) => r,
-                    Err(_) => return,
-                };
-
-            let flat: Vec<(i64, i64, String)> = rows
-                .iter()
-                .map(|row| {
-                    let id: i64 = row.try_get("id").unwrap_or(0);
-                    let parent: i64 = row.try_get("parent").unwrap_or(0);
-                    let detail: String = row.try_get("detail").unwrap_or_default();
-                    (id, parent, detail)
-                })
-                .collect();
-            let roots = parse_eqp(&flat);
-
-            let _ = cx.update(|cx| {
-                this.update(cx, |panel, cx| {
-                    panel.roots = roots;
-                    cx.notify();
-                })
-            });
-        })
-        .detach();
-    }
-}
-
-impl EventEmitter<PanelEvent> for EqpViewerPanel {}
-
-impl Focusable for EqpViewerPanel {
-    fn focus_handle(&self, _: &App) -> FocusHandle {
-        self.focus_handle.clone()
-    }
-}
-
-impl Panel for EqpViewerPanel {
-    fn panel_name(&self) -> &'static str {
-        "SqliteEqpViewer"
-    }
-
-    fn dropdown_menu(
-        &mut self,
-        menu: PopupMenu,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> PopupMenu {
-        crate::based_panel_dropdown!(menu, self, cx)
-    }
-
-    fn closable(&self, _: &App) -> bool {
-        true
-    }
-
-    crate::based_panel_tab_chrome!();
-
-    fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        self.tab_label.clone()
-    }
+    v_flex()
+        .id(id)
+        .w_full()
+        .h_full()
+        .overflow_y_scrollbar()
+        .p(px(8.0))
+        .children(rows)
 }
 
 fn render_eqp_node(node: &EqpNode, depth: usize, theme: &gpui_component::Theme) -> AnyElement {
@@ -137,23 +53,4 @@ fn render_eqp_node(node: &EqpNode, depth: usize, theme: &gpui_component::Theme) 
         .child(row)
         .children(children)
         .into_any_element()
-}
-
-impl Render for EqpViewerPanel {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme();
-        let rows: Vec<AnyElement> = self
-            .roots
-            .iter()
-            .map(|root| render_eqp_node(root, 0, theme))
-            .collect();
-
-        v_flex()
-            .id("eqp-scroll")
-            .w_full()
-            .h_full()
-            .overflow_y_scrollbar()
-            .p(px(8.0))
-            .children(rows)
-    }
 }

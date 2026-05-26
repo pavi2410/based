@@ -2,6 +2,7 @@
 // Implemented in Phase 1.
 
 pub mod actions;
+pub mod aux_windows;
 pub mod globals;
 pub mod prefs;
 pub mod quit;

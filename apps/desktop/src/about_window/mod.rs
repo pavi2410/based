@@ -1,0 +1,213 @@
+//! Single-instanced "About Based" window.
+//!
+//! Surfaced from the macOS app menu and the topbar overflow menu. Tracked by
+//! [`crate::app::aux_windows::AuxWindows`] so re-opening focuses the existing
+//! window; closes when the main workspace window closes (see
+//! [`crate::workspace::pop_out::PopOutManager::on_any_window_closed`]).
+
+use gpui::{
+    ClipboardItem, Context, FocusHandle, Focusable, FontWeight, Hsla, IntoElement, MouseButton,
+    ParentElement, Render, SharedString, Styled, Window, div, prelude::*, px,
+};
+use gpui_component::{
+    ActiveTheme, Icon, IconName, Sizable as _,
+    button::{Button, ButtonVariants},
+    h_flex, v_flex,
+};
+
+const APP_NAME: &str = "Based";
+const TAGLINE: &str = "Git-Friendly Database Client";
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+const COMMIT: &str = env!("BASED_GIT_SHA");
+const LICENSE: &str = env!("CARGO_PKG_LICENSE");
+
+const REPO_URL: &str = "https://github.com/pavi2410/based";
+const DISCUSSIONS_URL: &str = "https://github.com/pavi2410/based/discussions";
+const ISSUES_URL: &str = "https://github.com/pavi2410/based/issues/new/choose";
+const RELEASES_URL: &str = "https://github.com/pavi2410/based/releases";
+const LICENSE_URL: &str = "https://github.com/pavi2410/based/blob/HEAD/LICENSE";
+const DEV_SITE_URL: &str = "https://pavi2410.com";
+const DEV_GITHUB_URL: &str = "https://github.com/pavi2410";
+
+/// Short curated list. Kept in sync manually with the workspace `Cargo.toml`;
+/// transitive dep changes don't need to be reflected here.
+const TECH_STACK: &[&str] = &[
+    "Rust",
+    "GPUI",
+    "gpui-component",
+    "tokio",
+    "sqlx",
+    "mongodb",
+    "serde",
+    "toml",
+];
+
+pub struct AboutWindow {
+    focus_handle: FocusHandle,
+}
+
+impl AboutWindow {
+    pub fn new(cx: &mut Context<Self>) -> Self {
+        Self {
+            focus_handle: cx.focus_handle(),
+        }
+    }
+}
+
+impl Focusable for AboutWindow {
+    fn focus_handle(&self, _cx: &gpui::App) -> FocusHandle {
+        self.focus_handle.clone()
+    }
+}
+
+impl Render for AboutWindow {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme();
+        let bg = theme.background;
+        let fg = theme.foreground;
+        let muted = theme.muted_foreground;
+        let border = theme.border;
+        let link = theme.accent_foreground;
+
+        v_flex()
+            .id("about-window")
+            .size_full()
+            .bg(bg)
+            .text_color(fg)
+            .pt(px(36.0))
+            .px(px(28.0))
+            .pb(px(20.0))
+            .gap(px(16.0))
+            .child(header(fg, muted))
+            .child(version_row(muted))
+            .child(divider(border))
+            .child(section_title("Links", muted))
+            .child(link_row("Repository", REPO_URL, IconName::Github, link))
+            .child(link_row(
+                "Discussions",
+                DISCUSSIONS_URL,
+                IconName::Globe,
+                link,
+            ))
+            .child(link_row(
+                "Report an issue",
+                ISSUES_URL,
+                IconName::Info,
+                link,
+            ))
+            .child(link_row("Releases", RELEASES_URL, IconName::BookOpen, link))
+            .child(divider(border))
+            .child(section_title("Developer", muted))
+            .child(
+                div()
+                    .text_size(px(13.0))
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .child("pavi2410"),
+            )
+            .child(link_row(
+                "pavi2410.com",
+                DEV_SITE_URL,
+                IconName::Globe,
+                link,
+            ))
+            .child(link_row(
+                "GitHub profile",
+                DEV_GITHUB_URL,
+                IconName::Github,
+                link,
+            ))
+            .child(divider(border))
+            .child(section_title("Tech stack", muted))
+            .child(tech_stack_row(border, muted))
+            .child(divider(border))
+            .child(section_title("License", muted))
+            .child(link_row(
+                &format!("{LICENSE} — view LICENSE"),
+                LICENSE_URL,
+                IconName::ExternalLink,
+                link,
+            ))
+    }
+}
+
+fn header(fg: Hsla, muted: Hsla) -> impl IntoElement {
+    v_flex()
+        .items_center()
+        .gap(px(4.0))
+        .child(
+            div()
+                .text_size(px(22.0))
+                .font_weight(FontWeight::BOLD)
+                .text_color(fg)
+                .child(APP_NAME),
+        )
+        .child(div().text_size(px(12.0)).text_color(muted).child(TAGLINE))
+}
+
+fn version_row(muted: Hsla) -> impl IntoElement {
+    let copy_text: SharedString = format!("Based v{VERSION} ({COMMIT})").into();
+    let display: SharedString = format!("v{VERSION}  ·  commit {COMMIT}").into();
+
+    h_flex()
+        .items_center()
+        .justify_center()
+        .gap(px(6.0))
+        .child(div().text_size(px(12.0)).text_color(muted).child(display))
+        .child(
+            Button::new("copy-version")
+                .ghost()
+                .xsmall()
+                .icon(IconName::Copy)
+                .tooltip(SharedString::from("Copy version and commit"))
+                .on_click(move |_, _, cx| {
+                    cx.write_to_clipboard(ClipboardItem::new_string(copy_text.to_string()));
+                }),
+        )
+}
+
+fn section_title(label: &str, muted: Hsla) -> impl IntoElement {
+    div()
+        .text_size(px(11.0))
+        .font_weight(FontWeight::SEMIBOLD)
+        .text_color(muted)
+        .child(label.to_string())
+}
+
+fn divider(border: Hsla) -> impl IntoElement {
+    div().h(px(1.0)).w_full().bg(border)
+}
+
+/// Inline link styled with an icon and the system browser as the click target.
+fn link_row(label: &str, url: &'static str, icon: IconName, color: Hsla) -> impl IntoElement {
+    let label_owned: SharedString = label.to_string().into();
+    h_flex()
+        .id(SharedString::from(format!("link-{url}")))
+        .items_center()
+        .gap(px(8.0))
+        .text_size(px(13.0))
+        .text_color(color)
+        .cursor_pointer()
+        .child(Icon::new(icon).xsmall())
+        .child(div().child(label_owned))
+        .on_mouse_down(MouseButton::Left, move |_, _, cx| {
+            cx.open_url(url);
+        })
+}
+
+fn tech_stack_row(border: Hsla, muted: Hsla) -> impl IntoElement {
+    let mut row = h_flex().flex_wrap().gap(px(6.0));
+    for name in TECH_STACK {
+        row = row.child(
+            div()
+                .px(px(8.0))
+                .py(px(2.0))
+                .rounded(px(10.0))
+                .border_1()
+                .border_color(border)
+                .text_size(px(11.0))
+                .text_color(muted)
+                .child(name.to_string()),
+        );
+    }
+    row
+}

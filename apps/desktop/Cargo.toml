@@ -9,6 +9,7 @@ version = "0.0.0-dev"
 edition = "2024"
 description = "based — Git-Friendly Database Client (native GPUI build)"
 homepage = "https://github.com/pavi2410/based"
+license = "MIT"
 publish = false
 
 [[bin]]

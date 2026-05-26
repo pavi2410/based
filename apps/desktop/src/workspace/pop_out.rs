@@ -56,6 +56,7 @@ impl PopOutManager {
                     let _ = h.update(app, |_, window, _| window.remove_window());
                 }
             });
+            crate::app::aux_windows::AuxWindows::close_all(cx);
             cx.quit();
         } else {
             PopOutManager::update_global(cx, |m, _| {

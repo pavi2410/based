@@ -4,6 +4,7 @@
 // are declared here so `cargo check` validates the tree even before each
 // phase fills in real implementations.
 
+mod about_window;
 mod app;
 mod bindings;
 mod command_palette;
@@ -47,6 +48,7 @@ fn main() {
 
             db::init(cx);
             PopOutManager::init(cx);
+            app::aux_windows::AuxWindows::init(cx);
             cx.set_global(TabOpenQueue::default());
             cx.set_global(SqlInject::default());
 
@@ -69,6 +71,7 @@ fn main() {
 
             cx.on_window_closed(|cx, id| {
                 PopOutManager::on_any_window_closed(cx, id);
+                app::aux_windows::AuxWindows::on_window_closed(id, cx);
             })
             .detach();
 

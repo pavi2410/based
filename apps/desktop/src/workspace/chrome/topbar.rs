@@ -3,10 +3,11 @@ use gpui_component::{
     ActiveTheme as _, IconName, Sizable as _, TitleBar,
     button::{Button, ButtonVariants},
     h_flex,
+    menu::{DropdownMenu, PopupMenuItem},
     select::{Select, SelectState},
 };
 
-use crate::app::prefs;
+use crate::app::{prefs, shell};
 use crate::bindings::{CycleAppearance, ToggleSidebarRail};
 use crate::widgets::ui::command_shell;
 use crate::workspace::Workspace;
@@ -55,9 +56,7 @@ impl RenderOnce for Topbar {
                         env_select: self.env_select,
                     })
                     .child(TopbarCenter)
-                    .child(TopbarRight {
-                        workspace: self.workspace,
-                    }),
+                    .child(TopbarRight),
             )
     }
 }
@@ -126,15 +125,12 @@ impl RenderOnce for TopbarCenter {
     }
 }
 
-/// Title bar right rail: theme toggle and settings.
+/// Title bar right rail: theme toggle, app overflow menu (About / Settings).
 #[derive(IntoElement)]
-struct TopbarRight {
-    workspace: Entity<Workspace>,
-}
+struct TopbarRight;
 
 impl RenderOnce for TopbarRight {
     fn render(self, _window: &mut gpui::Window, cx: &mut App) -> impl IntoElement {
-        let workspace_settings = self.workspace.clone();
         let is_dark = cx.theme().is_dark();
 
         h_flex()
@@ -158,16 +154,23 @@ impl RenderOnce for TopbarRight {
                     }),
             )
             .child(
-                Button::new("settings")
+                Button::new("app-overflow")
                     .ghost()
                     .small()
-                    .icon(IconName::Settings)
-                    .tooltip(SharedString::from("Settings"))
-                    .on_click(move |_, window, cx| {
-                        let ent = workspace_settings.clone();
-                        ent.update(cx, |ws, cx| {
-                            ws.open_settings(window, cx);
-                        });
+                    .icon(IconName::Ellipsis)
+                    .tooltip(SharedString::from("Menu"))
+                    .dropdown_menu(|menu, _window, _cx| {
+                        menu.item(
+                            PopupMenuItem::new("About Based")
+                                .icon(IconName::Info)
+                                .on_click(|_, _window, cx| shell::open_about(cx)),
+                        )
+                        .item(PopupMenuItem::separator())
+                        .item(
+                            PopupMenuItem::new("Settings...")
+                                .icon(IconName::Settings)
+                                .on_click(|_, _window, cx| shell::open_settings(cx)),
+                        )
                     }),
             )
     }

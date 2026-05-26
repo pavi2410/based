@@ -37,11 +37,11 @@ use inspector::render_inspector_body;
 use std::path::PathBuf;
 
 use gpui::{
-    App, Bounds, Context, Entity, EntityId, FocusHandle, Focusable, IntoElement, Render,
-    SharedString, Window, WindowBounds, WindowOptions, point, prelude::*, px, size,
+    App, Context, Entity, EntityId, FocusHandle, Focusable, IntoElement, Render, SharedString,
+    Window, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme, IndexPath, Root,
+    ActiveTheme, IndexPath,
     dock::{DockArea, DockEvent, DockItem, DockPlacement, PanelStyle},
     select::{SelectEvent, SelectState},
     v_flex,
@@ -337,22 +337,12 @@ impl Workspace {
             .map(|t| t.spec.conn_id().clone())
     }
 
+    /// Thin shim retained so the existing `OpenSettings` action listener
+    /// (registered with `window.listener_for(&this, ...)`) and any in-window
+    /// callers keep compiling. The real work lives in
+    /// [`crate::app::shell::open_settings`].
     pub fn open_settings(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
-        let _ = cx.open_window(
-            WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(Bounds {
-                    origin: point(px(120.0), px(120.0)),
-                    size: size(px(800.0), px(600.0)),
-                })),
-                titlebar: Some(crate::app::shell::titled_titlebar("Based — Settings")),
-                ..Default::default()
-            },
-            |win, cx| {
-                win.set_window_title("Based — Settings");
-                let settings = cx.new(crate::settings_window::SettingsWindow::new);
-                cx.new(|cx| Root::new(settings, win, cx))
-            },
-        );
+        crate::app::shell::open_settings(&mut *cx);
     }
 
     fn drain_tab_open_queue(&mut self, cx: &mut Context<Self>) {

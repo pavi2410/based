@@ -154,12 +154,12 @@ impl QueryEditorPanel {
                         .collect();
                     let roots = parse_eqp(&flat);
                     if roots.is_empty() {
-                        ExplainView::Text("(no plan rows)".to_string())
+                        ExplainView::Text("(EXPLAIN QUERY PLAN returned no rows)".to_string())
                     } else {
                         ExplainView::Plan(roots)
                     }
                 }
-                Err(e) => ExplainView::Text(format!("({e})")),
+                Err(e) => ExplainView::Text(format!("EXPLAIN failed: {e}")),
             };
             let _ = cx.update(|cx| {
                 this.update(cx, |panel, cx| {

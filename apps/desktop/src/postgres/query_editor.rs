@@ -154,26 +154,33 @@ impl QueryEditorPanel {
         cx.notify();
         let pool = self.pool.clone();
         cx.spawn(async move |this, cx| {
-            let outcome = crate::db::run_infallible(cx, async move {
+            // `EXPLAIN (FORMAT JSON)` returns a `json` column (OID 114), not
+            // `text`, so `try_get::<String, _>` would fail the sqlx type check.
+            // `try_get_unchecked` skips that check and reads the wire bytes,
+            // which for `json` in text format is the JSON literal as UTF-8.
+            let outcome = crate::db::run(cx, async move {
                 let q = format!("EXPLAIN (FORMAT JSON) {sql}");
-                let rows = sqlx::query(&q).fetch_all(&pool).await.unwrap_or_default();
-                let raw: String = rows
-                    .first()
-                    .and_then(|row| row.try_get::<String, usize>(0).ok())
-                    .unwrap_or_default();
-                if raw.is_empty() {
-                    return ExplainView::Text("(no plan rows)".to_string());
+                let rows = sqlx::query(&q).fetch_all(&pool).await?;
+                let raw: String = match rows.first() {
+                    Some(row) => row.try_get_unchecked::<String, _>(0)?,
+                    None => return Ok::<_, anyhow::Error>(String::new()),
+                };
+                Ok(raw)
+            })
+            .await;
+            let view = match outcome {
+                Ok(raw) if raw.is_empty() => {
+                    ExplainView::Text("(EXPLAIN returned no rows)".to_string())
                 }
-                match serde_json::from_str::<serde_json::Value>(&raw) {
+                Ok(raw) => match serde_json::from_str::<serde_json::Value>(&raw) {
                     Ok(json) => match parse_pg_explain_json(&json) {
                         Some(plan) => ExplainView::Plan(plan),
                         None => ExplainView::Text(raw),
                     },
-                    Err(e) => ExplainView::Text(format!("(invalid JSON: {e})")),
-                }
-            })
-            .await;
-            let view = outcome.unwrap_or(ExplainView::Text("(error)".to_string()));
+                    Err(e) => ExplainView::Text(format!("(invalid JSON: {e})\n\n{raw}")),
+                },
+                Err(e) => ExplainView::Text(format!("EXPLAIN failed: {e}")),
+            };
             let _ = cx.update(|cx| {
                 this.update(cx, |panel, cx| {
                     panel.explain = view;

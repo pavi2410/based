@@ -89,11 +89,14 @@ fn eval_builtin(name: &str) -> Result<String, ResolveError> {
         return Ok(OffsetDateTime::now_utc().unix_timestamp().to_string());
     }
     if name == "isoTimestamp" {
-        return Ok(OffsetDateTime::now_utc().format(&time::format_description::well_known::Rfc3339).map_err(|e| {
-            ResolveError::InvalidRandomInt(e.to_string())
-        })?);
+        return Ok(OffsetDateTime::now_utc()
+            .format(&time::format_description::well_known::Rfc3339)
+            .map_err(|e| ResolveError::InvalidRandomInt(e.to_string()))?);
     }
-    if let Some(args) = name.strip_prefix("randomInt(").and_then(|s| s.strip_suffix(')')) {
+    if let Some(args) = name
+        .strip_prefix("randomInt(")
+        .and_then(|s| s.strip_suffix(')'))
+    {
         let (min_s, max_s) = args
             .split_once(',')
             .ok_or_else(|| ResolveError::InvalidRandomInt("expected min,max".into()))?;

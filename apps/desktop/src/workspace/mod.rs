@@ -5,9 +5,8 @@ pub mod session;
 pub mod tab_label;
 pub mod tab_open;
 pub mod tab_spec;
-pub use tab_label::tab_label_for_spec;
 pub use tab_open::{
-    SqlInject, TabManagerRef, TabOpenQueue, WorkspaceRef, enqueue_open_tab, enqueue_sql_inject,
+    SqlInject, TabManagerRef, TabOpenQueue, WorkspaceRef, enqueue_sql_inject,
     mark_query_tab_dirty,
 };
 pub use tab_spec::TabSpec;

@@ -11,7 +11,6 @@ pub mod tree;
 pub mod wizard;
 
 pub use based_postgres::{PostgresConfig, SslMode, pg_connect_options};
-pub use based_postgres::explain::PlanNode;
 
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;

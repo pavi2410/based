@@ -1,4 +1,4 @@
-use gpui::{Context, Entity, FontWeight, IntoElement, ParentElement, div, prelude::*, px};
+use gpui::{Entity, FontWeight, IntoElement, ParentElement, div, prelude::*, px};
 use gpui_component::{ActiveTheme, h_flex, list::List, list::ListState, v_flex};
 
 use crate::widgets::ui::SIDEBAR_INSET;

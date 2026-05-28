@@ -16,7 +16,6 @@ use gpui_component::{
     v_flex,
 };
 use sqlx::{AssertSqlSafe, Column as SqlxColumn, Row, SqlitePool};
-use time::OffsetDateTime;
 
 use super::eqp_parse::{EqpNode, parse_eqp};
 use super::eqp_viewer::render_eqp_body;

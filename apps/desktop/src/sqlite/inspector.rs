@@ -172,7 +172,7 @@ impl TableInspectorPanel {
             };
             let ddl_for_input = ddl_ss.to_string();
 
-            let _ = cx.update(|cx| {
+            cx.update(|cx| {
                 let Some(panel_ent) = this.upgrade() else {
                     return;
                 };

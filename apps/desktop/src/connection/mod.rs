@@ -16,10 +16,8 @@ use std::time::Instant;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
-pub use based_core::{
-    ConnectionErrorCategory, ConnectionErrorDetail, categorize_connect_error,
-};
-pub use based_core::{ConnectionId, EngineKind, TabId, TabKind};
+pub use based_core::categorize_connect_error;
+pub use based_core::{ConnectionId, EngineKind};
 
 // ── Connection config (engine-tagged) ────────────────────────────────────────
 

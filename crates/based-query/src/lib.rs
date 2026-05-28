@@ -6,7 +6,7 @@ pub mod saved;
 pub mod sql;
 pub mod variables;
 
-pub use history::{HistoryEntry, QueryHistory, RunStatus, MAX_HISTORY_PER_CONNECTION};
+pub use history::{HistoryEntry, MAX_HISTORY_PER_CONNECTION, QueryHistory, RunStatus};
 pub use resolve::{ResolveError, VariableContext, resolve_query};
 pub use saved::{SavedQueries, SavedQuery};
 pub use sql::{SqlStatement, statement_at_offset, statements_in_script};

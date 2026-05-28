@@ -12,7 +12,6 @@ use gpui_component::{
 };
 use mongodb::Collection;
 use mongodb::bson::Document;
-use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::connection::ConnectionId;

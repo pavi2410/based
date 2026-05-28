@@ -1,0 +1,17 @@
+[package]
+name = "based-sqlite"
+version = "0.0.0-dev"
+edition = "2024"
+description = "SQLite driver logic for Based (sqlx, no UI)"
+license = "MIT"
+publish = false
+
+[dependencies]
+anyhow = { workspace = true }
+serde = { workspace = true }
+sqlx = { workspace = true, features = ["sqlite"] }
+tokio = { workspace = true, features = ["rt"] }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

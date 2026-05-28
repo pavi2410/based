@@ -1,6 +1,4 @@
-// sqlite/ — Fully specialized SQLite module.
-// Nothing from here is shared with postgres/ or mongodb/.
-// Implemented in Phase 3.
+// sqlite/ — GPUI panels + connection lifecycle; driver logic in `based-sqlite`.
 
 pub mod attach_workspace;
 pub mod data_viewer;
@@ -14,51 +12,23 @@ pub mod query_editor;
 pub mod tree;
 pub mod wizard;
 
-use std::path::{Path, PathBuf};
+pub use based_sqlite::{SqliteConfig, SqlitePathContext, sqlite_connect_options};
 
-use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
-use sqlx::sqlite::SqliteConnectOptions;
 
 use crate::connection::lifecycle::{Connectable, TestReport};
 use crate::db;
 use crate::project::find_project_root;
 use gpui_tokio::Tokio;
 
-/// Resolve relative DB paths against `BASED_PROJECT_DIR`, then the Based project root (`.based/`
-/// ancestor), then the process working directory. Absolute paths are unchanged.
-///
-/// Relative paths like `app.db` from the UI therefore open next to the repo instead of depending
-/// on an unpredictable GUI process CWD (which commonly causes SQLite error 14).
-pub fn resolve_sqlite_path(path: &Path) -> PathBuf {
-    if path.is_absolute() {
-        return path.to_path_buf();
-    }
-    if let Ok(dir) = std::env::var("BASED_PROJECT_DIR") {
-        return PathBuf::from(dir).join(path);
-    }
-    if let Some(root) = find_project_root() {
-        return root.join(path);
-    }
-    std::env::current_dir()
-        .unwrap_or_else(|_| PathBuf::from("."))
-        .join(path)
-}
-
-fn sqlite_options(path: &Path, create_if_missing: bool) -> SqliteConnectOptions {
-    let mut opts = SqliteConnectOptions::new().filename(path);
-    if create_if_missing {
-        opts = opts.create_if_missing(true);
-    }
-    opts
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SqliteConfig {
-    pub label: String,
-    pub path: std::path::PathBuf,
-    /// true = WAL mode; false = journal mode (default)
-    pub wal: bool,
+/// Resolve relative DB paths using the current Based project root when available.
+pub fn resolve_sqlite_path(path: &std::path::Path) -> std::path::PathBuf {
+    based_sqlite::resolve_sqlite_path(
+        path,
+        &SqlitePathContext {
+            project_dir: find_project_root(),
+        },
+    )
 }
 
 /// Live SQLite connection wrapping a sqlx pool.
@@ -75,7 +45,7 @@ impl Connectable for SqliteConnection {
         Tokio::spawn_result(cx, async move {
             let path = resolve_sqlite_path(&config.path);
             let create = !path.exists();
-            let pool = SqlitePool::connect_with(sqlite_options(&path, create)).await?;
+            let pool = SqlitePool::connect_with(sqlite_connect_options(&path, create)).await?;
             if config.wal {
                 sqlx::query("PRAGMA journal_mode=WAL")
                     .execute(&pool)
@@ -97,7 +67,7 @@ impl Connectable for SqliteConnection {
         Tokio::spawn_result(cx, async move {
             let path = resolve_sqlite_path(&config.path);
             let start = std::time::Instant::now();
-            let pool = SqlitePool::connect_with(sqlite_options(&path, false)).await?;
+            let pool = SqlitePool::connect_with(sqlite_connect_options(&path, false)).await?;
             let version: String = sqlx::query_scalar("SELECT sqlite_version()")
                 .fetch_one(&pool)
                 .await?;

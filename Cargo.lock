@@ -602,6 +602,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "based-mongo"
+version = "0.0.0-dev"
+dependencies = [
+ "anyhow",
+ "mongodb",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "based-postgres"
 version = "0.0.0-dev"
 dependencies = [
@@ -625,6 +635,17 @@ dependencies = [
  "time",
  "toml 0.8.23",
  "uuid",
+]
+
+[[package]]
+name = "based-sqlite"
+version = "0.0.0-dev"
+dependencies = [
+ "anyhow",
+ "serde",
+ "sqlx",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]
@@ -1558,8 +1579,10 @@ version = "0.0.0-dev"
 dependencies = [
  "anyhow",
  "based-core",
+ "based-mongo",
  "based-postgres",
  "based-query",
+ "based-sqlite",
  "dirs",
  "env_logger",
  "futures",

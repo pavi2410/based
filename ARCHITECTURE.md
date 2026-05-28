@@ -55,14 +55,16 @@ based/
 ├── crates/
 │   ├── based-core/       # Shared types, session JSON, connection error taxonomy
 │   ├── based-query/      # History, saved queries, variables, SQL helpers
-│   └── based-postgres/   # Postgres config + sqlx execution (no UI)
+│   ├── based-postgres/   # Postgres config + sqlx execution (no UI)
+│   ├── based-sqlite/     # SQLite config + sqlx execution (no UI)
+│   └── based-mongo/      # MongoDB config + document mutations (no UI)
 ├── docs/
 ├── .based/
 ├── Cargo.toml
 └── mise.toml
 ```
 
-**Crate dependency rule:** `based-core` has no sqlx/GPUI. `based-query` depends on `based-core`. `based-postgres` depends on sqlx only. `desktop` depends on all three and owns GPUI entities (`ConnectionRegistry`, `PgConnection`, panels).
+**Crate dependency rule:** `based-core` has no sqlx/GPUI. `based-query` depends on `based-core`. Engine crates (`based-postgres`, `based-sqlite`, `based-mongo`) hold sqlx/driver logic only. `desktop` depends on all of them and owns GPUI entities (`ConnectionRegistry`, connection panels).
 
 ## Desktop module layers
 

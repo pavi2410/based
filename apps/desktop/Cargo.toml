@@ -43,8 +43,10 @@ depends = [
 
 [dependencies]
 based-core = { path = "../../crates/based-core" }
+based-mongo = { path = "../../crates/based-mongo" }
 based-query = { path = "../../crates/based-query" }
 based-postgres = { path = "../../crates/based-postgres" }
+based-sqlite = { path = "../../crates/based-sqlite" }
 
 # GPUI ecosystem — versions flow from workspace Cargo.toml
 gpui.workspace = true

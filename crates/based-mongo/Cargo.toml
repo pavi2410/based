@@ -1,0 +1,13 @@
+[package]
+name = "based-mongo"
+version = "0.0.0-dev"
+edition = "2024"
+description = "MongoDB driver logic for Based (no UI)"
+license = "MIT"
+publish = false
+
+[dependencies]
+anyhow = { workspace = true }
+mongodb = { version = "2", features = ["tokio-runtime"] }
+serde = { workspace = true }
+serde_json = { workspace = true }

@@ -30,6 +30,8 @@ Product and engineering specs for the P0 release. The source roadmap lives in th
 | [`based-core`](../../crates/based-core) | `ConnectionId`, `TabId`, session persistence, connection error taxonomy |
 | [`based-query`](../../crates/based-query) | History, saved queries, `$VAR` / `{{$…}}` resolution, SQL statement splitting |
 | [`based-postgres`](../../crates/based-postgres) | `PostgresConfig`, SSL, `execute_sql`, DML helpers, EXPLAIN JSON parse |
+| [`based-sqlite`](../../crates/based-sqlite) | `SqliteConfig`, path resolution, `execute_sql`, DML helpers |
+| [`based-mongo`](../../crates/based-mongo) | `MongoConfig`, client helpers, document mutations |
 
 ### Desktop app (GPUI UI)
 

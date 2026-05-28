@@ -2,8 +2,10 @@
 members = [
     "apps/desktop",
     "crates/based-core",
-    "crates/based-query",
+    "crates/based-mongo",
     "crates/based-postgres",
+    "crates/based-query",
+    "crates/based-sqlite",
 ]
 resolver = "3"
 

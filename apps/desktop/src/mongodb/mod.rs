@@ -1,6 +1,4 @@
-// mongodb/ — Fully specialized MongoDB module.
-// Nothing from here is shared with postgres/ or sqlite/.
-// Implemented in Phase 5.
+// mongodb/ — GPUI panels + connection lifecycle; driver logic in `based-mongo`.
 
 pub mod change_stream;
 pub mod document_editor;
@@ -11,22 +9,16 @@ pub mod pipeline_builder;
 pub mod tree;
 pub mod wizard;
 
-use serde::{Deserialize, Serialize};
+pub use based_mongo::MongoConfig;
 
 use mongodb::Database;
 use mongodb::bson::doc;
-use mongodb::options::{ClientOptions, Credential};
+use mongodb::options::ClientOptions;
+
+use based_mongo::{apply_auth_source, resolve_database_name, test_database_name};
 
 use crate::connection::lifecycle::{Connectable, TestReport};
 use gpui_tokio::Tokio;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MongoConfig {
-    pub label: String,
-    pub uri: String,
-    pub database: Option<String>,
-    pub auth_source: Option<String>,
-}
 
 /// Live MongoDB connection: client + selected database.
 pub struct MongoConnection {
@@ -46,17 +38,6 @@ impl MongoConnection {
     }
 }
 
-fn apply_auth_source(opts: &mut ClientOptions, src: &str) {
-    match opts.credential.as_mut() {
-        Some(cred) => {
-            cred.source = Some(src.to_string());
-        }
-        None => {
-            opts.credential = Some(Credential::builder().source(Some(src.to_string())).build());
-        }
-    }
-}
-
 impl Connectable for MongoConnection {
     type Config = MongoConfig;
 
@@ -68,11 +49,7 @@ impl Connectable for MongoConnection {
             }
 
             let client = mongodb::Client::with_options(opts.clone())?;
-            let db_name = config
-                .database
-                .clone()
-                .or_else(|| opts.default_database.as_ref().map(|s| s.to_string()))
-                .unwrap_or_else(|| "test".to_string());
+            let db_name = resolve_database_name(&config, &opts);
             let database = client.database(&db_name);
 
             let server_version = database
@@ -99,7 +76,7 @@ impl Connectable for MongoConnection {
                 apply_auth_source(&mut opts, src);
             }
             let client = mongodb::Client::with_options(opts)?;
-            let db = config.database.as_deref().unwrap_or("admin");
+            let db = test_database_name(&config);
             let database = client.database(db);
             database
                 .run_command(mongodb::bson::doc! { "ping": 1 }, None)

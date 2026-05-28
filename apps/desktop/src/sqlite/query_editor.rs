@@ -218,13 +218,13 @@ impl QueryEditorPanel {
                         replace_table_data(state, columns, data_rows, cx);
                     });
                     cx.update_global(|store: &mut QueryStore, _| {
-                        store.push_history(HistoryEntry {
-                            conn_id: conn_id.clone(),
-                            query: sql_executed,
-                            ran_at: OffsetDateTime::now_utc(),
-                            duration_ms: elapsed_ms,
-                            row_count: Some(row_count as u64),
-                        });
+                        store.push_history(HistoryEntry::new(
+                            conn_id.clone(),
+                            sql_executed,
+                            elapsed_ms,
+                            Some(row_count as u64),
+                            based_query::RunStatus::Ok,
+                        ));
                     });
                     panel.status = QueryStatus::Done {
                         rows: row_count,

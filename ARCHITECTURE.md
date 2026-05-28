@@ -51,16 +51,22 @@ flowchart LR
 ```text
 based/
 ├── apps/
-│   └── desktop/
+│   └── desktop/          # GPUI binary — panels, workspace chrome, engine UI
+├── crates/
+│   ├── based-core/       # Shared types, session JSON, connection error taxonomy
+│   ├── based-query/      # History, saved queries, variables, SQL helpers
+│   └── based-postgres/   # Postgres config + sqlx execution (no UI)
 ├── docs/
 ├── .based/
 ├── Cargo.toml
 └── mise.toml
 ```
 
+**Crate dependency rule:** `based-core` has no sqlx/GPUI. `based-query` depends on `based-core`. `based-postgres` depends on sqlx only. `desktop` depends on all three and owns GPUI entities (`ConnectionRegistry`, `PgConnection`, panels).
+
 ## Desktop module layers
 
-`apps/desktop/src/` is organized by responsibility (single binary; no extra crates until a second target needs shared code):
+`apps/desktop/src/` is organized by responsibility (UI shell; domain logic lives in `crates/*` where noted):
 
 | Layer | Path | Role |
 |-------|------|------|
@@ -80,5 +86,5 @@ based/
 
 1. The `desktop` package is the only desktop runtime target.
 2. CI/release workflows use Cargo-only pipelines.
-3. New backend or engine work is implemented in Rust modules under `apps/desktop/src`.
-4. Shared code extraction should move to `crates/*` only when a module is reused by more than one binary/library target.
+3. Postgres driver logic belongs in `crates/based-postgres`; query/history/variables in `crates/based-query`.
+4. GPUI panels and workspace chrome stay in `apps/desktop/src`.

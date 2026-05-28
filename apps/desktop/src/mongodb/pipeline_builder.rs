@@ -164,13 +164,13 @@ impl PipelineBuilderPanel {
                 this.update(cx, |panel, cx| {
                     panel.status = format!("{} rows", rows.len()).into();
                     cx.update_global(|store: &mut QueryStore, _| {
-                        store.push_history(HistoryEntry {
-                            conn_id: conn_id.clone(),
-                            query: pipeline_for_history,
-                            ran_at: OffsetDateTime::now_utc(),
-                            duration_ms: ms,
-                            row_count: Some(row_count),
-                        });
+                        store.push_history(HistoryEntry::new(
+                            conn_id.clone(),
+                            pipeline_for_history,
+                            ms,
+                            Some(row_count),
+                            based_query::RunStatus::Ok,
+                        ));
                     });
                     panel.result.update(cx, |state, cx| {
                         replace_table_data(state, columns, rows, cx);

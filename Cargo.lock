@@ -591,6 +591,43 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
+name = "based-core"
+version = "0.0.0-dev"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "time",
+]
+
+[[package]]
+name = "based-postgres"
+version = "0.0.0-dev"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+]
+
+[[package]]
+name = "based-query"
+version = "0.0.0-dev"
+dependencies = [
+ "anyhow",
+ "based-core",
+ "rand 0.9.4",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "time",
+ "toml 0.8.23",
+ "uuid",
+]
+
+[[package]]
 name = "bindgen"
 version = "0.71.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1520,6 +1557,9 @@ name = "desktop"
 version = "0.0.0-dev"
 dependencies = [
  "anyhow",
+ "based-core",
+ "based-postgres",
+ "based-query",
  "dirs",
  "env_logger",
  "futures",

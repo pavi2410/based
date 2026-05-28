@@ -10,6 +10,7 @@ use gpui_component::{
     v_flex,
 };
 
+use crate::connection::categorize_connect_error;
 use crate::connection::lifecycle::Connectable;
 use crate::postgres::{PgConnection, PostgresConfig, SslMode};
 
@@ -98,7 +99,9 @@ impl ConnectionWizardPanel {
                             latency_ms: report.latency_ms,
                             version: report.server_version.unwrap_or_default(),
                         },
-                        Err(e) => WizardStatus::TestErr(e.to_string()),
+                        Err(e) => WizardStatus::TestErr(
+                            categorize_connect_error(&e.to_string()).display_message(),
+                        ),
                     };
                     cx.notify();
                 })
@@ -117,7 +120,9 @@ impl ConnectionWizardPanel {
                 this.update(cx, |panel, cx| match result {
                     Ok(conn) => cx.emit(WizardEvent::Connected(conn)),
                     Err(e) => {
-                        panel.status = WizardStatus::ConnectErr(e.to_string());
+                        panel.status = WizardStatus::ConnectErr(
+                            categorize_connect_error(&e.to_string()).display_message(),
+                        );
                         cx.notify();
                     }
                 })

@@ -16,43 +16,10 @@ use std::time::Instant;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
-// ── Connection identity ───────────────────────────────────────────────────────
-
-/// Stable opaque identifier for a connection, derived from the config key.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct ConnectionId(pub String);
-
-impl ConnectionId {
-    pub fn from_key(key: &str) -> Self {
-        Self(key.to_string())
-    }
-}
-
-impl std::fmt::Display for ConnectionId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-
-// ── Engine kind ───────────────────────────────────────────────────────────────
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum EngineKind {
-    Postgres,
-    MongoDB,
-    SQLite,
-}
-
-impl EngineKind {
-    pub fn short_label(self) -> &'static str {
-        match self {
-            Self::Postgres => "pg",
-            Self::MongoDB => "mg",
-            Self::SQLite => "sqlite",
-        }
-    }
-}
+pub use based_core::{
+    ConnectionErrorCategory, ConnectionErrorDetail, categorize_connect_error,
+};
+pub use based_core::{ConnectionId, EngineKind, TabId, TabKind};
 
 // ── Connection config (engine-tagged) ────────────────────────────────────────
 
@@ -154,30 +121,6 @@ impl ConnectionEntry {
 pub enum ConnectionEntryEvent {}
 
 impl gpui::EventEmitter<ConnectionEntryEvent> for ConnectionEntry {}
-
-// ── Tab addressing ────────────────────────────────────────────────────────────
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct TabId {
-    pub conn: ConnectionId,
-    pub kind: TabKind,
-    pub payload: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TabKind {
-    DataViewer,
-    QueryEditor,
-    SchemaInspector,
-    ExplainView,
-    PragmaBrowser,
-    EqpViewer,
-    FtsConsole,
-    PipelineBuilder,
-    ChangeStream,
-    LiveMonitor,
-}
 
 /// Count connections in [`ConnectionState::Connected`].
 pub fn live_connection_count(

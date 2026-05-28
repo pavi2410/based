@@ -196,8 +196,21 @@ impl QueryEditorPanel {
         if sql_raw.trim().is_empty() {
             return;
         }
-        let vars = cx.global::<crate::project::ProjectVars>().vars.clone();
-        let sql = crate::project::substitute(&sql_raw, &vars);
+        let project_vars = cx.global::<crate::project::ProjectVars>().vars.clone();
+        let sql = crate::project::substitute(&sql_raw, &project_vars);
+        let var_ctx = based_query::VariableContext {
+            connection: project_vars,
+            session: Default::default(),
+        };
+        let sql = match based_query::resolve_query(&sql, &var_ctx) {
+            Ok(resolved) => resolved,
+            Err(e) => {
+                self.status = QueryStatus::Error(e.to_string());
+                self.bottom_tab = BottomTab::Messages;
+                cx.notify();
+                return;
+            }
+        };
         let sql_executed = sql.clone();
         let conn_id = self.conn_id.clone();
         self.status = QueryStatus::Running;
@@ -223,13 +236,13 @@ impl QueryEditorPanel {
                             replace_table_data(state, col_models, data, cx);
                         });
                         cx.update_global(|store: &mut QueryStore, _| {
-                            store.push_history(HistoryEntry {
-                                conn_id: conn_id.clone(),
-                                query: sql_executed,
-                                ran_at: OffsetDateTime::now_utc(),
-                                duration_ms: ms,
-                                row_count: Some(row_count as u64),
-                            });
+                            store.push_history(HistoryEntry::new(
+                                conn_id.clone(),
+                                sql_executed,
+                                ms,
+                                Some(row_count as u64),
+                                based_query::RunStatus::Ok,
+                            ));
                         });
                         QueryStatus::Done {
                             rows: row_count,
@@ -238,6 +251,15 @@ impl QueryEditorPanel {
                         }
                     }
                     Err(e) => {
+                        cx.update_global(|store: &mut QueryStore, _| {
+                            store.push_history(HistoryEntry::new(
+                                conn_id.clone(),
+                                sql_executed,
+                                ms,
+                                None,
+                                based_query::RunStatus::Error,
+                            ));
+                        });
                         panel.bottom_tab = BottomTab::Messages;
                         QueryStatus::Error(e.to_string())
                     }

@@ -1,0 +1,20 @@
+[package]
+name = "based-query"
+version = "0.0.0-dev"
+edition = "2024"
+description = "Query history, saved queries, variables, and SQL helpers for Based"
+license = "MIT"
+publish = false
+
+[dependencies]
+based-core = { path = "../based-core" }
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+time = { workspace = true }
+toml = { workspace = true }
+uuid = { workspace = true, features = ["serde"] }
+rand = "0.9"
+
+[dev-dependencies]
+tempfile = "3"

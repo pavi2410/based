@@ -1,0 +1,16 @@
+[package]
+name = "based-core"
+version = "0.0.0-dev"
+edition = "2024"
+description = "Shared types and session persistence for Based"
+license = "MIT"
+publish = false
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+time = { workspace = true }
+anyhow = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"

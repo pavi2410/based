@@ -3,7 +3,7 @@
 pub mod history;
 pub mod saved;
 
-pub use history::{HistoryEntry, QueryHistory};
+pub use history::{HistoryEntry, QueryHistory, RunStatus};
 pub use saved::{SavedQueries, SavedQuery};
 
 use std::path::PathBuf;

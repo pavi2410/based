@@ -10,6 +10,9 @@ Product and engineering specs for the P0 release. The source roadmap lives in th
 | [track-c-sql-editor.md](./track-c-sql-editor.md) | Editor, execution modes, shortcuts, variables, cancellation |
 | [track-d-results-data.md](./track-d-results-data.md) | Result grid, export, inline edits, save/discard |
 | [track-e-history.md](./track-e-history.md) | Query history, favorites, rerun |
+| [track-f-workspace-model.md](./track-f-workspace-model.md) | Workspace, loose queries, collections, environments (`No Environment` default) |
+| [variable-scope-contract.md](./variable-scope-contract.md) | Variable precedence and runtime connection-template resolution contract |
+| [workspace-ui-contract.md](./workspace-ui-contract.md) | Top-bar workspace/environment UX and collection/loose-query interactions |
 | [validation-checklist.md](./validation-checklist.md) | Workflow-based release validation |
 | [release-readiness.md](./release-readiness.md) | Stable-default criteria and bug severity |
 | [welcome-and-shell.md](./welcome-and-shell.md) | Welcome startup rules and main window layout |
@@ -17,9 +20,9 @@ Product and engineering specs for the P0 release. The source roadmap lives in th
 ## P0 product decisions (summary)
 
 - **Postgres-first** depth; other engines are not P0 parity targets.
-- **Global connection model** — no mandatory project/workspace abstraction for connections.
+- **Workspace-first model** with loose queries + collections and user-defined environments.
 - **Welcome** (not a separate app shell) for first-run/empty state; returning users reopen last session when possible.
-- **`.based` VCS** is not required for core P0 flows; global local stores are the source of truth for profiles/history in P0.
+- **`.based` VCS** is optional for P0; local workspace model must work without repo coupling.
 
 ## Implementation map
 
@@ -32,6 +35,7 @@ Product and engineering specs for the P0 release. The source roadmap lives in th
 | [`based-postgres`](../../crates/based-postgres) | `PostgresConfig`, SSL, `execute_sql`, DML helpers, EXPLAIN JSON parse |
 | [`based-sqlite`](../../crates/based-sqlite) | `SqliteConfig`, path resolution, `execute_sql`, DML helpers |
 | [`based-mongo`](../../crates/based-mongo) | `MongoConfig`, client helpers, document mutations |
+| [`based-workspace`](../../crates/based-workspace) | Workspace/collection/environment model + runtime template resolution |
 
 ### Desktop app (GPUI UI)
 

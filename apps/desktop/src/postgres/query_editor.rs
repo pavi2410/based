@@ -16,7 +16,7 @@ use gpui_component::{
     table::TableState,
     v_flex,
 };
-use sqlx::{PgPool, Row};
+use sqlx::{AssertSqlSafe, PgPool, Row};
 
 use crate::connection::ConnectionId;
 use crate::postgres::explain_plan::{PlanNode, parse_pg_explain_json, render_plan_node};
@@ -159,7 +159,7 @@ impl QueryEditorPanel {
             // which for `json` in text format is the JSON literal as UTF-8.
             let outcome = crate::db::run(cx, async move {
                 let q = format!("EXPLAIN (FORMAT JSON) {sql}");
-                let rows = sqlx::query(&q).fetch_all(&pool).await?;
+                let rows = sqlx::query(AssertSqlSafe(q)).fetch_all(&pool).await?;
                 let raw: String = match rows.first() {
                     Some(row) => row.try_get_unchecked::<String, _>(0)?,
                     None => return Ok::<_, anyhow::Error>(String::new()),

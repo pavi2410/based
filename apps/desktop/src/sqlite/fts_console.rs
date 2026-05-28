@@ -9,7 +9,7 @@ use gpui_component::{
     menu::PopupMenu,
     v_flex,
 };
-use sqlx::{Row, SqlitePool};
+use sqlx::{AssertSqlSafe, Row, SqlitePool};
 
 pub struct FtsResult {
     pub table: String,
@@ -87,7 +87,10 @@ impl FtsConsolePanel {
                  FROM \"{table}\" WHERE \"{table}\" MATCH ?1 ORDER BY rank"
             );
             let rows = match crate::db::run(cx, async move {
-                Ok(sqlx::query(&sql).bind(&query).fetch_all(&pool).await?)
+                Ok(sqlx::query(AssertSqlSafe(sql))
+                    .bind(&query)
+                    .fetch_all(&pool)
+                    .await?)
             })
             .await
             {

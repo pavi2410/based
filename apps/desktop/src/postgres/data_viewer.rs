@@ -10,7 +10,7 @@ use gpui_component::{
     table::{Column, TableState},
     v_flex,
 };
-use sqlx::{Column as SqlxColumn, PgPool, Row};
+use sqlx::{AssertSqlSafe, Column as SqlxColumn, PgPool, Row};
 
 use gpui_component::table::TableEvent;
 
@@ -120,7 +120,7 @@ impl DataViewerPanel {
 
                 let count_sql =
                     format!(r#"SELECT COUNT(*) FROM "{schema}"."{table}"{where_clause}"#);
-                let total: i64 = sqlx::query_scalar(&count_sql)
+                let total: i64 = sqlx::query_scalar(AssertSqlSafe(count_sql))
                     .fetch_one(&pool)
                     .await
                     .unwrap_or(0);
@@ -128,7 +128,7 @@ impl DataViewerPanel {
                 let fetch_sql = format!(
                     r#"SELECT * FROM "{schema}"."{table}"{where_clause} LIMIT {page_size} OFFSET {offset}"#
                 );
-                let rows = sqlx::query(&fetch_sql).fetch_all(&pool).await?;
+                let rows = sqlx::query(AssertSqlSafe(fetch_sql)).fetch_all(&pool).await?;
 
                 let columns: Vec<Column> = if let Some(first) = rows.first() {
                     first

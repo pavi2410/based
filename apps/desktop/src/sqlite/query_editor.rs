@@ -15,7 +15,7 @@ use gpui_component::{
     table::{Column, TableState},
     v_flex,
 };
-use sqlx::{Column as SqlxColumn, Row, SqlitePool};
+use sqlx::{AssertSqlSafe, Column as SqlxColumn, Row, SqlitePool};
 use time::OffsetDateTime;
 
 use super::eqp_parse::{EqpNode, parse_eqp};
@@ -139,7 +139,7 @@ impl QueryEditorPanel {
         cx.spawn(async move |this, cx| {
             let outcome = db::run(cx, async move {
                 let q = format!("EXPLAIN QUERY PLAN {sql}");
-                Ok(sqlx::query(&q).fetch_all(&pool).await?)
+                Ok(sqlx::query(AssertSqlSafe(q)).fetch_all(&pool).await?)
             })
             .await;
             let view = match outcome {
@@ -187,7 +187,7 @@ impl QueryEditorPanel {
 
             let result: anyhow::Result<(Vec<Column>, Vec<Vec<SharedString>>)> =
                 db::run(cx, async move {
-                    let rows = sqlx::query(&sql).fetch_all(&pool).await?;
+                    let rows = sqlx::query(AssertSqlSafe(sql)).fetch_all(&pool).await?;
                     let columns: Vec<Column> = if let Some(first) = rows.first() {
                         first
                             .columns()

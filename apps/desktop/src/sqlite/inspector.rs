@@ -11,7 +11,7 @@ use gpui_component::{
     table::TableState,
     v_flex,
 };
-use sqlx::{Row, SqlitePool};
+use sqlx::{AssertSqlSafe, Row, SqlitePool};
 
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input};
@@ -103,7 +103,7 @@ impl TableInspectorPanel {
         cx.spawn(async move |this, cx| {
             let loaded = crate::db::run(cx, async move {
                 let col_sql = format!("PRAGMA table_info(\"{table_name}\")");
-                let col_rows = sqlx::query(&col_sql).fetch_all(&pool).await?;
+                let col_rows = sqlx::query(AssertSqlSafe(col_sql)).fetch_all(&pool).await?;
                 let columns: Vec<ColumnInfo> = col_rows
                     .iter()
                     .map(|row| ColumnInfo {
@@ -116,7 +116,7 @@ impl TableInspectorPanel {
                     .collect();
 
                 let idx_sql = format!("PRAGMA index_list(\"{table_name}\")");
-                let idx_rows = sqlx::query(&idx_sql).fetch_all(&pool).await?;
+                let idx_rows = sqlx::query(AssertSqlSafe(idx_sql)).fetch_all(&pool).await?;
                 let indexes: Vec<IndexInfo> = idx_rows
                     .iter()
                     .map(|row| IndexInfo {

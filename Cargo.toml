@@ -35,7 +35,7 @@ notify = "7"
 toml = "0.8"
 log = "0.4"
 uuid = { version = "1", features = ["v4"] }
-sqlx = { version = "0.8", features = [
+sqlx = { version = "0.9", features = [
     "runtime-tokio",
     "sqlite",
     "postgres",

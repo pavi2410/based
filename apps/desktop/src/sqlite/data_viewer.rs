@@ -10,7 +10,7 @@ use gpui_component::{
     table::{Column, TableState},
     v_flex,
 };
-use sqlx::{Column as SqlxColumn, Row, SqlitePool};
+use sqlx::{AssertSqlSafe, Column as SqlxColumn, Row, SqlitePool};
 
 use gpui_component::table::TableEvent;
 
@@ -117,7 +117,7 @@ impl DataViewerPanel {
                     .unwrap_or_default();
 
                 let count_sql = format!("SELECT COUNT(*) FROM \"{table_name}\"{where_clause}");
-                let total: i64 = sqlx::query_scalar(&count_sql)
+                let total: i64 = sqlx::query_scalar(AssertSqlSafe(count_sql))
                     .fetch_one(&pool)
                     .await
                     .unwrap_or(0);
@@ -125,7 +125,9 @@ impl DataViewerPanel {
                 let fetch_sql = format!(
                     "SELECT * FROM \"{table_name}\"{where_clause} LIMIT {page_size} OFFSET {offset}"
                 );
-                let rows = sqlx::query(&fetch_sql).fetch_all(&pool).await?;
+                let rows = sqlx::query(AssertSqlSafe(fetch_sql))
+                    .fetch_all(&pool)
+                    .await?;
 
                 let columns: Vec<Column> = if let Some(first) = rows.first() {
                     first

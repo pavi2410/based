@@ -1,5 +1,5 @@
 use anyhow::Result;
-use sqlx::{Column as SqlxColumn, Row, SqlitePool};
+use sqlx::{AssertSqlSafe, Column as SqlxColumn, Row, SqlitePool};
 
 pub async fn insert_row(
     pool: &SqlitePool,
@@ -15,7 +15,7 @@ pub async fn insert_row(
         placeholders.join(", ")
     );
 
-    let mut q = sqlx::query(&sql);
+    let mut q = sqlx::query(AssertSqlSafe(sql));
     for (_, v) in values {
         q = q.bind(v);
     }
@@ -42,7 +42,7 @@ pub async fn update_row(
         set_clauses.join(", ")
     );
 
-    let mut q = sqlx::query(&sql);
+    let mut q = sqlx::query(AssertSqlSafe(sql));
     for (_, v) in changes {
         q = q.bind(v);
     }
@@ -53,7 +53,10 @@ pub async fn update_row(
 
 pub async fn delete_row(pool: &SqlitePool, table: &str, pk_col: &str, pk_val: &str) -> Result<u64> {
     let sql = format!("DELETE FROM \"{table}\" WHERE \"{pk_col}\" = ?1");
-    let result = sqlx::query(&sql).bind(pk_val).execute(pool).await?;
+    let result = sqlx::query(AssertSqlSafe(sql))
+        .bind(pk_val)
+        .execute(pool)
+        .await?;
     Ok(result.rows_affected())
 }
 
@@ -68,7 +71,7 @@ pub async fn execute_sql(
         || trimmed.starts_with("WITH")
         || trimmed.starts_with("EXPLAIN")
     {
-        let rows = sqlx::query(sql).fetch_all(pool).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql)).fetch_all(pool).await?;
         let columns: Vec<String> = if let Some(first) = rows.first() {
             first
                 .columns()
@@ -88,7 +91,7 @@ pub async fn execute_sql(
             .collect();
         Ok((columns, data, 0))
     } else {
-        let result = sqlx::query(sql).execute(pool).await?;
+        let result = sqlx::query(AssertSqlSafe(sql)).execute(pool).await?;
         Ok((vec![], vec![], result.rows_affected()))
     }
 }

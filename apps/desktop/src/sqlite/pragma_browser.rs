@@ -6,7 +6,7 @@ use gpui_component::{
     menu::PopupMenu,
     v_flex,
 };
-use sqlx::{Row, SqlitePool};
+use sqlx::{AssertSqlSafe, Row, SqlitePool};
 
 use crate::widgets::ui::compact_description_list_vertical;
 use crate::workspace::pop_out::PopOutWindowTitle;
@@ -49,7 +49,7 @@ impl PragmaBrowserPanel {
                 let mut rows: Vec<(String, String)> = vec![];
                 for &name in PRAGMA_LIST {
                     let sql = format!("PRAGMA {name}");
-                    let value = match sqlx::query(&sql).fetch_optional(&pool).await {
+                    let value = match sqlx::query(AssertSqlSafe(sql)).fetch_optional(&pool).await {
                         Ok(Some(row)) => {
                             let parts: Vec<String> = (0..row.len())
                                 .map(|i| crate::widgets::row_cell::sqlite_cell_display(&row, i))

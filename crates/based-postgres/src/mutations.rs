@@ -1,5 +1,5 @@
 use anyhow::Result;
-use sqlx::{Column as SqlxColumn, PgPool, Row};
+use sqlx::{AssertSqlSafe, Column as SqlxColumn, PgPool, Row};
 
 pub async fn insert_row(
     pool: &PgPool,
@@ -20,7 +20,7 @@ pub async fn insert_row(
             .join(", "),
         placeholders.join(", ")
     );
-    let mut q = sqlx::query(&sql);
+    let mut q = sqlx::query(AssertSqlSafe(sql));
     for (_, v) in values {
         q = q.bind(v);
     }
@@ -36,7 +36,10 @@ pub async fn delete_row(
     pk_val: &str,
 ) -> Result<u64> {
     let sql = format!(r#"DELETE FROM "{schema}"."{table}" WHERE "{pk_col}" = $1"#);
-    let r = sqlx::query(&sql).bind(pk_val).execute(pool).await?;
+    let r = sqlx::query(AssertSqlSafe(sql))
+        .bind(pk_val)
+        .execute(pool)
+        .await?;
     Ok(r.rows_affected())
 }
 
@@ -48,7 +51,7 @@ pub async fn execute_sql(pool: &PgPool, sql: &str) -> Result<(Vec<String>, Vec<V
         || lower.starts_with("explain")
         || lower.starts_with("show")
     {
-        let rows = sqlx::query(sql).fetch_all(pool).await?;
+        let rows = sqlx::query(AssertSqlSafe(sql)).fetch_all(pool).await?;
         let columns: Vec<String> = rows
             .first()
             .map(|r| r.columns().iter().map(|c| c.name().to_string()).collect())
@@ -66,7 +69,7 @@ pub async fn execute_sql(pool: &PgPool, sql: &str) -> Result<(Vec<String>, Vec<V
             .collect();
         Ok((columns, data, 0))
     } else {
-        let r = sqlx::query(sql).execute(pool).await?;
+        let r = sqlx::query(AssertSqlSafe(sql)).execute(pool).await?;
         Ok((vec![], vec![], r.rows_affected()))
     }
 }

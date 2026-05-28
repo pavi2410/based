@@ -1,0 +1,16 @@
+[package]
+name = "based-workspace"
+version = "0.0.0-dev"
+edition = "2024"
+description = "Workspace, collections, environments, and runtime template resolution for Based"
+license = "MIT"
+publish = false
+
+[dependencies]
+anyhow = { workspace = true }
+based-core = { path = "../based-core" }
+based-query = { path = "../based-query" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+time = { workspace = true }
+uuid = { workspace = true, features = ["serde"] }

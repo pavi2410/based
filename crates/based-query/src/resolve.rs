@@ -9,8 +9,14 @@ use crate::variables::Variables;
 
 #[derive(Debug, Clone, Default)]
 pub struct VariableContext {
-    pub connection: Variables,
     pub session: Variables,
+    pub query: Variables,
+    pub collection: Variables,
+    /// Active environment variables. `None` means "No Environment".
+    pub environment: Option<Variables>,
+    pub workspace: Variables,
+    /// Backward-compatibility scope for existing callers.
+    pub connection: Variables,
 }
 
 #[derive(Debug, Clone)]
@@ -55,6 +61,18 @@ fn eval_token(token: &str, ctx: &VariableContext) -> Result<String, ResolveError
         return eval_builtin(builtin);
     }
     if let Some(v) = ctx.session.get(token) {
+        return Ok(v.clone());
+    }
+    if let Some(v) = ctx.query.get(token) {
+        return Ok(v.clone());
+    }
+    if let Some(v) = ctx.collection.get(token) {
+        return Ok(v.clone());
+    }
+    if let Some(v) = ctx.environment.as_ref().and_then(|vars| vars.get(token)) {
+        return Ok(v.clone());
+    }
+    if let Some(v) = ctx.workspace.get(token) {
         return Ok(v.clone());
     }
     if let Some(v) = ctx.connection.get(token) {
@@ -110,6 +128,13 @@ pub fn find_missing_variables(query: &str, ctx: &VariableContext) -> Vec<String>
         let token = after[..end].trim();
         if !token.starts_with('$')
             && !ctx.session.contains_key(token)
+            && !ctx.query.contains_key(token)
+            && !ctx.collection.contains_key(token)
+            && !ctx
+                .environment
+                .as_ref()
+                .is_some_and(|vars| vars.contains_key(token))
+            && !ctx.workspace.contains_key(token)
             && !ctx.connection.contains_key(token)
         {
             missing.push(token.to_string());
@@ -137,6 +162,30 @@ mod tests {
         ctx.session.insert("userId".into(), "42".into());
         let out = resolve_query("SELECT * FROM u WHERE id = {{userId}}", &ctx).unwrap();
         assert_eq!(out, "SELECT * FROM u WHERE id = 42");
+    }
+
+    #[test]
+    fn precedence_session_over_query_collection_env_workspace() {
+        let mut ctx = VariableContext::default();
+        ctx.workspace.insert("k".into(), "workspace".into());
+        ctx.environment = Some({
+            let mut v = Variables::new();
+            v.insert("k".into(), "environment".into());
+            v
+        });
+        ctx.collection.insert("k".into(), "collection".into());
+        ctx.query.insert("k".into(), "query".into());
+        ctx.session.insert("k".into(), "session".into());
+        let out = resolve_query("{{k}}", &ctx).unwrap();
+        assert_eq!(out, "session");
+    }
+
+    #[test]
+    fn environment_is_skipped_when_none() {
+        let mut ctx = VariableContext::default();
+        ctx.workspace.insert("k".into(), "workspace".into());
+        let out = resolve_query("{{k}}", &ctx).unwrap();
+        assert_eq!(out, "workspace");
     }
 
     #[test]

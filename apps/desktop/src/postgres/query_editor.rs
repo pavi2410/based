@@ -17,7 +17,6 @@ use gpui_component::{
     v_flex,
 };
 use sqlx::{PgPool, Row};
-use time::OffsetDateTime;
 
 use crate::connection::ConnectionId;
 use crate::postgres::explain_plan::{PlanNode, parse_pg_explain_json, render_plan_node};
@@ -199,8 +198,12 @@ impl QueryEditorPanel {
         let project_vars = cx.global::<crate::project::ProjectVars>().vars.clone();
         let sql = crate::project::substitute(&sql_raw, &project_vars);
         let var_ctx = based_query::VariableContext {
-            connection: project_vars,
             session: Default::default(),
+            query: Default::default(),
+            collection: Default::default(),
+            environment: None,
+            workspace: project_vars.clone(),
+            connection: project_vars,
         };
         let sql = match based_query::resolve_query(&sql, &var_ctx) {
             Ok(resolved) => resolved,

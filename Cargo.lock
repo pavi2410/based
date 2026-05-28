@@ -649,6 +649,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "based-workspace"
+version = "0.0.0-dev"
+dependencies = [
+ "anyhow",
+ "based-core",
+ "based-query",
+ "serde",
+ "serde_json",
+ "time",
+ "uuid",
+]
+
+[[package]]
 name = "bindgen"
 version = "0.71.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -57,14 +57,15 @@ based/
 │   ├── based-query/      # History, saved queries, variables, SQL helpers
 │   ├── based-postgres/   # Postgres config + sqlx execution (no UI)
 │   ├── based-sqlite/     # SQLite config + sqlx execution (no UI)
-│   └── based-mongo/      # MongoDB config + document mutations (no UI)
+│   ├── based-mongo/      # MongoDB config + document mutations (no UI)
+│   └── based-workspace/  # Workspace/collection/environment models + template resolution
 ├── docs/
 ├── .based/
 ├── Cargo.toml
 └── mise.toml
 ```
 
-**Crate dependency rule:** `based-core` has no sqlx/GPUI. `based-query` depends on `based-core`. Engine crates (`based-postgres`, `based-sqlite`, `based-mongo`) hold sqlx/driver logic only. `desktop` depends on all of them and owns GPUI entities (`ConnectionRegistry`, connection panels).
+**Crate dependency rule:** `based-core` has no sqlx/GPUI. `based-query` and `based-workspace` depend on `based-core`. Engine crates (`based-postgres`, `based-sqlite`, `based-mongo`) hold sqlx/driver logic only. `desktop` depends on all of them and owns GPUI entities (`ConnectionRegistry`, connection panels).
 
 ## Desktop module layers
 
@@ -88,5 +89,5 @@ based/
 
 1. The `desktop` package is the only desktop runtime target.
 2. CI/release workflows use Cargo-only pipelines.
-3. Postgres driver logic belongs in `crates/based-postgres`; query/history/variables in `crates/based-query`.
+3. Driver logic belongs in engine crates (`based-postgres`, `based-sqlite`, `based-mongo`); query/history/variables in `based-query`; workspace model and template resolution in `based-workspace`.
 4. GPUI panels and workspace chrome stay in `apps/desktop/src`.

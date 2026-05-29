@@ -29,6 +29,21 @@ pub fn titled_titlebar(window_title: impl Into<SharedString>) -> TitlebarOptions
     options
 }
 
+/// Title bar options for the Settings window.
+///
+/// On macOS, traffic lights are repositioned into the sidebar column (Zed-style)
+/// via `traffic_light_position`; sidebar top padding is applied in
+/// [`crate::settings_window::SettingsWindow`].
+pub fn settings_titlebar() -> TitlebarOptions {
+    let mut options = TitleBar::title_bar_options();
+    options.title = Some("Based — Settings".into());
+    #[cfg(target_os = "macos")]
+    {
+        options.traffic_light_position = Some(point(px(12.0), px(12.0)));
+    }
+    options
+}
+
 pub fn init(cx: &mut App) {
     cx.activate(true);
     cx.on_action(|_: &QuitApp, cx| quit::request_app_quit(cx));
@@ -118,7 +133,7 @@ pub fn open_settings(cx: &mut App) {
                 origin: point(px(120.0), px(120.0)),
                 size: size(px(800.0), px(600.0)),
             })),
-            titlebar: Some(titled_titlebar("Based — Settings")),
+            titlebar: Some(settings_titlebar()),
             ..Default::default()
         },
         |win, cx| {

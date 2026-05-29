@@ -1,8 +1,8 @@
 //! Separate settings window (theme, typography, query defaults).
 
 use gpui::{
-    Context, FocusHandle, Focusable, IntoElement, ParentElement, Render, Window, div, prelude::*,
-    px,
+    Context, FocusHandle, Focusable, IntoElement, ParentElement, Render, StyleRefinement, Styled,
+    Window, div, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme, Icon, IconName, ThemeMode,
@@ -12,6 +12,14 @@ use gpui_component::{
 };
 
 use crate::app::prefs::{self, DEFAULT_PAGE_SIZE, DEFAULT_QUERY_TIMEOUT_SECS};
+
+#[cfg(target_os = "macos")]
+fn macos_settings_header_style() -> StyleRefinement {
+    // Sidebar::render resets padding on sidebar_style, so clearance lives on the
+    // search header div. The sidebar header wrapper already adds pt_3 (~12px);
+    // ~32px here clears native traffic lights at (12, 12).
+    StyleRefinement::default().pt(px(32.0))
+}
 
 pub struct SettingsWindow {
     focus_handle: FocusHandle,
@@ -210,9 +218,13 @@ impl Render for SettingsWindow {
         let bg = cx.theme().background;
         let fg = cx.theme().foreground;
 
-        let settings = Settings::new("based-settings")
+        let mut settings = Settings::new("based-settings")
             .with_group_variant(GroupBoxVariant::Outline)
             .pages(self.pages(window, cx));
+        #[cfg(target_os = "macos")]
+        {
+            settings = settings.header_style(&macos_settings_header_style());
+        }
 
         // Paint the full client area with the active theme. The sidebar sets its own
         // background; the content pane is otherwise transparent and can show a stale
@@ -221,7 +233,7 @@ impl Render for SettingsWindow {
             .size_full()
             .bg(bg)
             .text_color(fg)
-            .pt(px(36.0))
+            .when(!cfg!(target_os = "macos"), |this| this.pt(px(36.0)))
             .child(
                 div()
                     .flex_1()

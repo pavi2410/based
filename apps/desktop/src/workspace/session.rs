@@ -1,42 +1,50 @@
-//! Persist open tab specs to `.based/local/workspace.json`.
-
-use std::path::{Path, PathBuf};
+//! Persisted session snapshot stored in the metadata SQLite database.
 
 use serde::{Deserialize, Serialize};
+
+use based_storage::{MetadataStore, ACTIVE_CONNECTION_ID, ACTIVE_TAB_INDEX, OPEN_TABS};
 
 use super::TabSpec;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct SessionState {
+pub struct SessionSnapshot {
     pub tabs: Vec<TabSpec>,
     pub active: Option<usize>,
+    #[serde(default)]
+    pub active_connection_id: Option<String>,
 }
 
-impl SessionState {
-    pub fn path(project_root: &Path) -> PathBuf {
-        project_root
-            .join(".based")
-            .join("local")
-            .join("workspace.json")
-    }
-
-    pub fn load(project_root: &Path) -> Self {
-        let path = Self::path(project_root);
-        if !path.exists() {
-            return Self::default();
-        }
-        std::fs::read_to_string(&path)
+impl SessionSnapshot {
+    pub async fn load(store: &MetadataStore) -> Self {
+        let tabs = store
+            .get_session_json(OPEN_TABS)
+            .await
             .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default()
+            .flatten()
+            .unwrap_or_default();
+        let active = store
+            .get_session_json(ACTIVE_TAB_INDEX)
+            .await
+            .ok()
+            .flatten();
+        let active_connection_id = store
+            .get_session_json(ACTIVE_CONNECTION_ID)
+            .await
+            .ok()
+            .flatten();
+        Self {
+            tabs,
+            active,
+            active_connection_id,
+        }
     }
 
-    pub fn save(&self, project_root: &Path) -> std::io::Result<()> {
-        let path = Self::path(project_root);
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        let body = serde_json::to_string_pretty(self)?;
-        std::fs::write(path, body)
+    pub async fn save(&self, store: &MetadataStore) -> anyhow::Result<()> {
+        store.set_session_json(OPEN_TABS, &self.tabs).await?;
+        store.set_session_json(ACTIVE_TAB_INDEX, &self.active).await?;
+        store
+            .set_session_json(ACTIVE_CONNECTION_ID, &self.active_connection_id)
+            .await?;
+        Ok(())
     }
 }

@@ -30,6 +30,10 @@ mod inspector;
 mod pop_out_impls;
 mod tab_dispatch;
 
+pub mod context;
+pub mod query_lane;
+pub mod templates;
+
 use dock_utils::{active_center_tab, center_tab_items, dock_area_present_views};
 use inspector::render_inspector_body;
 
@@ -56,6 +60,10 @@ use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{ConnectionEntry, ConnectionState};
 use crate::project::{find_project_root, load_workspace_seed};
 use crate::widgets::query_panel_extras::HistoryFilter;
+
+use crate::storage;
+use context::WorkspaceContext;
+use templates::entries_from_workspace;
 
 use chrome::{
     activity_rail::render_activity_rail,
@@ -87,32 +95,51 @@ pub struct Workspace {
     pending_open_tab: Option<TabSpec>,
     /// Set by platform close; dialog is shown on the next [`Render`] (see `app::quit`).
     pub(crate) pending_close_confirm: bool,
-    env_select: Entity<SelectState<Vec<&'static str>>>,
+    workspace_select: Entity<SelectState<Vec<SharedString>>>,
+    env_select: Entity<SelectState<Vec<SharedString>>>,
+    workspace_id: uuid::Uuid,
+    pending_ctx_sync: Option<WorkspaceContext>,
 }
 
 impl Workspace {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let project_dir = find_project_root();
-        let (project_title, entries) = project_dir
+        let legacy_entries = project_dir
             .as_ref()
-            .map(|root| {
-                let (title, e) = load_workspace_seed(root);
-                (title.into(), e)
-            })
-            .unwrap_or_else(|| ("No Project".into(), vec![]));
+            .map(|root| load_workspace_seed(root).1)
+            .unwrap_or_default();
 
-        if entries.is_empty() {
-            log::warn!(
-                "no connections loaded; add [connection.id] tables to .based/config.toml (or set BASED_PROJECT_DIR)"
-            );
-        }
+        let workspace_ctx = WorkspaceContext::load_initial(cx).unwrap_or_else(|e| {
+            log::error!("workspace context load failed: {e:#}");
+            WorkspaceContext {
+                active: based_workspace::WorkspaceModel::new("Default"),
+                summaries: vec![],
+            }
+        });
+        cx.set_global(workspace_ctx.clone());
+
+        let workspace_title: SharedString = workspace_ctx.active.name.clone().into();
+        let workspace_id = workspace_ctx.active.id;
 
         let registry = cx.new(ConnectionRegistry::new);
         registry.update(cx, |reg, cx| {
-            for entry in entries {
+            let mut seen = std::collections::HashSet::new();
+            for entry in entries_from_workspace(&workspace_ctx.active) {
+                seen.insert(entry.id.clone());
                 reg.add(entry, cx);
             }
+            for entry in legacy_entries {
+                if seen.insert(entry.id.clone()) {
+                    reg.add(entry, cx);
+                }
+            }
         });
+
+        if registry.read(cx).connections().is_empty() {
+            log::info!(
+                "no connections loaded; add workspace templates or .based/config.toml entries"
+            );
+        }
 
         let dock_area = cx.new(|cx| {
             DockArea::new("workspace", Some(1), window, cx).panel_style(PanelStyle::TabBar)
@@ -137,10 +164,30 @@ impl Workspace {
             cx.new(|cx| CommandPalette::new(registry.clone(), connection_tree.clone(), cx));
         let palette_observe = command_palette.clone();
 
+        let workspace_options: Vec<SharedString> = workspace_ctx
+            .workspace_options()
+            .into_iter()
+            .map(SharedString::from)
+            .collect();
+        let workspace_select = cx.new(|cx| {
+            SelectState::new(
+                workspace_options,
+                Some(IndexPath::new(workspace_ctx.active_workspace_index())),
+                window,
+                cx,
+            )
+        });
+        let workspace_observe = workspace_select.clone();
+
+        let env_options: Vec<SharedString> = workspace_ctx
+            .environment_options()
+            .into_iter()
+            .map(SharedString::from)
+            .collect();
         let env_select = cx.new(|cx| {
             SelectState::new(
-                chrome::env::ENV_OPTIONS.to_vec(),
-                Some(IndexPath::default()),
+                env_options,
+                Some(IndexPath::new(workspace_ctx.active_environment_index())),
                 window,
                 cx,
             )
@@ -160,18 +207,31 @@ impl Workspace {
             history_filter: HistoryFilter::default(),
             pending_star: None,
             focus_handle: cx.focus_handle(),
-            project_title,
+            project_title: workspace_title,
             project_dir,
             session_restored: false,
             pending_open_tab: None,
             pending_close_confirm: false,
+            workspace_select,
             env_select,
+            workspace_id,
+            pending_ctx_sync: None,
         };
 
         cx.subscribe(
+            &workspace_observe,
+            |ws, select, _: &SelectEvent<Vec<SharedString>>, cx| {
+                let idx = select.read(cx).selected_index(cx).map(|p| p.row);
+                ws.on_workspace_selected(idx, cx);
+            },
+        )
+        .detach();
+
+        cx.subscribe(
             &env_observe,
-            |_, _, _: &SelectEvent<Vec<&'static str>>, ecx| {
-                ecx.notify();
+            |ws, select, _: &SelectEvent<Vec<SharedString>>, cx| {
+                let idx = select.read(cx).selected_index(cx).map(|p| p.row);
+                ws.on_environment_selected(idx, cx);
             },
         )
         .detach();
@@ -208,6 +268,9 @@ impl Workspace {
                             auto_run: false,
                         });
                     }
+                }
+                crate::command_palette::PaletteEvent::WorkspaceAction(action) => {
+                    ws.handle_palette_workspace_action(action.clone(), ecx);
                 }
             }
             ecx.notify();
@@ -263,25 +326,34 @@ impl Workspace {
     }
 
     fn save_session(&self, cx: &Context<Self>) {
-        let Some(root) = self.project_dir.as_ref() else {
-            return;
-        };
         let tm = self.tab_manager.read(cx);
         if tm.tabs.is_empty() {
             return;
         }
-        let state = session::SessionState {
+        let snapshot = session::SessionSnapshot {
             tabs: tm.tabs.iter().map(|t| t.spec.clone()).collect(),
             active: tm.active_idx,
+            active_connection_id: self.focused_conn_id(cx).map(|id| id.0.clone()),
         };
-        let _ = state.save(root);
+        let store = storage::store(cx);
+        let handle = gpui_tokio::Tokio::handle(cx);
+        if let Err(err) = handle.block_on(snapshot.save(&store)) {
+            log::warn!("session save failed: {err:#}");
+        }
     }
 
     fn restore_session(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(root) = self.project_dir.clone() else {
-            return;
-        };
-        let session = session::SessionState::load(&root);
+        let store = storage::store(cx);
+        let handle = gpui_tokio::Tokio::handle(cx);
+        let session = handle.block_on(session::SessionSnapshot::load(&store));
+
+        if let Some(conn_key) = session.active_connection_id.clone() {
+            let conn_id = ConnectionId(conn_key);
+            self.connection_tree.update(cx, |tree, ecx| {
+                tree.focus_connection_by_id(&conn_id, ecx);
+            });
+        }
+
         for spec in session.tabs {
             self.pending_open_tab = Some(spec);
             self.flush_pending_open_tab(window, cx);
@@ -292,6 +364,183 @@ impl Workspace {
                     tm.activate(idx, ecx);
                 }
             });
+        }
+    }
+
+    fn on_workspace_selected(&mut self, index: Option<usize>, cx: &mut Context<Self>) {
+        let Some(idx) = index else {
+            return;
+        };
+        let summaries = cx.global::<WorkspaceContext>().summaries.clone();
+        let Some(summary) = summaries.get(idx) else {
+            return;
+        };
+        if summary.id == self.workspace_id {
+            return;
+        }
+        let store = storage::store(cx);
+        let target = summary.id;
+        let this = cx.entity().downgrade();
+        cx.spawn(async move |_, cx| {
+            let ctx = context::switch_workspace(store, target).await;
+            cx.update(|cx| {
+                let Some(this) = this.upgrade() else {
+                    return;
+                };
+                match ctx {
+                    Ok(ctx) => this.update(cx, |ws, cx| {
+                        ws.apply_workspace_context(ctx, cx);
+                    }),
+                    Err(err) => log::warn!("workspace switch failed: {err:#}"),
+                }
+            })
+        })
+        .detach();
+    }
+
+    fn on_environment_selected(&mut self, index: Option<usize>, cx: &mut Context<Self>) {
+        let Some(idx) = index else {
+            return;
+        };
+        let ctx = cx.global::<WorkspaceContext>().clone();
+        if idx == ctx.active_environment_index() {
+            return;
+        }
+        let store = storage::store(cx);
+        let this = cx.entity().downgrade();
+        cx.spawn(async move |_, cx| {
+            let updated = context::set_active_environment(store, &ctx, idx).await;
+            cx.update(|cx| {
+                let Some(this) = this.upgrade() else {
+                    return;
+                };
+                match updated {
+                    Ok(ctx) => this.update(cx, |ws, cx| {
+                        ws.apply_workspace_context(ctx, cx);
+                    }),
+                    Err(err) => log::warn!("environment switch failed: {err:#}"),
+                }
+            })
+        })
+        .detach();
+    }
+
+    pub fn apply_workspace_context(&mut self, ctx: WorkspaceContext, cx: &mut Context<Self>) {
+        self.workspace_id = ctx.active.id;
+        self.project_title = ctx.active.name.clone().into();
+        let ctx_for_registry = ctx.clone();
+        cx.set_global(ctx.clone());
+        self.pending_ctx_sync = Some(ctx);
+        self.sync_registry_from_workspace(&ctx_for_registry, cx);
+        cx.notify();
+    }
+
+    fn flush_pending_selector_sync(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(ctx) = self.pending_ctx_sync.take() else {
+            return;
+        };
+        let ws_opts: Vec<SharedString> = ctx
+            .workspace_options()
+            .into_iter()
+            .map(SharedString::from)
+            .collect();
+        self.workspace_select.update(cx, |select, cx| {
+            select.set_items(ws_opts, window, cx);
+            select.set_selected_index(
+                Some(IndexPath::new(ctx.active_workspace_index())),
+                window,
+                cx,
+            );
+        });
+        let env_opts: Vec<SharedString> = ctx
+            .environment_options()
+            .into_iter()
+            .map(SharedString::from)
+            .collect();
+        self.env_select.update(cx, |select, cx| {
+            select.set_items(env_opts, window, cx);
+            select.set_selected_index(
+                Some(IndexPath::new(ctx.active_environment_index())),
+                window,
+                cx,
+            );
+        });
+    }
+
+    fn sync_registry_from_workspace(&mut self, ctx: &WorkspaceContext, cx: &mut Context<Self>) {
+        self.registry.update(cx, |reg, cx| {
+            let template_entries = entries_from_workspace(&ctx.active);
+            for entry in template_entries {
+                if reg.get(&entry.id, cx).is_none() {
+                    reg.add(entry, cx);
+                }
+            }
+        });
+    }
+
+    pub fn persist_postgres_template(
+        &mut self,
+        config: &crate::postgres::PostgresConfig,
+        cx: &mut Context<Self>,
+    ) {
+        let ctx = cx.global::<WorkspaceContext>().clone();
+        let existing = ctx
+            .active
+            .connection_templates
+            .iter()
+            .find(|t| t.label == config.label)
+            .map(|t| t.id);
+        let template = templates::template_from_postgres_config(config, existing);
+        let store = storage::store(cx);
+        let workspace_id = ctx.active.id;
+        let this = cx.entity().downgrade();
+        cx.spawn(async move |_, cx| {
+            if let Err(err) = store
+                .upsert_connection_template(workspace_id, &template)
+                .await
+            {
+                log::warn!("persist connection template failed: {err:#}");
+                return;
+            }
+            let refreshed = context::refresh_context(store, workspace_id).await;
+            cx.update(|cx| {
+                let Some(this) = this.upgrade() else {
+                    return;
+                };
+                if let Ok(ctx) = refreshed {
+                    let entry = templates::resolve_template_entry(&ctx.active, &template).ok();
+                    this.update(cx, |ws, cx| {
+                        ws.apply_workspace_context(ctx, cx);
+                        if let Some(entry) = entry {
+                            ws.registry.update(cx, |reg, cx| {
+                                if reg.get(&entry.id, cx).is_none() {
+                                    reg.add(entry, cx);
+                                }
+                            });
+                        }
+                    });
+                }
+            })
+        })
+        .detach();
+    }
+
+    fn handle_palette_workspace_action(
+        &mut self,
+        action: crate::command_palette::WorkspacePaletteAction,
+        cx: &mut Context<Self>,
+    ) {
+        use crate::command_palette::WorkspacePaletteAction;
+        match action {
+            WorkspacePaletteAction::NewLooseQuery => {
+                query_lane::create_loose_query_from_palette(cx);
+            }
+            WorkspacePaletteAction::NewCollection => {
+                query_lane::create_collection_from_palette(cx);
+            }
+            WorkspacePaletteAction::SelectNoEnvironment => {
+                self.on_environment_selected(Some(0), cx);
+            }
         }
     }
 
@@ -432,6 +681,7 @@ impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::app::quit::maybe_show_pending_close_dialog(self, window, cx);
         crate::project::drain_pending_reload(cx);
+        self.flush_pending_selector_sync(window, cx);
         if !self.session_restored {
             self.session_restored = true;
             self.restore_session(window, cx);
@@ -535,6 +785,7 @@ impl Render for Workspace {
             .child(Topbar::new(
                 self.project_title.clone(),
                 this.clone(),
+                self.workspace_select.clone(),
                 self.env_select.clone(),
             ))
             .child(body)

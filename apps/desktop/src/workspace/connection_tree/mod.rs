@@ -271,6 +271,7 @@ impl Render for ConnectionTree {
         v_flex()
             .size_full()
             .min_h_0()
+            .child(crate::workspace::query_lane::render_query_lane(cx))
             .child(connection_browser::render_connections_pane(
                 connection_list,
                 cx,

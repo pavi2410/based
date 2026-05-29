@@ -643,6 +643,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "based-storage"
+version = "0.0.0-dev"
+dependencies = [
+ "anyhow",
+ "based-workspace",
+ "dirs",
+ "keyring",
+ "log",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tempfile",
+ "time",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "based-workspace"
 version = "0.0.0-dev"
 dependencies = [
@@ -1626,6 +1644,8 @@ dependencies = [
  "based-postgres",
  "based-query",
  "based-sqlite",
+ "based-storage",
+ "based-workspace",
  "dirs",
  "env_logger",
  "futures",
@@ -3748,6 +3768,16 @@ dependencies = [
  "futures-util",
  "once_cell",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "keyring"
+version = "3.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eebcc3aff044e5944a8fbaf69eb277d11986064cba30c468730e8b9909fb551c"
+dependencies = [
+ "log",
+ "zeroize",
 ]
 
 [[package]]

@@ -16,6 +16,7 @@ mod project;
 mod query_store;
 mod settings_window;
 mod sqlite;
+mod storage;
 mod theme;
 mod widgets;
 mod workspace;
@@ -47,6 +48,9 @@ fn main() {
             app::prefs::install(cx);
 
             db::init(cx);
+            if let Err(err) = storage::init(cx) {
+                log::error!("failed to open metadata store: {err:#}");
+            }
             PopOutManager::init(cx);
             app::aux_windows::AuxWindows::init(cx);
             cx.set_global(TabOpenQueue::default());

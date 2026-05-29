@@ -58,6 +58,7 @@ based/
 │   ├── based-postgres/   # Postgres config + sqlx execution (no UI)
 │   ├── based-sqlite/     # SQLite config + sqlx execution (no UI)
 │   ├── based-mongo/      # MongoDB config + document mutations (no UI)
+│   ├── based-storage/    # SQLite WAL metadata store + keychain secret boundary
 │   └── based-workspace/  # Workspace/collection/environment models + template resolution
 ├── docs/
 ├── .based/
@@ -65,7 +66,7 @@ based/
 └── mise.toml
 ```
 
-**Crate dependency rule:** `based-core` has no sqlx/GPUI. `based-query` and `based-workspace` depend on `based-core`. Engine crates (`based-postgres`, `based-sqlite`, `based-mongo`) hold sqlx/driver logic only. `desktop` depends on all of them and owns GPUI entities (`ConnectionRegistry`, connection panels).
+**Crate dependency rule:** `based-core` has no sqlx/GPUI. `based-query` and `based-workspace` depend on `based-core`. `based-storage` owns local SQLite metadata (WAL) and OS keychain secrets. Engine crates (`based-postgres`, `based-sqlite`, `based-mongo`) hold sqlx/driver logic only. `desktop` depends on all of them and owns GPUI entities (`ConnectionRegistry`, connection panels).
 
 ## Desktop module layers
 

@@ -1,0 +1,23 @@
+[package]
+name = "based-storage"
+version = "0.0.0-dev"
+edition = "2024"
+description = "Local SQLite metadata store with WAL and keychain secret boundary for Based"
+license = "MIT"
+publish = false
+
+[dependencies]
+based-workspace = { path = "../based-workspace" }
+anyhow = { workspace = true }
+dirs = "6"
+keyring = "3"
+log = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true, features = ["sqlite", "migrate"] }
+time = { workspace = true }
+tokio = { workspace = true }
+uuid = { workspace = true, features = ["serde"] }
+
+[dev-dependencies]
+tempfile = "3"

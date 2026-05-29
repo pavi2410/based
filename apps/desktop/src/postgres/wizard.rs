@@ -113,12 +113,21 @@ impl ConnectionWizardPanel {
     fn connect(&mut self, cx: &mut Context<Self>) {
         self.status = WizardStatus::Connecting;
         let config = self.config();
-        let task = PgConnection::open(config, cx);
+        let task = PgConnection::open(config.clone(), cx);
         cx.spawn(async move |this, cx| {
             let result = task.await;
             cx.update(|cx| {
                 this.update(cx, |panel, cx| match result {
-                    Ok(conn) => cx.emit(WizardEvent::Connected(conn)),
+                    Ok(conn) => {
+                        if let Some(ws) =
+                            cx.try_global::<crate::workspace::WorkspaceRef>().map(|w| w.0.clone())
+                        {
+                            ws.update(cx, |workspace, cx| {
+                                workspace.persist_postgres_template(&config, cx);
+                            });
+                        }
+                        cx.emit(WizardEvent::Connected(conn));
+                    }
                     Err(e) => {
                         panel.status = WizardStatus::ConnectErr(
                             categorize_connect_error(&e.to_string()).display_message(),

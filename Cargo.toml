@@ -6,6 +6,7 @@ members = [
     "crates/based-postgres",
     "crates/based-query",
     "crates/based-sqlite",
+    "crates/based-storage",
     "crates/based-workspace",
 ]
 resolver = "3"

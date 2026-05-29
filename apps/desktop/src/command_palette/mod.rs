@@ -26,6 +26,14 @@ pub enum PaletteEvent {
         conn_id: ConnectionId,
         sql: String,
     },
+    WorkspaceAction(WorkspacePaletteAction),
+}
+
+#[derive(Clone, Debug)]
+pub enum WorkspacePaletteAction {
+    NewLooseQuery,
+    NewCollection,
+    SelectNoEnvironment,
 }
 
 /// A search result the palette can return.
@@ -37,6 +45,7 @@ pub struct PaletteResult {
     pub sublabel: String,
     pub conn_label: String,
     pub spec: TabSpec,
+    pub command_action: Option<WorkspacePaletteAction>,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -44,6 +53,7 @@ pub enum ResultKind {
     SchemaObject,
     SavedQuery,
     History,
+    Command,
 }
 
 pub struct CommandPalette {
@@ -97,6 +107,11 @@ impl CommandPalette {
             return;
         };
         match (&entry.kind, secondary) {
+            (ResultKind::Command, _) => {
+                if let Some(action) = entry.command_action.clone() {
+                    cx.emit(PaletteEvent::WorkspaceAction(action));
+                }
+            }
             (ResultKind::History, false) => {
                 let sql = match &entry.spec {
                     TabSpec::QueryEditor {
@@ -200,6 +215,35 @@ impl CommandPalette {
         let q = self.query.to_lowercase();
         let mut results = vec![];
 
+        if q.is_empty() || q.contains("workspace") || q.contains("loose") || q.contains("collection") {
+            results.push(PaletteResult {
+                kind: ResultKind::Command,
+                label: "New loose query".into(),
+                sublabel: "workspace".into(),
+                conn_label: String::new(),
+                spec: TabSpec::blank_query_editor(ConnectionId("".into())),
+                command_action: Some(WorkspacePaletteAction::NewLooseQuery),
+            });
+            results.push(PaletteResult {
+                kind: ResultKind::Command,
+                label: "New collection".into(),
+                sublabel: "workspace".into(),
+                conn_label: String::new(),
+                spec: TabSpec::blank_query_editor(ConnectionId("".into())),
+                command_action: Some(WorkspacePaletteAction::NewCollection),
+            });
+        }
+        if q.is_empty() || q.contains("environment") || q.contains("no env") {
+            results.push(PaletteResult {
+                kind: ResultKind::Command,
+                label: "Select No Environment".into(),
+                sublabel: "environment".into(),
+                conn_label: String::new(),
+                spec: TabSpec::blank_query_editor(ConnectionId("".into())),
+                command_action: Some(WorkspacePaletteAction::SelectNoEnvironment),
+            });
+        }
+
         let tree = self.connection_tree.read(cx);
         for (conn_id, obj, _engine) in tree.schema_palette_matches(&q, cx) {
             let display = obj.display_name();
@@ -212,6 +256,7 @@ impl CommandPalette {
                     conn_id: conn_id.clone(),
                     object: display,
                 },
+                command_action: None,
             });
         }
 
@@ -233,6 +278,7 @@ impl CommandPalette {
                         mongo_collection: saved.mongo_collection.clone(),
                         auto_run: false,
                     },
+                    command_action: None,
                 });
             }
         }
@@ -278,6 +324,7 @@ impl CommandPalette {
                     sublabel: meta,
                     conn_label: entry.conn_id.0.clone(),
                     spec,
+                    command_action: None,
                 });
             }
         }

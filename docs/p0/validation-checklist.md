@@ -132,6 +132,35 @@ Workflow-based manual QA for stable-default release. Run on **macOS** plus at le
 
 ---
 
+## 8. M1 foundation (Track A + Track F)
+
+*Refs: [track-a-connections.md](./track-a-connections.md), [track-f-workspace-model.md](./track-f-workspace-model.md), [workspace-ui-contract.md](./workspace-ui-contract.md)*
+
+| # | Given | When | Then | Result |
+|---|-------|------|------|--------|
+| 8.1 | Fresh app data dir | Launch app | Default workspace created in SQLite metadata store | ☐ |
+| 8.2 | Main window open | Inspect top bar | Workspace + environment selectors visible | ☐ |
+| 8.3 | Environment picker | Select `No Environment` | Queries still run; no env vars applied | ☐ |
+| 8.4 | Custom environment exists | Switch environment | Future runs use new env scope only | ☐ |
+| 8.5 | Loose query lane | Create loose query | Query appears in sidebar lane | ☐ |
+| 8.6 | Loose query exists | Move to collection (context menu) | Query appears under collection | ☐ |
+| 8.7 | Collection query exists | Move to loose queries | Query returns to loose lane | ☐ |
+| 8.8 | Postgres wizard connect | Save connection | Template stored in workspace (password in keychain if literal) | ☐ |
+| 8.9 | Connected + tabs open | Quit and relaunch | Workspace, environment, connection focus, and tabs restore | ☐ |
+| 8.10 | Command palette | Search `workspace` / `environment` | New loose query, new collection, No Environment actions listed | ☐ |
+
+**Track acceptance:** A-AC1–4 (session/connect), F-AC1–6, WUI-AC1–5
+
+**Storage checks:**
+
+| # | Check | Result |
+|---|-------|--------|
+| 8.S1 | `~/Library/Application Support/based/metadata.db` exists (macOS) | ☐ |
+| 8.S2 | DB uses WAL mode (`PRAGMA journal_mode` → `wal`) | ☐ |
+| 8.S3 | Literal template passwords not present in SQLite rows | ☐ |
+
+---
+
 ## Sign-off
 
 | Role | Name | Date | Pass? |

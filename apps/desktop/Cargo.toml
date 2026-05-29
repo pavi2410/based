@@ -47,6 +47,8 @@ based-mongo = { path = "../../crates/based-mongo" }
 based-query = { path = "../../crates/based-query" }
 based-postgres = { path = "../../crates/based-postgres" }
 based-sqlite = { path = "../../crates/based-sqlite" }
+based-storage = { path = "../../crates/based-storage" }
+based-workspace = { path = "../../crates/based-workspace" }
 
 # GPUI ecosystem — versions flow from workspace Cargo.toml
 gpui.workspace = true

@@ -17,18 +17,21 @@ use crate::workspace::Workspace;
 pub struct Topbar {
     pub project_name: SharedString,
     pub workspace: Entity<Workspace>,
-    pub env_select: Entity<SelectState<Vec<&'static str>>>,
+    pub workspace_select: Entity<SelectState<Vec<SharedString>>>,
+    pub env_select: Entity<SelectState<Vec<SharedString>>>,
 }
 
 impl Topbar {
     pub fn new(
         project_name: impl Into<SharedString>,
         workspace: Entity<Workspace>,
-        env_select: Entity<SelectState<Vec<&'static str>>>,
+        workspace_select: Entity<SelectState<Vec<SharedString>>>,
+        env_select: Entity<SelectState<Vec<SharedString>>>,
     ) -> Self {
         Self {
             project_name: project_name.into(),
             workspace,
+            workspace_select,
             env_select,
         }
     }
@@ -53,6 +56,7 @@ impl RenderOnce for Topbar {
                     .child(TopbarLeft {
                         project_name: self.project_name,
                         workspace: self.workspace.clone(),
+                        workspace_select: self.workspace_select,
                         env_select: self.env_select,
                     })
                     .child(TopbarCenter)
@@ -61,12 +65,13 @@ impl RenderOnce for Topbar {
     }
 }
 
-/// Title bar left rail: sidebar toggle, project name, env selector.
+/// Title bar left rail: sidebar toggle, workspace/env selectors.
 #[derive(IntoElement)]
 struct TopbarLeft {
     project_name: SharedString,
     workspace: Entity<Workspace>,
-    env_select: Entity<SelectState<Vec<&'static str>>>,
+    workspace_select: Entity<SelectState<Vec<SharedString>>>,
+    env_select: Entity<SelectState<Vec<SharedString>>>,
 }
 
 impl RenderOnce for TopbarLeft {
@@ -97,20 +102,26 @@ impl RenderOnce for TopbarLeft {
                     }),
             )
             .child(
-                div()
-                    .flex_shrink_0()
-                    .max_w(px(200.0))
-                    .text_sm()
-                    .font_family(cx.theme().mono_font_family.clone())
-                    .text_color(cx.theme().foreground)
-                    .truncate()
-                    .child(self.project_name),
+                Select::new(&self.workspace_select)
+                    .small()
+                    .title_prefix("ws ")
+                    .w(px(128.0)),
             )
             .child(
                 Select::new(&self.env_select)
                     .small()
                     .title_prefix("env ")
-                    .w(px(104.0)),
+                    .w(px(128.0)),
+            )
+            .child(
+                div()
+                    .flex_shrink_0()
+                    .max_w(px(160.0))
+                    .text_xs()
+                    .font_family(cx.theme().mono_font_family.clone())
+                    .text_color(cx.theme().muted_foreground)
+                    .truncate()
+                    .child(self.project_name),
             )
     }
 }

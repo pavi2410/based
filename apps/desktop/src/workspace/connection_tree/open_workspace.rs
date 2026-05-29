@@ -8,6 +8,7 @@ use crate::connection::AnyConnection;
 use crate::postgres;
 use crate::sqlite;
 
+use super::super::dock_utils::wrap_center_root;
 use super::ConnectionTree;
 
 impl ConnectionTree {
@@ -53,8 +54,13 @@ impl ConnectionTree {
                 let pragma = cx.new(|cx| {
                     sqlite::pragma_browser::PragmaBrowserPanel::new(pool.clone(), window, cx)
                 });
-                DockItem::tabs(
-                    vec![Arc::new(dashboard), Arc::new(query), Arc::new(pragma)],
+                wrap_center_root(
+                    DockItem::tabs(
+                        vec![Arc::new(dashboard), Arc::new(query), Arc::new(pragma)],
+                        &weak,
+                        window,
+                        cx,
+                    ),
                     &weak,
                     window,
                     cx,
@@ -73,8 +79,13 @@ impl ConnectionTree {
                 let monitor = cx.new(|cx| {
                     postgres::live_monitor::LiveMonitorPanel::new(pool.clone(), window, cx)
                 });
-                DockItem::tabs(
-                    vec![Arc::new(dashboard), Arc::new(query), Arc::new(monitor)],
+                wrap_center_root(
+                    DockItem::tabs(
+                        vec![Arc::new(dashboard), Arc::new(query), Arc::new(monitor)],
+                        &weak,
+                        window,
+                        cx,
+                    ),
                     &weak,
                     window,
                     cx,
@@ -94,8 +105,13 @@ impl ConnectionTree {
                 let stream = cx.new(|cx| {
                     crate::mongodb::change_stream::ChangeStreamPanel::new(coll, window, cx)
                 });
-                DockItem::tabs(
-                    vec![Arc::new(dashboard), Arc::new(builder), Arc::new(stream)],
+                wrap_center_root(
+                    DockItem::tabs(
+                        vec![Arc::new(dashboard), Arc::new(builder), Arc::new(stream)],
+                        &weak,
+                        window,
+                        cx,
+                    ),
                     &weak,
                     window,
                     cx,

@@ -35,7 +35,7 @@ pub mod templates;
 
 use std::sync::Arc;
 
-use dock_utils::{active_center_tab, center_tab_items, dock_area_present_views};
+use dock_utils::{active_center_tab, center_tab_items, dock_area_present_views, wrap_center_root};
 use inspector::render_inspector_body;
 
 use std::path::PathBuf;
@@ -151,7 +151,9 @@ impl Workspace {
 
         let welcome = cx.new(|cx| WelcomePanel::new(window, cx));
         let welcome_panel = welcome.clone();
-        let center = DockItem::tab(welcome, &dock_area.downgrade(), window, cx);
+        let weak_dock = dock_area.downgrade();
+        let tabs = DockItem::tab(welcome, &weak_dock, window, cx);
+        let center = wrap_center_root(tabs, &weak_dock, window, cx);
         dock_area.update(cx, |area, cx| {
             area.set_center(center, window, cx);
         });

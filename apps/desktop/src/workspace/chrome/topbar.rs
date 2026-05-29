@@ -182,6 +182,12 @@ impl RenderOnce for TopbarRight {
                                 .icon(IconName::Settings)
                                 .on_click(|_, _window, cx| shell::open_settings(cx)),
                         )
+                        .item(PopupMenuItem::separator())
+                        .item(
+                            PopupMenuItem::new("Welcome to Based")
+                                .icon(IconName::BookOpen)
+                                .on_click(|_, _window, cx| shell::open_welcome(cx)),
+                        )
                     }),
             )
     }

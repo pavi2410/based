@@ -34,6 +34,8 @@ pub mod context;
 pub mod query_lane;
 pub mod templates;
 
+use std::sync::Arc;
+
 use dock_utils::{active_center_tab, center_tab_items, dock_area_present_views};
 use inspector::render_inspector_body;
 
@@ -45,13 +47,14 @@ use gpui::{
 };
 use gpui_component::{
     ActiveTheme, IndexPath,
-    dock::{DockArea, DockEvent, DockItem, DockPlacement, PanelStyle},
+    dock::{DockArea, DockEvent, DockItem, DockPlacement, PanelStyle, PanelView},
     select::{SelectEvent, SelectState},
     v_flex,
 };
 
 use crate::bindings::{
-    CloseTab, CycleAppearance, DismissCommandPalette, OpenSettings, ToggleCommandPalette,
+    CloseTab, CycleAppearance, DismissCommandPalette, OpenSettings, OpenWelcome,
+    ToggleCommandPalette,
     ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane, ToggleSidebarRail,
 };
 use crate::command_palette::CommandPalette;
@@ -77,6 +80,7 @@ use welcome::WelcomePanel;
 
 pub struct Workspace {
     registry: Entity<ConnectionRegistry>,
+    welcome_panel: Entity<WelcomePanel>,
     dock_area: Entity<DockArea>,
     connection_tree: Entity<ConnectionTree>,
     tab_manager: Entity<TabManager>,
@@ -146,6 +150,7 @@ impl Workspace {
         });
 
         let welcome = cx.new(|cx| WelcomePanel::new(window, cx));
+        let welcome_panel = welcome.clone();
         let center = DockItem::tab(welcome, &dock_area.downgrade(), window, cx);
         dock_area.update(cx, |area, cx| {
             area.set_center(center, window, cx);
@@ -198,6 +203,7 @@ impl Workspace {
 
         let workspace = Self {
             registry: registry.clone(),
+            welcome_panel,
             dock_area,
             connection_tree,
             tab_manager,
@@ -593,6 +599,63 @@ impl Workspace {
         crate::app::shell::open_settings(&mut *cx);
     }
 
+    pub fn toggle_command_palette(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.command_palette
+            .update(cx, |p, cx| p.toggle(window, cx));
+    }
+
+    /// Open the Postgres connection wizard in a new center tab.
+    pub fn open_postgres_wizard_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let panel = cx.new(|cx| crate::postgres::wizard::ConnectionWizardPanel::new(window, cx));
+        let arc: Arc<dyn PanelView> = Arc::new(panel);
+        self.dock_area.update(cx, |dock, ecx| {
+            dock.add_panel(arc, DockPlacement::Center, None, window, ecx);
+        });
+        cx.notify();
+    }
+
+    /// Focus the Welcome tab, re-adding it to the center strip if it was replaced.
+    pub fn show_welcome(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let welcome: Arc<dyn PanelView> = Arc::new(self.welcome_panel.clone());
+        let dock = self.dock_area.read(cx);
+        let welcome_ix = center_tab_items(dock.center()).and_then(|items| {
+            items
+                .iter()
+                .position(|p| p.panel_name(cx) == "WelcomePanel")
+        });
+        let is_active = active_center_tab(dock.center(), cx)
+            .is_some_and(|(p, _)| p.panel_name(cx) == "WelcomePanel");
+
+        self.dock_area.update(cx, |dock, ecx| {
+            match welcome_ix {
+                Some(_ix) if is_active => {}
+                Some(ix) => {
+                    if let Some(panel) =
+                        center_tab_items(dock.center()).and_then(|items| items.get(ix).cloned())
+                    {
+                        dock.remove_panel(panel, DockPlacement::Center, window, ecx);
+                        dock.add_panel(
+                            welcome.clone(),
+                            DockPlacement::Center,
+                            None,
+                            window,
+                            ecx,
+                        );
+                    }
+                }
+                None => {
+                    dock.add_panel(welcome, DockPlacement::Center, None, window, ecx);
+                }
+            }
+        });
+
+        self.welcome_panel
+            .read(cx)
+            .focus_handle(cx)
+            .focus(window, cx);
+        cx.notify();
+    }
+
     fn drain_tab_open_queue(&mut self, cx: &mut Context<Self>) {
         if let Some(spec) = cx.update_global(|q: &mut TabOpenQueue, _| q.pending.take()) {
             self.pending_open_tab = Some(spec);
@@ -761,6 +824,11 @@ impl Render for Workspace {
             .on_action(
                 window.listener_for(&this, |ws, _: &OpenSettings, window, cx| {
                     ws.open_settings(window, cx);
+                }),
+            )
+            .on_action(
+                window.listener_for(&this, |ws, _: &OpenWelcome, window, cx| {
+                    ws.show_welcome(window, cx);
                 }),
             )
             .on_action(window.listener_for(&this, |ws, _: &CloseTab, window, cx| {

@@ -15,6 +15,8 @@ use super::aux_windows::{AuxKind, AuxWindows};
 use super::quit;
 use crate::about_window::AboutWindow;
 use crate::settings_window::SettingsWindow;
+use crate::workspace::WorkspaceRef;
+use crate::bindings::OpenWelcome;
 
 pub const APP_NAME: &str = "Based";
 
@@ -32,6 +34,7 @@ pub fn init(cx: &mut App) {
     cx.on_action(|_: &QuitApp, cx| quit::request_app_quit(cx));
     cx.on_action(|_: &AboutApp, cx| open_about(cx));
     cx.on_action(|_: &OpenSettingsMenu, cx| open_settings(cx));
+    cx.on_action(|_: &OpenWelcome, cx| open_welcome(cx));
 
     cx.bind_keys([
         KeyBinding::new("cmd-q", QuitApp, None),
@@ -39,15 +42,33 @@ pub fn init(cx: &mut App) {
         KeyBinding::new("cmd-,", OpenSettingsMenu, None),
     ]);
 
-    cx.set_menus([Menu::new(APP_NAME).items([
-        MenuItem::action("About Based", AboutApp),
-        MenuItem::separator(),
-        MenuItem::action("Settings...", OpenSettingsMenu),
-        MenuItem::separator(),
-        MenuItem::os_submenu("Services", SystemMenuType::Services),
-        MenuItem::separator(),
-        MenuItem::action("Quit Based", QuitApp),
-    ])]);
+    cx.set_menus([
+        Menu::new(APP_NAME).items([
+            MenuItem::action("About Based", AboutApp),
+            MenuItem::separator(),
+            MenuItem::action("Settings...", OpenSettingsMenu),
+            MenuItem::separator(),
+            MenuItem::os_submenu("Services", SystemMenuType::Services),
+            MenuItem::separator(),
+            MenuItem::action("Quit Based", QuitApp),
+        ]),
+        Menu::new("Help").items([MenuItem::action("Welcome to Based", OpenWelcome)]),
+    ]);
+}
+
+/// Focus or re-open the Welcome center tab (Help menu and topbar overflow).
+pub fn open_welcome(cx: &mut App) {
+    let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) else {
+        return;
+    };
+    let Some(handle) = cx.active_window() else {
+        return;
+    };
+    let _ = handle.update(cx, |_, window, cx| {
+        ws.update(cx, |workspace, cx| {
+            workspace.show_welcome(window, cx);
+        });
+    });
 }
 
 /// Open the About window, or focus the existing one if already open.

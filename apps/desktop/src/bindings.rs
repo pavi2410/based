@@ -10,6 +10,7 @@ gpui::actions!([
     CloseTab,
     NewQuery,
     OpenSettings,
+    OpenWelcome,
     ToggleInspectorPane,
     ToggleHistoryPane,
     ToggleSavedPane,

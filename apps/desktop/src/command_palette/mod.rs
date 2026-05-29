@@ -215,7 +215,11 @@ impl CommandPalette {
         let q = self.query.to_lowercase();
         let mut results = vec![];
 
-        if q.is_empty() || q.contains("workspace") || q.contains("loose") || q.contains("collection") {
+        if q.is_empty()
+            || q.contains("workspace")
+            || q.contains("loose")
+            || q.contains("collection")
+        {
             results.push(PaletteResult {
                 kind: ResultKind::Command,
                 label: "New loose query".into(),

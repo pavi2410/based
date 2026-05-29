@@ -1,7 +1,9 @@
 //! Shared `ListItem` row chrome for selectable lists.
 
 use gpui::{ElementId, Hsla, IntoElement, ParentElement, SharedString, div, prelude::*, px};
-use gpui_component::{h_flex, list::ListItem, v_flex};
+use gpui_component::{Icon, IconName, Sizable as _, h_flex, list::ListItem, v_flex};
+
+use crate::widgets::ui::{SCHEMA_ROW_ICON_SIZE, SIDEBAR_INSET, SIDEBAR_ROW_GAP, SIDEBAR_ROW_PY};
 
 /// Typography and colors for schema browser list rows.
 pub struct SchemaRowStyle {
@@ -56,10 +58,8 @@ pub fn palette_result_row(
         )
 }
 
-const SCHEMA_BADGE_W: f32 = 40.0;
-
 fn schema_object_row_inner(
-    badge: SharedString,
+    kind_icon: IconName,
     label: SharedString,
     style: SchemaRowStyle,
     actions: Option<gpui::AnyElement>,
@@ -67,21 +67,24 @@ fn schema_object_row_inner(
     let SchemaRowStyle {
         muted,
         fg,
-        mono_family,
+        mono_family: _,
     } = style;
     let mut row = h_flex()
         .w_full()
-        .gap(px(6.0))
+        .gap(px(SIDEBAR_ROW_GAP))
         .items_center()
         .child(
             div()
                 .flex_shrink_0()
-                .w(px(SCHEMA_BADGE_W))
-                .text_xs()
-                .font_family(mono_family)
-                .text_color(muted)
-                .truncate()
-                .child(badge),
+                .w(px(SCHEMA_ROW_ICON_SIZE))
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(
+                    Icon::new(kind_icon)
+                        .text_color(muted)
+                        .with_size(px(SCHEMA_ROW_ICON_SIZE)),
+                ),
         )
         .child(
             div()
@@ -102,17 +105,18 @@ fn schema_object_row_inner(
 pub fn schema_object_row(
     id: impl Into<ElementId>,
     selected: bool,
-    badge: impl Into<SharedString>,
+    kind_icon: IconName,
     label: impl Into<SharedString>,
     style: SchemaRowStyle,
 ) -> ListItem {
     ListItem::new(id)
         .selected(selected)
-        .px(px(8.0))
-        .py(px(4.0))
+        .pl(px(SIDEBAR_INSET))
+        .pr(px(SIDEBAR_INSET))
+        .py(px(SIDEBAR_ROW_PY))
         .cursor_pointer()
         .child(schema_object_row_inner(
-            badge.into(),
+            kind_icon,
             label.into(),
             style,
             None,
@@ -123,18 +127,19 @@ pub fn schema_object_row(
 pub fn schema_object_row_with_actions(
     id: impl Into<ElementId>,
     selected: bool,
-    badge: impl Into<SharedString>,
+    kind_icon: IconName,
     label: impl Into<SharedString>,
     style: SchemaRowStyle,
     actions: impl IntoElement,
 ) -> ListItem {
     ListItem::new(id)
         .selected(selected)
-        .px(px(8.0))
-        .py(px(4.0))
+        .pl(px(SIDEBAR_INSET))
+        .pr(px(SIDEBAR_INSET))
+        .py(px(SIDEBAR_ROW_PY))
         .cursor_pointer()
         .child(schema_object_row_inner(
-            badge.into(),
+            kind_icon,
             label.into(),
             style,
             Some(actions.into_any_element()),

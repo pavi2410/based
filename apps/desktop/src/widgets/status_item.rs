@@ -3,11 +3,14 @@
 use gpui::{Hsla, IntoElement, ParentElement, SharedString, div, prelude::*, px};
 use gpui_component::h_flex;
 
+pub const STATUS_BAR_HEIGHT: f32 = 26.0;
+const STATUS_DIVIDER_HEIGHT: f32 = 14.0;
+
 /// Muted vertical rule between status segments.
 pub fn status_divider(muted: Hsla) -> impl IntoElement {
     div()
         .w(px(1.0))
-        .h(px(12.0))
+        .h(px(STATUS_DIVIDER_HEIGHT))
         .flex_shrink_0()
         .bg(muted.opacity(0.22))
 }
@@ -21,7 +24,6 @@ pub fn status_segment(
     dot: Option<Hsla>,
 ) -> impl IntoElement {
     h_flex()
-        .h(px(22.0))
         .items_center()
         .gap(px(4.0))
         .when_some(dot, |row, color| {

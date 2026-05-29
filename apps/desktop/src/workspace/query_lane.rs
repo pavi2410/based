@@ -8,10 +8,10 @@ use uuid::Uuid;
 
 use crate::connection::ConnectionId;
 use crate::storage;
+use crate::workspace::WorkspaceRef;
 use crate::workspace::context::WorkspaceContext;
 use crate::workspace::tab_open::enqueue_open_tab;
 use crate::workspace::tab_spec::TabSpec;
-use crate::workspace::WorkspaceRef;
 
 pub fn render_query_lane(cx: &mut App) -> AnyElement {
     let ctx = cx
@@ -139,13 +139,7 @@ pub fn render_query_lane(cx: &mut App) -> AnyElement {
                         .py_1()
                         .cursor_pointer()
                         .hover(|s| s.bg(cx.theme().muted.opacity(0.25)))
-                        .child(
-                            div()
-                                .text_xs()
-                                .text_color(fg)
-                                .truncate()
-                                .child(name),
-                        )
+                        .child(div().text_xs().text_color(fg).truncate().child(name))
                         .on_mouse_down(MouseButton::Left, move |_, _, cx| {
                             open_loose_query(&sql, cx);
                         })
@@ -233,18 +227,17 @@ fn open_loose_query(sql: &str, cx: &mut App) {
 fn first_connected_conn_id(cx: &App) -> Option<ConnectionId> {
     let ws = cx.try_global::<WorkspaceRef>()?;
     let registry = ws.0.read(cx).registry().clone();
-    registry
-        .read(cx)
-        .connections()
-        .iter()
-        .find_map(|e| {
-            let entry = e.read(cx);
-            if matches!(entry.state, crate::connection::ConnectionState::Connected(_)) {
-                Some(entry.id.clone())
-            } else {
-                None
-            }
-        })
+    registry.read(cx).connections().iter().find_map(|e| {
+        let entry = e.read(cx);
+        if matches!(
+            entry.state,
+            crate::connection::ConnectionState::Connected(_)
+        ) {
+            Some(entry.id.clone())
+        } else {
+            None
+        }
+    })
 }
 
 pub fn create_loose_query_from_palette(cx: &mut App) {
@@ -281,9 +274,7 @@ fn create_collection(cx: &mut App) {
     let handle = gpui_tokio::Tokio::handle(cx);
     let name = format!("Collection {}", ctx.active.collections.len() + 1);
     let workspace_id = ctx.active.id;
-    let result = handle.block_on(async move {
-        store.create_collection(workspace_id, &name).await
-    });
+    let result = handle.block_on(async move { store.create_collection(workspace_id, &name).await });
     if result.is_ok() {
         reload_workspace_context(workspace_id, cx);
     }
@@ -322,8 +313,8 @@ fn move_collection_to_loose(query_id: Uuid, cx: &mut App) {
     let store = storage::store(cx);
     let handle = gpui_tokio::Tokio::handle(cx);
     let workspace_id = ctx.active.id;
-    let result = handle
-        .block_on(async move { store.move_query_to_loose(workspace_id, query_id).await });
+    let result =
+        handle.block_on(async move { store.move_query_to_loose(workspace_id, query_id).await });
     if result.is_ok() {
         reload_workspace_context(workspace_id, cx);
     }
@@ -332,8 +323,10 @@ fn move_collection_to_loose(query_id: Uuid, cx: &mut App) {
 pub fn reload_workspace_context(workspace_id: Uuid, cx: &mut App) {
     let store = storage::store(cx);
     let handle = gpui_tokio::Tokio::handle(cx);
-    if let Ok(ctx) = handle.block_on(crate::workspace::context::refresh_context(store, workspace_id))
-    {
+    if let Ok(ctx) = handle.block_on(crate::workspace::context::refresh_context(
+        store,
+        workspace_id,
+    )) {
         cx.set_global(ctx);
         if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
             ws.update(cx, |_, cx| cx.notify());

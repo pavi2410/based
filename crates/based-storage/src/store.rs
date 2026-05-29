@@ -128,12 +128,11 @@ impl MetadataStore {
     // ── Workspace CRUD ──────────────────────────────────────────────────────
 
     pub async fn list_workspaces(&self) -> Result<Vec<WorkspaceSummary>> {
-        let rows: Vec<(String, String, String)> = sqlx::query_as(
-            "SELECT id, name, updated_at FROM workspaces ORDER BY updated_at DESC",
-        )
-        .fetch_all(&self.pool)
-        .await
-        .context("list workspaces")?;
+        let rows: Vec<(String, String, String)> =
+            sqlx::query_as("SELECT id, name, updated_at FROM workspaces ORDER BY updated_at DESC")
+                .fetch_all(&self.pool)
+                .await
+                .context("list workspaces")?;
 
         rows.into_iter()
             .map(|(id, name, updated_at)| {
@@ -161,9 +160,7 @@ impl MetadataStore {
             return Ok(None);
         };
 
-        let active_environment_id = active_environment_id
-            .map(|s| parse_uuid(&s))
-            .transpose()?;
+        let active_environment_id = active_environment_id.map(|s| parse_uuid(&s)).transpose()?;
 
         let environments = self.load_environments(&id_str).await?;
         let connection_templates = self.load_templates(&id_str).await?;
@@ -224,16 +221,14 @@ impl MetadataStore {
 
     pub async fn rename_workspace(&self, id: Uuid, name: &str) -> Result<()> {
         let now = format_rfc3339(OffsetDateTime::now_utc());
-        let rows = sqlx::query(
-            "UPDATE workspaces SET name = ?, updated_at = ? WHERE id = ?",
-        )
-        .bind(name)
-        .bind(&now)
-        .bind(id.to_string())
-        .execute(&self.pool)
-        .await
-        .context("rename workspace")?
-        .rows_affected();
+        let rows = sqlx::query("UPDATE workspaces SET name = ?, updated_at = ? WHERE id = ?")
+            .bind(name)
+            .bind(&now)
+            .bind(id.to_string())
+            .execute(&self.pool)
+            .await
+            .context("rename workspace")?
+            .rows_affected();
         if rows == 0 {
             bail!("workspace not found");
         }
@@ -333,13 +328,11 @@ impl MetadataStore {
             }
         }
 
-        sqlx::query(
-            "DELETE FROM queries WHERE workspace_id = ? AND collection_id IS NULL",
-        )
-        .bind(&id)
-        .execute(&mut *tx)
-        .await
-        .context("clear loose queries")?;
+        sqlx::query("DELETE FROM queries WHERE workspace_id = ? AND collection_id IS NULL")
+            .bind(&id)
+            .execute(&mut *tx)
+            .await
+            .context("clear loose queries")?;
         for (idx, query) in workspace.loose_queries.iter().enumerate() {
             sqlx::query(
                 "INSERT INTO queries
@@ -363,11 +356,7 @@ impl MetadataStore {
 
     // ── Environment ops ─────────────────────────────────────────────────────
 
-    pub async fn create_environment(
-        &self,
-        workspace_id: Uuid,
-        name: &str,
-    ) -> Result<Environment> {
+    pub async fn create_environment(&self, workspace_id: Uuid, name: &str) -> Result<Environment> {
         let env = Environment {
             id: Uuid::new_v4(),
             name: name.to_string(),
@@ -413,13 +402,12 @@ impl MetadataStore {
     ) -> Result<()> {
         let mut tx = self.pool.begin().await.context("begin upsert template")?;
         let ws_id = workspace_id.to_string();
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM connection_templates WHERE workspace_id = ?",
-        )
-        .bind(&ws_id)
-        .fetch_one(&mut *tx)
-        .await
-        .context("count templates")?;
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM connection_templates WHERE workspace_id = ?")
+                .bind(&ws_id)
+                .fetch_one(&mut *tx)
+                .await
+                .context("count templates")?;
         self.insert_template(&mut tx, &ws_id, template, count)
             .await?;
         tx.commit().await.context("commit upsert template")?;
@@ -448,18 +436,13 @@ impl MetadataStore {
 
     // ── Collections & queries ───────────────────────────────────────────────
 
-    pub async fn create_collection(
-        &self,
-        workspace_id: Uuid,
-        name: &str,
-    ) -> Result<Collection> {
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM collections WHERE workspace_id = ?",
-        )
-        .bind(workspace_id.to_string())
-        .fetch_one(&self.pool)
-        .await
-        .context("count collections")?;
+    pub async fn create_collection(&self, workspace_id: Uuid, name: &str) -> Result<Collection> {
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM collections WHERE workspace_id = ?")
+                .bind(workspace_id.to_string())
+                .fetch_one(&self.pool)
+                .await
+                .context("count collections")?;
         let collection = Collection {
             id: Uuid::new_v4(),
             name: name.to_string(),
@@ -524,13 +507,11 @@ impl MetadataStore {
         query_id: Uuid,
         collection_id: Uuid,
     ) -> Result<()> {
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM queries WHERE collection_id = ?",
-        )
-        .bind(collection_id.to_string())
-        .fetch_one(&self.pool)
-        .await
-        .context("count collection queries")?;
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM queries WHERE collection_id = ?")
+            .bind(collection_id.to_string())
+            .fetch_one(&self.pool)
+            .await
+            .context("count collection queries")?;
         let rows = sqlx::query(
             "UPDATE queries SET collection_id = ?, sort_order = ?
              WHERE id = ? AND workspace_id = ? AND collection_id IS NULL",
@@ -550,11 +531,7 @@ impl MetadataStore {
         Ok(())
     }
 
-    pub async fn move_query_to_loose(
-        &self,
-        workspace_id: Uuid,
-        query_id: Uuid,
-    ) -> Result<()> {
+    pub async fn move_query_to_loose(&self, workspace_id: Uuid, query_id: Uuid) -> Result<()> {
         let count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM queries WHERE workspace_id = ? AND collection_id IS NULL",
         )
@@ -631,10 +608,7 @@ impl MetadataStore {
             .collect()
     }
 
-    async fn load_templates(
-        &self,
-        workspace_id: &str,
-    ) -> Result<Vec<ConnectionTemplate>> {
+    async fn load_templates(&self, workspace_id: &str) -> Result<Vec<ConnectionTemplate>> {
         let rows: Vec<(
             String,
             String,
@@ -672,9 +646,7 @@ impl MetadataStore {
         {
             let id = parse_uuid(&id)?;
             let password = if let Some(ref_key) = password_secret_ref {
-                self.secrets
-                    .get(&ref_key)?
-                    .unwrap_or_default()
+                self.secrets.get(&ref_key)?.unwrap_or_default()
             } else {
                 password_template
             };
@@ -729,9 +701,7 @@ impl MetadataStore {
                     id: parse_uuid(&id)?,
                     name,
                     sql,
-                    connection_template_id: template_id
-                        .map(|s| parse_uuid(&s))
-                        .transpose()?,
+                    connection_template_id: template_id.map(|s| parse_uuid(&s)).transpose()?,
                 })
             })
             .collect()
@@ -755,9 +725,7 @@ impl MetadataStore {
                     id: parse_uuid(&id)?,
                     name,
                     sql,
-                    connection_template_id: template_id
-                        .map(|s| parse_uuid(&s))
-                        .transpose()?,
+                    connection_template_id: template_id.map(|s| parse_uuid(&s)).transpose()?,
                 })
             })
             .collect()
@@ -869,7 +837,9 @@ mod tests {
     #[tokio::test]
     async fn move_query_back_to_loose_lane() {
         let dir = tempfile::tempdir().unwrap();
-        let store = MetadataStore::open(dir.path().join("meta.db")).await.unwrap();
+        let store = MetadataStore::open(dir.path().join("meta.db"))
+            .await
+            .unwrap();
         let ws = store.create_workspace("dev").await.unwrap();
         let q = store
             .create_loose_query(ws.id, "q1", "SELECT 2", None)
@@ -890,7 +860,9 @@ mod tests {
     #[tokio::test]
     async fn session_state_roundtrip() {
         let dir = tempfile::tempdir().unwrap();
-        let store = MetadataStore::open(dir.path().join("meta.db")).await.unwrap();
+        let store = MetadataStore::open(dir.path().join("meta.db"))
+            .await
+            .unwrap();
         let id = Uuid::new_v4();
         store.set_active_workspace_id(Some(id)).await.unwrap();
         assert_eq!(store.active_workspace_id().await.unwrap(), Some(id));

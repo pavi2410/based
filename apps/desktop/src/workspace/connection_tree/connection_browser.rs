@@ -15,10 +15,8 @@ pub(super) fn render_connections_pane(
     let muted = cx.theme().muted_foreground;
 
     v_flex()
-        .h(gpui::px(250.0))
-        .min_h(gpui::px(170.0))
-        .max_h(gpui::px(270.0))
-        .flex_shrink_0()
+        .flex_1()
+        .min_h(gpui::px(120.0))
         .min_h_0()
         .border_b_1()
         .border_color(border)

@@ -5,7 +5,7 @@ use gpui::{InteractiveElement, prelude::*, *};
 use crate::widgets::list_row::{SchemaRowStyle, schema_object_row};
 use crate::widgets::ui::{metadata_pill, panel_header};
 use gpui_component::{
-    ActiveTheme,
+    ActiveTheme, IconName,
     dock::{Panel, PanelEvent},
     h_flex,
     menu::PopupMenu,
@@ -103,11 +103,11 @@ impl SchemaTreePanel {
         .detach();
     }
 
-    fn badge(kind: &RelKind) -> &'static str {
+    fn list_icon(kind: &RelKind) -> IconName {
         match kind {
-            RelKind::Table => "tbl",
-            RelKind::View => "vw",
-            RelKind::Matview => "mv",
+            RelKind::Table => IconName::LayoutDashboard,
+            RelKind::View => IconName::Eye,
+            RelKind::Matview => IconName::GalleryVerticalEnd,
         }
     }
 }
@@ -161,14 +161,13 @@ impl Render for SchemaTreePanel {
             .map(|(ix, rel)| {
                 let key = (rel.schema.clone(), rel.name.clone());
                 let is_sel = selected.as_ref() == Some(&key);
-                let badge = Self::badge(&rel.kind);
                 let label2: SharedString = format!("{}.{}", rel.schema, rel.name).into();
                 let picked = rel.clone();
 
                 schema_object_row(
                     ("pg-rel", ix),
                     is_sel,
-                    badge,
+                    Self::list_icon(&rel.kind),
                     label2,
                     SchemaRowStyle {
                         muted,

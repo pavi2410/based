@@ -8,7 +8,7 @@ use gpui_component::{
 };
 
 use crate::app::{prefs, shell};
-use crate::bindings::{CycleAppearance, ToggleSidebarRail};
+use crate::bindings::CycleAppearance;
 use crate::widgets::ui::command_shell;
 use crate::workspace::Workspace;
 
@@ -55,7 +55,6 @@ impl RenderOnce for Topbar {
                     .gap_2()
                     .child(TopbarLeft {
                         project_name: self.project_name,
-                        workspace: self.workspace.clone(),
                         workspace_select: self.workspace_select,
                         env_select: self.env_select,
                     })
@@ -65,42 +64,21 @@ impl RenderOnce for Topbar {
     }
 }
 
-/// Title bar left rail: sidebar toggle, workspace/env selectors.
+/// Title bar left rail: workspace/env selectors and project name.
 #[derive(IntoElement)]
 struct TopbarLeft {
     project_name: SharedString,
-    workspace: Entity<Workspace>,
     workspace_select: Entity<SelectState<Vec<SharedString>>>,
     env_select: Entity<SelectState<Vec<SharedString>>>,
 }
 
 impl RenderOnce for TopbarLeft {
     fn render(self, _: &mut gpui::Window, cx: &mut App) -> impl IntoElement {
-        let workspace_rail = self.workspace.clone();
-        let collapsed = prefs::collapsed_from(cx);
-
         h_flex()
             .flex_1()
             .items_center()
             .justify_start()
             .gap_2()
-            .child(
-                Button::new("rail-toggle")
-                    .ghost()
-                    .small()
-                    .icon(if collapsed {
-                        IconName::PanelLeftOpen
-                    } else {
-                        IconName::PanelLeftClose
-                    })
-                    .tooltip_with_action("Toggle connections", &ToggleSidebarRail, None)
-                    .on_click(move |_, _, cx| {
-                        let ent = workspace_rail.clone();
-                        ent.update(cx, |ws, cx| {
-                            ws.toggle_sidebar_rail(cx);
-                        });
-                    }),
-            )
             .child(
                 Select::new(&self.workspace_select)
                     .small()

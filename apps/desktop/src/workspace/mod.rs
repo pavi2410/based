@@ -6,8 +6,7 @@ pub mod tab_label;
 pub mod tab_open;
 pub mod tab_spec;
 pub use tab_open::{
-    SqlInject, TabManagerRef, TabOpenQueue, WorkspaceRef, enqueue_sql_inject,
-    mark_query_tab_dirty,
+    SqlInject, TabManagerRef, TabOpenQueue, WorkspaceRef, enqueue_sql_inject, mark_query_tab_dirty,
 };
 pub use tab_spec::TabSpec;
 
@@ -54,8 +53,8 @@ use gpui_component::{
 
 use crate::bindings::{
     CloseTab, CycleAppearance, DismissCommandPalette, OpenSettings, OpenWelcome,
-    ToggleCommandPalette,
-    ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane, ToggleSidebarRail,
+    ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane,
+    ToggleSidebarRail,
 };
 use crate::command_palette::CommandPalette;
 use crate::connection::ConnectionId;
@@ -69,8 +68,8 @@ use context::WorkspaceContext;
 use templates::entries_from_workspace;
 
 use chrome::{
-    activity_rail::render_activity_rail,
     layout,
+    left_pane::LeftPane,
     panes::{history_pane::render_history_pane, saved_pane::render_saved_pane},
     side_pane::{SidePane, render_side_pane},
     status_bar::{StatusBar, StatusBarModel},
@@ -86,6 +85,7 @@ pub struct Workspace {
     tab_manager: Entity<TabManager>,
     command_palette: Entity<CommandPalette>,
     sidebar_collapsed: bool,
+    active_left_pane: LeftPane,
     /// `None` collapses the right-hand column. Defaults to Inspector to preserve the prior UX.
     active_side_pane: Option<SidePane>,
     /// History pane filter chip (All / Saved / Today).
@@ -209,7 +209,8 @@ impl Workspace {
             tab_manager,
             command_palette,
             sidebar_collapsed: crate::app::prefs::collapsed_from(cx),
-            active_side_pane: Some(SidePane::Inspector),
+            active_left_pane: LeftPane::Browser,
+            active_side_pane: None,
             history_filter: HistoryFilter::default(),
             pending_star: None,
             focus_handle: cx.focus_handle(),
@@ -556,6 +557,19 @@ impl Workspace {
         cx.notify();
     }
 
+    pub fn toggle_left_pane(&mut self, pane: LeftPane, cx: &mut Context<Self>) {
+        if self.active_left_pane == pane && !self.sidebar_collapsed {
+            self.toggle_sidebar_rail(cx);
+            return;
+        }
+        self.active_left_pane = pane;
+        if self.sidebar_collapsed {
+            self.sidebar_collapsed = false;
+            crate::app::prefs::set_sidebar(false, cx);
+        }
+        cx.notify();
+    }
+
     /// Click a rail icon: switch to that pane, or collapse if it was already active.
     pub fn toggle_side_pane(&mut self, pane: SidePane, cx: &mut Context<Self>) {
         self.active_side_pane = if self.active_side_pane == Some(pane) {
@@ -626,26 +640,18 @@ impl Workspace {
         let is_active = active_center_tab(dock.center(), cx)
             .is_some_and(|(p, _)| p.panel_name(cx) == "WelcomePanel");
 
-        self.dock_area.update(cx, |dock, ecx| {
-            match welcome_ix {
-                Some(_ix) if is_active => {}
-                Some(ix) => {
-                    if let Some(panel) =
-                        center_tab_items(dock.center()).and_then(|items| items.get(ix).cloned())
-                    {
-                        dock.remove_panel(panel, DockPlacement::Center, window, ecx);
-                        dock.add_panel(
-                            welcome.clone(),
-                            DockPlacement::Center,
-                            None,
-                            window,
-                            ecx,
-                        );
-                    }
+        self.dock_area.update(cx, |dock, ecx| match welcome_ix {
+            Some(_ix) if is_active => {}
+            Some(ix) => {
+                if let Some(panel) =
+                    center_tab_items(dock.center()).and_then(|items| items.get(ix).cloned())
+                {
+                    dock.remove_panel(panel, DockPlacement::Center, window, ecx);
+                    dock.add_panel(welcome.clone(), DockPlacement::Center, None, window, ecx);
                 }
-                None => {
-                    dock.add_panel(welcome, DockPlacement::Center, None, window, ecx);
-                }
+            }
+            None => {
+                dock.add_panel(welcome, DockPlacement::Center, None, window, ecx);
             }
         });
 
@@ -785,14 +791,21 @@ impl Render for Workspace {
             render_side_pane(pane, body, cx).into_any_element()
         });
 
-        let activity_rail = render_activity_rail(this.clone(), active_pane, cx);
+        let sidebar = match self.active_left_pane {
+            LeftPane::Browser => self.connection_tree.clone().into_any_element(),
+            LeftPane::Workspace => v_flex()
+                .size_full()
+                .min_h_0()
+                .overflow_hidden()
+                .child(crate::workspace::query_lane::render_query_lane(cx))
+                .into_any_element(),
+        };
 
         let body = layout::render_body_row(
             self.sidebar_collapsed,
-            self.connection_tree.clone(),
+            sidebar,
             self.dock_area.clone(),
             side_pane,
-            activity_rail,
             cx,
         );
 
@@ -857,16 +870,21 @@ impl Render for Workspace {
                 self.env_select.clone(),
             ))
             .child(body)
-            .child(StatusBar::new(StatusBarModel {
-                connection_count: conn_count,
-                connected_count,
-                scope_label: self.project_title.clone(),
-                history_ready: !cx
-                    .global::<crate::query_store::QueryStore>()
-                    .history
-                    .recent(1)
-                    .is_empty(),
-            }))
+            .child(StatusBar::new(
+                StatusBarModel {
+                    connection_count: conn_count,
+                    connected_count,
+                    scope_label: self.project_title.clone(),
+                    history_ready: !cx
+                        .global::<crate::query_store::QueryStore>()
+                        .history
+                        .recent(1)
+                        .is_empty(),
+                },
+                this.clone(),
+                active_pane,
+                self.active_left_pane,
+            ))
             .child(self.command_palette.clone());
 
         chrome::overlays::stack_gpui_overlays(main, window, cx)

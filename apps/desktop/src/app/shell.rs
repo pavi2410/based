@@ -14,9 +14,9 @@ use gpui_component::{Root, TitleBar};
 use super::aux_windows::{AuxKind, AuxWindows};
 use super::quit;
 use crate::about_window::AboutWindow;
+use crate::bindings::OpenWelcome;
 use crate::settings_window::SettingsWindow;
 use crate::workspace::WorkspaceRef;
-use crate::bindings::OpenWelcome;
 
 pub const APP_NAME: &str = "Based";
 

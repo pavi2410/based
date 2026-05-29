@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use based_storage::{MetadataStore, ACTIVE_CONNECTION_ID, ACTIVE_TAB_INDEX, OPEN_TABS};
+use based_storage::{ACTIVE_CONNECTION_ID, ACTIVE_TAB_INDEX, MetadataStore, OPEN_TABS};
 
 use super::TabSpec;
 
@@ -41,7 +41,9 @@ impl SessionSnapshot {
 
     pub async fn save(&self, store: &MetadataStore) -> anyhow::Result<()> {
         store.set_session_json(OPEN_TABS, &self.tabs).await?;
-        store.set_session_json(ACTIVE_TAB_INDEX, &self.active).await?;
+        store
+            .set_session_json(ACTIVE_TAB_INDEX, &self.active)
+            .await?;
         store
             .set_session_json(ACTIVE_CONNECTION_ID, &self.active_connection_id)
             .await?;

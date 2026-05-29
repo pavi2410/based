@@ -1,19 +1,14 @@
-//! Main workspace shell layout: connection rail | center dock | side pane | activity rail.
+//! Main workspace shell layout: connection rail | center dock | optional side pane.
 
 use gpui::{AnyElement, App, Entity, IntoElement, ParentElement, div, prelude::*, px};
 use gpui_component::{ActiveTheme, dock::DockArea, h_flex, v_flex};
 
-use crate::workspace::connection_tree::ConnectionTree;
-
-/// Build the workspace body: connection sidebar (toggleable) on the left, dock area in the
-/// middle, optional `side_pane` to its right, and the always-mounted activity rail on the
-/// far right.
+/// Build the workspace body: left sidebar (toggleable), center dock, optional right side pane.
 pub fn render_body_row(
     sidebar_collapsed: bool,
-    connection_tree: Entity<ConnectionTree>,
+    sidebar: impl IntoElement,
     dock_area: Entity<DockArea>,
     side_pane: Option<AnyElement>,
-    activity_rail: impl IntoElement,
     cx: &App,
 ) -> impl IntoElement {
     let border = cx.theme().sidebar_border;
@@ -28,7 +23,7 @@ pub fn render_body_row(
         .border_r_1()
         .border_color(border)
         .bg(sidebar_bg)
-        .child(connection_tree);
+        .child(sidebar);
 
     let dock_host = div()
         .flex_1()
@@ -44,11 +39,9 @@ pub fn render_body_row(
         row.child(sidebar).child(dock_host)
     };
 
-    let row = if let Some(pane) = side_pane {
+    if let Some(pane) = side_pane {
         row.child(pane)
     } else {
         row
-    };
-
-    row.child(activity_rail)
+    }
 }

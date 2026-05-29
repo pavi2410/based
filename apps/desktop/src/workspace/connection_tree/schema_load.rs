@@ -2,7 +2,7 @@ use gpui::Context;
 use mongodb::Database;
 use sqlx::{PgPool, Row, SqlitePool};
 
-use crate::connection::{AnyConnection, EngineKind};
+use crate::connection::{AnyConnection, ConnectionId, EngineKind};
 
 use super::ConnectionTree;
 use super::types::{ActiveObjects, ObjectKind, SchemaObject};
@@ -17,23 +17,39 @@ impl ConnectionTree {
         let Some(ent) = self.registry.read(cx).connections().get(idx).cloned() else {
             return;
         };
-        let entry = ent.read(cx);
-        let label = entry.config.label().to_string();
-        let engine = entry.config.engine();
-        let _ = entry;
+        let (label, engine, conn_id) = {
+            let entry = ent.read(cx);
+            (
+                entry.config.label().to_string(),
+                entry.config.engine(),
+                entry.id.clone(),
+            )
+        };
+
+        if let Some(st) = self.conn_states.get_mut(&conn_id) {
+            st.loading = true;
+            st.error = None;
+        }
+        if self.selected_connection == Some(idx) {
+            self.active_objects = ActiveObjects::Loading {
+                label: label.clone(),
+                engine,
+            };
+        }
+        self.bump_object_list_epoch(cx);
 
         match ac {
             AnyConnection::SQLite(conn) => {
                 let pool = conn.read(cx).pool.clone();
-                self.load_sqlite_objects(idx, label, engine, pool, cx);
+                self.load_sqlite_objects(idx, conn_id, label, engine, pool, cx);
             }
             AnyConnection::Postgres(conn) => {
                 let pool = conn.read(cx).pool.clone();
-                self.load_postgres_objects(idx, label, engine, pool, cx);
+                self.load_postgres_objects(idx, conn_id, label, engine, pool, cx);
             }
             AnyConnection::MongoDB(conn) => {
                 let db = conn.read(cx).database().clone();
-                self.load_mongo_objects(idx, label, engine, db, cx);
+                self.load_mongo_objects(idx, conn_id, label, engine, db, cx);
             }
         }
     }
@@ -41,16 +57,12 @@ impl ConnectionTree {
     fn load_sqlite_objects(
         &mut self,
         idx: usize,
+        conn_id: ConnectionId,
         label: String,
         engine: EngineKind,
         pool: SqlitePool,
         cx: &mut Context<Self>,
     ) {
-        self.active_objects = ActiveObjects::Loading {
-            label: label.clone(),
-            engine,
-        };
-        self.bump_object_list_epoch();
         cx.spawn(async move |this, cx| {
             let result = crate::db::run(cx, async move {
                 let rows = sqlx::query(
@@ -83,22 +95,7 @@ impl ConnectionTree {
             .await;
 
             let _ = this.update(cx, |tree, cx| {
-                if tree.selected_connection != Some(idx) {
-                    return;
-                }
-                tree.active_objects = match result {
-                    Ok(objects) => ActiveObjects::Ready {
-                        label,
-                        engine,
-                        objects,
-                    },
-                    Err(err) => ActiveObjects::Error {
-                        label,
-                        message: err.to_string(),
-                    },
-                };
-                tree.bump_object_list_epoch();
-                cx.notify();
+                tree.apply_schema_load_result(idx, &conn_id, label, engine, result, cx);
             });
         })
         .detach();
@@ -107,16 +104,12 @@ impl ConnectionTree {
     fn load_postgres_objects(
         &mut self,
         idx: usize,
+        conn_id: ConnectionId,
         label: String,
         engine: EngineKind,
         pool: PgPool,
         cx: &mut Context<Self>,
     ) {
-        self.active_objects = ActiveObjects::Loading {
-            label: label.clone(),
-            engine,
-        };
-        self.bump_object_list_epoch();
         cx.spawn(async move |this, cx| {
             let result = crate::db::run(cx, async move {
                 let rows = sqlx::query(
@@ -151,22 +144,7 @@ impl ConnectionTree {
             .await;
 
             let _ = this.update(cx, |tree, cx| {
-                if tree.selected_connection != Some(idx) {
-                    return;
-                }
-                tree.active_objects = match result {
-                    Ok(objects) => ActiveObjects::Ready {
-                        label,
-                        engine,
-                        objects,
-                    },
-                    Err(err) => ActiveObjects::Error {
-                        label,
-                        message: err.to_string(),
-                    },
-                };
-                tree.bump_object_list_epoch();
-                cx.notify();
+                tree.apply_schema_load_result(idx, &conn_id, label, engine, result, cx);
             });
         })
         .detach();
@@ -175,16 +153,12 @@ impl ConnectionTree {
     fn load_mongo_objects(
         &mut self,
         idx: usize,
+        conn_id: ConnectionId,
         label: String,
         engine: EngineKind,
         db: Database,
         cx: &mut Context<Self>,
     ) {
-        self.active_objects = ActiveObjects::Loading {
-            label: label.clone(),
-            engine,
-        };
-        self.bump_object_list_epoch();
         cx.spawn(async move |this, cx| {
             let result = crate::db::run(cx, async move {
                 let names = db.list_collection_names(None).await?;
@@ -201,24 +175,50 @@ impl ConnectionTree {
             .await;
 
             let _ = this.update(cx, |tree, cx| {
-                if tree.selected_connection != Some(idx) {
-                    return;
-                }
-                tree.active_objects = match result {
-                    Ok(objects) => ActiveObjects::Ready {
-                        label,
-                        engine,
-                        objects,
-                    },
-                    Err(err) => ActiveObjects::Error {
-                        label,
-                        message: err.to_string(),
-                    },
-                };
-                tree.bump_object_list_epoch();
-                cx.notify();
+                tree.apply_schema_load_result(idx, &conn_id, label, engine, result, cx);
             });
         })
         .detach();
+    }
+
+    fn apply_schema_load_result(
+        &mut self,
+        idx: usize,
+        conn_id: &ConnectionId,
+        label: String,
+        engine: EngineKind,
+        result: Result<Vec<SchemaObject>, anyhow::Error>,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(st) = self.conn_states.get_mut(conn_id) {
+            st.loading = false;
+            match &result {
+                Ok(objects) => {
+                    st.error = None;
+                    st.objects = Some(objects.clone());
+                }
+                Err(err) => {
+                    st.error = Some(err.to_string());
+                    st.objects = None;
+                }
+            }
+        }
+
+        if self.selected_connection == Some(idx) {
+            self.active_objects = match result {
+                Ok(objects) => ActiveObjects::Ready {
+                    label,
+                    engine,
+                    objects,
+                },
+                Err(err) => ActiveObjects::Error {
+                    label,
+                    message: err.to_string(),
+                },
+            };
+        }
+
+        self.bump_object_list_epoch(cx);
+        cx.notify();
     }
 }

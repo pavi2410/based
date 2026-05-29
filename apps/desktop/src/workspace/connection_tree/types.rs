@@ -1,5 +1,6 @@
 use crate::connection::EngineKind;
 use crate::workspace::tab_spec::TabSpec;
+use gpui_component::IconName;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ObjectKind {
@@ -49,6 +50,17 @@ impl ObjectKind {
             Self::Collection => "▦",
         }
     }
+
+    /// Sidebar list icon (gpui-component bundled SVG).
+    pub(crate) fn list_icon(&self) -> IconName {
+        match self {
+            Self::Table => IconName::LayoutDashboard,
+            Self::View => IconName::Eye,
+            Self::MaterializedView => IconName::GalleryVerticalEnd,
+            Self::Trigger => IconName::TriangleAlert,
+            Self::Collection => IconName::Inbox,
+        }
+    }
 }
 
 /// Schema browser row (PostgreSQL exposes `schema` + local name).
@@ -92,6 +104,7 @@ pub(crate) struct ConnState {
     pub expanded: bool,
     pub objects: Option<Vec<SchemaObject>>,
     pub loading: bool,
+    pub error: Option<String>,
 }
 
 #[derive(Clone)]

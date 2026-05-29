@@ -21,6 +21,16 @@ pub enum ObjectKind {
     Trigger,
 }
 
+impl ObjectKind {
+    fn list_icon(&self) -> gpui_component::IconName {
+        match self {
+            Self::Table => gpui_component::IconName::LayoutDashboard,
+            Self::View => gpui_component::IconName::Eye,
+            Self::Trigger => gpui_component::IconName::TriangleAlert,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct TableNode {
     pub name: String,
@@ -150,18 +160,12 @@ impl Render for SchemaTreePanel {
             .map(|(ix, node)| {
                 let is_selected = selected.as_deref() == Some(&node.id());
                 let name: SharedString = node.name.clone().into();
-                let kind_label: SharedString = match node.kind {
-                    ObjectKind::Table => "T",
-                    ObjectKind::View => "V",
-                    ObjectKind::Trigger => "TR",
-                }
-                .into();
                 let picked = node.name.clone();
 
                 schema_object_row(
                     ("sqlite-obj", ix),
                     is_selected,
-                    kind_label,
+                    node.kind.list_icon(),
                     name,
                     SchemaRowStyle {
                         muted,

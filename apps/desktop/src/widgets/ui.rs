@@ -1,6 +1,6 @@
 //! Shared graphite-native UI primitives for the workspace.
 
-use gpui::{prelude::*, *};
+use gpui::{img, prelude::*, *};
 use gpui_component::{
     ActiveTheme, Icon, IconName, Sizable, StyledExt,
     button::{Button, ButtonVariants},
@@ -101,6 +101,23 @@ pub const PANEL_RADIUS: f32 = 4.0;
 pub const PANEL_HEADER_H: f32 = 32.0;
 /// Horizontal inset for sidebar list rows and section headers.
 pub const SIDEBAR_INSET: f32 = 8.0;
+/// Vertical padding for compact sidebar list rows.
+pub const SIDEBAR_ROW_PY: f32 = 3.0;
+/// Gap between inline controls in sidebar rows.
+pub const SIDEBAR_ROW_GAP: f32 = 3.0;
+/// Fixed lead column so engine icons align across connected / disconnected rows.
+pub const CONNECTION_CHEVRON_SLOT_W: f32 = 18.0;
+
+/// Browser tree: left edge of the engine-icon column on connection rows.
+pub const BROWSER_TREE_ENGINE_COL: f32 =
+    SIDEBAR_INSET + CONNECTION_CHEVRON_SLOT_W + SIDEBAR_ROW_GAP;
+/// Browser tree: section headers (Views / Tables).
+pub const BROWSER_TREE_SECTION_PL: f32 = BROWSER_TREE_ENGINE_COL;
+/// Browser tree: schema object rows (one step under sections).
+pub const BROWSER_TREE_OBJECT_PL: f32 = BROWSER_TREE_ENGINE_COL + 10.0;
+
+/// Schema object row kind icon size.
+pub const SCHEMA_ROW_ICON_SIZE: f32 = 14.0;
 
 pub fn engine_label(engine: EngineKind) -> &'static str {
     match engine {
@@ -124,6 +141,19 @@ pub fn engine_color(engine: EngineKind) -> Hsla {
         EngineKind::MongoDB => hsla(0.38, 0.62, 0.54, 1.0),
         EngineKind::SQLite => hsla(0.10, 0.74, 0.59, 1.0),
     }
+}
+
+fn engine_icon_path(engine: EngineKind) -> &'static str {
+    match engine {
+        EngineKind::Postgres => "icons/engines/postgresql.svg",
+        EngineKind::MongoDB => "icons/engines/mongodb.svg",
+        EngineKind::SQLite => "icons/engines/sqlite.svg",
+    }
+}
+
+/// Devicon colored brand mark (rasterized via `img` so fills are not mono-tinted).
+pub fn engine_icon(engine: EngineKind) -> impl IntoElement {
+    img(engine_icon_path(engine)).size(px(16.0)).flex_shrink_0()
 }
 
 /// Compact engine label for sidebar rows (no border or fill).

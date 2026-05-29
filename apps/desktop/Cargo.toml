@@ -68,6 +68,7 @@ futures.workspace = true
 log.workspace = true
 env_logger = "0.11"
 dirs = "6"
+rust-embed = "8"
 
 # Project / config / state
 toml.workspace = true

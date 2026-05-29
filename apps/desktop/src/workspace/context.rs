@@ -31,10 +31,7 @@ impl WorkspaceContext {
     }
 
     pub fn workspace_options(&self) -> Vec<String> {
-        self.summaries
-            .iter()
-            .map(|s| s.name.clone())
-            .collect()
+        self.summaries.iter().map(|s| s.name.clone()).collect()
     }
 
     pub fn environment_options(&self) -> Vec<String> {
@@ -110,9 +107,7 @@ pub async fn set_active_environment(
                 .id,
         )
     };
-    store
-        .set_active_environment(ctx.active.id, env_id)
-        .await?;
+    store.set_active_environment(ctx.active.id, env_id).await?;
     refresh_context(store, ctx.active.id).await
 }
 

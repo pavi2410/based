@@ -1,11 +1,12 @@
 use gpui::{
-    App, Context, ElementId, Entity, FontWeight, InteractiveElement, IntoElement, ParentElement,
-    RenderOnce, SharedString, Task, WeakEntity, Window, div, prelude::*, px,
+    App, Context, ElementId, Entity, InteractiveElement, IntoElement, ParentElement, RenderOnce,
+    SharedString, Task, WeakEntity, Window, div, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme, Icon, IconName, IndexPath, Selectable, Sizable as _, StyledExt, h_flex,
     list::{ListDelegate, ListState},
     menu::{ContextMenuExt, PopupMenuItem},
+    spinner::Spinner,
     tooltip::Tooltip,
     v_flex,
 };
@@ -16,15 +17,16 @@ use crate::widgets::ui::{SIDEBAR_INSET, engine_color, engine_label_inline};
 use super::ConnectionTree;
 
 #[derive(Clone)]
-struct ConnectionRow {
-    idx: usize,
-    conn_label: SharedString,
-    state_label: SharedString,
-    engine: EngineKind,
-    state_color: gpui::Hsla,
-    is_connected: bool,
-    is_failed: bool,
-    fail_reason: Option<String>,
+pub(crate) struct ConnectionRow {
+    pub(crate) idx: usize,
+    pub(crate) conn_label: SharedString,
+    pub(crate) state_label: SharedString,
+    pub(crate) engine: EngineKind,
+    pub(crate) state_color: gpui::Hsla,
+    pub(crate) is_connected: bool,
+    pub(crate) is_connecting: bool,
+    pub(crate) is_failed: bool,
+    pub(crate) fail_reason: Option<String>,
 }
 
 pub(crate) struct ConnectionListDelegate {
@@ -83,10 +85,36 @@ impl ConnectionListDelegate {
 fn connection_state_dot(state: &ConnectionState, t: &gpui_component::Theme) -> gpui::Hsla {
     match state {
         ConnectionState::Disconnected => t.muted_foreground.opacity(0.75),
-        ConnectionState::Connecting { .. } => t.yellow.opacity(0.95),
+        ConnectionState::Connecting { .. } => t.warning_foreground,
         ConnectionState::Connected(_) => t.green_light,
-        ConnectionState::Failed { .. } => t.red,
+        ConnectionState::Failed { .. } => t.danger_foreground,
     }
+}
+
+/// Trailing status for connection rows: alert when failed, spinner when connecting, dot when connected.
+pub(crate) fn connection_row_status_indicator(
+    is_connected: bool,
+    is_failed: bool,
+    is_connecting: bool,
+    state_color: gpui::Hsla,
+    err_fg: gpui::Hsla,
+) -> impl IntoElement {
+    h_flex()
+        .flex_shrink_0()
+        .items_center()
+        .when(is_failed, |r| {
+            r.child(
+                Icon::new(IconName::TriangleAlert)
+                    .text_color(err_fg)
+                    .with_size(gpui_component::Size::XSmall),
+            )
+        })
+        .when(is_connecting && !is_failed, |r| {
+            r.child(Spinner::new().xsmall().color(state_color))
+        })
+        .when(is_connected && !is_failed && !is_connecting, |r| {
+            r.child(div().w_2().h_2().rounded_full().bg(state_color))
+        })
 }
 
 pub(crate) fn build_connection_rows(tree: &ConnectionTree, cx: &App) -> Vec<ConnectionRow> {
@@ -104,6 +132,7 @@ pub(crate) fn build_connection_rows(tree: &ConnectionTree, cx: &App) -> Vec<Conn
                 engine: entry.config.engine(),
                 state_color: connection_state_dot(&entry.state, cx.theme()),
                 is_connected: matches!(entry.state, ConnectionState::Connected(_)),
+                is_connecting: matches!(entry.state, ConnectionState::Connecting { .. }),
                 is_failed: matches!(entry.state, ConnectionState::Failed { .. }),
                 fail_reason: match &entry.state {
                     ConnectionState::Failed { reason, .. } => Some(reason.clone()),
@@ -138,10 +167,11 @@ impl RenderOnce for ConnectionRowItem {
         let ConnectionRow {
             idx,
             conn_label,
-            state_label,
+            state_label: _,
             engine,
             state_color,
             is_connected,
+            is_connecting,
             is_failed,
             fail_reason,
         } = self.row;
@@ -151,31 +181,13 @@ impl RenderOnce for ConnectionRowItem {
         let err_fg = cx.theme().danger_foreground;
         let list_hover = cx.theme().list_hover;
 
-        let status_cell = if is_failed {
-            h_flex()
-                .flex_shrink_0()
-                .gap_1()
-                .items_center()
-                .child(
-                    Icon::new(IconName::CircleX)
-                        .text_color(err_fg)
-                        .with_size(gpui_component::Size::XSmall),
-                )
-                .child(
-                    div()
-                        .text_xs()
-                        .font_weight(FontWeight::MEDIUM)
-                        .text_color(err_fg)
-                        .child("Failed"),
-                )
-        } else {
-            h_flex().flex_shrink_0().child(
-                div()
-                    .text_xs()
-                    .text_color(muted.opacity(0.88))
-                    .child(state_label),
-            )
-        };
+        let status_cell = connection_row_status_indicator(
+            is_connected,
+            is_failed,
+            is_connecting,
+            state_color,
+            err_fg,
+        );
 
         let mut row = v_flex()
             .id(self.id)
@@ -198,14 +210,6 @@ impl RenderOnce for ConnectionRowItem {
                     .w_full()
                     .gap_2()
                     .items_center()
-                    .child(
-                        div()
-                            .w_2()
-                            .h_2()
-                            .rounded_full()
-                            .flex_shrink_0()
-                            .bg(state_color),
-                    )
                     .child(
                         div()
                             .flex_1()

@@ -9,7 +9,6 @@ use crate::postgres;
 use crate::sqlite;
 
 use super::ConnectionTree;
-use super::types::ActiveObjects;
 
 impl ConnectionTree {
     pub(crate) fn open_connected_workspace(
@@ -22,7 +21,7 @@ impl ConnectionTree {
         let Some(conn_ent) = self.registry.read(cx).connections().get(idx).cloned() else {
             return;
         };
-        let (label, engine, conn_id) = {
+        let (_label, _engine, conn_id) = {
             let entry = conn_ent.read(cx);
             (
                 entry.config.label().to_string(),
@@ -33,11 +32,7 @@ impl ConnectionTree {
 
         self.selected_connection = Some(idx);
         self.selected_object = None;
-        self.active_objects = ActiveObjects::Loading {
-            label: label.clone(),
-            engine,
-        };
-        self.bump_object_list_epoch();
+        self.set_connection_expanded(idx, true, cx);
         self.load_objects_for_connection(idx, ac.clone(), cx);
 
         let weak = self.dock_area.downgrade();

@@ -18,9 +18,9 @@ use super::ConnectionTree;
 use super::types::{ActiveObjects, ObjectKind, SchemaObject};
 
 #[derive(Clone)]
-struct ObjectSection {
-    name: SharedString,
-    items: Vec<SchemaObject>,
+pub(crate) struct ObjectSection {
+    pub(crate) name: SharedString,
+    pub(crate) items: Vec<SchemaObject>,
 }
 
 pub(crate) struct ObjectListDelegate {
@@ -102,7 +102,7 @@ impl ObjectListDelegate {
     }
 }
 
-fn group_objects(objects: Vec<SchemaObject>) -> Vec<ObjectSection> {
+pub(crate) fn group_objects(objects: Vec<SchemaObject>) -> Vec<ObjectSection> {
     let mut groups: Vec<(&'static str, Vec<SchemaObject>)> = Vec::new();
     for object in objects {
         let group = object.kind.group();
@@ -228,7 +228,6 @@ impl ListDelegate for ObjectListDelegate {
         let object_id = object.display_name();
         let object_key = object_row_key(&object);
         let is_selected = self.selected_index == Some(ix);
-        let kind: SharedString = object.kind.badge_label().into();
         let object_id_label: SharedString = object_id.clone().into();
         let style = self.row_style(cx);
 
@@ -284,7 +283,7 @@ impl ListDelegate for ObjectListDelegate {
             schema_object_row_with_actions(
                 ("object-row", object_key),
                 is_selected,
-                kind,
+                object.kind.list_icon(),
                 object_id_label,
                 style,
                 actions,

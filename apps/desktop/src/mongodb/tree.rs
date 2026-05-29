@@ -4,7 +4,7 @@ use crate::widgets::list_row::{SchemaRowStyle, schema_object_row};
 use crate::widgets::ui::{metadata_pill, panel_header};
 use gpui::{InteractiveElement, prelude::*, *};
 use gpui_component::{
-    ActiveTheme,
+    ActiveTheme, IconName,
     dock::{Panel, PanelEvent},
     h_flex,
     menu::PopupMenu,
@@ -130,7 +130,7 @@ impl Render for CollectionsTreePanel {
                 schema_object_row(
                     ("coll", ix),
                     sel,
-                    "coll",
+                    IconName::Inbox,
                     label,
                     SchemaRowStyle {
                         muted,

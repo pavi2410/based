@@ -1,6 +1,6 @@
 use gpui::{
-    App, Context, FocusHandle, Focusable, FontWeight, IntoElement, MouseButton, Render, SharedString,
-    Window, div, prelude::*, px,
+    App, Context, FocusHandle, Focusable, FontWeight, IntoElement, MouseButton, Render,
+    SharedString, Window, div, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme, Icon, IconName, Sizable as _, StyledExt,
@@ -178,13 +178,7 @@ fn welcome_header(cx: &mut App) -> impl IntoElement {
         .items_center()
         .gap(px(8.0))
         .pb(px(4.0))
-        .child(
-            div()
-                .text_2xl()
-                .font_bold()
-                .text_color(fg)
-                .child("Based"),
-        )
+        .child(div().text_2xl().font_bold().text_color(fg).child("Based"))
         .child(
             div()
                 .text_lg()

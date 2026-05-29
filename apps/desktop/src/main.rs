@@ -6,6 +6,7 @@
 
 mod about_window;
 mod app;
+mod assets;
 mod bindings;
 mod command_palette;
 mod connection;
@@ -37,7 +38,7 @@ fn main() {
     .init();
 
     gpui_platform::application()
-        .with_assets(gpui_component_assets::Assets)
+        .with_assets(assets::ChainedAssets::new())
         .run(move |cx| {
             gpui_component::init(cx);
             if let Err(err) = theme::install_based_theme(cx) {

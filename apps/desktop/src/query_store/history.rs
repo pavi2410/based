@@ -1,6 +1,6 @@
 //! Re-export query history from `based-query`.
 
-pub use based_query::{HistoryEntry, MAX_HISTORY_PER_CONNECTION, QueryHistory, RunStatus};
+pub use based_query::{HistoryEntry, MAX_HISTORY_PER_CONNECTION, QueryHistory};
 
 /// Legacy alias used in a few call sites.
 pub const MAX_HISTORY: usize = MAX_HISTORY_PER_CONNECTION;

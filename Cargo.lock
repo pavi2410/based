@@ -1657,6 +1657,7 @@ dependencies = [
  "log",
  "mongodb",
  "notify",
+ "rust-embed",
  "serde",
  "serde_json",
  "sqlx",

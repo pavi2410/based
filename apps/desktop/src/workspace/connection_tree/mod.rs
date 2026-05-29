@@ -13,6 +13,7 @@ use crate::connection::{
 use super::notify;
 use super::tab_spec::TabSpec;
 
+mod browser_list;
 mod connect;
 mod connection_browser;
 mod connection_list;
@@ -37,7 +38,10 @@ pub struct ConnectionTree {
     pub(crate) selected_connection: Option<usize>,
     pub(crate) active_objects: ActiveObjects,
     pub(crate) selected_object: Option<String>,
+    pub(crate) browser_list: Option<Entity<ListState<browser_list::BrowserListDelegate>>>,
+    #[allow(dead_code)]
     pub(crate) connection_list: Option<Entity<ListState<ConnectionListDelegate>>>,
+    #[allow(dead_code)]
     pub(crate) object_list: Option<Entity<ListState<ObjectListDelegate>>>,
     object_list_epoch: u64,
     object_list_last_synced: u64,
@@ -56,6 +60,7 @@ impl ConnectionTree {
                     expanded: false,
                     objects: None,
                     loading: false,
+                    error: None,
                 });
                 cx.notify();
             }
@@ -64,7 +69,7 @@ impl ConnectionTree {
                 this.selected_connection = None;
                 this.active_objects = ActiveObjects::Empty;
                 this.selected_object = None;
-                this.bump_object_list_epoch();
+                this.bump_object_list_epoch(cx);
                 this.pending_open_connection = None;
                 cx.notify();
             }
@@ -80,6 +85,7 @@ impl ConnectionTree {
                     expanded: false,
                     objects: None,
                     loading: false,
+                    error: None,
                 },
             );
         }
@@ -92,6 +98,7 @@ impl ConnectionTree {
             selected_connection: None,
             active_objects: ActiveObjects::Empty,
             selected_object: None,
+            browser_list: None,
             connection_list: None,
             object_list: None,
             object_list_epoch: 0,
@@ -100,8 +107,69 @@ impl ConnectionTree {
         }
     }
 
-    pub(crate) fn bump_object_list_epoch(&mut self) {
+    pub(crate) fn bump_object_list_epoch(&mut self, cx: &mut Context<Self>) {
         self.object_list_epoch = self.object_list_epoch.wrapping_add(1);
+        browser_list::refresh_browser_list(self, cx);
+    }
+
+    pub(crate) fn toggle_connection_expanded(&mut self, idx: usize, cx: &mut Context<Self>) {
+        let Some(conn_id) = self
+            .registry
+            .read(cx)
+            .connections()
+            .get(idx)
+            .map(|e| e.read(cx).id.clone())
+        else {
+            return;
+        };
+        if let Some(st) = self.conn_states.get_mut(&conn_id) {
+            st.expanded = !st.expanded;
+            if st.expanded {
+                self.maybe_load_schema_for_connection(idx, cx);
+            }
+        }
+        self.bump_object_list_epoch(cx);
+    }
+
+    pub(crate) fn set_connection_expanded(
+        &mut self,
+        idx: usize,
+        expanded: bool,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(conn_id) = self
+            .registry
+            .read(cx)
+            .connections()
+            .get(idx)
+            .map(|e| e.read(cx).id.clone())
+        else {
+            return;
+        };
+        if let Some(st) = self.conn_states.get_mut(&conn_id) {
+            st.expanded = expanded;
+            if expanded {
+                self.maybe_load_schema_for_connection(idx, cx);
+            }
+        }
+    }
+
+    pub(crate) fn maybe_load_schema_for_connection(&mut self, idx: usize, cx: &mut Context<Self>) {
+        let Some(ent) = self.registry.read(cx).connections().get(idx).cloned() else {
+            return;
+        };
+        let entry = ent.read(cx);
+        let conn_id = entry.id.clone();
+        if self
+            .conn_states
+            .get(&conn_id)
+            .is_some_and(|s| s.loading || s.objects.is_some())
+        {
+            return;
+        }
+        if let ConnectionState::Connected(ac) = &entry.state {
+            self.load_objects_for_connection(idx, ac.clone(), cx);
+        }
     }
 
     pub(crate) fn open_new_query(&mut self, idx: usize, cx: &mut Context<Self>) {
@@ -147,7 +215,7 @@ impl ConnectionTree {
         };
         self.selected_connection = Some(idx);
         self.selected_object = None;
-        self.bump_object_list_epoch();
+        self.bump_object_list_epoch(cx);
         let conn_ent = self.registry.read(cx).connections()[idx].clone();
         if matches!(conn_ent.read(cx).state, ConnectionState::Connected(_)) {
             self.pending_open_connection = Some(idx);
@@ -262,25 +330,16 @@ impl Render for ConnectionTree {
             }
         }
 
-        let connection_list = connection_list::ensure_connection_list(self, window, cx);
-        connection_list::refresh_connection_list(self, cx);
-        let object_list = object_list::ensure_object_list(self, window, cx);
-        object_list::refresh_object_list(self, cx);
-        let active_objects = self.active_objects.clone();
+        let browser_list = browser_list::ensure_browser_list(self, window, cx);
+        browser_list::refresh_browser_list(self, cx);
 
-        v_flex()
-            .size_full()
-            .min_h_0()
-            .child(crate::workspace::query_lane::render_query_lane(cx))
-            .child(connection_browser::render_connections_pane(
-                connection_list,
-                cx,
-            ))
-            .child(connection_browser::render_objects_pane(
-                active_objects,
-                object_list,
-                cx,
-            ))
+        v_flex().size_full().min_h_0().child(
+            gpui_component::list::List::new(&browser_list)
+                .flex_1()
+                .min_h_0()
+                .w_full()
+                .search_placeholder("Search connections & objects"),
+        )
     }
 }
 

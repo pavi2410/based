@@ -18,9 +18,9 @@ impl ConnectionTree {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let same = self.selected_connection == Some(idx);
         self.selected_connection = Some(idx);
         self.selected_object = None;
-        self.bump_object_list_epoch();
         let conn_ent = match self.registry.read(cx).connections().get(idx) {
             Some(e) => e.clone(),
             None => return,
@@ -29,7 +29,10 @@ impl ConnectionTree {
         match conn_ent.read(cx).state {
             ConnectionState::Connecting { .. } => return,
             ConnectionState::Connected(_) => {
-                self.pending_open_connection = Some(idx);
+                if !same {
+                    self.set_connection_expanded(idx, true, cx);
+                    self.pending_open_connection = Some(idx);
+                }
                 cx.notify();
                 return;
             }
@@ -41,7 +44,7 @@ impl ConnectionTree {
             label: config.label().to_string(),
             engine: config.engine(),
         };
-        self.bump_object_list_epoch();
+        self.bump_object_list_epoch(cx);
         conn_ent.update(cx, |e, cx| {
             e.state = ConnectionState::Connecting {
                 since: Instant::now(),
@@ -116,6 +119,7 @@ fn finish_connection_open(
     }
     tree.update(app, |tree, ecx| {
         if matches!(conn_ent.read(ecx).state, ConnectionState::Connected(_)) {
+            tree.set_connection_expanded(idx_for_pending, true, ecx);
             tree.pending_open_connection = Some(idx_for_pending);
         }
         ecx.notify();

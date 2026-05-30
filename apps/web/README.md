@@ -41,8 +41,10 @@ Connect this repo in the Cloudflare dashboard and let Workers Builds handle CI/C
 | Setting | Value |
 |---------|-------|
 | Root directory | `apps/web` |
-| Build command | `pnpm install && pnpm build` |
+| Build command | `pnpm install && SITE=https://your-domain.com pnpm build` |
 | Deploy command | `pnpm exec wrangler deploy` |
+
+Set **`SITE`** to your public origin (custom domain or `*.workers.dev`) so canonical URLs and Open Graph/Twitter image links are absolute. Add the same variable under **Settings → Variables** in the Worker build configuration.
 
 5. Save and deploy — Cloudflare builds on every push to the connected branch
 6. Optionally attach a custom domain under the Worker settings
@@ -72,6 +74,6 @@ apps/web/
 │   ├── lib/github.ts
 │   ├── pages/index.astro
 │   └── styles/
-├── public/           # favicon, engine icons, hero screenshot
+├── public/           # favicon, og.png (1200×630), engine icons, hero screenshot
 └── wrangler.jsonc
 ```

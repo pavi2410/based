@@ -1,0 +1,18 @@
+name = "Top Customers by Revenue"
+connection = "northwind"
+description = "Customers ranked by total order value"
+tags = ["customers", "reports"]
+
+[sql]
+query = """
+SELECT
+    c.CompanyName,
+    COUNT(DISTINCT o.OrderID) AS OrderCount,
+    ROUND(SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)), 2) AS TotalRevenue
+FROM Customers c
+JOIN Orders o ON c.CustomerID = o.CustomerID
+JOIN "Order Details" od ON o.OrderID = od.OrderID
+GROUP BY c.CompanyName
+ORDER BY TotalRevenue DESC
+LIMIT 20;
+"""

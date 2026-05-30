@@ -1,0 +1,12 @@
+name = "Expert Databases"
+connection = "public_postgres"
+description = "Cross-reference source databases in RNAcentral"
+tags = ["xref", "meta"]
+
+[sql]
+query = """
+SELECT id, name, description
+FROM rnc_database
+ORDER BY name
+LIMIT 50;
+"""

@@ -1,0 +1,12 @@
+name = "Base Collection Count"
+connection = "watertap_edb"
+description = "Total documents in the base collection"
+tags = ["meta"]
+mongo_collection = "base"
+
+[pipeline]
+query = """
+[
+  { "$count": "total" }
+]
+"""

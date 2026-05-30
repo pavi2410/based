@@ -1,0 +1,16 @@
+name = "Churn by Geography"
+connection = "mindsdb_demo"
+description = "Customer exit rate by country"
+tags = ["churn", "reports"]
+
+[sql]
+query = """
+SELECT
+    Geography,
+    COUNT(*) AS customers,
+    SUM(CASE WHEN Exited = 1 THEN 1 ELSE 0 END) AS exited,
+    ROUND(100.0 * SUM(CASE WHEN Exited = 1 THEN 1 ELSE 0 END) / COUNT(*), 1) AS exit_pct
+FROM demo.customer_churn
+GROUP BY Geography
+ORDER BY customers DESC;
+"""

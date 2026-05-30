@@ -1,0 +1,13 @@
+name = "List Collections"
+connection = "watertap_edb"
+description = "All collections in the EDB database"
+tags = ["schema", "meta"]
+
+[pipeline]
+query = """
+[
+  { "$listCollections": {} },
+  { "$project": { "name": 1, "type": 1 } },
+  { "$sort": { "name": 1 } }
+]
+"""

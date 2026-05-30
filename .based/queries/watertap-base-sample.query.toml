@@ -1,0 +1,12 @@
+name = "Base Collection Sample"
+connection = "watertap_edb"
+description = "First documents from the bootstrap base collection"
+tags = ["explore"]
+mongo_collection = "base"
+
+[pipeline]
+query = """
+[
+  { "$limit": 10 }
+]
+"""

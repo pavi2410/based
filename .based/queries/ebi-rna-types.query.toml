@@ -1,0 +1,14 @@
+name = "RNA Types Summary"
+connection = "public_postgres"
+description = "Count of active sequences by RNA type"
+tags = ["rna", "reports"]
+
+[sql]
+query = """
+SELECT rna_type, COUNT(*) AS sequence_count
+FROM rnc_rna_precomputed
+WHERE is_active = true
+GROUP BY rna_type
+ORDER BY sequence_count DESC
+LIMIT 20;
+"""

@@ -1,0 +1,13 @@
+name = "List Tables"
+connection = "mindsdb_demo"
+description = "Tables in the MindsDB demo database"
+tags = ["schema", "meta"]
+
+[sql]
+query = """
+SELECT table_schema AS schema, table_name AS name
+FROM information_schema.tables
+WHERE table_type = 'BASE TABLE'
+  AND table_schema IN ('demo', 'demo_data', 'public')
+ORDER BY table_schema, table_name;
+"""

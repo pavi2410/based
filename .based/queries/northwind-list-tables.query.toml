@@ -1,0 +1,12 @@
+name = "List Tables"
+connection = "northwind"
+description = "All user tables in the Northwind database"
+tags = ["schema", "meta"]
+
+[sql]
+query = """
+SELECT name AS table_name
+FROM sqlite_master
+WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+ORDER BY name;
+"""

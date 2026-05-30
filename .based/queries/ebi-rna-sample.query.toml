@@ -1,0 +1,12 @@
+name = "RNA Sample"
+connection = "public_postgres"
+description = "Recent RNA sequences with URS identifiers"
+tags = ["rna", "explore"]
+
+[sql]
+query = """
+SELECT id, upi, taxid, len, timestamp
+FROM rna
+ORDER BY timestamp DESC NULLS LAST
+LIMIT 25;
+"""

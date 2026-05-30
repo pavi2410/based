@@ -1,0 +1,16 @@
+name = "Products by Category"
+connection = "northwind"
+description = "Product count and average price per category"
+tags = ["products", "categories"]
+
+[sql]
+query = """
+SELECT
+    c.CategoryName,
+    COUNT(p.ProductID) AS ProductCount,
+    ROUND(AVG(p.UnitPrice), 2) AS AvgUnitPrice
+FROM Categories c
+LEFT JOIN Products p ON c.CategoryID = p.CategoryID
+GROUP BY c.CategoryName
+ORDER BY ProductCount DESC;
+"""

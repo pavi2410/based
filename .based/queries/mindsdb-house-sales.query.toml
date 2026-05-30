@@ -1,0 +1,17 @@
+name = "House Sales by Month"
+connection = "mindsdb_demo"
+description = "Average sale price by month and property type"
+tags = ["house_sales", "reports"]
+
+[sql]
+query = """
+SELECT
+    date_trunc('month', saledate::date) AS month,
+    type,
+    COUNT(*) AS sales_count,
+    ROUND(AVG(ma)::numeric, 0) AS avg_price
+FROM demo.house_sales
+GROUP BY 1, 2
+ORDER BY month DESC, type
+LIMIT 50;
+"""

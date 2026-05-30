@@ -1,0 +1,13 @@
+name = "List Tables"
+connection = "public_postgres"
+description = "All base tables in the RNAcentral public database"
+tags = ["schema", "meta"]
+
+[sql]
+query = """
+SELECT table_schema AS schema, table_name AS name
+FROM information_schema.tables
+WHERE table_type = 'BASE TABLE'
+  AND table_schema NOT IN ('pg_catalog', 'information_schema')
+ORDER BY table_schema, table_name;
+"""

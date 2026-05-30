@@ -34,6 +34,8 @@ pub enum WorkspacePaletteAction {
     NewLooseQuery,
     NewCollection,
     SelectNoEnvironment,
+    OpenWelcome,
+    OpenOnboarding,
 }
 
 /// A search result the palette can return.
@@ -245,6 +247,26 @@ impl CommandPalette {
                 conn_label: String::new(),
                 spec: TabSpec::blank_query_editor(ConnectionId("".into())),
                 command_action: Some(WorkspacePaletteAction::SelectNoEnvironment),
+            });
+        }
+        if q.is_empty() || q.contains("welcome") {
+            results.push(PaletteResult {
+                kind: ResultKind::Command,
+                label: "Open Welcome".into(),
+                sublabel: "navigation".into(),
+                conn_label: String::new(),
+                spec: TabSpec::blank_query_editor(ConnectionId("".into())),
+                command_action: Some(WorkspacePaletteAction::OpenWelcome),
+            });
+        }
+        if q.is_empty() || q.contains("onboarding") || q.contains("setup") {
+            results.push(PaletteResult {
+                kind: ResultKind::Command,
+                label: "Open Onboarding".into(),
+                sublabel: "navigation".into(),
+                conn_label: String::new(),
+                spec: TabSpec::blank_query_editor(ConnectionId("".into())),
+                command_action: Some(WorkspacePaletteAction::OpenOnboarding),
             });
         }
 

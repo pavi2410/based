@@ -26,7 +26,7 @@ use gpui::prelude::*;
 use gpui::*;
 use gpui_component::Root;
 
-use workspace::{PopOutManager, SqlInject, TabOpenQueue, Workspace};
+use workspace::{PopOutManager, SqlInject, TabOpenQueue, Workspace, WorkspaceNavQueue};
 
 // ── Entry point ──────────────────────────────────────────────────────────────
 
@@ -55,6 +55,7 @@ fn main() {
             PopOutManager::init(cx);
             app::aux_windows::AuxWindows::init(cx);
             cx.set_global(TabOpenQueue::default());
+            cx.set_global(WorkspaceNavQueue::default());
             cx.set_global(SqlInject::default());
 
             let project_root = crate::project::find_project_root();

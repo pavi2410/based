@@ -14,9 +14,9 @@ use gpui_component::{Root, TitleBar};
 use super::aux_windows::{AuxKind, AuxWindows};
 use super::quit;
 use crate::about_window::AboutWindow;
-use crate::bindings::OpenWelcome;
+use crate::bindings::{OpenOnboarding, OpenWelcome};
 use crate::settings_window::SettingsWindow;
-use crate::workspace::WorkspaceRef;
+use crate::workspace::{WorkspaceRef, tab_open::enqueue_show_onboarding, tab_open::enqueue_show_welcome};
 
 pub const APP_NAME: &str = "Based";
 
@@ -50,6 +50,7 @@ pub fn init(cx: &mut App) {
     cx.on_action(|_: &AboutApp, cx| open_about(cx));
     cx.on_action(|_: &OpenSettingsMenu, cx| open_settings(cx));
     cx.on_action(|_: &OpenWelcome, cx| open_welcome(cx));
+    cx.on_action(|_: &OpenOnboarding, cx| open_onboarding(cx));
 
     cx.bind_keys([
         KeyBinding::new("cmd-q", QuitApp, None),
@@ -67,23 +68,29 @@ pub fn init(cx: &mut App) {
             MenuItem::separator(),
             MenuItem::action("Quit Based", QuitApp),
         ]),
-        Menu::new("Help").items([MenuItem::action("Welcome to Based", OpenWelcome)]),
+        Menu::new("Help").items([
+            MenuItem::action("Welcome to Based", OpenWelcome),
+            MenuItem::action("Onboarding...", OpenOnboarding),
+        ]),
     ]);
 }
 
 /// Focus or re-open the Welcome center tab (Help menu and topbar overflow).
 pub fn open_welcome(cx: &mut App) {
-    let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) else {
+    if cx.try_global::<WorkspaceRef>().is_none() {
         return;
-    };
-    let Some(handle) = cx.active_window() else {
+    }
+    enqueue_show_welcome(cx);
+    cx.refresh_windows();
+}
+
+/// Focus or re-open the Onboarding center tab (Help menu and topbar overflow).
+pub fn open_onboarding(cx: &mut App) {
+    if cx.try_global::<WorkspaceRef>().is_none() {
         return;
-    };
-    let _ = handle.update(cx, |_, window, cx| {
-        ws.update(cx, |workspace, cx| {
-            workspace.show_welcome(window, cx);
-        });
-    });
+    }
+    enqueue_show_onboarding(cx);
+    cx.refresh_windows();
 }
 
 /// Open the About window, or focus the existing one if already open.

@@ -6,7 +6,8 @@ pub mod tab_label;
 pub mod tab_open;
 pub mod tab_spec;
 pub use tab_open::{
-    SqlInject, TabManagerRef, TabOpenQueue, WorkspaceRef, enqueue_sql_inject, mark_query_tab_dirty,
+    SqlInject, TabManagerRef, TabOpenQueue, WorkspaceNavQueue, WorkspaceRef, enqueue_open_tab,
+    enqueue_show_onboarding, enqueue_show_welcome, enqueue_sql_inject, mark_query_tab_dirty,
 };
 pub use tab_spec::TabSpec;
 
@@ -23,6 +24,7 @@ pub mod pane;
 pub mod pop_out;
 pub use pop_out::PopOutManager;
 pub mod welcome;
+pub mod onboarding;
 
 mod dock_utils;
 mod inspector;
@@ -57,7 +59,7 @@ use gpui_component::{
 use crate::bindings::{
     CloseAllTabs, CloseCleanTabs, CloseOtherTabs, CloseTab, CloseTabsLeft, CloseTabsRight,
     CycleAppearance, DismissCommandPalette, GoBackTab, GoForwardTab, NewQuery, OpenSettings,
-    OpenWelcome, PinTab, SplitPaneBottom, SplitPaneLeft, SplitPaneRight, SplitPaneTop,
+    OpenWelcome, OpenOnboarding, PinTab, SplitPaneBottom, SplitPaneLeft, SplitPaneRight, SplitPaneTop,
     ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane,
     ToggleSidebarRail,
 };
@@ -83,10 +85,12 @@ use chrome::{
     topbar::Topbar,
 };
 use welcome::WelcomePanel;
+use onboarding::OnboardingPanel;
 
 pub struct Workspace {
     registry: Entity<ConnectionRegistry>,
     welcome_panel: Entity<WelcomePanel>,
+    onboarding_panel: Entity<OnboardingPanel>,
     dock_area: Entity<DockArea>,
     connection_tree: Entity<ConnectionTree>,
     tab_manager: Entity<TabManager>,
@@ -111,6 +115,7 @@ pub struct Workspace {
     workspace_id: uuid::Uuid,
     pending_ctx_sync: Option<WorkspaceContext>,
     tab_navigation: TabNavigationHistory,
+    onboarding_prompted: bool,
 }
 
 impl Workspace {
@@ -159,6 +164,8 @@ impl Workspace {
 
         let welcome = cx.new(|cx| WelcomePanel::new(window, cx));
         let welcome_panel = welcome.clone();
+        let onboarding = cx.new(|cx| OnboardingPanel::new(window, cx));
+        let onboarding_panel = onboarding.clone();
         let weak_dock = dock_area.downgrade();
         let tabs = DockItem::tab(welcome, &weak_dock, window, cx);
         let center = wrap_center_root(tabs, &weak_dock, window, cx);
@@ -214,6 +221,7 @@ impl Workspace {
         let workspace = Self {
             registry: registry.clone(),
             welcome_panel,
+            onboarding_panel,
             dock_area,
             connection_tree,
             tab_manager,
@@ -234,6 +242,7 @@ impl Workspace {
             workspace_id,
             pending_ctx_sync: None,
             tab_navigation: TabNavigationHistory::default(),
+            onboarding_prompted: false,
         };
 
         cx.subscribe(
@@ -570,6 +579,8 @@ impl Workspace {
             WorkspacePaletteAction::SelectNoEnvironment => {
                 self.on_environment_selected(Some(0), cx);
             }
+            WorkspacePaletteAction::OpenWelcome => enqueue_show_welcome(cx),
+            WorkspacePaletteAction::OpenOnboarding => enqueue_show_onboarding(cx),
         }
     }
 
@@ -684,6 +695,40 @@ impl Workspace {
         cx.notify();
     }
 
+    /// Focus the Onboarding tab, re-adding it to the center strip if it was removed.
+    pub fn show_onboarding(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let onboarding: Arc<dyn PanelView> = Arc::new(self.onboarding_panel.clone());
+        let dock = self.dock_area.read(cx);
+        let onboarding_ix = center_tab_items(dock.center()).and_then(|items| {
+            items
+                .iter()
+                .position(|p| p.panel_name(cx) == "OnboardingPanel")
+        });
+        let is_active = active_center_tab(dock.center(), cx)
+            .is_some_and(|(p, _)| p.panel_name(cx) == "OnboardingPanel");
+
+        self.dock_area.update(cx, |dock, ecx| match onboarding_ix {
+            Some(_ix) if is_active => {}
+            Some(ix) => {
+                if let Some(panel) =
+                    center_tab_items(dock.center()).and_then(|items| items.get(ix).cloned())
+                {
+                    dock.remove_panel(panel, DockPlacement::Center, window, ecx);
+                    dock.add_panel(onboarding.clone(), DockPlacement::Center, None, window, ecx);
+                }
+            }
+            None => {
+                dock.add_panel(onboarding, DockPlacement::Center, None, window, ecx);
+            }
+        });
+
+        self.onboarding_panel
+            .read(cx)
+            .focus_handle(cx)
+            .focus(window, cx);
+        cx.notify();
+    }
+
     fn drain_tab_open_queue(&mut self, cx: &mut Context<Self>) {
         if let Some(spec) = cx.update_global(|q: &mut TabOpenQueue, _| q.pending.take()) {
             self.pending_open_tab = Some(spec);
@@ -694,6 +739,28 @@ impl Workspace {
         self.drain_tab_open_queue(cx);
         if let Some(spec) = self.pending_open_tab.take() {
             self.dispatch_open_tab(spec, window, cx);
+        }
+    }
+
+    fn flush_nav_queue(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let (show_welcome, show_onboarding, open_wizard) =
+            cx.update_global(|q: &mut WorkspaceNavQueue, _| {
+                let welcome = q.show_welcome;
+                let onboarding = q.show_onboarding;
+                let wizard = q.open_postgres_wizard;
+                q.show_welcome = false;
+                q.show_onboarding = false;
+                q.open_postgres_wizard = false;
+                (welcome, onboarding, wizard)
+            });
+        if show_onboarding {
+            self.show_onboarding(window, cx);
+        }
+        if show_welcome {
+            self.show_welcome(window, cx);
+        }
+        if open_wizard {
+            self.open_postgres_wizard_tab(window, cx);
         }
     }
 
@@ -791,6 +858,15 @@ impl Render for Workspace {
             self.session_restored = true;
             self.restore_session(window, cx);
         }
+        if !self.onboarding_prompted {
+            self.onboarding_prompted = true;
+            if !crate::app::prefs::onboarding_completed(cx)
+                && self.tab_manager.read(cx).tabs.is_empty()
+            {
+                enqueue_show_onboarding(cx);
+            }
+        }
+        self.flush_nav_queue(window, cx);
         self.flush_pending_open_tab(window, cx);
         let this = cx.entity().clone();
         let conn_list: Vec<Entity<ConnectionEntry>> = self.registry.read(cx).connections().to_vec();
@@ -878,6 +954,11 @@ impl Render for Workspace {
             .on_action(
                 window.listener_for(&this, |ws, _: &OpenWelcome, window, cx| {
                     ws.show_welcome(window, cx);
+                }),
+            )
+            .on_action(
+                window.listener_for(&this, |ws, _: &OpenOnboarding, window, cx| {
+                    ws.show_onboarding(window, cx);
                 }),
             )
             .on_action(window.listener_for(&this, |ws, _: &CloseTab, window, cx| {

@@ -2,6 +2,7 @@
 
 use super::pop_out::PopOutWindowTitle;
 use super::welcome::WelcomePanel;
+use super::onboarding::OnboardingPanel;
 use crate::mongodb::change_stream::ChangeStreamPanel;
 use crate::mongodb::document_editor::DocumentEditorPanel;
 use crate::mongodb::document_viewer::DocumentViewerPanel;
@@ -20,6 +21,7 @@ use crate::sqlite::wizard::ConnectionWizardPanel as SqliteWizardPanel;
 use crate::workspace::object_info::{ConnectionDashboardPanel, ObjectInfoPanel};
 
 impl PopOutWindowTitle for WelcomePanel {}
+impl PopOutWindowTitle for OnboardingPanel {}
 impl PopOutWindowTitle for ConnectionDashboardPanel {}
 impl PopOutWindowTitle for ObjectInfoPanel {}
 impl PopOutWindowTitle for ChangeStreamPanel {}

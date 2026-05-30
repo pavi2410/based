@@ -166,6 +166,11 @@ impl RenderOnce for TopbarRight {
                                 .icon(IconName::BookOpen)
                                 .on_click(|_, _window, cx| shell::open_welcome(cx)),
                         )
+                        .item(
+                            PopupMenuItem::new("Onboarding...")
+                                .icon(IconName::Settings2)
+                                .on_click(|_, _window, cx| shell::open_onboarding(cx)),
+                        )
                     }),
             )
     }

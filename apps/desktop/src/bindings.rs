@@ -19,6 +19,7 @@ gpui::actions!([
     NewQuery,
     OpenSettings,
     OpenWelcome,
+    OpenOnboarding,
     SplitPaneTop,
     SplitPaneBottom,
     SplitPaneLeft,

@@ -104,6 +104,8 @@ pub struct NativePreferences {
     pub table_density: TableDensity,
     #[serde(default)]
     pub table_prefs: TablePreferences,
+    #[serde(default)]
+    pub onboarding_completed: bool,
 }
 
 impl Default for NativePreferences {
@@ -117,6 +119,7 @@ impl Default for NativePreferences {
             query_timeout_secs: DEFAULT_QUERY_TIMEOUT_SECS,
             table_density: TableDensity::Compact,
             table_prefs: TablePreferences::default(),
+            onboarding_completed: false,
         }
     }
 }
@@ -443,4 +446,18 @@ pub fn cycle_theme(cx: &mut App) {
         ThemeMode::Light => ThemeMode::Dark,
     };
     apply_theme(next, cx);
+}
+
+pub fn onboarding_completed(cx: &App) -> bool {
+    cx.global::<NativePreferences>().onboarding_completed
+}
+
+pub fn set_onboarding_completed(completed: bool, cx: &mut App) {
+    cx.update_global(|p: &mut NativePreferences, _| {
+        if p.onboarding_completed == completed {
+            return;
+        }
+        p.onboarding_completed = completed;
+        p.save_best_effort();
+    });
 }

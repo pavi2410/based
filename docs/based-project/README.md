@@ -160,7 +160,7 @@ tags = ["local", "dev"]        # Labels for query target matching and search
 | `schema_version` | Yes | Connection file format version |
 | `label` | Yes | Display label |
 | `engine` | Yes | Database family |
-| `tags` | No | String labels; used by `[target]` selectors (AND matching) and UI filters |
+| `tags` | No | String labels; used by `[target]` (`tags` / `exclude_tags`) and UI filters |
 
 There is **no `group` field**. A former `group = "local"` is expressed as `tags = ["local"]`. Tags are more flexible (`["public", "demo", "readonly"]`) and avoid two overlapping classification systems.
 
@@ -390,31 +390,63 @@ query = """
 
 The `[target]` block declares **which connection(s)** a query may run against. Resolution happens at open/run time.
 
-### Exact connection (default)
+v1 uses a **flat filter stack**: fields combine with **AND**. There is no nested tag policy language and no globs in v1.
 
-Run only against one stable id (path under `connections/`):
+### Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `connection` | string **or** string[] | Exact id, or one-of several ids (see below) |
+| `engine` | string | `postgres`, `mongodb`, or `sqlite` |
+| `tags` | string[] | Connection must have **every** listed tag |
+| `exclude_tags` | string[] | Connection must have **none** of these tags |
+
+Empty arrays for `tags` or `exclude_tags` are treated as omitted. An empty `connection` array is **invalid** at load time.
+
+Tag matching is **case-sensitive** and compares literal strings on the connection file’s `tags` list.
+
+### `connection`: string or array
+
+One field, two shapes:
 
 ```toml
+# Exactly one connection (exclusive — most runbooks)
 [target]
 connection = "local/northwind"
+
+# One of several connection ids (OR)
+[target]
+connection = ["public/ebi", "public/mindsdb"]
 ```
 
-Shorthand: if the only key in `[target]` is `connection`, this is the common case for repo-specific runbooks.
+| Form | Rule |
+|------|------|
+| **String** | Run only against this id. **Must not** appear on the same `[target]` as `engine`, `tags`, or `exclude_tags` (load error). |
+| **Array** | Connection id must be **one of** the listed ids. **May** combine with `engine`, `tags`, and `exclude_tags` (all AND). |
+| **`["only"]`** | Allowed; equivalent to `connection = "only"`. |
 
-### Engine family
+Connection ids are paths under `connections/` without the `.conn.toml` suffix (e.g. `local/northwind`).
 
-Run against **any** connected database of that family (Postgres, MongoDB, or SQLite):
+### Filter mode (no exclusive string)
+
+When `connection` is absent or an **array**, evaluate filters in any order (all are AND):
+
+1. Start with all connections in the project
+2. **`engine`** — keep if engine matches (when set)
+3. **`tags`** — keep if connection has every listed tag (when set)
+4. **`exclude_tags`** — keep if connection has none of these tags (when set)
+5. **`connection` array** — keep if id is in the list (when set)
+
+### Examples
+
+**Portable Postgres introspection**
 
 ```toml
 [target]
 engine = "postgres"
 ```
 
-Use for portable introspection queries (e.g. list tables via `information_schema`).
-
-### Attribute selector
-
-Match connections that satisfy **all** specified attributes (AND):
+**Public demo Postgres only**
 
 ```toml
 [target]
@@ -422,30 +454,48 @@ engine = "postgres"
 tags = ["public", "demo"]
 ```
 
-| Attribute | Matches |
-|-----------|---------|
-| `engine` | Connection’s `engine` field |
-| `tags` | Connection must include **every** listed tag |
-
-### Explicit allow-list
-
-Run against one of several known connections:
+**Postgres, not production**
 
 ```toml
 [target]
-any = ["northwind", "staging_sqlite"]
+engine = "postgres"
+exclude_tags = ["prod"]
+```
+
+**One of several known public databases**
+
+```toml
+[target]
+connection = ["public/ebi", "public/mindsdb"]
+engine = "postgres"
+tags = ["demo"]
+```
+
+**Single runbook query (exclusive)**
+
+```toml
+[target]
+connection = "local/northwind"
 ```
 
 ### Resolution behavior
 
 When the user opens or runs a query:
 
-1. **Focused connection** — if the active connection matches `[target]`, use it.
-2. **Single match** in the project → use that connection.
-3. **Multiple matches** → show a picker filtered to matching connections.
-4. **No match** → error: *“No connection matches this query’s target.”*
+1. **Exclusive string** — use that connection id (fail if missing from project).
+2. **Filter mode** — compute the matching set from the rules above.
+3. **Focused connection** — if the active connection is in the set, prefer it.
+4. **Single match** → use that connection.
+5. **Multiple matches** → show a picker limited to the matching set.
+6. **No matches** → error: *“No connection matches this query’s target.”*
 
-The query text is never rewritten per connection; the user picks (or the app picks) a compatible connection.
+The query text is never rewritten per connection.
+
+### Deferred past v1
+
+- Globs on connection ids (`public/*`)
+- Tag OR (`tags_any`) and nested `[target.tags]` tables
+- Cross-engine OR in one target
 
 ---
 
@@ -631,5 +681,6 @@ ORDER BY OrderDate DESC LIMIT 50;
 
 | Date | Change |
 |------|--------|
+| 2026-05-30 | v1 `[target]`: `connection` string\|array, `engine`, `tags`, `exclude_tags`; flat AND semantics |
 | 2026-05-30 | SQLite `[pragma]` table (`journal_mode`, `synchronous`, `foreign_keys`); drop `group`; tags-only; connection id from path |
 | 2026-05-30 | Initial canonical spec: `project.toml`, per-file connections and queries, `[target]` selectors, `state/favorites`, per-file `schema_version` |

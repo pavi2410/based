@@ -1,5 +1,7 @@
 [tools]
 rust = "latest"
+node = "26"
+pnpm = "11"
 
 [tasks.dev]
 description = "Run desktop app in development mode"

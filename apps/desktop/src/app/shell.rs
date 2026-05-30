@@ -147,7 +147,7 @@ pub fn open_settings(cx: &mut App) {
         },
         |win, cx| {
             win.set_window_title("Based — Settings");
-            let settings = cx.new(|cx| SettingsWindow::new(cx));
+            let settings = cx.new(SettingsWindow::new);
             cx.new(|cx| Root::new(settings, win, cx))
         },
     );

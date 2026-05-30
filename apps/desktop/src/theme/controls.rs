@@ -6,7 +6,7 @@ use gpui::{
 };
 use gpui_component::{
     ActiveTheme, Selectable, ThemeConfig, ThemeMode, ThemeRegistry,
-    button::{Button, ButtonGroup, ButtonVariants},
+    button::{Button, ButtonGroup},
     h_flex,
     searchable_list::SearchableListItem,
     select::{Select, SelectState},

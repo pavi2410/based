@@ -16,7 +16,7 @@ use crate::app::prefs::{
     self, AppearanceMode, CodeFontFamilyId, DEFAULT_PAGE_SIZE, DEFAULT_QUERY_TIMEOUT_SECS,
     DensityPreset, FontWeightToken, NativePreferences, SizeToken, UiFontFamilyId,
 };
-use crate::theme::{ThemeNameItem, DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME};
+use crate::theme::{DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME, ThemeNameItem};
 
 #[cfg(target_os = "macos")]
 fn macos_settings_header_style() -> StyleRefinement {

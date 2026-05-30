@@ -295,7 +295,7 @@ Both layouts are valid and **semantically equivalent** if file contents match:
 queries/northwind-recent-orders.query.toml
 queries/pg-list-tables.query.toml
 
-# Nested (folders for humans / UI collections)
+# Nested (folders for humans — cosmetic only)
 queries/northwind/recent-orders.query.toml
 queries/reports/northwind/revenue.query.toml
 ```
@@ -303,10 +303,10 @@ queries/reports/northwind/revenue.query.toml
 **Rules:**
 
 - **Path does not determine** which connection runs the query. Use `[target]` (below).
-- **Path may inform UI grouping** — the app can derive a `collection` label from parent folder names for sidebar organization.
-- **Internal identity** — use the file’s path relative to `queries/` (e.g. `northwind/recent-orders.query.toml`) to avoid stem collisions.
-- Optional explicit `collection = "reports"` in the file overrides folder-derived grouping.
+- **Nested folders** may group queries in the UI sidebar; same rationale as `connections/` — organization only, no extra field.
+- **Internal identity** — the file’s path relative to `queries/` (e.g. `northwind/recent-orders.query.toml`) avoids stem collisions.
 
+There is **no `collection` field** on query files. Use **`tags`** for labels and filtering (search, command palette), and folder layout for visual grouping.
 There is **no** monolithic `queries.toml`. Do not commit team queries there.
 
 ### Query file structure
@@ -317,7 +317,6 @@ schema_version = 1
 name = "Recent Orders"
 description = "Most recent orders with customer and employee names"
 tags = ["orders", "reports"]
-collection = "northwind"       # Optional; UI grouping only
 
 [target]
 connection = "local/northwind" # Exact connection id (path under connections/)
@@ -337,8 +336,7 @@ LIMIT 50;
 | `schema_version` | Yes | Query file format version |
 | `name` | Yes | Display name in Saved pane / command palette |
 | `description` | No | Longer explanation |
-| `tags` | No | Free-form labels for search/filter |
-| `collection` | No | UI grouping; defaults from parent folder if omitted |
+| `tags` | No | Free-form labels on the query itself (search, filter in Saved / ⌘K) |
 | `[target]` | Yes | Where this query may run (see below) |
 | `[sql]` or `[pipeline]` | One required | Query body |
 
@@ -524,7 +522,7 @@ Starring from the History pane writes here, not into `queries/*.query.toml`.
 | File | Purpose |
 |------|---------|
 | `state/active_environment.toml` | User’s selected environment name (when environments ship) |
-| `state/ui.toml` | Sidebar layout, last-open collection, etc. |
+| `state/ui.toml` | Sidebar layout, query tree expansion, etc. |
 
 ---
 
@@ -588,7 +586,7 @@ Queries appear in:
 
 - **Saved** side pane (star icon in status bar)
 - **Command palette** (⌘K / Ctrl+K)
-- **Workspace** left pane (optional grouping by `collection` / folder)
+- **Workspace** left pane (grouped by folder path under `queries/`)
 
 ---
 
@@ -681,6 +679,7 @@ ORDER BY OrderDate DESC LIMIT 50;
 
 | Date | Change |
 |------|--------|
+| 2026-05-30 | Drop query `collection` field; use `tags` and folder layout only |
 | 2026-05-30 | v1 `[target]`: `connection` string\|array, `engine`, `tags`, `exclude_tags`; flat AND semantics |
 | 2026-05-30 | SQLite `[pragma]` table (`journal_mode`, `synchronous`, `foreign_keys`); drop `group`; tags-only; connection id from path |
 | 2026-05-30 | Initial canonical spec: `project.toml`, per-file connections and queries, `[target]` selectors, `state/favorites`, per-file `schema_version` |

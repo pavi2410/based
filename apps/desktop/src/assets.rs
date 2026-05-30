@@ -7,6 +7,7 @@ use gpui::{AssetSource, Result, SharedString};
 #[derive(rust_embed::RustEmbed)]
 #[folder = "assets"]
 #[include = "icons/**/*.svg"]
+#[include = "icon.png"]
 struct BasedEmbedded;
 
 struct BasedEmbeddedSource;

@@ -1,6 +1,7 @@
 mod check;
 mod config;
 mod install;
+mod log;
 mod persist;
 mod release_notes;
 mod state;
@@ -21,6 +22,7 @@ use crate::workspace::notify;
 use crate::workspace::tab_open::{WorkspaceRef, enqueue_open_release_notes};
 
 use self::check::{check_packager_update, is_newer};
+use self::log::{debug as udebug, info as uinfo, warn as uwarn};
 use self::persist::{
     UpdaterStateFile, should_run_periodic_check, startup_check_stale, updates_enabled,
 };
@@ -84,19 +86,33 @@ pub fn coordinator_snapshot(cx: &App) -> UpdateBarSnapshot {
 
 pub fn init(cx: &mut App) {
     if !updates_enabled() {
+        uinfo("init skipped: dev build (updates disabled)");
         return;
     }
+    uinfo(format!(
+        "init current={} in_app={}",
+        config::current_version_string(),
+        config::supports_in_app_install()
+    ));
     cx.set_global(UpdateCoordinator::default());
 
     let mut state = UpdaterStateFile::load();
     handle_pending_release_notes(&mut state, cx);
 
     cx.spawn(async move |cx| {
+        udebug("startup check scheduled in 30s");
         tokio::time::sleep(std::time::Duration::from_secs(30)).await;
         cx.update(|app| {
             let prefs = UpdateCoordinator::prefs(app);
-            if prefs.check_at_startup && startup_check_stale(&UpdaterStateFile::load()) {
+            let stale = startup_check_stale(&UpdaterStateFile::load());
+            if prefs.check_at_startup && stale {
+                uinfo("startup check: running (stale or never checked)");
                 trigger_check(app, false);
+            } else {
+                udebug(format!(
+                    "startup check: skipped check_at_startup={} stale={}",
+                    prefs.check_at_startup, stale
+                ));
             }
         });
 
@@ -106,6 +122,7 @@ pub fn init(cx: &mut App) {
                 persist::interval_secs(prefs.check_interval)
             });
 
+            udebug(format!("periodic loop: sleeping {sleep_secs}s"));
             tokio::time::sleep(std::time::Duration::from_secs(sleep_secs)).await;
 
             let should = cx.update(|app| {
@@ -115,7 +132,10 @@ pub fn init(cx: &mut App) {
             });
 
             if should {
+                uinfo("periodic check: running");
                 cx.update(|app| trigger_check(app, false));
+            } else {
+                udebug("periodic check: skipped (auto_check off or interval not elapsed)");
             }
         }
     })
@@ -128,9 +148,13 @@ fn handle_pending_release_notes(state: &mut UpdaterStateFile, cx: &mut App) {
     };
     let show = UpdateCoordinator::prefs(cx).show_release_notes_after_update;
     if show {
+        uinfo(format!("pending release notes: opening tab for v{version}"));
         enqueue_open_release_notes(version, cx);
         cx.refresh_windows();
     } else {
+        udebug(format!(
+            "pending release notes: cleared v{version} (pref disabled)"
+        ));
         state.clear_pending_release_notes();
     }
 }
@@ -138,14 +162,17 @@ fn handle_pending_release_notes(state: &mut UpdaterStateFile, cx: &mut App) {
 /// Manual or scheduled update check.
 pub fn check_now(cx: &mut App) {
     if !updates_enabled() {
+        udebug("check_now: skipped (dev build)");
         return;
     }
+    uinfo("check_now: manual check");
     trigger_check(cx, true);
 }
 
 pub fn dismiss(cx: &mut App) {
     cx.update_global(|coord: &mut UpdateCoordinator, app| {
         if let Some(v) = coord.available_version.clone() {
+            uinfo(format!("dismiss: version={v}"));
             let mut state = UpdaterStateFile::load();
             state.dismissed_version = Some(v);
             state.save_best_effort();
@@ -158,6 +185,7 @@ pub fn dismiss(cx: &mut App) {
 
 pub fn start_download(cx: &mut App) {
     if !updates_enabled() {
+        udebug("start_download: skipped (dev build)");
         return;
     }
     let version = cx.update_global(|coord: &mut UpdateCoordinator, _| {
@@ -166,8 +194,10 @@ pub fn start_download(cx: &mut App) {
         coord.available_version.clone()
     });
     let Some(version) = version else {
+        uwarn("start_download: no available version");
         return;
     };
+    uinfo(format!("start_download: version={version}"));
     cx.spawn(async move |cx| {
         run_download_install(cx, version).await;
     })
@@ -181,13 +211,18 @@ pub fn install_and_restart(
     cx: &mut App,
 ) {
     if !updates_enabled() {
+        udebug("install_and_restart: skipped (dev build)");
         return;
     }
     let live = live_connection_count(registry, cx);
     if live == 0 {
+        uinfo("install_and_restart: no live connections, proceeding");
         trigger_install(cx);
         return;
     }
+    uinfo(format!(
+        "install_and_restart: prompting (live_connections={live})"
+    ));
     let description: SharedString = if live == 1 {
         "Restarting will disconnect 1 live connection to apply the update.".into()
     } else {
@@ -219,6 +254,7 @@ pub fn install_and_restart(
                     .child(DialogAction::new().child(update_btn)),
             )
             .on_ok(move |_, _, cx| {
+                uinfo("install_and_restart: confirmed after connection gate");
                 quit::disconnect_all(&registry, cx);
                 trigger_install(cx);
                 true
@@ -234,15 +270,27 @@ pub fn open_release_notes_for_current(cx: &mut App) {
 }
 
 fn trigger_check(cx: &mut App, manual: bool) {
-    cx.update_global(|coord: &mut UpdateCoordinator, app| {
+    let skipped = cx.update_global(|coord: &mut UpdateCoordinator, app| {
         if coord.phase == UpdatePhase::Checking || coord.phase == UpdatePhase::Downloading {
-            return;
+            udebug(format!(
+                "trigger_check: skipped phase={:?} manual={manual}",
+                coord.phase
+            ));
+            return true;
         }
         coord.phase = UpdatePhase::Checking;
         coord.error = None;
         UpdateCoordinator::notify_workspace(app);
+        false
     });
+    if skipped {
+        return;
+    }
 
+    uinfo(format!(
+        "trigger_check: manual={manual} current={}",
+        config::current_version_string()
+    ));
     let manual = manual;
     cx.spawn(async move |cx| {
         run_check(cx, manual).await;
@@ -260,8 +308,10 @@ fn trigger_install(cx: &mut App) {
         coord.available_version.clone()
     });
     let Some(version) = version else {
+        udebug("trigger_install: skipped (phase not Available/Ready)");
         return;
     };
+    uinfo(format!("trigger_install: version={version}"));
     cx.spawn(async move |cx| {
         run_download_install(cx, version).await;
     })
@@ -281,8 +331,19 @@ async fn run_check(cx: &mut AsyncApp, manual: bool) {
         // GitHub API for discovery / prerelease filtering.
         let github = fetch_latest_release(prefs.include_prereleases).await?;
         let github_newer = github.as_ref().filter(|g| is_newer(&g.version, &current));
+        if let Some(g) = &github_newer {
+            udebug(format!(
+                "run_check: github latest={} newer=true",
+                g.version_label
+            ));
+        } else if github.is_some() {
+            udebug("run_check: github latest not newer than current");
+        } else {
+            udebug("run_check: no github latest (filtered or unavailable)");
+        }
 
         if !config::supports_in_app_install() {
+            udebug("run_check: in-app install unsupported on this install path");
             if let Some(g) = github_newer {
                 return Ok(CheckOutcome::AvailableManual {
                     version: g.version_label.clone(),
@@ -292,21 +353,30 @@ async fn run_check(cx: &mut AsyncApp, manual: bool) {
         }
 
         // Packager manifest for signed in-app update.
+        udebug(format!(
+            "run_check: packager manifest {}",
+            config::UPDATE_MANIFEST_URL
+        ));
         let packager = tokio::task::spawn_blocking(check_packager_update)
             .await
             .context("join packager check")??;
 
         if let Some(_update) = packager {
             let version = _update.version.to_string();
+            uinfo(format!(
+                "run_check: packager update available version={version}"
+            ));
             if !manual {
                 let state = UpdaterStateFile::load();
                 if state.dismissed_version.as_deref() == Some(version.as_str()) {
+                    udebug(format!("run_check: dismissed version={version}"));
                     return Ok(CheckOutcome::Dismissed);
                 }
             }
             return Ok(CheckOutcome::AvailableInApp { version });
         }
 
+        udebug("run_check: packager manifest has no newer update");
         if let Some(g) = github_newer {
             return Ok(CheckOutcome::AvailableManual {
                 version: g.version_label.clone(),
@@ -335,13 +405,16 @@ fn apply_check_outcome(
     let mut start_dl = false;
     cx.update_global(|coord: &mut UpdateCoordinator, app| match result {
         Ok(CheckOutcome::UpToDate) => {
+            uinfo("check outcome: up_to_date");
             coord.phase = UpdatePhase::UpToDate;
             coord.available_version = None;
         }
         Ok(CheckOutcome::Dismissed) => {
+            udebug("check outcome: dismissed");
             coord.phase = UpdatePhase::Idle;
         }
         Ok(CheckOutcome::AvailableManual { version }) => {
+            uinfo(format!("check outcome: available_manual version={version}"));
             coord.phase = UpdatePhase::Available;
             coord.available_version = Some(version.clone());
             if coord.should_toast(&version) {
@@ -349,6 +422,10 @@ fn apply_check_outcome(
             }
         }
         Ok(CheckOutcome::AvailableInApp { version }) => {
+            uinfo(format!(
+                "check outcome: available_in_app version={version} auto_download={}",
+                prefs.auto_download
+            ));
             coord.phase = UpdatePhase::Available;
             coord.available_version = Some(version.clone());
             if coord.should_toast(&version) {
@@ -359,7 +436,7 @@ fn apply_check_outcome(
             }
         }
         Err(err) => {
-            log::warn!("update check failed: {err:#}");
+            uwarn(format!("check outcome: failed {err:#}"));
             coord.phase = UpdatePhase::Failed;
             coord.error = Some(err.to_string());
         }
@@ -372,6 +449,7 @@ fn apply_check_outcome(
 }
 
 async fn run_download_install(cx: &mut AsyncApp, version: String) {
+    uinfo(format!("download_install: starting version={version}"));
     let result = crate::db::run(cx, async {
         let update = tokio::task::spawn_blocking(check_packager_update)
             .await
@@ -380,6 +458,10 @@ async fn run_download_install(cx: &mut AsyncApp, version: String) {
         if update.version != version {
             anyhow::bail!("update version mismatch");
         }
+        uinfo(format!(
+            "download_install: fetching url={}",
+            update.download_url
+        ));
         tokio::task::spawn_blocking(move || {
             install::download_install_and_relaunch(update, &version)
         })
@@ -388,8 +470,9 @@ async fn run_download_install(cx: &mut AsyncApp, version: String) {
     })
     .await;
 
-    if result.is_err() {
-        let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    if let Err(err) = result {
+        uwarn(format!("download_install: failed {err:#}"));
+        let msg = err.to_string();
         cx.update(|app| {
             app.update_global(|coord: &mut UpdateCoordinator, a| {
                 coord.phase = UpdatePhase::Failed;

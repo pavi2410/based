@@ -2,6 +2,7 @@ use anyhow::{Context as _, Result};
 use serde::Deserialize;
 
 use super::config::{GITHUB_OWNER, GITHUB_REPO};
+use super::log::{debug as udebug, info as uinfo, warn as uwarn};
 
 #[derive(Debug, Deserialize)]
 struct GitHubRelease {
@@ -23,6 +24,7 @@ pub async fn fetch_release_body(version: &str) -> Result<String> {
     };
     let url =
         format!("https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/tags/{tag}");
+    udebug(format!("fetch_release_body: GET {url}"));
     let client = reqwest::Client::builder()
         .user_agent("based-desktop")
         .build()?;
@@ -50,6 +52,9 @@ pub struct LatestReleaseInfo {
 /// Query `/releases/latest` for version discovery (complements packager manifest check).
 pub async fn fetch_latest_release(include_prereleases: bool) -> Result<Option<LatestReleaseInfo>> {
     let url = format!("https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest");
+    udebug(format!(
+        "fetch_latest_release: GET {url} include_prereleases={include_prereleases}"
+    ));
     let client = reqwest::Client::builder()
         .user_agent("based-desktop")
         .build()?;
@@ -60,13 +65,19 @@ pub async fn fetch_latest_release(include_prereleases: bool) -> Result<Option<La
         .await
         .context("github latest release request")?;
     if !response.status().is_success() {
+        uwarn(format!("fetch_latest_release: HTTP {}", response.status()));
         anyhow::bail!("github latest release: {}", response.status());
     }
     let release: GitHubRelease = response.json().await.context("github latest json")?;
     if release.prerelease && !include_prereleases {
+        udebug(format!(
+            "fetch_latest_release: prerelease {} filtered",
+            release.tag_name
+        ));
         return Ok(None);
     }
     let version_label = tag_to_version(&release.tag_name);
+    uinfo(format!("fetch_latest_release: latest={version_label}"));
     let version = semver::Version::parse(&version_label)
         .with_context(|| format!("invalid release tag version {version_label}"))?;
     Ok(Some(LatestReleaseInfo {

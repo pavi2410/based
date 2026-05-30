@@ -20,11 +20,18 @@ pub fn current_version() -> semver::Version {
         .unwrap_or_else(|_| semver::Version::new(0, 0, 0))
 }
 
+#[cfg(target_os = "linux")]
+use super::log::{debug as udebug, info as uinfo, warn as uwarn};
+
 /// Linux `.deb` installs cannot self-update via packager; AppImage / macOS / Windows can.
 pub fn supports_in_app_install() -> bool {
     #[cfg(target_os = "linux")]
     {
-        !is_deb_install()
+        let supported = !is_deb_install();
+        if supported {
+            udebug("in_app_install: true (AppImage or non-deb path)");
+        }
+        supported
     }
     #[cfg(not(target_os = "linux"))]
     {
@@ -44,8 +51,12 @@ fn is_deb_install() -> bool {
             .file_name()
             .and_then(|n| n.to_str())
             .map_or(false, |name| name.contains("AppImage"));
+        if is_deb_path && !is_appimage {
+            uinfo(&format!("in_app_install: false reason=deb path={path}"));
+        }
         is_deb_path && !is_appimage
     } else {
+        uwarn("in_app_install: could not resolve current_exe; assuming supported");
         false
     }
 }

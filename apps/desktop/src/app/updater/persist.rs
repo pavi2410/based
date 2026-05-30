@@ -4,6 +4,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 use super::config;
+use super::log::{debug as udebug, warn as uwarn};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct UpdaterStateFile {
@@ -27,12 +28,24 @@ impl UpdaterStateFile {
         let path = Self::path();
         let raw = std::fs::read_to_string(&path).unwrap_or_default();
         if raw.is_empty() {
+            udebug(format!("state load: empty ({path:?})"));
             return Self::default();
         }
-        toml::from_str(&raw).unwrap_or_else(|e| {
-            log::warn!("updater state load ({path:?}): {e}");
-            Self::default()
-        })
+        match toml::from_str::<UpdaterStateFile>(&raw) {
+            Ok(state) => {
+                udebug(format!(
+                    "state load: last_check_at={:?} dismissed={:?} pending_notes={:?}",
+                    state.last_check_at,
+                    state.dismissed_version,
+                    state.pending_release_notes_version
+                ));
+                state
+            }
+            Err(e) => {
+                uwarn(format!("state load ({path:?}): {e}"));
+                Self::default()
+            }
+        }
     }
 
     pub fn save_best_effort(&self) {
@@ -42,11 +55,13 @@ impl UpdaterStateFile {
         }
         match toml::to_string_pretty(self) {
             Ok(encoded) => {
-                if let Err(e) = std::fs::write(path, encoded) {
-                    log::warn!("updater state save: {e:#}");
+                if let Err(e) = std::fs::write(&path, encoded) {
+                    uwarn(format!("state save ({path:?}): {e:#}"));
+                } else {
+                    udebug(format!("state save: ok ({path:?})"));
                 }
             }
-            Err(e) => log::warn!("updater state serialize: {e:#}"),
+            Err(e) => uwarn(format!("state serialize: {e:#}")),
         }
     }
 

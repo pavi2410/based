@@ -33,7 +33,7 @@ use workspace::{PopOutManager, SqlInject, TabOpenQueue, Workspace, WorkspaceNavQ
 
 fn main() {
     env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or("warn,based_quit=warn"),
+        env_logger::Env::default().default_filter_or("warn,based_quit=warn,based_updater=info"),
     )
     .format_timestamp_millis()
     .init();

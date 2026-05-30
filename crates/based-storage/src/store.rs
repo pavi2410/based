@@ -198,11 +198,10 @@ impl MetadataStore {
     }
 
     pub async fn ensure_default_workspace(&self) -> Result<WorkspaceModel> {
-        if let Some(id) = self.active_workspace_id().await? {
-            if let Some(ws) = self.get_workspace(id).await? {
+        if let Some(id) = self.active_workspace_id().await?
+            && let Some(ws) = self.get_workspace(id).await? {
                 return Ok(ws);
             }
-        }
 
         let workspaces = self.list_workspaces().await?;
         if let Some(summary) = workspaces.first() {

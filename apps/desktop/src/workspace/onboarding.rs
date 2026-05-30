@@ -3,7 +3,7 @@ use gpui::{
     ParentElement, Render, SharedString, Styled, Window, div, px,
 };
 use gpui_component::{
-    ActiveTheme, Icon, IconName, Sizable as _, StyledExt, ThemeMode,
+    ActiveTheme, Icon, IconName, Sizable as _, StyledExt,
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,
@@ -15,7 +15,9 @@ use gpui_component::{
 
 use crate::app::prefs;
 use crate::app::shell::OpenSettingsMenu;
-use crate::bindings::{ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane, ToggleSidebarRail};
+use crate::bindings::{
+    ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane, ToggleSidebarRail,
+};
 use crate::widgets::ui::kbd_for_action;
 use crate::workspace::query_lane::create_loose_query_from_palette;
 use crate::workspace::tab_open::{enqueue_open_postgres_wizard, enqueue_show_welcome};
@@ -63,8 +65,6 @@ impl Panel for OnboardingPanel {
 
 impl Render for OnboardingPanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let is_dark = cx.theme().mode.is_dark();
-
         v_flex()
             .size_full()
             .items_center()
@@ -82,19 +82,14 @@ impl Render for OnboardingPanel {
                             .w(px(ONBOARDING_COLUMN_W))
                             .gap(px(32.0))
                             .child(onboarding_header(cx))
-                            .child(onboarding_section(
-                                "Theme",
-                                "Choose light or dark appearance.",
-                                cx,
-                                theme_toggle(is_dark),
-                            ))
+                            .child(crate::theme::theme_onboarding_picker("onboarding", cx))
                             .child(onboarding_section(
                                 "Get Started",
                                 "Connect to a database or open a query tab.",
                                 cx,
                                 v_flex()
                                     .gap(px(8.0))
-                                    .child(                                    action_row(
+                                    .child(action_row(
                                         cx,
                                         "onboarding-new-connection",
                                         IconName::Globe,
@@ -141,13 +136,7 @@ fn onboarding_header(cx: &mut App) -> impl IntoElement {
         .child(
             v_flex()
                 .gap(px(6.0))
-                .child(
-                    div()
-                        .text_2xl()
-                        .font_bold()
-                        .text_color(fg)
-                        .child("Based"),
-                )
+                .child(div().text_2xl().font_bold().text_color(fg).child("Based"))
                 .child(
                     div()
                         .text_lg()
@@ -184,12 +173,7 @@ fn onboarding_section(
             v_flex()
                 .gap(px(4.0))
                 .child(section_title(title, cx))
-                .child(
-                    div()
-                        .text_sm()
-                        .text_color(muted)
-                        .child(description),
-                ),
+                .child(div().text_sm().text_color(muted).child(description)),
         )
         .child(body)
 }
@@ -200,30 +184,6 @@ fn section_title(label: &str, cx: &App) -> impl IntoElement {
         .font_weight(FontWeight::BOLD)
         .text_color(cx.theme().foreground)
         .child(label.to_string())
-}
-
-fn theme_toggle(is_dark: bool) -> impl IntoElement {
-    h_flex().gap(px(8.0)).child(
-        h_flex()
-            .gap(px(4.0))
-            .child(theme_mode_button("onboarding-theme-light", "Light", !is_dark, ThemeMode::Light))
-            .child(theme_mode_button("onboarding-theme-dark", "Dark", is_dark, ThemeMode::Dark)),
-    )
-}
-
-fn theme_mode_button(
-    id: &'static str,
-    label: &'static str,
-    selected: bool,
-    mode: ThemeMode,
-) -> impl IntoElement {
-    let mut button = Button::new(id).label(label);
-    if selected {
-        button = button.primary();
-    } else {
-        button = button.ghost();
-    }
-    button.on_click(move |_, _, cx| prefs::apply_theme(mode, cx))
 }
 
 fn action_row(
@@ -253,13 +213,7 @@ fn action_row(
                 .text_color(muted)
                 .with_size(gpui_component::Size::Small),
         )
-        .child(
-            div()
-                .flex_1()
-                .text_sm()
-                .text_color(fg)
-                .child(label),
-        )
+        .child(div().flex_1().text_sm().text_color(fg).child(label))
 }
 
 fn shortcuts_grid(window: &Window, cx: &App) -> impl IntoElement {
@@ -270,13 +224,17 @@ fn shortcuts_grid(window: &Window, cx: &App) -> impl IntoElement {
         ),
         ("Settings", kbd_for_action(&OpenSettingsMenu, window)),
         ("Toggle sidebar", kbd_for_action(&ToggleSidebarRail, window)),
-        ("Inspector pane", kbd_for_action(&ToggleInspectorPane, window)),
+        (
+            "Inspector pane",
+            kbd_for_action(&ToggleInspectorPane, window),
+        ),
         ("History pane", kbd_for_action(&ToggleHistoryPane, window)),
     ];
 
-    v_flex()
-        .gap(px(6.0))
-        .children(rows.into_iter().map(|(label, kbd)| shortcut_row(label, kbd, cx)))
+    v_flex().gap(px(6.0)).children(
+        rows.into_iter()
+            .map(|(label, kbd)| shortcut_row(label, kbd, cx)),
+    )
 }
 
 fn shortcut_row(label: &'static str, kbd: Option<Kbd>, cx: &App) -> impl IntoElement {
@@ -287,13 +245,6 @@ fn shortcut_row(label: &'static str, kbd: Option<Kbd>, cx: &App) -> impl IntoEle
         .items_center()
         .justify_between()
         .py(px(4.0))
-        .child(
-            div()
-                .text_sm()
-                .text_color(fg)
-                .child(label),
-        )
-        .children(kbd.into_iter().map(|k| {
-            div().text_color(muted).child(k)
-        }))
+        .child(div().text_sm().text_color(fg).child(label))
+        .children(kbd.into_iter().map(|k| div().text_color(muted).child(k)))
 }

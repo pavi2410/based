@@ -1,6 +1,6 @@
 //! Tab strip labels (`Panel::title` when `tab_name` is unset).
 
-use gpui::{App, EntityId, IntoElement, SharedString, px, prelude::*};
+use gpui::{App, EntityId, IntoElement, SharedString, prelude::*, px};
 use gpui_component::{ActiveTheme, Icon, Sizable as _, h_flex};
 
 use super::tab_open::TabManagerRef;

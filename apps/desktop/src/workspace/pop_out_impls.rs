@@ -1,8 +1,8 @@
 //! Blanket [`PopOutWindowTitle`] impls for panels that use the default `panel_name` title.
 
+use super::onboarding::OnboardingPanel;
 use super::pop_out::PopOutWindowTitle;
 use super::welcome::WelcomePanel;
-use super::onboarding::OnboardingPanel;
 use crate::mongodb::change_stream::ChangeStreamPanel;
 use crate::mongodb::document_editor::DocumentEditorPanel;
 use crate::mongodb::document_viewer::DocumentViewerPanel;

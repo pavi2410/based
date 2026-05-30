@@ -6,7 +6,7 @@ pub mod tab_label;
 pub mod tab_open;
 pub mod tab_spec;
 pub use tab_open::{
-    SqlInject, TabManagerRef, TabOpenQueue, WorkspaceNavQueue, WorkspaceRef, enqueue_open_tab,
+    SqlInject, TabManagerRef, TabOpenQueue, WorkspaceNavQueue, WorkspaceRef,
     enqueue_show_onboarding, enqueue_show_welcome, enqueue_sql_inject, mark_query_tab_dirty,
 };
 pub use tab_spec::TabSpec;
@@ -23,8 +23,8 @@ pub mod object_info;
 pub mod pane;
 pub mod pop_out;
 pub use pop_out::PopOutManager;
-pub mod welcome;
 pub mod onboarding;
+pub mod welcome;
 
 mod dock_utils;
 mod inspector;
@@ -58,9 +58,9 @@ use gpui_component::{
 
 use crate::bindings::{
     CloseAllTabs, CloseCleanTabs, CloseOtherTabs, CloseTab, CloseTabsLeft, CloseTabsRight,
-    CycleAppearance, DismissCommandPalette, GoBackTab, GoForwardTab, NewQuery, OpenSettings,
-    OpenWelcome, OpenOnboarding, PinTab, SplitPaneBottom, SplitPaneLeft, SplitPaneRight, SplitPaneTop,
-    ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane,
+    CycleAppearance, DismissCommandPalette, GoBackTab, GoForwardTab, NewQuery, OpenOnboarding,
+    OpenSettings, OpenWelcome, PinTab, SplitPaneBottom, SplitPaneLeft, SplitPaneRight,
+    SplitPaneTop, ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane,
     ToggleSidebarRail,
 };
 use crate::command_palette::CommandPalette;
@@ -84,8 +84,8 @@ use chrome::{
     status_bar::{StatusBar, StatusBarModel},
     topbar::Topbar,
 };
-use welcome::WelcomePanel;
 use onboarding::OnboardingPanel;
+use welcome::WelcomePanel;
 
 pub struct Workspace {
     registry: Entity<ConnectionRegistry>,
@@ -803,7 +803,8 @@ impl Workspace {
         let Some(panel) = items.iter().find(|p| p.panel_id(cx) == panel_id) else {
             return false;
         };
-        pop_out::panel_type_allows_tab_close(panel.panel_name(cx)) && !self.is_tab_pinned(panel_id, cx)
+        pop_out::panel_type_allows_tab_close(panel.panel_name(cx))
+            && !self.is_tab_pinned(panel_id, cx)
     }
 
     /// Close a specific panel in the center tab strip (tab ⋮ menu).

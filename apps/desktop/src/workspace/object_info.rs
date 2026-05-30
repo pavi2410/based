@@ -71,12 +71,7 @@ impl Panel for ConnectionDashboardPanel {
 
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let label: SharedString = self.conn.read(cx).config.label().to_string().into();
-        crate::workspace::tab_label::render_strip_tab(
-            label,
-            false,
-            cx.entity().entity_id(),
-            cx,
-        )
+        crate::workspace::tab_label::render_strip_tab(label, false, cx.entity().entity_id(), cx)
     }
 
     fn zoomable(&self, _: &gpui::App) -> Option<gpui_component::dock::PanelControl> {

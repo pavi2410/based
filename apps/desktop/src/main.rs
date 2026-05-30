@@ -41,8 +41,8 @@ fn main() {
         .with_assets(assets::ChainedAssets::new())
         .run(move |cx| {
             gpui_component::init(cx);
-            if let Err(err) = theme::install_based_theme(cx) {
-                log::error!("failed to apply Based theme bundle: {err:#}");
+            if let Err(err) = theme::register_themes(cx) {
+                log::error!("failed to register theme bundles: {err:#}");
             }
             bindings::init(cx);
             app::shell::init(cx);

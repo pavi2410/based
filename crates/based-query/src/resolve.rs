@@ -89,9 +89,9 @@ fn eval_builtin(name: &str) -> Result<String, ResolveError> {
         return Ok(OffsetDateTime::now_utc().unix_timestamp().to_string());
     }
     if name == "isoTimestamp" {
-        return Ok(OffsetDateTime::now_utc()
+        return OffsetDateTime::now_utc()
             .format(&time::format_description::well_known::Rfc3339)
-            .map_err(|e| ResolveError::InvalidRandomInt(e.to_string()))?);
+            .map_err(|e| ResolveError::InvalidRandomInt(e.to_string()));
     }
     if let Some(args) = name
         .strip_prefix("randomInt(")

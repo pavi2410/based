@@ -16,7 +16,9 @@ use super::quit;
 use crate::about_window::AboutWindow;
 use crate::bindings::{OpenOnboarding, OpenWelcome};
 use crate::settings_window::SettingsWindow;
-use crate::workspace::{WorkspaceRef, tab_open::enqueue_show_onboarding, tab_open::enqueue_show_welcome};
+use crate::workspace::{
+    WorkspaceRef, tab_open::enqueue_show_onboarding, tab_open::enqueue_show_welcome,
+};
 
 pub const APP_NAME: &str = "Based";
 
@@ -145,7 +147,7 @@ pub fn open_settings(cx: &mut App) {
         },
         |win, cx| {
             win.set_window_title("Based — Settings");
-            let settings = cx.new(SettingsWindow::new);
+            let settings = cx.new(|cx| SettingsWindow::new(win, cx));
             cx.new(|cx| Root::new(settings, win, cx))
         },
     );

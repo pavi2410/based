@@ -6,9 +6,9 @@ use gpui::{App, BorrowAppContext, Global, px};
 use gpui_component::{Size, Theme, ThemeMode};
 use serde::{Deserialize, Serialize};
 
-/// UI base font size from `based_theme.json` (`font.size`).
+/// Default UI base font size (matches Based theme).
 pub const DEFAULT_UI_FONT_SIZE: f32 = 14.0;
-/// Monospace font size from `based_theme.json` (`mono_font.size`).
+/// Default monospace font size (matches Based theme).
 pub const DEFAULT_MONO_FONT_SIZE: f32 = 14.0;
 /// Default SQL data viewer page size (rows per fetch).
 pub const DEFAULT_PAGE_SIZE: u64 = 500;
@@ -72,6 +72,14 @@ fn default_true() -> bool {
     true
 }
 
+fn default_light_theme() -> String {
+    crate::theme::DEFAULT_LIGHT_THEME.to_string()
+}
+
+fn default_dark_theme() -> String {
+    crate::theme::DEFAULT_DARK_THEME.to_string()
+}
+
 impl Default for TablePreferences {
     fn default() -> Self {
         Self {
@@ -86,10 +94,23 @@ impl Default for TablePreferences {
     }
 }
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AppearanceMode {
+    Light,
+    Dark,
+    #[default]
+    System,
+}
+
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct NativePreferences {
     #[serde(default)]
-    pub theme_mode: ThemeMode,
+    pub appearance_mode: AppearanceMode,
+    #[serde(default = "default_light_theme")]
+    pub light_theme: String,
+    #[serde(default = "default_dark_theme")]
+    pub dark_theme: String,
     #[serde(default)]
     pub sidebar_collapsed: bool,
     #[serde(default = "default_ui_font_size")]
@@ -111,7 +132,9 @@ pub struct NativePreferences {
 impl Default for NativePreferences {
     fn default() -> Self {
         Self {
-            theme_mode: ThemeMode::Dark,
+            appearance_mode: AppearanceMode::Dark,
+            light_theme: default_light_theme(),
+            dark_theme: default_dark_theme(),
             sidebar_collapsed: false,
             ui_font_size: DEFAULT_UI_FONT_SIZE,
             mono_font_size: DEFAULT_MONO_FONT_SIZE,
@@ -126,6 +149,15 @@ impl Default for NativePreferences {
 
 impl Global for NativePreferences {}
 
+fn migrate_legacy_theme_names(prefs: &mut NativePreferences) {
+    if prefs.light_theme == "Default Light" {
+        prefs.light_theme = crate::theme::DEFAULT_LIGHT_THEME.to_string();
+    }
+    if prefs.dark_theme == "Default Dark" {
+        prefs.dark_theme = crate::theme::DEFAULT_DARK_THEME.to_string();
+    }
+}
+
 impl NativePreferences {
     pub fn prefs_path() -> PathBuf {
         let base = dirs::preference_dir()
@@ -137,15 +169,42 @@ impl NativePreferences {
 
     pub fn load() -> Self {
         let path = Self::prefs_path();
-        match std::fs::read_to_string(&path).and_then(|s| {
-            toml::from_str(&s).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
-        }) {
-            Ok(p) => p,
-            Err(e) => {
-                log::debug!("native prefs: using defaults ({path:?}: {e})");
-                Self::default()
+        let raw = std::fs::read_to_string(&path).unwrap_or_default();
+        let mut prefs: Self = match raw.is_empty() {
+            true => Self::default(),
+            false => match toml::from_str(&raw) {
+                Ok(p) => p,
+                Err(e) => {
+                    log::debug!("native prefs: using defaults ({path:?}: {e})");
+                    Self::default()
+                }
+            },
+        };
+        if !raw.contains("appearance_mode")
+            && let Ok(value) = toml::from_str::<toml::Value>(&raw)
+            && let Some(mode) = value.get("theme_mode").and_then(|v| v.as_str())
+        {
+            prefs.appearance_mode = match mode {
+                "light" => AppearanceMode::Light,
+                "dark" => AppearanceMode::Dark,
+                _ => AppearanceMode::Dark,
+            };
+        }
+        if !raw.contains("light_theme")
+            && let Ok(value) = toml::from_str::<toml::Value>(&raw)
+            && let Some(preset_id) = value.get("theme_preset").and_then(|v| v.as_str())
+        {
+            let preset_id = match preset_id {
+                "neutral" => "based",
+                _ => preset_id,
+            };
+            if let Some(preset) = crate::theme::preset_by_id(preset_id) {
+                prefs.light_theme = preset.light_name.to_string();
+                prefs.dark_theme = preset.dark_name.to_string();
             }
         }
+        migrate_legacy_theme_names(&mut prefs);
+        prefs
     }
 
     pub fn save_best_effort(&self) {
@@ -163,12 +222,21 @@ impl NativePreferences {
     }
 }
 
-/// Load persisted prefs into a global and apply appearance.
+/// Load persisted prefs into a global and apply appearance + theme pair.
 pub fn install(cx: &mut App) {
     let prefs = NativePreferences::load();
-    Theme::change(prefs.theme_mode, None, cx);
+    let light = prefs.light_theme.clone();
+    let dark = prefs.dark_theme.clone();
     cx.set_global(prefs);
-    apply_font_sizes(cx);
+    if let Err(err) = crate::theme::apply_theme_names(&light, &dark, cx) {
+        log::warn!("theme pair on startup: {err:#}");
+        let _ = crate::theme::apply_theme_names(
+            crate::theme::DEFAULT_LIGHT_THEME,
+            crate::theme::DEFAULT_DARK_THEME,
+            cx,
+        );
+    }
+    reapply_appearance(None, cx);
 }
 
 pub fn ui_font_size(cx: &App) -> f32 {
@@ -429,23 +497,130 @@ pub fn set_sidebar(collapsed: bool, cx: &mut App) {
     });
 }
 
-/// Switch theme mode, persist, and repaint every window.
+/// Switch light/dark appearance (legacy helper).
 pub fn apply_theme(mode: ThemeMode, cx: &mut App) {
-    Theme::change(mode, None, cx);
+    let appearance = match mode {
+        ThemeMode::Light => AppearanceMode::Light,
+        ThemeMode::Dark => AppearanceMode::Dark,
+    };
+    apply_appearance(appearance, None, cx);
+}
+
+pub fn appearance_mode(cx: &App) -> AppearanceMode {
+    cx.global::<NativePreferences>().appearance_mode
+}
+
+pub fn light_theme_name(cx: &App) -> &str {
+    &cx.global::<NativePreferences>().light_theme
+}
+
+pub fn dark_theme_name(cx: &App) -> &str {
+    &cx.global::<NativePreferences>().dark_theme
+}
+
+/// Preset id when light+dark match a known pair (onboarding selection state).
+pub fn theme_preset_id(cx: &App) -> &str {
+    crate::theme::preset_id_for_pair(light_theme_name(cx), dark_theme_name(cx))
+        .unwrap_or(crate::theme::DEFAULT_PRESET_ID)
+}
+
+pub fn apply_appearance(mode: AppearanceMode, window: Option<&mut gpui::Window>, cx: &mut App) {
+    match mode {
+        AppearanceMode::Light => Theme::change(ThemeMode::Light, window, cx),
+        AppearanceMode::Dark => Theme::change(ThemeMode::Dark, window, cx),
+        AppearanceMode::System => Theme::sync_system_appearance(window, cx),
+    }
     cx.update_global(|p: &mut NativePreferences, _| {
-        p.theme_mode = mode;
+        p.appearance_mode = mode;
         p.save_best_effort();
     });
     apply_font_sizes(cx);
     cx.refresh_windows();
 }
 
-pub fn cycle_theme(cx: &mut App) {
-    let next = match Theme::global(cx).mode {
-        ThemeMode::Dark => ThemeMode::Light,
-        ThemeMode::Light => ThemeMode::Dark,
+pub fn reapply_appearance(window: Option<&mut gpui::Window>, cx: &mut App) {
+    let mode = appearance_mode(cx);
+    apply_appearance(mode, window, cx);
+}
+
+/// Temporarily apply a light theme for dropdown preview (does not persist).
+pub fn preview_light_theme(name: &str, window: Option<&mut gpui::Window>, cx: &mut App) {
+    let dark = dark_theme_name(cx).to_string();
+    if let Err(err) = crate::theme::apply_theme_names(name, &dark, cx) {
+        log::warn!("preview light theme {name:?}: {err:#}");
+        return;
+    }
+    reapply_appearance(window, cx);
+}
+
+/// Temporarily apply a dark theme for dropdown preview (does not persist).
+pub fn preview_dark_theme(name: &str, window: Option<&mut gpui::Window>, cx: &mut App) {
+    let light = light_theme_name(cx).to_string();
+    if let Err(err) = crate::theme::apply_theme_names(&light, name, cx) {
+        log::warn!("preview dark theme {name:?}: {err:#}");
+        return;
+    }
+    reapply_appearance(window, cx);
+}
+
+pub fn revert_light_theme_preview(window: Option<&mut gpui::Window>, cx: &mut App) {
+    let name = light_theme_name(cx).to_string();
+    preview_light_theme(&name, window, cx);
+}
+
+pub fn revert_dark_theme_preview(window: Option<&mut gpui::Window>, cx: &mut App) {
+    let name = dark_theme_name(cx).to_string();
+    preview_dark_theme(&name, window, cx);
+}
+
+pub fn apply_theme_pair(light: &str, dark: &str, window: Option<&mut gpui::Window>, cx: &mut App) {
+    if let Err(err) = crate::theme::apply_theme_names(light, dark, cx) {
+        log::warn!("apply theme pair ({light:?}, {dark:?}): {err:#}");
+        return;
+    }
+    cx.update_global(|p: &mut NativePreferences, _| {
+        let mut changed = false;
+        if p.light_theme != light {
+            p.light_theme = light.to_string();
+            changed = true;
+        }
+        if p.dark_theme != dark {
+            p.dark_theme = dark.to_string();
+            changed = true;
+        }
+        if changed {
+            p.save_best_effort();
+        }
+    });
+    reapply_appearance(window, cx);
+}
+
+pub fn apply_light_theme(name: &str, window: Option<&mut gpui::Window>, cx: &mut App) {
+    let dark = dark_theme_name(cx).to_string();
+    apply_theme_pair(name, &dark, window, cx);
+}
+
+pub fn apply_dark_theme(name: &str, window: Option<&mut gpui::Window>, cx: &mut App) {
+    let light = light_theme_name(cx).to_string();
+    apply_theme_pair(&light, name, window, cx);
+}
+
+/// Apply a paired preset (onboarding): sets both light and dark registry themes.
+pub fn apply_theme_preset(preset_id: &str, window: Option<&mut gpui::Window>, cx: &mut App) {
+    let Some(preset) = crate::theme::preset_by_id(preset_id) else {
+        log::warn!("apply theme preset: unknown preset {preset_id:?}");
+        return;
     };
-    apply_theme(next, cx);
+    apply_theme_pair(preset.light_name, preset.dark_name, window, cx);
+}
+
+pub fn cycle_theme(cx: &mut App) {
+    let next = match appearance_mode(cx) {
+        AppearanceMode::Light => AppearanceMode::Dark,
+        AppearanceMode::Dark => AppearanceMode::System,
+        AppearanceMode::System => AppearanceMode::Light,
+    };
+    apply_appearance(next, None, cx);
 }
 
 pub fn onboarding_completed(cx: &App) -> bool {

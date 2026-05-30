@@ -26,7 +26,7 @@ impl ConfigWatcher {
         // Best-effort: if `.based/` doesn't exist yet the watcher is still
         // constructed; the watch call is skipped gracefully.
         if watched_dir.exists() {
-            watcher.watch(&watched_dir, RecursiveMode::NonRecursive)?;
+            watcher.watch(&watched_dir, RecursiveMode::Recursive)?;
         }
 
         Ok(Self { _watcher: watcher })

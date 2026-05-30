@@ -617,6 +617,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "based-project"
+version = "0.0.0-dev"
+dependencies = [
+ "anyhow",
+ "based-core",
+ "serde",
+ "tempfile",
+ "toml 0.8.23",
+]
+
+[[package]]
 name = "based-query"
 version = "0.0.0-dev"
 dependencies = [
@@ -1642,6 +1653,7 @@ dependencies = [
  "based-core",
  "based-mongo",
  "based-postgres",
+ "based-project",
  "based-query",
  "based-sqlite",
  "based-storage",

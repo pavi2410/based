@@ -87,6 +87,7 @@ impl ConnectionState {
 pub struct ConnectionEntry {
     pub id: ConnectionId,
     pub config: ConnectionConfig,
+    pub tags: Vec<String>,
     pub state: ConnectionState,
     pub last_connected_at: Option<OffsetDateTime>,
     pub last_error: Option<String>,
@@ -99,10 +100,19 @@ impl ConnectionEntry {
     }
 
     pub fn with_stable_id(config: ConnectionConfig, stable_key: &str) -> Self {
+        Self::with_stable_id_and_tags(config, stable_key, vec![])
+    }
+
+    pub fn with_stable_id_and_tags(
+        config: ConnectionConfig,
+        stable_key: &str,
+        tags: Vec<String>,
+    ) -> Self {
         let id = ConnectionId::from_key(stable_key);
         Self {
             id,
             config,
+            tags,
             state: ConnectionState::Disconnected,
             last_connected_at: None,
             last_error: None,

@@ -10,4 +10,5 @@ pub mod overlays;
 pub mod panes;
 pub mod side_pane;
 pub mod status_bar;
+pub mod target_picker;
 pub mod topbar;

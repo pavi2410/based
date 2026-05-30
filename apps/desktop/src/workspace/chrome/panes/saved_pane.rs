@@ -1,34 +1,35 @@
-//! Workspace-level saved (starred) queries pane. Clicking a row opens a new
-//! Query tab seeded with the saved SQL / pipeline.
+//! Workspace-level saved project queries pane.
 
 use gpui::{
-    AnyElement, App, FontWeight, IntoElement, MouseButton, ParentElement, SharedString, Styled,
-    div, prelude::*,
+    AnyElement, App, Entity, FontWeight, IntoElement, MouseButton, ParentElement, SharedString,
+    Styled, div, prelude::*,
 };
-use gpui_component::{ActiveTheme, v_flex};
+use gpui_component::{ActiveTheme, h_flex, v_flex};
 
 use crate::connection::ConnectionId;
-use crate::query_store::{QueryStore, SavedQuery};
+use crate::connection::registry::ConnectionRegistry;
+use crate::query_store::QueryStore;
+use crate::workspace::Workspace;
+use crate::workspace::project_query::{OpenQueryResult, open_project_query, target_hint};
 use crate::workspace::tab_open::enqueue_open_tab;
-use crate::workspace::tab_spec::TabSpec;
 
-pub fn render_saved_pane(conn_id: Option<ConnectionId>, cx: &mut App) -> AnyElement {
+pub fn render_saved_pane(
+    conn_id: Option<ConnectionId>,
+    registry: Entity<ConnectionRegistry>,
+    workspace: Entity<Workspace>,
+    cx: &mut App,
+) -> AnyElement {
     let border = cx.theme().border;
     let muted = cx.theme().muted_foreground;
     let fg = cx.theme().foreground;
 
-    let queries: Vec<SavedQuery> = {
-        let store = cx.global::<QueryStore>();
-        let all = store.all_saved();
-        match &conn_id {
-            Some(id) => all
-                .iter()
-                .filter(|q| &q.connection == id)
-                .cloned()
-                .collect(),
-            None => all.to_vec(),
-        }
-    };
+    let store = cx.global::<QueryStore>();
+    let mut queries: Vec<_> = store.project_queries().to_vec();
+    queries.sort_by(|a, b| {
+        let af = store.is_favorite(&a.path);
+        let bf = store.is_favorite(&b.path);
+        bf.cmp(&af).then_with(|| a.name.cmp(&b.name))
+    });
 
     if queries.is_empty() {
         return v_flex()
@@ -40,10 +41,14 @@ pub fn render_saved_pane(conn_id: Option<ConnectionId>, cx: &mut App) -> AnyElem
                 div()
                     .text_xs()
                     .text_color(muted)
-                    .child("No saved queries. Star a row in History to save it."),
+                    .child("No queries in this project."),
             )
             .into_any_element();
     }
+
+    let conn_for_queries = conn_id.clone();
+    let reg = registry.clone();
+    let ws = workspace.clone();
 
     v_flex()
         .id("ws-saved-list")
@@ -52,11 +57,14 @@ pub fn render_saved_pane(conn_id: Option<ConnectionId>, cx: &mut App) -> AnyElem
         .overflow_y_scroll()
         .children(queries.into_iter().enumerate().map(|(i, q)| {
             let title: SharedString = q.name.clone().into();
-            let preview: SharedString = q.query_text().chars().take(100).collect::<String>().into();
-            let conn = q.connection.clone();
-            let sql_text = q.query_text().to_string();
-            let is_mongo = q.pipeline.is_some();
-            let mongo_collection = q.mongo_collection.clone();
+            let hint = target_hint(&q.target);
+            let sub: SharedString = hint.into();
+            let starred = store.is_favorite(&q.path);
+            let path = q.path.clone();
+            let query = q.clone();
+            let reg = reg.clone();
+            let ws = ws.clone();
+            let conn_for_row = conn_for_queries.clone();
             v_flex()
                 .id(SharedString::from(format!("ws-saved-{i}")))
                 .px_3()
@@ -66,39 +74,50 @@ pub fn render_saved_pane(conn_id: Option<ConnectionId>, cx: &mut App) -> AnyElem
                 .border_color(border)
                 .cursor_pointer()
                 .child(
-                    div()
-                        .text_xs()
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(fg)
-                        .truncate()
-                        .child(title),
+                    h_flex()
+                        .items_center()
+                        .justify_between()
+                        .gap_2()
+                        .child(
+                            div()
+                                .text_xs()
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(fg)
+                                .truncate()
+                                .child(title),
+                        )
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(if starred { cx.theme().warning } else { muted })
+                                .child(if starred { "★" } else { "☆" }),
+                        ),
                 )
-                .child(
-                    div()
-                        .text_xs()
-                        .font_family(crate::app::prefs::code_font_family(cx))
-                        .text_color(muted)
-                        .child(preview),
-                )
-                .on_mouse_down(MouseButton::Left, move |_, _, cx| {
-                    let spec = if is_mongo {
-                        TabSpec::QueryEditor {
-                            conn_id: conn.clone(),
-                            initial_sql: None,
-                            initial_pipeline: Some(sql_text.clone()),
-                            auto_run: false,
-                            mongo_collection: mongo_collection.clone(),
+                .child(div().text_xs().text_color(muted).truncate().child(sub))
+                .on_mouse_down(MouseButton::Left, move |ev, _, cx| {
+                    if ev.modifiers.shift {
+                        if let Some(root) = crate::project::find_project_root() {
+                            cx.update_global(|store: &mut QueryStore, _| {
+                                store.toggle_favorite(&root, &path);
+                            });
+                            ws.update(cx, |_, cx| cx.notify());
                         }
-                    } else {
-                        TabSpec::QueryEditor {
-                            conn_id: conn.clone(),
-                            initial_sql: Some(sql_text.clone()),
-                            initial_pipeline: None,
-                            auto_run: false,
-                            mongo_collection: None,
+                        return;
+                    }
+                    match open_project_query(&query, reg.read(cx), cx, conn_for_row.as_ref()) {
+                        OpenQueryResult::Open(spec) => enqueue_open_tab(spec, cx),
+                        OpenQueryResult::PickConnection {
+                            query_path,
+                            candidates,
+                        } => {
+                            ws.update(cx, |ws, cx| {
+                                ws.set_pending_target_pick(query.clone(), candidates);
+                                cx.notify();
+                            });
+                            log::info!("ambiguous target for {query_path}; pick connection");
                         }
-                    };
-                    enqueue_open_tab(spec, cx);
+                        OpenQueryResult::Error(msg) => log::warn!("{msg}"),
+                    }
                 })
         }))
         .into_any_element()

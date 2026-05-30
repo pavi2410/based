@@ -3,12 +3,41 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqliteConnectOptions;
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SqlitePragma {
+    #[serde(default = "default_journal_mode")]
+    pub journal_mode: String,
+    #[serde(default = "default_synchronous")]
+    pub synchronous: String,
+    #[serde(default = "default_foreign_keys")]
+    pub foreign_keys: bool,
+}
+
+fn default_journal_mode() -> String {
+    "wal".into()
+}
+
+fn default_synchronous() -> String {
+    "normal".into()
+}
+
+fn default_foreign_keys() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SqliteConfig {
     pub label: String,
     pub path: PathBuf,
-    /// true = WAL mode; false = journal mode (default)
+    /// Legacy WAL toggle; ignored when `pragma.journal_mode` is set explicitly.
+    #[serde(default = "default_wal")]
     pub wal: bool,
+    #[serde(default)]
+    pub pragma: Option<SqlitePragma>,
+}
+
+fn default_wal() -> bool {
+    true
 }
 
 /// Hints for resolving relative database file paths without a GUI dependency.

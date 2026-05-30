@@ -44,6 +44,7 @@ depends = [
 [dependencies]
 based-core = { path = "../../crates/based-core" }
 based-mongo = { path = "../../crates/based-mongo" }
+based-project = { path = "../../crates/based-project" }
 based-query = { path = "../../crates/based-query" }
 based-postgres = { path = "../../crates/based-postgres" }
 based-sqlite = { path = "../../crates/based-sqlite" }
@@ -67,7 +68,7 @@ uuid.workspace = true
 futures.workspace = true
 log.workspace = true
 env_logger = "0.11"
-dirs = "6"
+dirs.workspace = true
 rust-embed = "8"
 
 # Project / config / state
@@ -77,7 +78,7 @@ notify.workspace = true
 # DB engines — all three included so Phase 3/4/5 modules compile without
 # touching the workspace Cargo.toml again.
 sqlx.workspace = true
-mongodb = { version = "2", features = ["tokio-runtime"] }
+mongodb.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gpui_platform = { workspace = true, features = ["x11", "wayland"] }
@@ -88,4 +89,4 @@ arc_with_non_send_sync = "allow"
 type_complexity = "allow"
 
 [dev-dependencies]
-tempfile = "3"
+tempfile.workspace = true

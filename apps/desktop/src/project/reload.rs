@@ -1,4 +1,4 @@
-//! Reload `.based/` config, variables, queries, and connection list from disk.
+//! Reload `.based/` project snapshot, variables, queries, and connections from disk.
 
 use std::path::Path;
 use std::sync::mpsc::{Receiver, Sender, channel};
@@ -6,9 +6,12 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use gpui::{App, BorrowAppContext, Entity, Global};
 
 use crate::connection::registry::ConnectionRegistry;
-use crate::query_store::{QueryHistory, QueryStore, SavedQueries};
+use crate::project::context::ProjectContext;
+use crate::project::loader::entry_from_project;
+use crate::project::settings::apply_project_settings;
+use crate::query_store::QueryStore;
 
-use super::{ProjectVars, load_variables, load_workspace_seed};
+use super::{ProjectVars, load_variables};
 
 pub struct ConfigReloadSignal {
     tx: Sender<()>,
@@ -41,26 +44,40 @@ pub fn reload_from_disk(project_root: &Path, registry: &Entity<ConnectionRegistr
         cx.update_global(|pv: &mut ProjectVars, _| pv.vars = vars);
     }
 
-    let queries_dir = project_root.join(".based").join("local");
-    let saved_path = project_root.join(".based").join("queries.toml");
-    cx.update_global(|store: &mut QueryStore, _| {
-        store.history = QueryHistory::load(&queries_dir);
-        store.saved = SavedQueries::load(&saved_path);
-    });
-
-    let (_, entries) = load_workspace_seed(project_root);
-    registry.update(cx, |reg, cx| {
-        for entry in entries {
-            if reg.get(&entry.id, cx).is_none() {
-                reg.add(entry, cx);
-            }
+    let ctx = match ProjectContext::load(project_root.to_path_buf()) {
+        Ok(c) => c,
+        Err(e) => {
+            log::warn!("project reload failed: {e:#}");
+            return;
         }
+    };
+
+    let queries_dir = project_root.join(".based").join("local");
+    cx.update_global(|store: &mut QueryStore, _| {
+        store.history = crate::query_store::history::QueryHistory::load(&queries_dir);
+        store.apply_snapshot(&ctx.snapshot);
     });
 
-    log::info!("reloaded .based config for {}", project_root.display());
+    let mut entries = Vec::new();
+    for conn in &ctx.snapshot.connections {
+        match entry_from_project(conn) {
+            Ok(e) => entries.push(e),
+            Err(e) => log::warn!("connection {} skipped: {e:#}", conn.id),
+        }
+    }
+
+    registry.update(cx, |reg, cx| {
+        reg.sync_project_entries(entries, cx);
+    });
+
+    cx.set_global(ctx.clone());
+    apply_project_settings(&ctx.snapshot.manifest, cx);
+
+    log::info!("reloaded .based project for {}", project_root.display());
 }
 
-pub fn drain_pending_reload(cx: &mut App) {
+/// Returns `true` when a reload was applied (caller should refresh workspace-local state).
+pub fn drain_pending_reload(cx: &mut App) -> bool {
     let mut needs_reload = false;
     if let Some(signal) = cx.try_global::<ConfigReloadSignal>() {
         while signal.rx.try_recv().is_ok() {
@@ -68,13 +85,15 @@ pub fn drain_pending_reload(cx: &mut App) {
         }
     }
     if !needs_reload {
-        return;
+        return false;
     }
     let root = cx.try_global::<ProjectRoot>().map(|p| p.0.clone());
     let registry = cx.try_global::<RegistryRef>().map(|r| r.0.clone());
     if let (Some(root), Some(registry)) = (root, registry) {
         reload_from_disk(&root, &registry, cx);
+        return true;
     }
+    false
 }
 
 pub fn install_reload_watcher(project_root: std::path::PathBuf, cx: &mut App) {

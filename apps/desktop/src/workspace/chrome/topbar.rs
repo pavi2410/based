@@ -1,45 +1,32 @@
-use gpui::{App, Entity, IntoElement, ParentElement, RenderOnce, SharedString, Styled, div, px};
+use gpui::{App, Entity, IntoElement, ParentElement, RenderOnce, SharedString, Styled, div};
 use gpui_component::{
     ActiveTheme as _, IconName, Sizable as _, TitleBar,
     button::{Button, ButtonVariants},
     h_flex,
     menu::{DropdownMenu, PopupMenuItem},
-    select::{Select, SelectState},
 };
 
 use crate::app::{prefs, shell};
 use crate::bindings::CycleAppearance;
+use crate::connection::registry::ConnectionRegistry;
+use crate::project::ProjectContext;
 use crate::widgets::ui::command_shell;
-use crate::workspace::Workspace;
 
 /// A `RenderOnce` top bar that renders inside the window's `TitleBar`.
 #[derive(IntoElement)]
 pub struct Topbar {
-    pub project_name: SharedString,
-    pub workspace: Entity<Workspace>,
-    pub workspace_select: Entity<SelectState<Vec<SharedString>>>,
-    pub env_select: Entity<SelectState<Vec<SharedString>>>,
+    pub registry: Entity<ConnectionRegistry>,
 }
 
 impl Topbar {
-    pub fn new(
-        project_name: impl Into<SharedString>,
-        workspace: Entity<Workspace>,
-        workspace_select: Entity<SelectState<Vec<SharedString>>>,
-        env_select: Entity<SelectState<Vec<SharedString>>>,
-    ) -> Self {
-        Self {
-            project_name: project_name.into(),
-            workspace,
-            workspace_select,
-            env_select,
-        }
+    pub fn new(registry: Entity<ConnectionRegistry>) -> Self {
+        Self { registry }
     }
 }
 
 impl RenderOnce for Topbar {
-    fn render(self, _window: &mut gpui::Window, cx: &mut App) -> impl IntoElement {
-        let registry = self.workspace.read(cx).registry().clone();
+    fn render(self, _window: &mut gpui::Window, _cx: &mut App) -> impl IntoElement {
+        let registry = self.registry;
 
         TitleBar::new()
             .on_close_window({
@@ -53,53 +40,103 @@ impl RenderOnce for Topbar {
                     .w_full()
                     .items_center()
                     .gap_2()
-                    .child(TopbarLeft {
-                        project_name: self.project_name,
-                        workspace_select: self.workspace_select,
-                        env_select: self.env_select,
-                    })
+                    .child(ContextRail)
                     .child(TopbarCenter)
                     .child(TopbarRight),
             )
     }
 }
 
-/// Title bar left rail: workspace/env selectors and project name.
+/// Zed-style `[ Project | Branch | Env ]` breadcrumb rail.
 #[derive(IntoElement)]
-struct TopbarLeft {
-    project_name: SharedString,
-    workspace_select: Entity<SelectState<Vec<SharedString>>>,
-    env_select: Entity<SelectState<Vec<SharedString>>>,
-}
+struct ContextRail;
 
-impl RenderOnce for TopbarLeft {
+impl RenderOnce for ContextRail {
     fn render(self, _: &mut gpui::Window, cx: &mut App) -> impl IntoElement {
+        let muted = cx.theme().muted_foreground;
+        let (project_name, project_path, branch, env) = cx
+            .try_global::<ProjectContext>()
+            .map(|ctx| {
+                (
+                    ctx.project_name().to_string(),
+                    ctx.root.display().to_string(),
+                    ctx.git_branch.clone().unwrap_or_else(|| "—".into()),
+                    ctx.active_env().to_string(),
+                )
+            })
+            .unwrap_or_else(|| {
+                (
+                    "No project".into(),
+                    String::new(),
+                    "—".into(),
+                    "default".into(),
+                )
+            });
+
         h_flex()
             .flex_1()
             .items_center()
-            .justify_start()
-            .gap_2()
+            .gap_1()
             .child(
-                Select::new(&self.workspace_select)
+                Button::new("ctx-project")
+                    .ghost()
                     .small()
-                    .title_prefix("ws ")
-                    .w(px(128.0)),
+                    .child(
+                        h_flex().items_center().gap_1().child(
+                            div()
+                                .text_xs()
+                                .font_weight(gpui::FontWeight::SEMIBOLD)
+                                .text_color(cx.theme().foreground)
+                                .child(SharedString::from(project_name)),
+                        ),
+                    )
+                    .tooltip(SharedString::from(if project_path.is_empty() {
+                        "Open a folder containing .based/".into()
+                    } else {
+                        project_path
+                    }))
+                    .dropdown_menu(move |menu, _window, _cx| {
+                        menu.item(
+                            PopupMenuItem::new("Open Folder…")
+                                .icon(IconName::FolderOpen)
+                                .disabled(true),
+                        )
+                    }),
             )
+            .child(div().text_xs().text_color(muted).child("/"))
             .child(
-                Select::new(&self.env_select)
+                Button::new("ctx-branch")
+                    .ghost()
                     .small()
-                    .title_prefix("env ")
-                    .w(px(128.0)),
+                    .label(branch.clone())
+                    .tooltip(SharedString::from("Git branch (read-only)"))
+                    .dropdown_menu({
+                        let branch_item = branch.clone();
+                        move |menu, _window, _cx| {
+                            menu.item(
+                                PopupMenuItem::new(SharedString::from(branch_item.clone()))
+                                    .disabled(true),
+                            )
+                        }
+                    }),
             )
+            .child(div().text_xs().text_color(muted).child("/"))
             .child(
-                div()
-                    .flex_shrink_0()
-                    .max_w(px(160.0))
-                    .text_xs()
-                    .font_family(crate::app::prefs::ui_font_family(cx))
-                    .text_color(cx.theme().muted_foreground)
-                    .truncate()
-                    .child(self.project_name),
+                Button::new("ctx-env")
+                    .ghost()
+                    .small()
+                    .icon(IconName::Globe)
+                    .label(env.clone())
+                    .tooltip(SharedString::from("Active environment"))
+                    .dropdown_menu({
+                        let env_item = env.clone();
+                        move |menu, _window, _cx| {
+                            menu.item(
+                                PopupMenuItem::new(SharedString::from(env_item.clone()))
+                                    .disabled(true),
+                            )
+                        }
+                    }),
             )
     }
 }

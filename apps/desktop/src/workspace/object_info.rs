@@ -111,7 +111,18 @@ impl Render for ConnectionDashboardPanel {
 
         let store = cx.global::<QueryStore>();
         let history_len = store.history_for(&conn_id).len();
-        let saved_len = store.saved.for_conn(&conn_id).len();
+        let saved_len = store
+            .project_queries()
+            .iter()
+            .filter(|q| {
+                use based_project::TargetConnection;
+                match &q.target.connection {
+                    Some(TargetConnection::Exclusive(id)) => id == &conn_id.0,
+                    Some(TargetConnection::OneOf(ids)) => ids.iter().any(|id| id == &conn_id.0),
+                    None => false,
+                }
+            })
+            .count();
 
         let stats_rows = [
             ("Session history", history_len.to_string()),

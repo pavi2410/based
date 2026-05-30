@@ -21,6 +21,7 @@ use crate::workspace::tab_spec::TabSpec;
 #[derive(Clone, Debug)]
 pub enum PaletteEvent {
     OpenTab(TabSpec),
+    OpenProjectQuery(String),
     /// Load SQL into the active query editor when conn matches.
     InjectSql {
         conn_id: ConnectionId,
@@ -47,6 +48,7 @@ pub struct PaletteResult {
     pub sublabel: String,
     pub conn_label: String,
     pub spec: TabSpec,
+    pub project_query_path: Option<String>,
     pub command_action: Option<WorkspacePaletteAction>,
 }
 
@@ -130,6 +132,13 @@ impl CommandPalette {
                     conn_id: entry.spec.conn_id().clone(),
                     sql,
                 });
+            }
+            (ResultKind::SavedQuery, _) => {
+                if let Some(path) = &entry.project_query_path {
+                    cx.emit(PaletteEvent::OpenProjectQuery(path.clone()));
+                } else {
+                    cx.emit(PaletteEvent::OpenTab(entry.spec.clone()));
+                }
             }
             _ => {
                 let spec = match (&entry.kind, secondary) {
@@ -229,6 +238,7 @@ impl CommandPalette {
                 conn_label: String::new(),
                 spec: TabSpec::blank_query_editor(ConnectionId("".into())),
                 command_action: Some(WorkspacePaletteAction::NewLooseQuery),
+                project_query_path: None,
             });
             results.push(PaletteResult {
                 kind: ResultKind::Command,
@@ -237,6 +247,7 @@ impl CommandPalette {
                 conn_label: String::new(),
                 spec: TabSpec::blank_query_editor(ConnectionId("".into())),
                 command_action: Some(WorkspacePaletteAction::NewCollection),
+                project_query_path: None,
             });
         }
         if q.is_empty() || q.contains("environment") || q.contains("no env") {
@@ -247,6 +258,7 @@ impl CommandPalette {
                 conn_label: String::new(),
                 spec: TabSpec::blank_query_editor(ConnectionId("".into())),
                 command_action: Some(WorkspacePaletteAction::SelectNoEnvironment),
+                project_query_path: None,
             });
         }
         if q.is_empty() || q.contains("welcome") {
@@ -257,6 +269,7 @@ impl CommandPalette {
                 conn_label: String::new(),
                 spec: TabSpec::blank_query_editor(ConnectionId("".into())),
                 command_action: Some(WorkspacePaletteAction::OpenWelcome),
+                project_query_path: None,
             });
         }
         if q.is_empty() || q.contains("onboarding") || q.contains("setup") {
@@ -267,6 +280,7 @@ impl CommandPalette {
                 conn_label: String::new(),
                 spec: TabSpec::blank_query_editor(ConnectionId("".into())),
                 command_action: Some(WorkspacePaletteAction::OpenOnboarding),
+                project_query_path: None,
             });
         }
 
@@ -283,27 +297,28 @@ impl CommandPalette {
                     object: display,
                 },
                 command_action: None,
+                project_query_path: None,
             });
         }
 
         let store = cx.global::<QueryStore>();
-        for saved in store.all_saved() {
-            if q.is_empty() || saved.name.to_lowercase().contains(&q) {
+        for query in store.project_queries() {
+            let hay = format!(
+                "{} {} {}",
+                query.name,
+                query.description.as_deref().unwrap_or(""),
+                query.tags.join(" ")
+            )
+            .to_lowercase();
+            if q.is_empty() || hay.contains(&q) {
+                let target = crate::workspace::project_query::target_hint(&query.target);
                 results.push(PaletteResult {
                     kind: ResultKind::SavedQuery,
-                    label: saved.name.clone(),
-                    sublabel: format!(
-                        "saved · {}",
-                        saved.query_text().chars().take(60).collect::<String>()
-                    ),
-                    conn_label: saved.connection.0.clone(),
-                    spec: TabSpec::QueryEditor {
-                        conn_id: saved.connection.clone(),
-                        initial_sql: saved.sql.clone(),
-                        initial_pipeline: saved.pipeline.clone(),
-                        mongo_collection: saved.mongo_collection.clone(),
-                        auto_run: false,
-                    },
+                    label: query.name.clone(),
+                    sublabel: format!("query · {target}"),
+                    conn_label: target,
+                    spec: TabSpec::Welcome,
+                    project_query_path: Some(query.path.clone()),
                     command_action: None,
                 });
             }
@@ -351,6 +366,7 @@ impl CommandPalette {
                     conn_label: entry.conn_id.0.clone(),
                     spec,
                     command_action: None,
+                    project_query_path: None,
                 });
             }
         }

@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 based-workspace = { path = "../based-workspace" }
 anyhow = { workspace = true }
-dirs = "6"
+dirs = { workspace = true }
 keyring = "3"
 log = { workspace = true }
 serde = { workspace = true }
@@ -20,4 +20,4 @@ tokio = { workspace = true }
 uuid = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
-tempfile = "3"
+tempfile = { workspace = true }

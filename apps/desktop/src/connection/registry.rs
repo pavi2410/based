@@ -50,6 +50,32 @@ impl ConnectionRegistry {
         self.connections.iter().find(|e| e.read(cx).id == *id)
     }
 
+    pub fn sync_project_entries(&mut self, entries: Vec<ConnectionEntry>, cx: &mut Context<Self>) {
+        use std::collections::HashSet;
+
+        let new_ids: HashSet<_> = entries.iter().map(|e| e.id.clone()).collect();
+        self.connections.retain(|entity| {
+            let id = entity.read(cx).id.clone();
+            if new_ids.contains(&id) {
+                true
+            } else {
+                cx.emit(RegistryEvent::Removed(id));
+                false
+            }
+        });
+
+        for entry in entries {
+            if let Some(existing) = self.get(&entry.id, cx).cloned() {
+                existing.update(cx, |e, _| {
+                    e.config = entry.config;
+                    e.tags = entry.tags;
+                });
+            } else {
+                self.add(entry, cx);
+            }
+        }
+    }
+
     pub fn ordered_ids(&self, cx: &App) -> Vec<ConnectionId> {
         self.connections
             .iter()

@@ -5,17 +5,16 @@ use gpui_component::{
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,
-    input::{Input, InputState},
+    input::InputState,
     menu::PopupMenu,
     table::{Column, TableState},
     v_flex,
 };
 use mongodb::Collection;
 use mongodb::bson::Document;
-use uuid::Uuid;
 
 use crate::connection::ConnectionId;
-use crate::query_store::{HistoryEntry, QueryStore, SavedQuery};
+use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::sql_editor::{self, new_json_input, text_from_input};
 use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
@@ -27,8 +26,6 @@ pub struct PipelineBuilderPanel {
     pipeline_input: Entity<InputState>,
     result: Entity<TableState<RowDelegate>>,
     status: SharedString,
-    save_name_input: Entity<InputState>,
-    show_save_prompt: bool,
     pub(crate) tab_label: SharedString,
 }
 
@@ -51,7 +48,6 @@ impl PipelineBuilderPanel {
     ) -> Self {
         let delegate = RowDelegate::default();
         let result = cx.new(|cx| configure_row_table(delegate, window, cx));
-        let save_name_input = cx.new(|cx| InputState::new(window, cx));
         let pipeline_json = initial_pipeline_json
             .unwrap_or_else(|| String::from("[{ \"$match\": {} }, { \"$limit\": 50 }]"));
         let pipeline_input = new_json_input(&pipeline_json, window, cx);
@@ -63,8 +59,6 @@ impl PipelineBuilderPanel {
             pipeline_input,
             result,
             status: SharedString::from(""),
-            save_name_input,
-            show_save_prompt: false,
             tab_label,
         }
     }
@@ -188,36 +182,6 @@ impl PipelineBuilderPanel {
         })
         .detach();
     }
-
-    fn confirm_save_query(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let name = self.save_name_input.read(cx).value().trim().to_string();
-        if name.is_empty() {
-            self.status = "Enter a name to save.".into();
-            cx.notify();
-            return;
-        }
-
-        let pipeline = text_from_input(&self.pipeline_input, cx);
-        let conn_id = self.conn_id.clone();
-        cx.update_global(|store: &mut QueryStore, _| {
-            store.save_query(SavedQuery {
-                id: format!("q_{}", Uuid::new_v4().as_simple()),
-                name,
-                connection: conn_id,
-                tags: vec![],
-                sql: None,
-                pipeline: Some(pipeline),
-                mongo_collection: Some(self.collection.name().to_string()),
-            });
-        });
-
-        self.show_save_prompt = false;
-        self.save_name_input.update(cx, |state, cx| {
-            state.set_value("", window, cx);
-        });
-        self.status = SharedString::from("Saved to queries.");
-        cx.notify();
-    }
 }
 
 impl EventEmitter<PanelEvent> for PipelineBuilderPanel {}
@@ -271,49 +235,8 @@ impl Render for PipelineBuilderPanel {
                             .label("Run pipeline")
                             .on_click(cx.listener(|p, _, _, cx| p.run(cx))),
                     )
-                    .child(
-                        Button::new("mongo-save-pipeline-prompt")
-                            .label("Save")
-                            .on_click(cx.listener(|p, _, _, cx| {
-                                p.show_save_prompt = true;
-                                cx.notify();
-                            })),
-                    )
                     .child(div().flex_1().text_sm().child(self.status.clone())),
             )
-            .when(self.show_save_prompt, |v| {
-                v.child(
-                    h_flex()
-                        .px_2()
-                        .pb_2()
-                        .gap_2()
-                        .items_center()
-                        .child(
-                            div()
-                                .flex_1()
-                                .min_w(px(160.0))
-                                .child(Input::new(&self.save_name_input).cleanable(true)),
-                        )
-                        .child(
-                            Button::new("mongo-save-pipeline-confirm")
-                                .primary()
-                                .label("Save to queries")
-                                .on_click(
-                                    cx.listener(|p, _, window, cx| {
-                                        p.confirm_save_query(window, cx)
-                                    }),
-                                ),
-                        )
-                        .child(
-                            Button::new("mongo-save-pipeline-cancel")
-                                .label("Cancel")
-                                .on_click(cx.listener(|p, _, _, cx| {
-                                    p.show_save_prompt = false;
-                                    cx.notify();
-                                })),
-                        ),
-                )
-            })
             .child(div().flex_1().child(render_row_table(&self.result, cx)))
     }
 }

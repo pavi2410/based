@@ -52,6 +52,7 @@ impl ConnectionWizardPanel {
             label: self.label.clone(),
             path: std::path::PathBuf::from(&self.path),
             wal: self.wal,
+            pragma: None,
         }
     }
 

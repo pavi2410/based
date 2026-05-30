@@ -8,10 +8,12 @@ A **git-friendly**, **local-first** desktop database client for **Postgres, Mong
 
 The project model is centered on a committed `.based/` folder:
 
-- `config.toml` - project + connection metadata (committed)
-- `.env` - local secrets (git-ignored)
-- `queries/*.query.toml` - saved queries (committed)
-- `state/` - per-user workspace state (git-ignored)
+- `project.toml` — project manifest and optional `[settings]` (committed)
+- `connections/**/*.conn.toml` — connection definitions (committed)
+- `queries/**/*.query.toml` — saved queries with `[target]` (committed)
+- `.env` — local secrets (git-ignored)
+- `state/` — per-user state: favorites, active environment (git-ignored)
+- `local/` — run history and other machine-local data (git-ignored)
 
 ## App runtime
 

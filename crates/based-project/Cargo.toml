@@ -1,8 +1,8 @@
 [package]
-name = "based-query"
+name = "based-project"
 version = "0.0.0-dev"
 edition = "2024"
-description = "Query history, saved queries, variables, and SQL helpers for Based"
+description = "Load and validate the .based/ project format"
 license = "MIT"
 publish = false
 
@@ -10,11 +10,7 @@ publish = false
 based-core = { path = "../based-core" }
 anyhow = { workspace = true }
 serde = { workspace = true }
-serde_json = { workspace = true }
-time = { workspace = true }
 toml = { workspace = true }
-uuid = { workspace = true, features = ["serde"] }
-rand = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

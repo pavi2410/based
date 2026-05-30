@@ -61,7 +61,18 @@ fn main() {
             cx.set_global(SqlInject::default());
 
             let project_root = crate::project::find_project_root();
-            query_store::init(project_root.clone(), cx);
+            let project_context = project_root
+                .as_ref()
+                .and_then(|root| crate::project::ProjectContext::load(root.clone()).ok());
+            if let Some(ref ctx) = project_context {
+                cx.set_global(ctx.clone());
+                crate::project::settings::apply_project_settings(&ctx.snapshot.manifest, cx);
+            }
+            query_store::init(
+                project_root.clone(),
+                project_context.as_ref().map(|c| c.snapshot.clone()),
+                cx,
+            );
 
             let vars = project_root
                 .as_ref()

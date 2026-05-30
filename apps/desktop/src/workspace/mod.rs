@@ -29,6 +29,7 @@ pub mod welcome;
 mod dock_utils;
 mod inspector;
 mod pop_out_impls;
+pub mod project_query;
 mod tab_commands;
 mod tab_dispatch;
 mod tab_infer;
@@ -47,12 +48,11 @@ use std::path::PathBuf;
 
 use gpui::{
     App, Context, Entity, EntityId, FocusHandle, Focusable, IntoElement, Render, SharedString,
-    Window, prelude::*,
+    Window, div, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme, IndexPath, Placement,
+    ActiveTheme, Placement,
     dock::{DockArea, DockEvent, DockItem, DockPlacement, PanelStyle, PanelView},
-    select::{SelectEvent, SelectState},
     v_flex,
 };
 
@@ -67,12 +67,16 @@ use crate::command_palette::CommandPalette;
 use crate::connection::ConnectionId;
 use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{ConnectionEntry, ConnectionState};
-use crate::project::{find_project_root, load_workspace_seed};
-use crate::widgets::query_panel_extras::HistoryFilter;
+use crate::query_store::QueryStore;
+use based_project::ProjectQuery;
+
+use crate::project::{ProjectContext, find_project_root, loader::entry_from_project};
+
+use project_query::{OpenQueryResult, open_project_query, tab_spec_for_query};
 
 use crate::storage;
+use crate::widgets::query_panel_extras::HistoryFilter;
 use context::WorkspaceContext;
-use templates::entries_from_workspace;
 
 use tab_navigation::TabNavigationHistory;
 
@@ -82,6 +86,7 @@ use chrome::{
     panes::{history_pane::render_history_pane, saved_pane::render_saved_pane},
     side_pane::{SidePane, render_side_pane},
     status_bar::{StatusBar, StatusBarModel},
+    target_picker::render_target_picker,
     topbar::Topbar,
 };
 use onboarding::OnboardingPanel;
@@ -99,21 +104,16 @@ pub struct Workspace {
     active_left_pane: LeftPane,
     /// `None` collapses the right-hand column. Defaults to Inspector to preserve the prior UX.
     active_side_pane: Option<SidePane>,
-    /// History pane filter chip (All / Saved / Today).
+    /// History pane filter chip (All / Today).
     history_filter: HistoryFilter,
-    /// `(query_text, default_name)` when the user has clicked the star on a history row.
-    pending_star: Option<(String, String)>,
     focus_handle: FocusHandle,
     project_title: SharedString,
     project_dir: Option<PathBuf>,
     session_restored: bool,
     pending_open_tab: Option<TabSpec>,
+    pending_target_pick: Option<(ProjectQuery, Vec<ConnectionId>)>,
     /// Set by platform close; dialog is shown on the next [`Render`] (see `app::quit`).
     pub(crate) pending_close_confirm: bool,
-    workspace_select: Entity<SelectState<Vec<SharedString>>>,
-    env_select: Entity<SelectState<Vec<SharedString>>>,
-    workspace_id: uuid::Uuid,
-    pending_ctx_sync: Option<WorkspaceContext>,
     tab_navigation: TabNavigationHistory,
     onboarding_prompted: bool,
 }
@@ -121,10 +121,9 @@ pub struct Workspace {
 impl Workspace {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let project_dir = find_project_root();
-        let legacy_entries = project_dir
+        let project_context = project_dir
             .as_ref()
-            .map(|root| load_workspace_seed(root).1)
-            .unwrap_or_default();
+            .and_then(|root| ProjectContext::load(root.clone()).ok());
 
         let workspace_ctx = WorkspaceContext::load_initial(cx).unwrap_or_else(|e| {
             log::error!("workspace context load failed: {e:#}");
@@ -135,27 +134,27 @@ impl Workspace {
         });
         cx.set_global(workspace_ctx.clone());
 
-        let workspace_title: SharedString = workspace_ctx.active.name.clone().into();
-        let workspace_id = workspace_ctx.active.id;
+        let project_title: SharedString = project_context
+            .as_ref()
+            .map(|c| c.project_name().into())
+            .unwrap_or_else(|| workspace_ctx.active.name.clone().into());
 
         let registry = cx.new(ConnectionRegistry::new);
         registry.update(cx, |reg, cx| {
-            let mut seen = std::collections::HashSet::new();
-            for entry in entries_from_workspace(&workspace_ctx.active) {
-                seen.insert(entry.id.clone());
-                reg.add(entry, cx);
-            }
-            for entry in legacy_entries {
-                if seen.insert(entry.id.clone()) {
-                    reg.add(entry, cx);
+            if let Some(ref ctx) = project_context {
+                let mut entries = Vec::new();
+                for conn in &ctx.snapshot.connections {
+                    match entry_from_project(conn) {
+                        Ok(e) => entries.push(e),
+                        Err(e) => log::warn!("connection {} skipped: {e:#}", conn.id),
+                    }
                 }
+                reg.sync_project_entries(entries, cx);
             }
         });
 
         if registry.read(cx).connections().is_empty() {
-            log::info!(
-                "no connections loaded; add workspace templates or .based/config.toml entries"
-            );
+            log::info!("no connections loaded; open a folder with .based/connections/");
         }
 
         let dock_area = cx.new(|cx| {
@@ -191,30 +190,7 @@ impl Workspace {
             .into_iter()
             .map(SharedString::from)
             .collect();
-        let workspace_select = cx.new(|cx| {
-            SelectState::new(
-                workspace_options,
-                Some(IndexPath::new(workspace_ctx.active_workspace_index())),
-                window,
-                cx,
-            )
-        });
-        let workspace_observe = workspace_select.clone();
-
-        let env_options: Vec<SharedString> = workspace_ctx
-            .environment_options()
-            .into_iter()
-            .map(SharedString::from)
-            .collect();
-        let env_select = cx.new(|cx| {
-            SelectState::new(
-                env_options,
-                Some(IndexPath::new(workspace_ctx.active_environment_index())),
-                window,
-                cx,
-            )
-        });
-        let env_observe = env_select.clone();
+        let _workspace_options = workspace_options;
 
         let tree_observe = connection_tree.clone();
 
@@ -230,38 +206,16 @@ impl Workspace {
             active_left_pane: LeftPane::Browser,
             active_side_pane: None,
             history_filter: HistoryFilter::default(),
-            pending_star: None,
             focus_handle: cx.focus_handle(),
-            project_title: workspace_title,
+            project_title,
             project_dir,
             session_restored: false,
             pending_open_tab: None,
+            pending_target_pick: None,
             pending_close_confirm: false,
-            workspace_select,
-            env_select,
-            workspace_id,
-            pending_ctx_sync: None,
             tab_navigation: TabNavigationHistory::default(),
             onboarding_prompted: false,
         };
-
-        cx.subscribe(
-            &workspace_observe,
-            |ws, select, _: &SelectEvent<Vec<SharedString>>, cx| {
-                let idx = select.read(cx).selected_index(cx).map(|p| p.row);
-                ws.on_workspace_selected(idx, cx);
-            },
-        )
-        .detach();
-
-        cx.subscribe(
-            &env_observe,
-            |ws, select, _: &SelectEvent<Vec<SharedString>>, cx| {
-                let idx = select.read(cx).selected_index(cx).map(|p| p.row);
-                ws.on_environment_selected(idx, cx);
-            },
-        )
-        .detach();
 
         cx.subscribe(&tree_observe, |ws, _, event, ecx| {
             let connection_tree::TreeEvent::OpenTab(spec) = event;
@@ -295,6 +249,9 @@ impl Workspace {
                             auto_run: false,
                         });
                     }
+                }
+                crate::command_palette::PaletteEvent::OpenProjectQuery(path) => {
+                    ws.open_project_query_by_path(path, ecx);
                 }
                 crate::command_palette::PaletteEvent::WorkspaceAction(action) => {
                     ws.handle_palette_workspace_action(action.clone(), ecx);
@@ -405,115 +362,56 @@ impl Workspace {
         }
     }
 
-    fn on_workspace_selected(&mut self, index: Option<usize>, cx: &mut Context<Self>) {
-        let Some(idx) = index else {
-            return;
-        };
-        let summaries = cx.global::<WorkspaceContext>().summaries.clone();
-        let Some(summary) = summaries.get(idx) else {
-            return;
-        };
-        if summary.id == self.workspace_id {
-            return;
-        }
-        let store = storage::store(cx);
-        let target = summary.id;
-        let this = cx.entity().downgrade();
-        cx.spawn(async move |_, cx| {
-            let ctx = context::switch_workspace(store, target).await;
-            cx.update(|cx| {
-                let Some(this) = this.upgrade() else {
-                    return;
-                };
-                match ctx {
-                    Ok(ctx) => this.update(cx, |ws, cx| {
-                        ws.apply_workspace_context(ctx, cx);
-                    }),
-                    Err(err) => log::warn!("workspace switch failed: {err:#}"),
-                }
-            })
-        })
-        .detach();
+    pub fn set_pending_target_pick(&mut self, query: ProjectQuery, candidates: Vec<ConnectionId>) {
+        self.pending_target_pick = Some((query, candidates));
     }
 
-    fn on_environment_selected(&mut self, index: Option<usize>, cx: &mut Context<Self>) {
-        let Some(idx) = index else {
+    pub fn resolve_pending_target(&mut self, conn_id: ConnectionId, cx: &mut Context<Self>) {
+        if let Some((query, _)) = self.pending_target_pick.take() {
+            self.pending_open_tab = Some(tab_spec_for_query(&query, conn_id));
+            cx.notify();
+        }
+    }
+
+    pub fn cancel_pending_target_pick(&mut self, cx: &mut Context<Self>) {
+        if self.pending_target_pick.take().is_some() {
+            cx.notify();
+        }
+    }
+
+    fn open_project_query_by_path(&mut self, path: &str, cx: &mut Context<Self>) {
+        let store = cx.global::<QueryStore>();
+        let Some(query) = store.project_queries().iter().find(|q| q.path == path) else {
+            log::warn!("project query not found: {path}");
             return;
         };
-        let ctx = cx.global::<WorkspaceContext>().clone();
-        if idx == ctx.active_environment_index() {
-            return;
+        let focused = self.focused_conn_id(cx);
+        match open_project_query(query, self.registry.read(cx), cx, focused.as_ref()) {
+            OpenQueryResult::Open(spec) => {
+                self.pending_open_tab = Some(spec);
+            }
+            OpenQueryResult::PickConnection { candidates, .. } => {
+                self.pending_target_pick = Some((query.clone(), candidates));
+            }
+            OpenQueryResult::Error(msg) => log::warn!("{msg}"),
         }
-        let store = storage::store(cx);
-        let this = cx.entity().downgrade();
-        cx.spawn(async move |_, cx| {
-            let updated = context::set_active_environment(store, &ctx, idx).await;
-            cx.update(|cx| {
-                let Some(this) = this.upgrade() else {
-                    return;
-                };
-                match updated {
-                    Ok(ctx) => this.update(cx, |ws, cx| {
-                        ws.apply_workspace_context(ctx, cx);
-                    }),
-                    Err(err) => log::warn!("environment switch failed: {err:#}"),
-                }
-            })
-        })
-        .detach();
+    }
+
+    pub fn sync_project_context(&mut self, cx: &mut Context<Self>) {
+        if let Some(pctx) = cx.try_global::<ProjectContext>() {
+            self.project_title = pctx.project_name().into();
+            cx.notify();
+        }
     }
 
     pub fn apply_workspace_context(&mut self, ctx: WorkspaceContext, cx: &mut Context<Self>) {
-        self.workspace_id = ctx.active.id;
-        self.project_title = ctx.active.name.clone().into();
-        let ctx_for_registry = ctx.clone();
+        if let Some(pctx) = cx.try_global::<ProjectContext>() {
+            self.project_title = pctx.project_name().into();
+        } else {
+            self.project_title = ctx.active.name.clone().into();
+        }
         cx.set_global(ctx.clone());
-        self.pending_ctx_sync = Some(ctx);
-        self.sync_registry_from_workspace(&ctx_for_registry, cx);
         cx.notify();
-    }
-
-    fn flush_pending_selector_sync(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(ctx) = self.pending_ctx_sync.take() else {
-            return;
-        };
-        let ws_opts: Vec<SharedString> = ctx
-            .workspace_options()
-            .into_iter()
-            .map(SharedString::from)
-            .collect();
-        self.workspace_select.update(cx, |select, cx| {
-            select.set_items(ws_opts, window, cx);
-            select.set_selected_index(
-                Some(IndexPath::new(ctx.active_workspace_index())),
-                window,
-                cx,
-            );
-        });
-        let env_opts: Vec<SharedString> = ctx
-            .environment_options()
-            .into_iter()
-            .map(SharedString::from)
-            .collect();
-        self.env_select.update(cx, |select, cx| {
-            select.set_items(env_opts, window, cx);
-            select.set_selected_index(
-                Some(IndexPath::new(ctx.active_environment_index())),
-                window,
-                cx,
-            );
-        });
-    }
-
-    fn sync_registry_from_workspace(&mut self, ctx: &WorkspaceContext, cx: &mut Context<Self>) {
-        self.registry.update(cx, |reg, cx| {
-            let template_entries = entries_from_workspace(&ctx.active);
-            for entry in template_entries {
-                if reg.get(&entry.id, cx).is_none() {
-                    reg.add(entry, cx);
-                }
-            }
-        });
     }
 
     pub fn persist_postgres_template(
@@ -576,9 +474,7 @@ impl Workspace {
             WorkspacePaletteAction::NewCollection => {
                 query_lane::create_collection_from_palette(cx);
             }
-            WorkspacePaletteAction::SelectNoEnvironment => {
-                self.on_environment_selected(Some(0), cx);
-            }
+            WorkspacePaletteAction::SelectNoEnvironment => {}
             WorkspacePaletteAction::OpenWelcome => enqueue_show_welcome(cx),
             WorkspacePaletteAction::OpenOnboarding => enqueue_show_onboarding(cx),
         }
@@ -608,8 +504,6 @@ impl Workspace {
         self.active_side_pane = if self.active_side_pane == Some(pane) {
             None
         } else {
-            // Switching panes drops any in-flight star prompt to avoid stale state.
-            self.pending_star = None;
             Some(pane)
         };
         cx.notify();
@@ -617,16 +511,6 @@ impl Workspace {
 
     pub fn set_history_filter(&mut self, filter: HistoryFilter, cx: &mut Context<Self>) {
         self.history_filter = filter;
-        cx.notify();
-    }
-
-    pub fn set_pending_star(&mut self, query: String, name: String, cx: &mut Context<Self>) {
-        self.pending_star = Some((query, name));
-        cx.notify();
-    }
-
-    pub fn clear_pending_star(&mut self, cx: &mut Context<Self>) {
-        self.pending_star = None;
         cx.notify();
     }
 
@@ -853,8 +737,11 @@ impl Focusable for Workspace {
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::app::quit::maybe_show_pending_close_dialog(self, window, cx);
-        crate::project::drain_pending_reload(cx);
-        self.flush_pending_selector_sync(window, cx);
+        if crate::project::drain_pending_reload(cx)
+            && let Some(pctx) = cx.try_global::<ProjectContext>()
+        {
+            self.project_title = pctx.project_name().into();
+        }
         if !self.session_restored {
             self.session_restored = true;
             self.restore_session(window, cx);
@@ -881,8 +768,8 @@ impl Render for Workspace {
         let focused_conn_id = self.focused_conn_id(cx);
         let active_pane = self.active_side_pane;
         let history_filter = self.history_filter;
-        let pending_star = self.pending_star.clone();
         let workspace_for_panes = this.clone();
+        let target_pick = self.pending_target_pick.clone();
 
         let side_pane: Option<gpui::AnyElement> = active_pane.map(|pane| {
             let body: gpui::AnyElement = match pane {
@@ -893,13 +780,16 @@ impl Render for Workspace {
                     workspace_for_panes.clone(),
                     focused_conn_id.clone(),
                     history_filter,
-                    pending_star.clone(),
                     cx,
                 )
                 .into_any_element(),
-                SidePane::Saved => {
-                    render_saved_pane(focused_conn_id.clone(), cx).into_any_element()
-                }
+                SidePane::Saved => render_saved_pane(
+                    focused_conn_id.clone(),
+                    self.registry.clone(),
+                    this.clone(),
+                    cx,
+                )
+                .into_any_element(),
             };
             render_side_pane(pane, body, cx).into_any_element()
         });
@@ -1048,12 +938,7 @@ impl Render for Workspace {
                 }),
             )
             .bg(cx.theme().background)
-            .child(Topbar::new(
-                self.project_title.clone(),
-                this.clone(),
-                self.workspace_select.clone(),
-                self.env_select.clone(),
-            ))
+            .child(Topbar::new(self.registry.clone()))
             .child(body)
             .child(StatusBar::new(
                 StatusBarModel {
@@ -1072,6 +957,19 @@ impl Render for Workspace {
             ))
             .child(self.command_palette.clone());
 
-        chrome::overlays::stack_gpui_overlays(main, window, cx)
+        let stacked = chrome::overlays::stack_gpui_overlays(main, window, cx);
+        div()
+            .size_full()
+            .relative()
+            .child(stacked)
+            .when_some(target_pick, |layer, pick| {
+                layer.child(render_target_picker(
+                    &pick.0,
+                    &pick.1,
+                    &self.registry,
+                    this.clone(),
+                    cx,
+                ))
+            })
     }
 }

@@ -1,6 +1,5 @@
-//! Shared query-editor chrome: history sidebar filters, star-to-save, variables popover.
+//! Shared query-editor chrome: history sidebar filters and variables popover.
 
-use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use gpui::{
@@ -17,23 +16,21 @@ use gpui_component::{
 use time::{Date, OffsetDateTime};
 
 use crate::connection::ConnectionId;
-use crate::query_store::{HistoryEntry, QueryStore, SavedQuery};
+use crate::query_store::{HistoryEntry, QueryStore};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum HistoryFilter {
     #[default]
     All,
-    Saved,
     Today,
 }
 
 impl HistoryFilter {
-    pub const ALL: [Self; 3] = [Self::All, Self::Saved, Self::Today];
+    pub const ALL: [Self; 2] = [Self::All, Self::Today];
 
     pub fn label(self) -> &'static str {
         match self {
             Self::All => "All",
-            Self::Saved => "Saved ★",
             Self::Today => "Today",
         }
     }
@@ -65,12 +62,6 @@ pub fn filtered_history(
     conn_id: &ConnectionId,
     filter: HistoryFilter,
 ) -> Vec<HistoryEntry> {
-    let saved_texts: HashSet<String> = store
-        .saved
-        .for_conn(conn_id)
-        .into_iter()
-        .map(|q| q.query_text().to_string())
-        .collect();
     let today = Date::from_calendar_date(
         OffsetDateTime::now_utc().year(),
         OffsetDateTime::now_utc().month(),
@@ -83,7 +74,6 @@ pub fn filtered_history(
         .into_iter()
         .filter(|e| match filter {
             HistoryFilter::All => true,
-            HistoryFilter::Saved => saved_texts.contains(&e.query),
             HistoryFilter::Today => today.is_some_and(|d| {
                 Date::from_calendar_date(e.ran_at.year(), e.ran_at.month(), e.ran_at.day()).ok()
                     == Some(d)
@@ -92,37 +82,6 @@ pub fn filtered_history(
         .take(50)
         .cloned()
         .collect()
-}
-
-pub fn save_starred_query(
-    store: &mut QueryStore,
-    conn_id: ConnectionId,
-    name: &str,
-    query: &str,
-    is_mongo: bool,
-    mongo_collection: Option<String>,
-) {
-    let id = format!(
-        "q_{}",
-        name.chars()
-            .filter(|c| c.is_ascii_alphanumeric())
-            .collect::<String>()
-    );
-    let mut q = SavedQuery {
-        id,
-        name: name.to_string(),
-        connection: conn_id,
-        tags: vec![],
-        sql: None,
-        pipeline: None,
-        mongo_collection,
-    };
-    if is_mongo {
-        q.pipeline = Some(query.to_string());
-    } else {
-        q.sql = Some(query.to_string());
-    }
-    store.save_query(q);
 }
 
 /// Build a `Variables` toolbar trigger that opens a popover with the project's

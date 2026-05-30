@@ -4,7 +4,7 @@ members = [
     "crates/based-core",
     "crates/based-mongo",
     "crates/based-postgres",
-    "crates/based-query",
+    "crates/based-project",
     "crates/based-sqlite",
     "crates/based-storage",
     "crates/based-workspace",
@@ -45,6 +45,9 @@ sqlx = { version = "0.9", features = [
 ] }
 futures = "0.3"
 rand = "0.9"
+dirs = "6"
+tempfile = "3"
+mongodb = { version = "2", features = ["tokio-runtime"] }
 
 # Required patch for stacker compatibility (used transitively by gpui)
 [patch.crates-io]

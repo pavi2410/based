@@ -1,73 +1,75 @@
-//! Saved queries (`queries.toml`) and per-run history (`local/history.jsonl`).
-
 pub mod history;
-pub mod saved;
+
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+
+use based_project::{ProjectQuery, ProjectSnapshot, persist_favorites};
+use gpui::Global;
 
 pub use history::{HistoryEntry, QueryHistory};
-pub use saved::{SavedQueries, SavedQuery};
 
-use std::path::PathBuf;
-
-use gpui::{App, Global};
-
-use crate::connection::ConnectionId;
-
-/// Signals for observers once UI subscribes (CommandPalette, inspector, etc.).
-#[allow(dead_code)]
-#[derive(Clone, Debug)]
-pub enum QueryStoreEvent {
-    HistoryUpdated(ConnectionId),
-    SavedUpdated,
-}
-
+/// In-memory catalog of committed project queries + user favorites + run history.
 pub struct QueryStore {
     pub history: QueryHistory,
-    pub saved: SavedQueries,
-    queries_dir: PathBuf,
-    saved_path: PathBuf,
+    pub queries: Vec<ProjectQuery>,
+    pub favorites: HashSet<String>,
+    history_dir: PathBuf,
 }
 
 impl QueryStore {
-    pub fn new(project_root: Option<PathBuf>) -> Self {
-        let base = project_root.unwrap_or_else(|| PathBuf::from("."));
-        let queries_dir = base.join(".based").join("local");
-        let saved_path = base.join(".based").join("queries.toml");
+    pub fn new(project_root: Option<PathBuf>, snapshot: Option<&ProjectSnapshot>) -> Self {
+        let base = project_root.clone().unwrap_or_else(|| PathBuf::from("."));
+        let history_dir = base.join(".based").join("local");
+        let _ = std::fs::create_dir_all(&history_dir);
 
-        let _ = std::fs::create_dir_all(&queries_dir);
-
-        let gitignore = base.join(".based").join(".gitignore");
-        if !gitignore.exists() {
-            let _ = std::fs::write(&gitignore, "local/\n");
-        }
+        let (queries, favorites) = snapshot
+            .map(|s| (s.queries.clone(), s.favorites.iter().cloned().collect()))
+            .unwrap_or_default();
 
         Self {
-            history: QueryHistory::load(&queries_dir),
-            saved: SavedQueries::load(&saved_path),
-            queries_dir,
-            saved_path,
+            history: QueryHistory::load(&history_dir),
+            queries,
+            favorites,
+            history_dir,
         }
+    }
+
+    pub fn apply_snapshot(&mut self, snapshot: &ProjectSnapshot) {
+        self.queries = snapshot.queries.clone();
+        self.favorites = snapshot.favorites.iter().cloned().collect();
+    }
+
+    pub fn project_queries(&self) -> &[ProjectQuery] {
+        &self.queries
+    }
+
+    pub fn is_favorite(&self, path: &str) -> bool {
+        self.favorites.contains(path)
+    }
+
+    pub fn toggle_favorite(&mut self, project_root: &Path, path: &str) -> bool {
+        if self.favorites.contains(path) {
+            self.favorites.remove(path);
+        } else {
+            self.favorites.insert(path.to_string());
+        }
+        let ordered: Vec<String> = self.favorites.iter().cloned().collect();
+        let _ = persist_favorites(project_root, &ordered);
+        self.favorites.contains(path)
     }
 
     pub fn push_history(&mut self, entry: HistoryEntry) {
-        self.history.push(entry, &self.queries_dir);
+        self.history.push(entry, &self.history_dir);
     }
 
-    pub fn save_query(&mut self, query: SavedQuery) {
-        self.saved.add(query);
-        self.saved.persist(&self.saved_path);
-    }
-
-    pub fn history_for(&self, conn_id: &ConnectionId) -> Vec<&HistoryEntry> {
+    pub fn history_for(&self, conn_id: &based_core::ConnectionId) -> Vec<&HistoryEntry> {
         self.history.for_conn(conn_id)
-    }
-
-    pub fn all_saved(&self) -> &[SavedQuery] {
-        &self.saved.queries
     }
 }
 
 impl Global for QueryStore {}
 
-pub fn init(project_root: Option<std::path::PathBuf>, cx: &mut App) {
-    cx.set_global(QueryStore::new(project_root));
+pub fn init(project_root: Option<PathBuf>, snapshot: Option<ProjectSnapshot>, cx: &mut gpui::App) {
+    let snap_ref = snapshot.as_ref();
+    cx.set_global(QueryStore::new(project_root, snap_ref));
 }

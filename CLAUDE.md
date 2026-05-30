@@ -57,7 +57,7 @@ apps/desktop/src/
 - **Async bridging**: `db.rs` uses `gpui_tokio` to bridge Tokio async tasks into GPUI's sync render cycle. All blocking I/O must go through this bridge to keep the UI responsive.
 - **Tab system**: `TabId` encodes (connection id, tab kind, payload) — tabs are the primary navigation unit in the workspace.
 - **PopOutManager**: Tracks detached child windows and their lifecycle; consult before creating new window types.
-- **Project format**: `.based/config.toml` holds connection metadata; `.based/.env` holds secrets (git-ignored); `.based/state/` holds per-user workspace state.
+- **Project format**: `.based/project.toml` holds the manifest; `.based/connections/` and `.based/queries/` hold per-file connections and queries; `.based/.env` holds secrets (git-ignored); `.based/state/` holds per-user workspace state.
 
 ### Tab strip (dock)
 

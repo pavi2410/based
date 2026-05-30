@@ -14,7 +14,7 @@ pub mod wizard;
 
 pub use based_sqlite::{SqliteConfig, SqlitePathContext, sqlite_connect_options};
 
-use sqlx::SqlitePool;
+use sqlx::{AssertSqlSafe, SqlitePool};
 
 use crate::connection::lifecycle::{Connectable, TestReport};
 use crate::db;
@@ -46,11 +46,7 @@ impl Connectable for SqliteConnection {
             let path = resolve_sqlite_path(&config.path);
             let create = !path.exists();
             let pool = SqlitePool::connect_with(sqlite_connect_options(&path, create)).await?;
-            if config.wal {
-                sqlx::query("PRAGMA journal_mode=WAL")
-                    .execute(&pool)
-                    .await?;
-            }
+            apply_sqlite_pragmas(&pool, &config).await?;
             let version: String = sqlx::query_scalar("SELECT sqlite_version()")
                 .fetch_one(&pool)
                 .await?;
@@ -82,5 +78,50 @@ impl Connectable for SqliteConnection {
 
     async fn close(self) {
         db::close_sqlite_pool(self.pool);
+    }
+}
+
+async fn apply_sqlite_pragmas(pool: &SqlitePool, config: &SqliteConfig) -> anyhow::Result<()> {
+    if let Some(p) = &config.pragma {
+        let journal = journal_mode_pragma(&p.journal_mode)?;
+        sqlx::query(AssertSqlSafe(journal)).execute(pool).await?;
+        let sync = synchronous_pragma(&p.synchronous)?;
+        sqlx::query(AssertSqlSafe(sync)).execute(pool).await?;
+        let fk = if p.foreign_keys {
+            "PRAGMA foreign_keys=ON"
+        } else {
+            "PRAGMA foreign_keys=OFF"
+        };
+        sqlx::query(AssertSqlSafe(fk)).execute(pool).await?;
+    } else if config.wal {
+        sqlx::query(AssertSqlSafe("PRAGMA journal_mode=WAL"))
+            .execute(pool)
+            .await?;
+        sqlx::query(AssertSqlSafe("PRAGMA foreign_keys=ON"))
+            .execute(pool)
+            .await?;
+    }
+    Ok(())
+}
+
+fn journal_mode_pragma(mode: &str) -> anyhow::Result<&'static str> {
+    match mode.to_ascii_lowercase().as_str() {
+        "wal" => Ok("PRAGMA journal_mode=WAL"),
+        "delete" => Ok("PRAGMA journal_mode=DELETE"),
+        "truncate" => Ok("PRAGMA journal_mode=TRUNCATE"),
+        "persist" => Ok("PRAGMA journal_mode=PERSIST"),
+        "memory" => Ok("PRAGMA journal_mode=MEMORY"),
+        "off" => Ok("PRAGMA journal_mode=OFF"),
+        other => anyhow::bail!("unsupported journal_mode: {other}"),
+    }
+}
+
+fn synchronous_pragma(mode: &str) -> anyhow::Result<&'static str> {
+    match mode.to_ascii_lowercase().as_str() {
+        "off" => Ok("PRAGMA synchronous=OFF"),
+        "normal" => Ok("PRAGMA synchronous=NORMAL"),
+        "full" => Ok("PRAGMA synchronous=FULL"),
+        "extra" => Ok("PRAGMA synchronous=EXTRA"),
+        other => anyhow::bail!("unsupported synchronous: {other}"),
     }
 }

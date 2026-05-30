@@ -1,5 +1,7 @@
 ---
 import { RELEASES_URL, REPO_URL } from "../lib/github";
+import DownloadIcon from "./icons/DownloadIcon.astro";
+import StarIcon from "./icons/StarIcon.astro";
 
 interface Props {
   stars: number | null;
@@ -24,38 +26,16 @@ const { stars, version } = Astro.props;
 
   <div class="cta-row hero-cta-row intro intro-delay-4">
     <a href={RELEASES_URL} class="btn btn-primary" target="_blank" rel="noopener noreferrer">
-      <svg
-        class="btn-icon"
-        width="16"
-        height="16"
-        viewBox="0 0 16 16"
-        fill="currentColor"
-        aria-hidden="true"
-      >
-        <path
-          d="M7.25 1.75a.75.75 0 0 1 1.5 0v6.69l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 0 1 1.06-1.06l2.22 2.22V1.75ZM2.75 11a.75.75 0 0 1 .75.75v1.75a.25.25 0 0 0 .25.25h8.5a.25.25 0 0 0 .25-.25v-1.75a.75.75 0 0 1 1.5 0v1.75A1.75 1.75 0 0 1 12.25 15h-8.5A1.75 1.75 0 0 1 2 13.5v-1.75A.75.75 0 0 1 2.75 11Z"
-        ></path>
-      </svg>
+      <DownloadIcon class="btn-icon" />
       <span>Download for free</span>
     </a>
     <a href={REPO_URL} class="btn btn-secondary" target="_blank" rel="noopener noreferrer">
-      <svg
-        class="btn-icon"
-        width="16"
-        height="16"
-        viewBox="0 0 16 16"
-        fill="currentColor"
-        aria-hidden="true"
-      >
-        <path
-          d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"
-        ></path>
-      </svg>
+      <StarIcon class="btn-icon" />
       <span>Star on GitHub</span>
       {
         stars !== null && (
-          <span class="btn-count" aria-label={`${stars.toLocaleString()} stars`}>
-            {stars.toLocaleString()}
+          <span class="btn-count" aria-label={stars === -1 ? "rate limited" : `${stars.toLocaleString()} stars`}>
+            {stars === -1 ? "?" : stars.toLocaleString()}
           </span>
         )
       }

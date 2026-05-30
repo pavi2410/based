@@ -1,53 +1,49 @@
 ---
+import type { AstroComponentFactory } from "astro/runtime/server/index.js";
+import CommandIcon from "./icons/CommandIcon.astro";
+import EditorIcon from "./icons/EditorIcon.astro";
+import HistoryIcon from "./icons/HistoryIcon.astro";
+import ShieldIcon from "./icons/ShieldIcon.astro";
+import TreeIcon from "./icons/TreeIcon.astro";
+import VariableIcon from "./icons/VariableIcon.astro";
 import Reveal from "./Reveal.astro";
 
-const features = [
+const features: {
+  title: string;
+  body: string;
+  Icon: AstroComponentFactory;
+}[] = [
   {
     title: "Productive SQL editor",
     body: "Multi-tab editor with syntax highlighting, one-key formatting, and autocomplete. Run the selection, the current statement, or the whole script — and cancel long runs.",
-    icon: "editor",
+    Icon: EditorIcon,
   },
   {
     title: "Query variables",
     body: "Parameterize queries with user variables and built-in {{$…}} injection, so the same query works across environments without edits.",
-    icon: "variable",
+    Icon: VariableIcon,
   },
   {
     title: "Fast schema explorer",
     body: "Browse schemas, tables, views, indexes, and functions in a responsive tree. Search across objects and open data or DDL instantly.",
-    icon: "tree",
+    Icon: TreeIcon,
   },
   {
     title: "Safe data editing",
     body: "Inline-edit rows with an explicit dirty state and save/discard. No silent commits — writes never happen behind your back.",
-    icon: "shield",
+    Icon: ShieldIcon,
   },
   {
     title: "History & favorites",
     body: "Every run is saved to a searchable local history. Pin the queries you reach for and rerun a past one in seconds.",
-    icon: "history",
+    Icon: HistoryIcon,
   },
   {
     title: "Command palette",
     body: "Drive everything from the keyboard — new query, connect, refresh, format, run, history — without hunting through menus.",
-    icon: "command",
+    Icon: CommandIcon,
   },
 ];
-
-const icons: Record<string, string> = {
-  editor:
-    '<path d="M3 4.5h18M3 9.5h12M3 14.5h18M3 19.5h9" />',
-  variable:
-    '<path d="M7 4c-2 3-2 13 0 16M17 4c2 3 2 13 0 16M9.5 9.5l5 5M14.5 9.5l-5 5" />',
-  tree:
-    '<path d="M4 6h6M4 12h10M4 18h6M16 4l4 2-4 2M18 16l4 2-4 2" />',
-  shield:
-    '<path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6l7-3zM9 12l2 2 4-4" />',
-  history:
-    '<path d="M3 12a9 9 0 1 0 3-6.7M3 4v3.3h3.3M12 8v4l3 2" />',
-  command:
-    '<path d="M9 6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3z" />',
-};
 ---
 
 <section class="section features" id="features">
@@ -62,24 +58,14 @@ const icons: Record<string, string> = {
 
   <div class="features-grid">
     {
-      features.map((feature, index) => (
+      features.map(({ title, body, Icon }, index) => (
         <Reveal delay={index % 3}>
           <article class="card feature-card">
             <span class="feature-icon" aria-hidden="true">
-              <svg
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.6"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                set:html={icons[feature.icon]}
-              />
+              <Icon />
             </span>
-            <h3 class="card-title">{feature.title}</h3>
-            <p class="card-body">{feature.body}</p>
+            <h3 class="card-title">{title}</h3>
+            <p class="card-body">{body}</p>
           </article>
         </Reveal>
       ))

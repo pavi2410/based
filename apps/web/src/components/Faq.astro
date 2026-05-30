@@ -1,4 +1,5 @@
 ---
+import ChevronDownIcon from "./icons/ChevronDownIcon.astro";
 import Reveal from "./Reveal.astro";
 
 const faqs = [
@@ -42,20 +43,7 @@ const faqs = [
           <details class="faq-item">
             <summary class="faq-q">
               <span>{faq.q}</span>
-              <svg
-                class="faq-chevron"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M6 9l6 6 6-6" />
-              </svg>
+              <ChevronDownIcon class="faq-chevron" />
             </summary>
             <p class="faq-a">{faq.a}</p>
           </details>

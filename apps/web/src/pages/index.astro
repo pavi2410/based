@@ -12,12 +12,18 @@ import Nav from "../components/Nav.astro";
 import Problem from "../components/Problem.astro";
 import Screenshot from "../components/Screenshot.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { fetchLatestRelease, fetchStarCount } from "../lib/github";
+import { fetchAllReleases, fetchLatestRelease, fetchStarCount, RATE_LIMITED, sumAllDownloads } from "../lib/github";
 
-const [stars, release] = await Promise.all([
+const [stars, release, allReleases] = await Promise.all([
   fetchStarCount(),
   fetchLatestRelease(),
+  import.meta.env.DEV ? fetchAllReleases() : Promise.resolve(null),
 ]);
+
+const totalDownloads =
+  allReleases === "rate_limited" ? RATE_LIMITED
+  : allReleases ? sumAllDownloads(allReleases)
+  : null;
 ---
 
 <BaseLayout>
@@ -32,7 +38,7 @@ const [stars, release] = await Promise.all([
       <Features />
       <Engines />
       <LocalFirst />
-      <Install release={release} />
+      <Install release={release} allReleases={allReleases} totalDownloads={totalDownloads} />
       <Faq />
       <Footer />
     </main>

@@ -3,8 +3,8 @@ connection = "watertap_edb"
 description = "All collections in the EDB database"
 tags = ["schema", "meta"]
 
-[pipeline]
-query = """
+[aggregate]
+pipeline = """
 [
   { "$listCollections": {} },
   { "$project": { "name": 1, "type": 1 } },

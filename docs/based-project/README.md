@@ -48,7 +48,7 @@ Thumbs.db
 |------|---------|---------|
 | `project.toml` | Yes | Project name and global settings |
 | `connections/**/*.conn.toml` | Yes | Connection definitions (hosts, engines, non-secret config) |
-| `queries/**/*.query.toml` | Yes | Saved SQL / MongoDB pipelines |
+| `queries/**/*.query.toml` | Yes | Saved SQL queries and MongoDB aggregations |
 | `.env.example` | Yes | Documents which env vars teammates need |
 | `.env` | No | Secret values for this machine |
 | `state/` | No | Favorites, active environment selection, other user prefs |
@@ -306,8 +306,9 @@ queries/reports/northwind/revenue.query.toml
 - **Nested folders** may group queries in the UI sidebar; same rationale as `connections/` — organization only, no extra field.
 - **Internal identity** — the file’s path relative to `queries/` (e.g. `northwind/recent-orders.query.toml`) avoids stem collisions.
 
-There is **no `collection` field** on query files. Use **`tags`** for labels and filtering (search, command palette), and folder layout for visual grouping.
 There is **no** monolithic `queries.toml`. Do not commit team queries there.
+
+Query **`tags`** label the query file itself (search, filter). They are unrelated to connection **`tags`** in `[target]`.
 
 ### Query file structure
 
@@ -338,7 +339,7 @@ LIMIT 50;
 | `description` | No | Longer explanation |
 | `tags` | No | Free-form labels on the query itself (search, filter in Saved / ⌘K) |
 | `[target]` | Yes | Where this query may run (see below) |
-| `[sql]` or `[pipeline]` | One required | Query body |
+| `[sql]` or `[aggregate]` | Exactly one required | Query body (engine-specific) |
 
 **Favorites are not stored in query files.** Pinning a query is a per-user preference in `state/favorites.toml` (see [Local state](#local-state-state)).
 
@@ -363,15 +364,14 @@ ORDER BY 1, 2;
 file = "revenue-report.sql"    # Relative to the .query.toml directory
 ```
 
-### MongoDB pipelines (`[pipeline]`)
+### MongoDB aggregations (`[aggregate]`)
 
-For `engine = "mongodb"` connections.
+For `engine = "mongodb"` connections (via `[target]`). Maps to `db.collection(name).aggregate(pipeline)`.
 
 ```toml
-mongo_collection = "orders"    # Required for pipeline execution
-
-[pipeline]
-query = """
+[aggregate]
+collection = "orders"            # See “When is collection required?” below
+pipeline = """
 [
   { "$match": { "status": "completed" } },
   { "$group": { "_id": "$plan", "count": { "$sum": 1 } } },
@@ -380,7 +380,54 @@ query = """
 """
 ```
 
-`query` is a JSON array string (MongoDB aggregation pipeline).
+| Field | Required | Description |
+|-------|----------|-------------|
+| `pipeline` | Yes | JSON array string — the aggregation pipeline (stage documents) |
+| `collection` | Usually | MongoDB collection handle for `aggregate()` (see below) |
+
+**Future (optional):** external body file for very large pipelines:
+
+```toml
+[aggregate]
+collection = "orders"
+file = "fraud-summary.pipeline.json"    # Relative to the .query.toml directory
+```
+
+#### When is `collection` required?
+
+MongoDB always runs a pipeline through a **collection handle** (`db.collection(name).aggregate(...)`), even when stages do not read that collection’s documents. Based uses `[aggregate].collection` for that handle.
+
+| Pipeline kind | `collection` | Example |
+|---------------|--------------|---------|
+| **Data** — stages operate on documents in one collection | **Required** | `$match`, `$project`, `$group`, `$lookup` on `orders` |
+| **Introspection** — first stage is database- or deployment-scoped | **Optional** | `$listCollections`, `$indexStats`, `$collStats` |
+
+For introspection pipelines, the host collection name is arbitrary (Mongo ignores it for those stages). Omit `collection` and the app picks a harmless default when executing.
+
+**Example — data pipeline (`collection` required):**
+
+```toml
+[aggregate]
+collection = "base"
+pipeline = """
+[
+  { "$limit": 10 }
+]
+"""
+```
+
+**Example — list collections (`collection` omitted):**
+
+```toml
+[aggregate]
+pipeline = """
+[
+  { "$listCollections": {} },
+  { "$project": { "name": 1, "type": 1 } },
+  { "$sort": { "name": 1 } }
+]
+"""
+```
 
 ---
 
@@ -577,7 +624,7 @@ Until then:
 |-------------|--------|
 | Browse connections | `connections/**/*.conn.toml` |
 | Open Saved query | `queries/**/*.query.toml` + `state/favorites.toml` for pins |
-| Run query | Resolve `[target]` → execute `[sql]` or `[pipeline]` |
+| Run query | Resolve `[target]` → execute `[sql]` or `[aggregate]` |
 | Star a query | Write `state/favorites.toml` |
 | View run history | `local/history.jsonl` |
 | Reload after git pull | File watcher on `.based/` reloads connections and queries |
@@ -679,7 +726,9 @@ ORDER BY OrderDate DESC LIMIT 50;
 
 | Date | Change |
 |------|--------|
-| 2026-05-30 | Drop query `collection` field; use `tags` and folder layout only |
+| 2026-05-30 | MongoDB: `[pipeline]` → `[aggregate]`; body field `query` → `pipeline`; `collection` under `[aggregate]` |
+| 2026-05-30 | Rename `mongo_collection` → `collection` on MongoDB aggregation queries |
+| 2026-05-30 | Drop query UI `collection` grouping; use query `tags` and folders only |
 | 2026-05-30 | v1 `[target]`: `connection` string\|array, `engine`, `tags`, `exclude_tags`; flat AND semantics |
 | 2026-05-30 | SQLite `[pragma]` table (`journal_mode`, `synchronous`, `foreign_keys`); drop `group`; tags-only; connection id from path |
 | 2026-05-30 | Initial canonical spec: `project.toml`, per-file connections and queries, `[target]` selectors, `state/favorites`, per-file `schema_version` |

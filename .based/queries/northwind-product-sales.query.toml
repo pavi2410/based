@@ -1,7 +1,11 @@
+schema_version = 1
+
 name = "Product Sales Summary"
-connection = "northwind"
 description = "Summary of product sales by category"
 tags = ["products", "sales", "reports"]
+
+[target]
+connection = "local/northwind"
 
 [sql]
 query = """

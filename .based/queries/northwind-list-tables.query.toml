@@ -1,7 +1,11 @@
+schema_version = 1
+
 name = "List Tables"
-connection = "northwind"
 description = "All user tables in the Northwind database"
 tags = ["schema", "meta"]
+
+[target]
+connection = "local/northwind"
 
 [sql]
 query = """

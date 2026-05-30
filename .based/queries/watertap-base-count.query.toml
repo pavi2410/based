@@ -1,7 +1,11 @@
+schema_version = 1
+
 name = "Base Collection Count"
-connection = "watertap_edb"
 description = "Total documents in the base collection"
 tags = ["meta"]
+
+[target]
+connection = "public/watertap"
 
 [aggregate]
 collection = "base"

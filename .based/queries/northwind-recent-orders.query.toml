@@ -1,8 +1,11 @@
+schema_version = 1
+
 name = "Recent Orders"
-connection = "northwind"
 description = "Get the most recent orders with customer details"
 tags = ["orders", "reports"]
-favorite = true
+
+[target]
+connection = "local/northwind"
 
 [sql]
 query = """

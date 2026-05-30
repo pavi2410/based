@@ -1,7 +1,11 @@
+schema_version = 1
+
 name = "RNA Types Summary"
-connection = "public_postgres"
 description = "Count of active sequences by RNA type"
 tags = ["rna", "reports"]
+
+[target]
+connection = "public/ebi"
 
 [sql]
 query = """

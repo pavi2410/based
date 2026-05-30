@@ -1,6 +1,10 @@
+schema_version = 1
+
 name = "List Postgres Tables"
-connection = "local_postgres"
-favorite = false
+description = "Tables in the local PostgreSQL database"
+
+[target]
+connection = "local/postgres"
 
 [sql]
 query = """

@@ -1,7 +1,11 @@
+schema_version = 1
+
 name = "Expert Databases"
-connection = "public_postgres"
 description = "Cross-reference source databases in RNAcentral"
 tags = ["xref", "meta"]
+
+[target]
+connection = "public/ebi"
 
 [sql]
 query = """

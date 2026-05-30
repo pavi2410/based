@@ -1,7 +1,11 @@
+schema_version = 1
+
 name = "Base Collection Sample"
-connection = "watertap_edb"
 description = "First documents from the bootstrap base collection"
 tags = ["explore"]
+
+[target]
+connection = "public/watertap"
 
 [aggregate]
 collection = "base"

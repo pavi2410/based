@@ -1,0 +1,12 @@
+schema_version = 1
+
+label = "Local PostgreSQL (Docker)"
+engine = "postgres"
+tags = ["local", "dev"]
+
+host = "localhost"
+port = 5432
+database = "based"
+username = "based"
+password = { env = "LOCAL_PG_PASSWORD" }
+ssl = false

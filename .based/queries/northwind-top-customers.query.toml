@@ -1,7 +1,11 @@
+schema_version = 1
+
 name = "Top Customers by Revenue"
-connection = "northwind"
 description = "Customers ranked by total order value"
 tags = ["customers", "reports"]
+
+[target]
+connection = "local/northwind"
 
 [sql]
 query = """

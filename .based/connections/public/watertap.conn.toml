@@ -1,0 +1,8 @@
+schema_version = 1
+
+label = "WaterTAP EDB (read-only)"
+engine = "mongodb"
+tags = ["public"]
+
+# source: https://watertap.readthedocs.io/en/0.10.0/how_to_guides/how_to_use_EDB.html
+url = "mongodb+srv://edb-user:edbnawi@nawi-edb.utpac.mongodb.net"

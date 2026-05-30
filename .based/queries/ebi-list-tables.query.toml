@@ -1,7 +1,11 @@
+schema_version = 1
+
 name = "List Tables"
-connection = "public_postgres"
 description = "All base tables in the RNAcentral public database"
 tags = ["schema", "meta"]
+
+[target]
+connection = "public/ebi"
 
 [sql]
 query = """

@@ -1,7 +1,11 @@
+schema_version = 1
+
 name = "List Collections"
-connection = "watertap_edb"
 description = "All collections in the EDB database"
 tags = ["schema", "meta"]
+
+[target]
+connection = "public/watertap"
 
 [aggregate]
 pipeline = """

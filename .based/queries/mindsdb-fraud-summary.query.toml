@@ -1,7 +1,11 @@
+schema_version = 1
+
 name = "Fraud Summary"
-connection = "mindsdb_demo"
 description = "Transaction counts by type and fraud flag"
 tags = ["fraud", "reports"]
+
+[target]
+connection = "public/mindsdb"
 
 [sql]
 query = """

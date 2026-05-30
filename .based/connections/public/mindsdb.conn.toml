@@ -1,0 +1,13 @@
+schema_version = 1
+
+label = "MindsDB Sample (read-only)"
+engine = "postgres"
+tags = ["public", "demo"]
+
+# source: https://docs.mindsdb.com/integrations/sample-database
+host = "samples.mindsdb.com"
+port = 5432
+database = "demo"
+username = "demo_user"
+password = "demo_password"
+ssl = false

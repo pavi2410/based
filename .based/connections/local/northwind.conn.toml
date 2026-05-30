@@ -1,0 +1,7 @@
+schema_version = 1
+
+label = "Northwind Database"
+engine = "sqlite"
+tags = ["local", "demo"]
+
+file = "data/northwind.db"

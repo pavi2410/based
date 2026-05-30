@@ -1,4 +1,5 @@
-local/
+/local/
+state/
 .env
 .env.local
 .DS_Store

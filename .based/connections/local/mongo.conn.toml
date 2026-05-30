@@ -1,0 +1,7 @@
+schema_version = 1
+
+label = "Local MongoDB (Docker)"
+engine = "mongodb"
+tags = ["local", "dev"]
+
+url = { env = "MONGO_URL" }

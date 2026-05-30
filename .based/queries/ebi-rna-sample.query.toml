@@ -1,7 +1,11 @@
+schema_version = 1
+
 name = "RNA Sample"
-connection = "public_postgres"
 description = "Recent RNA sequences with URS identifiers"
 tags = ["rna", "explore"]
+
+[target]
+connection = "public/ebi"
 
 [sql]
 query = """

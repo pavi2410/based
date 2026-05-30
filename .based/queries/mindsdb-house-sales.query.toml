@@ -1,7 +1,11 @@
+schema_version = 1
+
 name = "House Sales by Month"
-connection = "mindsdb_demo"
 description = "Average sale price by month and property type"
 tags = ["house_sales", "reports"]
+
+[target]
+connection = "public/mindsdb"
 
 [sql]
 query = """

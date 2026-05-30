@@ -1,0 +1,13 @@
+schema_version = 1
+
+label = "Public PostgreSQL (EBI)"
+engine = "postgres"
+tags = ["public"]
+
+# source: https://rnacentral.org/help/public-database
+host = "hh-pgsql-public.ebi.ac.uk"
+port = 5432
+database = "pfmegrnargs"
+username = "reader"
+password = "NWDMCE5xdipIjRrp"
+ssl = false

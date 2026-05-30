@@ -1,7 +1,11 @@
+schema_version = 1
+
 name = "List Tables"
-connection = "mindsdb_demo"
 description = "Tables in the MindsDB demo database"
 tags = ["schema", "meta"]
+
+[target]
+connection = "public/mindsdb"
 
 [sql]
 query = """

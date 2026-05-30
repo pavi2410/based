@@ -3,13 +3,21 @@
 use gpui::{App, BorrowAppContext, Entity, Global};
 
 use crate::connection::ConnectionId;
+use crate::workspace::chrome::{left_pane::LeftPane, side_pane::SidePane};
 
 use super::{TabManager, TabSpec};
+use gpui_component::dock::DockArea;
 
 #[derive(Clone)]
 pub struct TabManagerRef(pub Entity<TabManager>);
 
 impl Global for TabManagerRef {}
+
+/// Center dock area (tab strip) for chrome that must not read [`Workspace`](crate::workspace::Workspace).
+#[derive(Clone)]
+pub struct DockAreaRef(pub Entity<DockArea>);
+
+impl Global for DockAreaRef {}
 
 /// Main workspace entity (tab close menu, ⌘W).
 #[derive(Clone)]
@@ -86,6 +94,8 @@ pub struct WorkspaceNavQueue {
     pub show_welcome: bool,
     pub show_onboarding: bool,
     pub open_postgres_wizard: bool,
+    pub toggle_side_pane: Option<SidePane>,
+    pub toggle_left_pane: Option<LeftPane>,
 }
 
 impl Global for WorkspaceNavQueue {}
@@ -100,4 +110,12 @@ pub fn enqueue_show_onboarding(cx: &mut impl BorrowAppContext) {
 
 pub fn enqueue_open_postgres_wizard(cx: &mut impl BorrowAppContext) {
     cx.update_global(|q: &mut WorkspaceNavQueue, _| q.open_postgres_wizard = true);
+}
+
+pub fn enqueue_toggle_side_pane(pane: SidePane, cx: &mut impl BorrowAppContext) {
+    cx.update_global(|q: &mut WorkspaceNavQueue, _| q.toggle_side_pane = Some(pane));
+}
+
+pub fn enqueue_toggle_left_pane(pane: LeftPane, cx: &mut impl BorrowAppContext) {
+    cx.update_global(|q: &mut WorkspaceNavQueue, _| q.toggle_left_pane = Some(pane));
 }

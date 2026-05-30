@@ -15,7 +15,8 @@ use gpui_component::{
     menu::{PopupMenu, PopupMenuItem},
 };
 
-use super::tab_open::WorkspaceRef;
+use super::dock_utils::{center_panel_by_id, center_tab_items, center_tab_panel_count};
+use super::tab_open::{DockAreaRef, TabManagerRef, WorkspaceRef};
 use crate::bindings::{
     CloseAllTabs, CloseCleanTabs, CloseOtherTabs, CloseTab, CloseTabsLeft, CloseTabsRight, PinTab,
     SplitPaneBottom, SplitPaneLeft, SplitPaneRight, SplitPaneTop,
@@ -74,6 +75,41 @@ pub(crate) fn panel_type_allows_tab_close(panel_name: &str) -> bool {
     !matches!(panel_name, "WelcomePanel" | "ConnectionDashboard")
 }
 
+fn center_tab_count(cx: &App) -> usize {
+    let Some(dock_ref) = cx.try_global::<DockAreaRef>() else {
+        return 0;
+    };
+    let dock = dock_ref.0.read(cx);
+    center_tab_items(dock.center())
+        .map(|items| items.len())
+        .unwrap_or(0)
+}
+
+fn is_tab_pinned(panel_id: EntityId, cx: &App) -> bool {
+    cx.try_global::<TabManagerRef>()
+        .and_then(|tm| tm.0.read(cx).tab_for_panel_id(panel_id))
+        .is_some_and(|t| t.pinned)
+}
+
+fn can_close_center_tab(panel_id: EntityId, panel_name: &str, cx: &App) -> bool {
+    if center_tab_count(cx) <= 1 {
+        return false;
+    }
+    panel_type_allows_tab_close(panel_name) && !is_tab_pinned(panel_id, cx)
+}
+
+fn can_close_center_pane(panel_id: EntityId, cx: &App) -> bool {
+    let Some(dock_ref) = cx.try_global::<DockAreaRef>() else {
+        return false;
+    };
+    let dock = dock_ref.0.read(cx);
+    let center = dock.center();
+    if center_tab_panel_count(center) <= 1 {
+        return false;
+    }
+    center_panel_by_id(center, panel_id, cx).is_some()
+}
+
 /// Append tab commands and "Open in new window" to the tab ⋮ menu.
 ///
 /// Pass the panel as `&self` — do not call `cx.entity().read(cx)` here: `dropdown_menu` runs inside
@@ -85,19 +121,13 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
 ) -> PopupMenu {
     let weak = cx.entity().downgrade();
     let panel_id = cx.entity().entity_id();
-    let pinned = cx
-        .try_global::<WorkspaceRef>()
-        .is_some_and(|ws| ws.0.read(cx).is_tab_pinned(panel_id, cx));
-    // Do not read this panel's Entity or call `can_close_center_panel` here — `dropdown_menu`
-    // runs inside `Entity::update` and re-reading the panel panics.
-    let close_disabled = !panel_type_allows_tab_close(panel.panel_name())
-        || pinned
-        || cx
-            .try_global::<WorkspaceRef>()
-            .is_none_or(|ws| ws.0.read(cx).center_tab_count(cx) <= 1);
-    let close_pane_disabled = cx
-        .try_global::<WorkspaceRef>()
-        .is_none_or(|ws| !ws.0.read(cx).can_close_center_pane(panel_id, cx));
+    let panel_name = panel.panel_name();
+    let pinned = is_tab_pinned(panel_id, cx);
+    // Do not read this panel's Entity or Workspace here — `dropdown_menu` runs inside
+    // `Entity::update` and re-reading those entities would panic.
+    let close_disabled =
+        !panel_type_allows_tab_close(panel_name) || pinned || center_tab_count(cx) <= 1;
+    let close_pane_disabled = !can_close_center_pane(panel_id, cx);
 
     menu
         // ── This tab ──────────────────────────────────────────────────────────

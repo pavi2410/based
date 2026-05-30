@@ -6,7 +6,7 @@ pub mod tab_label;
 pub mod tab_open;
 pub mod tab_spec;
 pub use tab_open::{
-    SqlInject, TabManagerRef, TabOpenQueue, WorkspaceNavQueue, WorkspaceRef,
+    DockAreaRef, SqlInject, TabManagerRef, TabOpenQueue, WorkspaceNavQueue, WorkspaceRef,
     enqueue_show_onboarding, enqueue_show_welcome, enqueue_sql_inject, mark_query_tab_dirty,
 };
 pub use tab_spec::TabSpec;
@@ -177,6 +177,7 @@ impl Workspace {
 
         let tab_manager = cx.new(|_| TabManager::new());
         cx.set_global(TabManagerRef(tab_manager.clone()));
+        cx.set_global(DockAreaRef(dock_area.clone()));
         if let Some(root) = project_dir.clone() {
             cx.set_global(crate::project::RegistryRef(registry.clone()));
             cx.set_global(crate::project::ProjectRoot(root));
@@ -627,16 +628,24 @@ impl Workspace {
     }
 
     fn flush_nav_queue(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let (show_welcome, show_onboarding, open_wizard) =
-            cx.update_global(|q: &mut WorkspaceNavQueue, _| {
+        let (show_welcome, show_onboarding, open_wizard, toggle_side, toggle_left) = cx
+            .update_global(|q: &mut WorkspaceNavQueue, _| {
                 let welcome = q.show_welcome;
                 let onboarding = q.show_onboarding;
                 let wizard = q.open_postgres_wizard;
+                let side = q.toggle_side_pane.take();
+                let left = q.toggle_left_pane.take();
                 q.show_welcome = false;
                 q.show_onboarding = false;
                 q.open_postgres_wizard = false;
-                (welcome, onboarding, wizard)
+                (welcome, onboarding, wizard, side, left)
             });
+        if let Some(pane) = toggle_side {
+            self.toggle_side_pane(pane, cx);
+        }
+        if let Some(pane) = toggle_left {
+            self.toggle_left_pane(pane, cx);
+        }
         if show_onboarding {
             self.show_onboarding(window, cx);
         }
@@ -951,7 +960,6 @@ impl Render for Workspace {
                         .recent(1)
                         .is_empty(),
                 },
-                this.clone(),
                 active_pane,
                 self.active_left_pane,
             ))

@@ -1,4 +1,4 @@
-use gpui::{App, Entity, IntoElement, RenderOnce, SharedString, prelude::*, px};
+use gpui::{App, IntoElement, RenderOnce, SharedString, prelude::*, px};
 use gpui_component::{
     ActiveTheme, Icon, Sizable as _,
     button::{Button, ButtonVariants},
@@ -7,8 +7,10 @@ use gpui_component::{
 
 use crate::bindings::{ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane};
 use crate::widgets::status_item::{STATUS_BAR_HEIGHT, status_divider, status_segment, status_text};
-use crate::workspace::Workspace;
 use crate::workspace::chrome::{left_pane::LeftPane, side_pane::SidePane};
+use crate::workspace::tab_open::{
+    WorkspaceRef, enqueue_toggle_left_pane, enqueue_toggle_side_pane,
+};
 
 /// Context passed into the workspace status rail.
 #[derive(Clone, Debug)]
@@ -23,7 +25,6 @@ pub struct StatusBarModel {
 #[derive(IntoElement)]
 pub struct StatusBar {
     model: StatusBarModel,
-    workspace: Entity<Workspace>,
     active_side_pane: Option<SidePane>,
     active_left_pane: LeftPane,
 }
@@ -31,25 +32,18 @@ pub struct StatusBar {
 impl StatusBar {
     pub fn new(
         model: StatusBarModel,
-        workspace: Entity<Workspace>,
         active_side_pane: Option<SidePane>,
         active_left_pane: LeftPane,
     ) -> Self {
         Self {
             model,
-            workspace,
             active_side_pane,
             active_left_pane,
         }
     }
 }
 
-fn left_pane_button(
-    pane: LeftPane,
-    active: LeftPane,
-    workspace: Entity<Workspace>,
-    cx: &App,
-) -> impl IntoElement {
+fn left_pane_button(pane: LeftPane, active: LeftPane, cx: &App) -> impl IntoElement {
     let is_active = active == pane;
     let color = if is_active {
         cx.theme().accent_foreground
@@ -67,16 +61,14 @@ fn left_pane_button(
         .icon(Icon::new(pane.icon()).text_color(color))
         .tooltip(pane.tooltip())
         .on_click(move |_, _, cx| {
-            workspace.update(cx, |w, cx| w.toggle_left_pane(pane, cx));
+            enqueue_toggle_left_pane(pane, cx);
+            if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+                ws.update(cx, |_, cx| cx.notify());
+            }
         })
 }
 
-fn side_pane_button(
-    pane: SidePane,
-    active: Option<SidePane>,
-    workspace: Entity<Workspace>,
-    cx: &App,
-) -> impl IntoElement {
+fn side_pane_button(pane: SidePane, active: Option<SidePane>, cx: &App) -> impl IntoElement {
     let is_active = active == Some(pane);
     let color = if is_active {
         cx.theme().accent_foreground
@@ -100,7 +92,10 @@ fn side_pane_button(
         .icon(Icon::new(pane.icon()).text_color(color))
         .tooltip_with_action(tooltip_text, action, None)
         .on_click(move |_, _, cx| {
-            workspace.update(cx, |w, cx| w.toggle_side_pane(pane, cx));
+            enqueue_toggle_side_pane(pane, cx);
+            if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+                ws.update(cx, |_, cx| cx.notify());
+            }
         })
 }
 
@@ -130,7 +125,6 @@ impl RenderOnce for StatusBar {
             None
         };
 
-        let workspace = self.workspace.clone();
         let active_side_pane = self.active_side_pane;
         let active_left_pane = self.active_left_pane;
 
@@ -153,9 +147,10 @@ impl RenderOnce for StatusBar {
                             .gap(px(1.0))
                             .items_center()
                             .flex_shrink_0()
-                            .children(LeftPane::ALL.map(|pane| {
-                                left_pane_button(pane, active_left_pane, workspace.clone(), cx)
-                            })),
+                            .children(
+                                LeftPane::ALL
+                                    .map(|pane| left_pane_button(pane, active_left_pane, cx)),
+                            ),
                     )
                     .child(status_divider(muted))
                     .child(status_segment(
@@ -197,14 +192,9 @@ impl RenderOnce for StatusBar {
                     .child(status_divider(muted))
                     .child(status_text("based 0.1.0", muted))
                     .child(status_divider(muted))
-                    .child(
-                        h_flex()
-                            .gap(px(2.0))
-                            .items_center()
-                            .children(SidePane::ALL.map(|pane| {
-                                side_pane_button(pane, active_side_pane, workspace.clone(), cx)
-                            })),
-                    ),
+                    .child(h_flex().gap(px(2.0)).items_center().children(
+                        SidePane::ALL.map(|pane| side_pane_button(pane, active_side_pane, cx)),
+                    )),
             )
     }
 }

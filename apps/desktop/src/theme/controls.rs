@@ -5,8 +5,8 @@ use gpui::{
     Window, div, prelude::FluentBuilder, px,
 };
 use gpui_component::{
-    ActiveTheme, ThemeConfig, ThemeMode, ThemeRegistry,
-    button::{Toggle, ToggleVariants},
+    ActiveTheme, Selectable, ThemeConfig, ThemeMode, ThemeRegistry,
+    button::{Button, ButtonGroup, ButtonVariants},
     h_flex,
     searchable_list::SearchableListItem,
     select::{Select, SelectState},
@@ -144,29 +144,37 @@ pub fn load_bundled_themes(cx: &mut App) {
     }
 }
 
-/// Light / Dark / System segmented control for onboarding.
-///
-/// Uses individual toggles (not `ToggleGroup`) so selection is mutually exclusive:
-/// each option applies only when its toggle turns on.
+/// Light / Dark / System toggle group for onboarding (single selection).
 pub fn appearance_segmented(id_prefix: &'static str, mode: AppearanceMode) -> impl IntoElement {
-    h_flex().id(format!("{id_prefix}-appearance")).children(
-        [
-            (AppearanceMode::Light, "Light"),
-            (AppearanceMode::Dark, "Dark"),
-            (AppearanceMode::System, "System"),
-        ]
-        .map(|(target, label)| {
-            Toggle::new(format!("{id_prefix}-appearance-{label}"))
-                .label(label)
-                .outline()
-                .checked(mode == target)
-                .on_click(move |checked, window, cx| {
-                    if *checked {
-                        prefs::apply_appearance(target, Some(window), cx);
-                    }
-                })
-        }),
-    )
+    ButtonGroup::new(format!("{id_prefix}-appearance"))
+        .outline()
+        .compact()
+        .child(
+            Button::new(format!("{id_prefix}-appearance-light"))
+                .label("Light")
+                .selected(mode == AppearanceMode::Light),
+        )
+        .child(
+            Button::new(format!("{id_prefix}-appearance-dark"))
+                .label("Dark")
+                .selected(mode == AppearanceMode::Dark),
+        )
+        .child(
+            Button::new(format!("{id_prefix}-appearance-system"))
+                .label("System")
+                .selected(mode == AppearanceMode::System),
+        )
+        .on_click(|selected, window, cx| {
+            let Some(&ix) = selected.first() else {
+                return;
+            };
+            let mode = match ix {
+                0 => AppearanceMode::Light,
+                1 => AppearanceMode::Dark,
+                _ => AppearanceMode::System,
+            };
+            prefs::apply_appearance(mode, Some(window), cx);
+        })
 }
 
 /// Theme name picker for settings (dropdown).
@@ -232,34 +240,28 @@ fn onboarding_preset_card(
     label_fg: Hsla,
     on_click: impl Fn(&gpui::MouseDownEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
-    let mut card = v_flex()
+    v_flex()
         .id(id.into())
         .flex_1()
         .min_w_0()
         .gap(px(8.0))
         .cursor_pointer()
-        .on_mouse_down(gpui::MouseButton::Left, on_click);
-
-    if selected {
-        card = card.border_2().border_color(accent_fg);
-    } else {
-        card = card.border_1().border_color(border);
-    }
-
-    card.rounded(px(8.0))
-        .p(px(8.0))
+        .on_mouse_down(gpui::MouseButton::Left, on_click)
         .child(
             div()
                 .w_full()
                 .h(px(120.0))
-                .rounded(px(6.0))
+                .rounded(px(8.0))
                 .overflow_hidden()
+                .when(selected, |this| this.border_2().border_color(accent_fg))
+                .when(!selected, |this| this.border_1().border_color(border))
                 .when_some(preview_theme.as_ref(), |this, theme| {
                     this.child(theme_table_preview(theme))
                 }),
         )
         .child(
             div()
+                .w_full()
                 .text_sm()
                 .text_center()
                 .text_color(if selected { accent_fg } else { label_fg })

@@ -314,7 +314,7 @@ impl Render for ConnectionWizardPanel {
                             .p_2()
                             .border_1()
                             .border_color(border)
-                            .font_family("monospace")
+                            .font_family(crate::app::prefs::code_font_family(cx))
                             .text_xs()
                             .child(self.uri.clone()),
                     )

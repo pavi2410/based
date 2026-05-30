@@ -431,7 +431,7 @@ impl Render for CommandPalette {
                                     .when(!self.query.is_empty(), |row| {
                                         row.text_sm()
                                             .text_color(theme.foreground)
-                                            .font_family(cx.theme().mono_font_family.clone())
+                                            .font_family(crate::app::prefs::ui_font_family(cx))
                                             .child(self.query.clone())
                                     }),
                             ),

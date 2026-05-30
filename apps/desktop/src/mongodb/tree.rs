@@ -92,7 +92,6 @@ impl Render for CollectionsTreePanel {
         let selected = self.selected.clone();
         let muted = cx.theme().muted_foreground;
         let fg = cx.theme().foreground;
-        let mono = cx.theme().mono_font_family.clone();
 
         v_flex()
             .id("mongo-tree")
@@ -127,7 +126,9 @@ impl Render for CollectionsTreePanel {
                     SchemaRowStyle {
                         muted,
                         fg,
-                        mono_family: mono.clone(),
+                        mono_family: crate::app::prefs::code_font_family(cx),
+                        row_py: crate::widgets::ui::sidebar_row_padding_y(cx),
+                        row_gap: crate::widgets::ui::sidebar_row_inner_gap(cx),
                     },
                 )
                 .on_click(cx.listener(move |panel, _, _, cx| {

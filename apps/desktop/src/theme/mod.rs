@@ -4,8 +4,8 @@ mod controls;
 mod presets;
 
 pub use controls::{
-    ThemeNameItem, ThemePreviewAxis, ThemePreviewSession, appearance_segmented,
-    load_bundled_themes, theme_name_select, theme_onboarding_picker,
+    ThemeNameItem, ThemePreviewAxis, ThemePreviewSession, load_bundled_themes, theme_name_select,
+    theme_onboarding_picker,
 };
 pub use presets::{
     DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME, DEFAULT_PRESET_ID, preset_by_id, preset_id_for_pair,

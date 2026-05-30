@@ -76,7 +76,7 @@ pub fn render_saved_pane(conn_id: Option<ConnectionId>, cx: &mut App) -> AnyElem
                 .child(
                     div()
                         .text_xs()
-                        .font_family("monospace")
+                        .font_family(crate::app::prefs::code_font_family(cx))
                         .text_color(muted)
                         .child(preview),
                 )

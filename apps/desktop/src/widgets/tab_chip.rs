@@ -3,6 +3,7 @@
 use gpui::{FontWeight, IntoElement, ParentElement, SharedString, Styled, div, prelude::*, px};
 use gpui_component::ActiveTheme;
 
+use crate::app::prefs;
 use crate::connection::EngineKind;
 use crate::widgets::ui::{engine_color, engine_label};
 
@@ -29,7 +30,7 @@ pub fn tab_chip(
             div()
                 .text_xs()
                 .font_weight(FontWeight::SEMIBOLD)
-                .font_family(cx.theme().mono_font_family.clone())
+                .font_family(prefs::ui_font_family(cx))
                 .text_color(color)
                 .child(format!("({})", engine_label(engine))),
         )

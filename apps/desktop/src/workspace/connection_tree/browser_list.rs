@@ -16,10 +16,11 @@ use gpui_component::{
     v_flex,
 };
 
+use crate::app::prefs;
 use crate::widgets::list_row::{SchemaRowStyle, schema_object_row};
 use crate::widgets::ui::{
-    BROWSER_TREE_OBJECT_PL, BROWSER_TREE_SECTION_PL, CONNECTION_CHEVRON_SLOT_W, SIDEBAR_INSET,
-    SIDEBAR_ROW_GAP, SIDEBAR_ROW_PY, engine_icon,
+    CONNECTION_CHEVRON_SLOT_W, SIDEBAR_INSET, browser_tree_object_pl, browser_tree_section_pl,
+    engine_icon, sidebar_row_inner_gap, sidebar_row_padding_y,
 };
 
 use super::ConnectionTree;
@@ -183,9 +184,9 @@ impl RenderOnce for BrowserRowItem {
 
 fn status_row(message: SharedString, cx: &App) -> impl IntoElement {
     div()
-        .pl(px(BROWSER_TREE_OBJECT_PL))
+        .pl(px(browser_tree_object_pl(cx)))
         .pr(px(SIDEBAR_INSET))
-        .py(px(SIDEBAR_ROW_PY))
+        .py(px(sidebar_row_padding_y(cx)))
         .text_xs()
         .text_color(cx.theme().muted_foreground)
         .child(message)
@@ -194,15 +195,16 @@ fn status_row(message: SharedString, cx: &App) -> impl IntoElement {
 fn section_row(title: SharedString, cx: &App) -> impl IntoElement {
     let muted = cx.theme().muted_foreground;
     h_flex()
-        .pl(px(BROWSER_TREE_SECTION_PL))
+        .pl(px(browser_tree_section_pl(cx)))
         .pr(px(SIDEBAR_INSET))
-        .py(px(SIDEBAR_ROW_PY))
+        .py(px(sidebar_row_padding_y(cx)))
         .items_center()
         .child(
             div()
                 .text_xs()
                 .font_bold()
-                .font_family(cx.theme().mono_font_family.clone())
+                .font_family(prefs::ui_font_family(cx))
+                .font_weight(prefs::ui_font_weight(cx))
                 .text_color(muted.opacity(0.86))
                 .child(title),
         )
@@ -264,7 +266,7 @@ fn connection_row_element(
         .selected(selected)
         .pl(px(SIDEBAR_INSET))
         .pr(px(SIDEBAR_INSET))
-        .py(px(SIDEBAR_ROW_PY))
+        .py(px(sidebar_row_padding_y(cx)))
         .cursor_pointer()
         .on_mouse_down(MouseButton::Left, move |_, window, cx| {
             if let Some(ent) = tree_click.upgrade() {
@@ -274,7 +276,7 @@ fn connection_row_element(
         .child(
             h_flex()
                 .w_full()
-                .gap(px(SIDEBAR_ROW_GAP))
+                .gap(px(sidebar_row_inner_gap(cx)))
                 .items_center()
                 .child(chevron_lead)
                 .child(engine_icon(engine))
@@ -293,6 +295,7 @@ fn connection_row_element(
                     is_connecting,
                     state_color,
                     err_fg,
+                    cx,
                 )),
         )
 }
@@ -309,7 +312,9 @@ fn object_row_element(
     let style = SchemaRowStyle {
         muted,
         fg,
-        mono_family: cx.theme().mono_font_family.clone(),
+        mono_family: prefs::code_font_family(cx),
+        row_py: sidebar_row_padding_y(cx),
+        row_gap: sidebar_row_inner_gap(cx),
     };
     let label: SharedString = object.display_name().into();
     schema_object_row(
@@ -319,7 +324,7 @@ fn object_row_element(
         label,
         style,
     )
-    .pl(px(BROWSER_TREE_OBJECT_PL))
+    .pl(px(browser_tree_object_pl(cx)))
     .pr(px(SIDEBAR_INSET))
 }
 

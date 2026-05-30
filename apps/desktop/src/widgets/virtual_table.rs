@@ -61,7 +61,7 @@ impl gpui_component::table::TableDelegate for RowDelegate {
         div()
             .truncate()
             .table_cell_size(prefs::table_cell_size(cx))
-            .font_family(cx.theme().mono_font_family.clone())
+            .font_family(crate::app::prefs::code_font_family(cx))
             .text_color(if is_null {
                 cx.theme().muted_foreground
             } else {

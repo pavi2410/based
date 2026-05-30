@@ -10,6 +10,7 @@ use gpui_component::{
     v_flex,
 };
 
+use crate::app::prefs::{self, panel_header_h, sidebar_row_gap, sidebar_row_py};
 use crate::bindings::{DismissCommandPalette, ToggleCommandPalette, ToggleSidebarRail};
 use crate::connection::EngineKind;
 
@@ -51,7 +52,8 @@ pub fn inspector_shortcuts_section(window: &Window, cx: &mut App) -> impl IntoEl
             div()
                 .text_xs()
                 .font_bold()
-                .font_family(cx.theme().mono_font_family.clone())
+                .font_family(prefs::ui_font_family(cx))
+                .font_weight(prefs::ui_font_weight(cx))
                 .text_color(muted)
                 .child("Shortcuts"),
         )
@@ -98,23 +100,35 @@ pub fn palette_footer_hints(window: &Window, cx: &mut App) -> impl IntoElement {
 
 /// Boxy panel corner radius (Linear / Vercel–style).
 pub const PANEL_RADIUS: f32 = 4.0;
-pub const PANEL_HEADER_H: f32 = 32.0;
 /// Horizontal inset for sidebar list rows and section headers.
 pub const SIDEBAR_INSET: f32 = 8.0;
-/// Vertical padding for compact sidebar list rows.
-pub const SIDEBAR_ROW_PY: f32 = 3.0;
-/// Gap between inline controls in sidebar rows.
-pub const SIDEBAR_ROW_GAP: f32 = 3.0;
 /// Fixed lead column so engine icons align across connected / disconnected rows.
 pub const CONNECTION_CHEVRON_SLOT_W: f32 = 18.0;
 
+pub fn panel_header_height(cx: &App) -> f32 {
+    panel_header_h(prefs::ui_size_token(cx))
+}
+
+pub fn sidebar_row_padding_y(cx: &App) -> f32 {
+    sidebar_row_py(prefs::ui_size_token(cx))
+}
+
+pub fn sidebar_row_inner_gap(cx: &App) -> f32 {
+    sidebar_row_gap(prefs::ui_size_token(cx))
+}
+
 /// Browser tree: left edge of the engine-icon column on connection rows.
-pub const BROWSER_TREE_ENGINE_COL: f32 =
-    SIDEBAR_INSET + CONNECTION_CHEVRON_SLOT_W + SIDEBAR_ROW_GAP;
+pub fn browser_tree_engine_col(cx: &App) -> f32 {
+    SIDEBAR_INSET + CONNECTION_CHEVRON_SLOT_W + sidebar_row_inner_gap(cx)
+}
 /// Browser tree: section headers (Views / Tables).
-pub const BROWSER_TREE_SECTION_PL: f32 = BROWSER_TREE_ENGINE_COL;
+pub fn browser_tree_section_pl(cx: &App) -> f32 {
+    browser_tree_engine_col(cx)
+}
 /// Browser tree: schema object rows (one step under sections).
-pub const BROWSER_TREE_OBJECT_PL: f32 = BROWSER_TREE_ENGINE_COL + 10.0;
+pub fn browser_tree_object_pl(cx: &App) -> f32 {
+    browser_tree_engine_col(cx) + 10.0
+}
 
 /// Schema object row kind icon size.
 pub const SCHEMA_ROW_ICON_SIZE: f32 = 14.0;
@@ -162,7 +176,8 @@ pub fn engine_label_inline(engine: EngineKind, cx: &mut App) -> impl IntoElement
     div()
         .text_xs()
         .font_weight(FontWeight::SEMIBOLD)
-        .font_family(cx.theme().mono_font_family.clone())
+        .font_family(prefs::ui_font_family(cx))
+        .font_weight(prefs::ui_font_weight(cx))
         .text_color(color)
         .child(engine_label(engine))
 }
@@ -189,7 +204,8 @@ pub fn engine_chip(engine: EngineKind, cx: &mut App) -> impl IntoElement {
             div()
                 .text_xs()
                 .font_weight(FontWeight::SEMIBOLD)
-                .font_family(cx.theme().mono_font_family.clone())
+                .font_family(prefs::ui_font_family(cx))
+                .font_weight(prefs::ui_font_weight(cx))
                 .text_color(color)
                 .child(engine_label(engine)),
         )
@@ -253,7 +269,8 @@ pub fn inspector_description_section(
             div()
                 .text_xs()
                 .font_bold()
-                .font_family(cx.theme().mono_font_family.clone())
+                .font_family(prefs::ui_font_family(cx))
+                .font_weight(prefs::ui_font_weight(cx))
                 .text_color(cx.theme().muted_foreground)
                 .child(title),
         )
@@ -283,7 +300,7 @@ pub fn metadata_pill(
         .child(
             div()
                 .text_xs()
-                .font_family(cx.theme().mono_font_family.clone())
+                .font_family(prefs::code_font_family(cx))
                 .text_color(cx.theme().foreground.opacity(0.9))
                 .child(value.into()),
         )
@@ -308,7 +325,7 @@ pub fn command_shell(window: &Window, cx: &mut App, placeholder: &'static str) -
         .child(
             Icon::new(IconName::Search)
                 .text_color(cx.theme().muted_foreground)
-                .with_size(gpui_component::Size::XSmall),
+                .with_size(prefs::ui_component_size(cx).smaller()),
         )
         .child(
             div()
@@ -329,7 +346,7 @@ pub fn panel_shell_header(
 ) -> impl IntoElement {
     let border = cx.theme().border.opacity(0.85);
     h_flex()
-        .h(px(PANEL_HEADER_H))
+        .h(px(panel_header_height(cx)))
         .w_full()
         .flex_shrink_0()
         .items_center()
@@ -371,7 +388,7 @@ pub fn panel_header(
 pub fn panel_context_header(subtitle: impl Into<SharedString>, cx: &mut App) -> impl IntoElement {
     let border = cx.theme().border.opacity(0.85);
     h_flex()
-        .h(px(PANEL_HEADER_H))
+        .h(px(panel_header_height(cx)))
         .w_full()
         .flex_shrink_0()
         .items_center()
@@ -432,10 +449,10 @@ pub fn panel_shell(
         .child(div().flex_1().min_h_0().child(body))
 }
 
-pub fn toolbar_button(id: &'static str, icon: IconName, tooltip: &'static str) -> Button {
+pub fn toolbar_button(id: &'static str, icon: IconName, tooltip: &'static str, cx: &App) -> Button {
     Button::new(id)
         .ghost()
-        .xsmall()
+        .with_size(prefs::ui_component_size(cx).smaller())
         .icon(icon)
         .tooltip(SharedString::from(tooltip))
 }
@@ -465,7 +482,7 @@ pub fn empty_state(
                 .child(
                     Icon::new(icon)
                         .text_color(cx.theme().muted_foreground)
-                        .with_size(gpui_component::Size::Medium),
+                        .with_size(prefs::ui_component_size(cx)),
                 ),
         )
         .child(

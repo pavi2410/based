@@ -69,10 +69,11 @@ impl ConnectionErrorDetail {
     pub fn display_message(&self) -> String {
         let mut msg = self.category.summary().to_string();
         if let Some(d) = &self.details
-            && !d.is_empty() {
-                msg.push_str(": ");
-                msg.push_str(d);
-            }
+            && !d.is_empty()
+        {
+            msg.push_str(": ");
+            msg.push_str(d);
+        }
         msg
     }
 }

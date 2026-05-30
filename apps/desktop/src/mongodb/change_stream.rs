@@ -142,7 +142,7 @@ impl Render for ChangeStreamPanel {
                     .flex_1()
                     .overflow_y_scroll()
                     .p_2()
-                    .font_family("monospace")
+                    .font_family(crate::app::prefs::code_font_family(cx))
                     .text_xs()
                     .child(text),
             )

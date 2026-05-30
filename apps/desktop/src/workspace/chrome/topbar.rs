@@ -96,7 +96,7 @@ impl RenderOnce for TopbarLeft {
                     .flex_shrink_0()
                     .max_w(px(160.0))
                     .text_xs()
-                    .font_family(cx.theme().mono_font_family.clone())
+                    .font_family(crate::app::prefs::ui_font_family(cx))
                     .text_color(cx.theme().muted_foreground)
                     .truncate()
                     .child(self.project_name),

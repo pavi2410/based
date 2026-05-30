@@ -98,6 +98,7 @@ pub(crate) fn connection_row_status_indicator(
     is_connecting: bool,
     state_color: gpui::Hsla,
     err_fg: gpui::Hsla,
+    cx: &App,
 ) -> impl IntoElement {
     h_flex()
         .flex_shrink_0()
@@ -106,7 +107,7 @@ pub(crate) fn connection_row_status_indicator(
             r.child(
                 Icon::new(IconName::TriangleAlert)
                     .text_color(err_fg)
-                    .with_size(gpui_component::Size::XSmall),
+                    .with_size(crate::app::prefs::ui_component_size(cx).smaller()),
             )
         })
         .when(is_connecting && !is_failed, |r| {
@@ -187,6 +188,7 @@ impl RenderOnce for ConnectionRowItem {
             is_connecting,
             state_color,
             err_fg,
+            cx,
         );
 
         let mut row = v_flex()
@@ -258,7 +260,7 @@ impl RenderOnce for ConnectionRowItem {
                                 div()
                                     .text_xs()
                                     .text_color(subtle)
-                                    .font_family(tip_cx.theme().mono_font_family.clone())
+                                    .font_family(crate::app::prefs::ui_font_family(tip_cx))
                                     .child(reason_tip.clone()),
                             )
                     }

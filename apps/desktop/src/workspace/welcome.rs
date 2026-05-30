@@ -223,7 +223,7 @@ fn welcome_row(
         .child(
             Icon::new(icon)
                 .text_color(if enabled { muted } else { muted.opacity(0.5) })
-                .with_size(gpui_component::Size::Small),
+                .with_size(crate::app::prefs::ui_component_size(cx)),
         )
         .child(
             div()

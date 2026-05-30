@@ -6,7 +6,7 @@ use gpui::{
 };
 use gpui_component::{
     ActiveTheme, ThemeConfig, ThemeMode, ThemeRegistry,
-    button::{Toggle, ToggleGroup, ToggleVariants},
+    button::{Toggle, ToggleVariants},
     h_flex,
     searchable_list::SearchableListItem,
     select::{Select, SelectState},
@@ -144,30 +144,29 @@ pub fn load_bundled_themes(cx: &mut App) {
     }
 }
 
-/// Segmented Light / Dark / System control.
+/// Light / Dark / System segmented control for onboarding.
+///
+/// Uses individual toggles (not `ToggleGroup`) so selection is mutually exclusive:
+/// each option applies only when its toggle turns on.
 pub fn appearance_segmented(id_prefix: &'static str, mode: AppearanceMode) -> impl IntoElement {
-    let checks = [
-        mode == AppearanceMode::Light,
-        mode == AppearanceMode::Dark,
-        mode == AppearanceMode::System,
-    ];
-
-    ToggleGroup::new(format!("{id_prefix}-appearance"))
-        .segmented()
-        .outline()
-        .child(Toggle::new(0).label("Light").checked(checks[0]))
-        .child(Toggle::new(1).label("Dark").checked(checks[1]))
-        .child(Toggle::new(2).label("System").checked(checks[2]))
-        .on_click(move |states, window, cx| {
-            let mode = if states.first() == Some(&true) {
-                AppearanceMode::Light
-            } else if states.get(1) == Some(&true) {
-                AppearanceMode::Dark
-            } else {
-                AppearanceMode::System
-            };
-            prefs::apply_appearance(mode, Some(window), cx);
-        })
+    h_flex().id(format!("{id_prefix}-appearance")).children(
+        [
+            (AppearanceMode::Light, "Light"),
+            (AppearanceMode::Dark, "Dark"),
+            (AppearanceMode::System, "System"),
+        ]
+        .map(|(target, label)| {
+            Toggle::new(format!("{id_prefix}-appearance-{label}"))
+                .label(label)
+                .outline()
+                .checked(mode == target)
+                .on_click(move |checked, window, cx| {
+                    if *checked {
+                        prefs::apply_appearance(target, Some(window), cx);
+                    }
+                })
+        }),
+    )
 }
 
 /// Theme name picker for settings (dropdown).

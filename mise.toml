@@ -28,7 +28,7 @@ run = "cargo clippy --workspace --all-targets"
 
 [tasks.lint-fix]
 description = "Run clippy checks and fix linting errors"
-run = "cargo clippy --workspace --all-targets --fix"
+run = "cargo clippy --workspace --all-targets --fix --allow-dirty"
 
 [tasks.format]
 description = "Format all Rust code"

@@ -97,7 +97,9 @@ impl ObjectListDelegate {
         SchemaRowStyle {
             muted: cx.theme().muted_foreground,
             fg: cx.theme().sidebar_foreground,
-            mono_family: cx.theme().mono_font_family.clone(),
+            mono_family: crate::app::prefs::code_font_family(cx),
+            row_py: crate::widgets::ui::sidebar_row_padding_y(cx),
+            row_gap: crate::widgets::ui::sidebar_row_inner_gap(cx),
         }
     }
 }
@@ -192,7 +194,6 @@ impl ListDelegate for ObjectListDelegate {
     ) -> Option<impl IntoElement> {
         let sec = self.sections.get(section)?;
         let muted = cx.theme().muted_foreground;
-        let mono = cx.theme().mono_font_family.clone();
         Some(
             h_flex()
                 .px(px(SIDEBAR_INSET))
@@ -203,14 +204,15 @@ impl ListDelegate for ObjectListDelegate {
                     div()
                         .text_xs()
                         .font_bold()
-                        .font_family(mono.clone())
+                        .font_family(crate::app::prefs::ui_font_family(cx))
+                        .font_weight(crate::app::prefs::ui_font_weight(cx))
                         .text_color(muted.opacity(0.86))
                         .child(sec.name.clone()),
                 )
                 .child(
                     div()
                         .text_xs()
-                        .font_family(mono)
+                        .font_family(crate::app::prefs::code_font_family(cx))
                         .text_color(muted.opacity(0.76))
                         .child(sec.items.len().to_string()),
                 ),

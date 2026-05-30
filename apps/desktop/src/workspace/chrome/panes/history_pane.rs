@@ -137,7 +137,7 @@ pub fn render_history_pane(
                     .min_w_0()
                     .cursor_pointer()
                     .text_xs()
-                    .font_family("monospace")
+                    .font_family(crate::app::prefs::code_font_family(cx))
                     .text_color(muted)
                     .child(preview)
                     .on_mouse_down(MouseButton::Left, move |_, _, cx| {

@@ -3,13 +3,15 @@
 use gpui::{ElementId, Hsla, IntoElement, ParentElement, SharedString, div, prelude::*, px};
 use gpui_component::{Icon, IconName, Sizable as _, h_flex, list::ListItem, v_flex};
 
-use crate::widgets::ui::{SCHEMA_ROW_ICON_SIZE, SIDEBAR_INSET, SIDEBAR_ROW_GAP, SIDEBAR_ROW_PY};
+use crate::widgets::ui::{SCHEMA_ROW_ICON_SIZE, SIDEBAR_INSET};
 
 /// Typography and colors for schema browser list rows.
 pub struct SchemaRowStyle {
     pub muted: Hsla,
     pub fg: Hsla,
     pub mono_family: SharedString,
+    pub row_py: f32,
+    pub row_gap: f32,
 }
 
 /// Command palette result row (connection hint + primary label + meta).
@@ -68,10 +70,12 @@ fn schema_object_row_inner(
         muted,
         fg,
         mono_family: _,
+        row_py: _,
+        row_gap,
     } = style;
     let mut row = h_flex()
         .w_full()
-        .gap(px(SIDEBAR_ROW_GAP))
+        .gap(px(row_gap))
         .items_center()
         .child(
             div()
@@ -113,7 +117,7 @@ pub fn schema_object_row(
         .selected(selected)
         .pl(px(SIDEBAR_INSET))
         .pr(px(SIDEBAR_INSET))
-        .py(px(SIDEBAR_ROW_PY))
+        .py(px(style.row_py))
         .cursor_pointer()
         .child(schema_object_row_inner(
             kind_icon,
@@ -136,7 +140,7 @@ pub fn schema_object_row_with_actions(
         .selected(selected)
         .pl(px(SIDEBAR_INSET))
         .pr(px(SIDEBAR_INSET))
-        .py(px(SIDEBAR_ROW_PY))
+        .py(px(style.row_py))
         .cursor_pointer()
         .child(schema_object_row_inner(
             kind_icon,

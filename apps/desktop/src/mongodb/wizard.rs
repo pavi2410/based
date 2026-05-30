@@ -168,17 +168,19 @@ impl Render for ConnectionWizardPanel {
                     .font_weight(FontWeight::SEMIBOLD)
                     .child("Connection"),
             )
-            .child(field_line("Label", &self.label, theme))
-            .child(field_line("URI", &self.uri, theme))
+            .child(field_line("Label", &self.label, theme, cx))
+            .child(field_line("URI", &self.uri, theme, cx))
             .child(field_line(
                 "Database override (optional)",
                 &self.database,
                 theme,
+                cx,
             ))
             .child(field_line(
                 "authSource (optional)",
                 &self.auth_source,
                 theme,
+                cx,
             ))
             .child(
                 div()
@@ -221,7 +223,7 @@ impl Render for ConnectionWizardPanel {
     }
 }
 
-fn field_line(title: &str, value: &str, theme: &Theme) -> impl IntoElement {
+fn field_line(title: &str, value: &str, theme: &Theme, cx: &App) -> impl IntoElement {
     let border = theme.border;
     v_flex()
         .gap_1()
@@ -236,7 +238,7 @@ fn field_line(title: &str, value: &str, theme: &Theme) -> impl IntoElement {
                 .p_2()
                 .border_1()
                 .border_color(border)
-                .font_family("monospace")
+                .font_family(crate::app::prefs::code_font_family(cx))
                 .text_sm()
                 .child(value.to_string()),
         )

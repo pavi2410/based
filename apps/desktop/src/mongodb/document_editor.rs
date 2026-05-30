@@ -242,7 +242,7 @@ impl Render for DocumentEditorPanel {
                     .p_2()
                     .border_1()
                     .border_color(border)
-                    .font_family("monospace")
+                    .font_family(crate::app::prefs::code_font_family(cx))
                     .text_sm()
                     .child(Input::new(&self.json_input).h_full().cleanable(false)),
             )

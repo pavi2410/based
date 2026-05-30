@@ -11,6 +11,7 @@ mod bindings;
 mod command_palette;
 mod connection;
 mod db;
+mod fonts;
 mod mongodb;
 mod postgres;
 mod project;
@@ -44,6 +45,7 @@ fn main() {
             if let Err(err) = theme::register_themes(cx) {
                 log::error!("failed to register theme bundles: {err:#}");
             }
+            fonts::register_bundled_fonts(cx);
             bindings::init(cx);
             app::shell::init(cx);
             app::prefs::install(cx);

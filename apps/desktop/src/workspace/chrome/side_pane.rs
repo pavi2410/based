@@ -69,7 +69,7 @@ pub fn render_side_pane(active: SidePane, body: impl IntoElement, cx: &App) -> i
                     div()
                         .text_xs()
                         .font_weight(FontWeight::BOLD)
-                        .font_family(cx.theme().mono_font_family.clone())
+                        .font_family(crate::app::prefs::ui_font_family(cx))
                         .text_color(muted)
                         .child(active.label()),
                 ),

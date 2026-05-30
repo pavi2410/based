@@ -104,7 +104,7 @@ impl Render for CellDetail {
         let display = self.value.display();
         let type_label = self.value.type_label();
         let theme = cx.theme();
-        let mono = theme.mono_font_family.clone();
+        let mono = crate::app::prefs::code_font_family(cx);
 
         div()
             .absolute()

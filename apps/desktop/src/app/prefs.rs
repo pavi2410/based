@@ -2,35 +2,26 @@
 
 use std::path::PathBuf;
 
-use gpui::{App, BorrowAppContext, Global, px};
+use gpui::{App, BorrowAppContext, FontWeight, Global, SharedString};
 use gpui_component::{Size, Theme, ThemeMode};
 use serde::{Deserialize, Serialize};
 
-/// Default UI base font size (matches Based theme).
-pub const DEFAULT_UI_FONT_SIZE: f32 = 14.0;
-/// Default monospace font size (matches Based theme).
-pub const DEFAULT_MONO_FONT_SIZE: f32 = 14.0;
+pub use super::chrome::{
+    ChromePrefs, CodeFontFamilyId, DensityPreset, FontWeightToken, SizeToken, UiFontFamilyId,
+    apply_chrome, panel_header_h, sidebar_row_gap, sidebar_row_py,
+};
+
+use super::chrome::ChromePrefs as Chrome;
+
 /// Default SQL data viewer page size (rows per fetch).
 pub const DEFAULT_PAGE_SIZE: u64 = 500;
 /// Default query timeout shown in settings (seconds); execution wiring is future work.
 pub const DEFAULT_QUERY_TIMEOUT_SECS: u32 = 30;
 
-const UI_FONT_MIN: f32 = 10.0;
 const PAGE_SIZE_MIN: u64 = 50;
 const PAGE_SIZE_MAX: u64 = 5000;
 const QUERY_TIMEOUT_MIN: u32 = 5;
 const QUERY_TIMEOUT_MAX: u32 = 600;
-const UI_FONT_MAX: f32 = 24.0;
-const MONO_FONT_MIN: f32 = 10.0;
-const MONO_FONT_MAX: f32 = 22.0;
-
-fn default_ui_font_size() -> f32 {
-    DEFAULT_UI_FONT_SIZE
-}
-
-fn default_mono_font_size() -> f32 {
-    DEFAULT_MONO_FONT_SIZE
-}
 
 fn default_page_size() -> u64 {
     DEFAULT_PAGE_SIZE
@@ -38,15 +29,6 @@ fn default_page_size() -> u64 {
 
 fn default_query_timeout_secs() -> u32 {
     DEFAULT_QUERY_TIMEOUT_SECS
-}
-
-/// Data grid row density (monospace cells).
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum TableDensity {
-    #[default]
-    Compact,
-    Comfortable,
 }
 
 /// Interaction and chrome toggles for data grids (gpui-component DataTable).
@@ -103,6 +85,35 @@ pub enum AppearanceMode {
     System,
 }
 
+impl AppearanceMode {
+    pub const ALL: [Self; 3] = [Self::Light, Self::Dark, Self::System];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Light => "Light",
+            Self::Dark => "Dark",
+            Self::System => "System",
+        }
+    }
+
+    pub fn storage_key(self) -> &'static str {
+        match self {
+            Self::Light => "light",
+            Self::Dark => "dark",
+            Self::System => "system",
+        }
+    }
+
+    pub fn from_storage_key(key: &str) -> Option<Self> {
+        match key {
+            "light" => Some(Self::Light),
+            "dark" => Some(Self::Dark),
+            "system" => Some(Self::System),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct NativePreferences {
     #[serde(default)]
@@ -113,20 +124,31 @@ pub struct NativePreferences {
     pub dark_theme: String,
     #[serde(default)]
     pub sidebar_collapsed: bool,
-    #[serde(default = "default_ui_font_size")]
-    pub ui_font_size: f32,
-    #[serde(default = "default_mono_font_size")]
-    pub mono_font_size: f32,
+    #[serde(default, flatten)]
+    pub chrome: Chrome,
     #[serde(default = "default_page_size")]
     pub page_size: u64,
     #[serde(default = "default_query_timeout_secs")]
     pub query_timeout_secs: u32,
     #[serde(default)]
-    pub table_density: TableDensity,
-    #[serde(default)]
     pub table_prefs: TablePreferences,
     #[serde(default)]
     pub onboarding_completed: bool,
+    /// Legacy — migrated into `chrome` on load, not written on save.
+    #[serde(default, skip_serializing, rename = "ui_font_size")]
+    legacy_ui_font_size: f32,
+    #[serde(default, skip_serializing, rename = "mono_font_size")]
+    legacy_mono_font_size: f32,
+    #[serde(default, skip_serializing, rename = "table_density")]
+    legacy_table_density: LegacyTableDensity,
+}
+
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+enum LegacyTableDensity {
+    #[default]
+    Compact,
+    Comfortable,
 }
 
 impl Default for NativePreferences {
@@ -136,13 +158,14 @@ impl Default for NativePreferences {
             light_theme: default_light_theme(),
             dark_theme: default_dark_theme(),
             sidebar_collapsed: false,
-            ui_font_size: DEFAULT_UI_FONT_SIZE,
-            mono_font_size: DEFAULT_MONO_FONT_SIZE,
+            chrome: Chrome::default(),
             page_size: DEFAULT_PAGE_SIZE,
             query_timeout_secs: DEFAULT_QUERY_TIMEOUT_SECS,
-            table_density: TableDensity::Compact,
             table_prefs: TablePreferences::default(),
             onboarding_completed: false,
+            legacy_ui_font_size: 14.0,
+            legacy_mono_font_size: 14.0,
+            legacy_table_density: LegacyTableDensity::Compact,
         }
     }
 }
@@ -156,6 +179,19 @@ fn migrate_legacy_theme_names(prefs: &mut NativePreferences) {
     if prefs.dark_theme == "Default Dark" {
         prefs.dark_theme = crate::theme::DEFAULT_DARK_THEME.to_string();
     }
+}
+
+fn migrate_legacy_chrome(prefs: &mut NativePreferences, raw: &str) {
+    if raw.contains("[ui]") || raw.contains("density_preset") {
+        prefs.chrome.sync_density_preset();
+        return;
+    }
+    let table_compact = prefs.legacy_table_density == LegacyTableDensity::Compact;
+    prefs.chrome.migrate_from_legacy(
+        prefs.legacy_ui_font_size,
+        prefs.legacy_mono_font_size,
+        table_compact,
+    );
 }
 
 impl NativePreferences {
@@ -204,6 +240,7 @@ impl NativePreferences {
             }
         }
         migrate_legacy_theme_names(&mut prefs);
+        migrate_legacy_chrome(&mut prefs, &raw);
         prefs
     }
 
@@ -222,11 +259,31 @@ impl NativePreferences {
     }
 }
 
+fn chrome_prefs(cx: &App) -> ChromePrefs {
+    cx.global::<NativePreferences>().chrome.clone()
+}
+
+fn update_chrome(update: impl FnOnce(&mut ChromePrefs) -> bool, cx: &mut App) {
+    let changed = cx.update_global(|p: &mut NativePreferences, _| {
+        let changed = update(&mut p.chrome);
+        if changed {
+            p.chrome.sync_density_preset();
+            p.save_best_effort();
+        }
+        changed
+    });
+    if changed {
+        let prefs = chrome_prefs(cx);
+        apply_chrome(&prefs, cx);
+    }
+}
+
 /// Load persisted prefs into a global and apply appearance + theme pair.
 pub fn install(cx: &mut App) {
     let prefs = NativePreferences::load();
     let light = prefs.light_theme.clone();
     let dark = prefs.dark_theme.clone();
+    let chrome = prefs.chrome.clone();
     cx.set_global(prefs);
     if let Err(err) = crate::theme::apply_theme_names(&light, &dark, cx) {
         log::warn!("theme pair on startup: {err:#}");
@@ -237,14 +294,51 @@ pub fn install(cx: &mut App) {
         );
     }
     reapply_appearance(None, cx);
+    apply_chrome(&chrome, cx);
 }
 
-pub fn ui_font_size(cx: &App) -> f32 {
-    cx.global::<NativePreferences>().ui_font_size
+pub fn density_preset(cx: &App) -> DensityPreset {
+    cx.global::<NativePreferences>().chrome.density_preset
 }
 
-pub fn mono_font_size(cx: &App) -> f32 {
-    cx.global::<NativePreferences>().mono_font_size
+pub fn ui_font_family(cx: &App) -> SharedString {
+    cx.global::<NativePreferences>().chrome.ui.family.resolve()
+}
+
+pub fn ui_font_weight(cx: &App) -> FontWeight {
+    cx.global::<NativePreferences>().chrome.ui.weight.to_gpui()
+}
+
+pub fn ui_size_token(cx: &App) -> SizeToken {
+    cx.global::<NativePreferences>().chrome.ui.size
+}
+
+pub fn code_font_family(cx: &App) -> SharedString {
+    cx.global::<NativePreferences>()
+        .chrome
+        .editor
+        .family
+        .resolve()
+}
+
+pub fn code_font_weight(cx: &App) -> FontWeight {
+    cx.global::<NativePreferences>()
+        .chrome
+        .editor
+        .weight
+        .to_gpui()
+}
+
+pub fn editor_size_token(cx: &App) -> SizeToken {
+    cx.global::<NativePreferences>().chrome.editor.size
+}
+
+pub fn table_size_token(cx: &App) -> SizeToken {
+    cx.global::<NativePreferences>().chrome.table.size
+}
+
+pub fn ui_component_size(cx: &App) -> Size {
+    ui_size_token(cx).to_component_size()
 }
 
 pub fn page_size(cx: &App) -> u64 {
@@ -255,19 +349,12 @@ pub fn query_timeout_secs(cx: &App) -> u32 {
     cx.global::<NativePreferences>().query_timeout_secs
 }
 
-pub fn table_density(cx: &App) -> TableDensity {
-    cx.global::<NativePreferences>().table_density
-}
-
 pub fn table_prefs(cx: &App) -> TablePreferences {
     cx.global::<NativePreferences>().table_prefs
 }
 
 pub fn table_cell_size(cx: &App) -> Size {
-    match table_density(cx) {
-        TableDensity::Compact => Size::XSmall,
-        TableDensity::Comfortable => Size::Small,
-    }
+    table_size_token(cx).to_component_size()
 }
 
 fn refresh_table_windows(changed: bool, cx: &mut App) {
@@ -378,18 +465,110 @@ pub fn set_table_loop_selection(loop_selection: bool, cx: &mut App) {
     );
 }
 
-pub fn set_table_density(density: TableDensity, cx: &mut App) {
-    let changed = cx.update_global(|p: &mut NativePreferences, _| {
-        if p.table_density == density {
-            return false;
-        }
-        p.table_density = density;
-        p.save_best_effort();
-        true
-    });
-    if changed {
-        cx.refresh_windows();
+pub fn set_table_size(size: SizeToken, cx: &mut App) {
+    update_chrome(
+        |c| {
+            if c.table.size == size {
+                return false;
+            }
+            c.table.size = size;
+            true
+        },
+        cx,
+    );
+    cx.refresh_windows();
+}
+
+pub fn apply_density_preset(preset: DensityPreset, cx: &mut App) {
+    if preset == DensityPreset::Custom {
+        return;
     }
+    update_chrome(
+        |c| {
+            let before = c.clone();
+            c.apply_density_preset(preset);
+            before != *c
+        },
+        cx,
+    );
+}
+
+pub fn set_ui_font_family(family: UiFontFamilyId, cx: &mut App) {
+    update_chrome(
+        |c| {
+            if c.ui.family == family {
+                return false;
+            }
+            c.ui.family = family;
+            true
+        },
+        cx,
+    );
+}
+
+pub fn set_ui_font_weight(weight: FontWeightToken, cx: &mut App) {
+    update_chrome(
+        |c| {
+            if c.ui.weight == weight {
+                return false;
+            }
+            c.ui.weight = weight;
+            true
+        },
+        cx,
+    );
+}
+
+pub fn set_ui_size(size: SizeToken, cx: &mut App) {
+    update_chrome(
+        |c| {
+            if c.ui.size == size {
+                return false;
+            }
+            c.ui.size = size;
+            true
+        },
+        cx,
+    );
+}
+
+pub fn set_editor_font_family(family: CodeFontFamilyId, cx: &mut App) {
+    update_chrome(
+        |c| {
+            if c.editor.family == family {
+                return false;
+            }
+            c.editor.family = family;
+            true
+        },
+        cx,
+    );
+}
+
+pub fn set_editor_font_weight(weight: FontWeightToken, cx: &mut App) {
+    update_chrome(
+        |c| {
+            if c.editor.weight == weight {
+                return false;
+            }
+            c.editor.weight = weight;
+            true
+        },
+        cx,
+    );
+}
+
+pub fn set_editor_size(size: SizeToken, cx: &mut App) {
+    update_chrome(
+        |c| {
+            if c.editor.size == size {
+                return false;
+            }
+            c.editor.size = size;
+            true
+        },
+        cx,
+    );
 }
 
 fn clamp_page_size(size: u64) -> u64 {
@@ -420,67 +599,6 @@ pub fn set_query_timeout_secs(secs: u32, cx: &mut App) {
         p.query_timeout_secs = secs;
         p.save_best_effort();
     });
-}
-
-fn clamp_ui_font(size: f32) -> f32 {
-    size.clamp(UI_FONT_MIN, UI_FONT_MAX)
-}
-
-fn clamp_mono_font(size: f32) -> f32 {
-    size.clamp(MONO_FONT_MIN, MONO_FONT_MAX)
-}
-
-/// Apply persisted font sizes to the active theme and refresh all windows.
-pub fn apply_font_sizes(cx: &mut App) {
-    let (ui, mono) = {
-        let prefs = cx.global::<NativePreferences>();
-        (
-            clamp_ui_font(prefs.ui_font_size),
-            clamp_mono_font(prefs.mono_font_size),
-        )
-    };
-    let theme = Theme::global_mut(cx);
-    theme.font_size = px(ui);
-    theme.mono_font_size = px(mono);
-    cx.refresh_windows();
-}
-
-pub fn set_ui_font_size(size: f32, cx: &mut App) {
-    let size = clamp_ui_font(size);
-    let changed = cx.update_global(|p: &mut NativePreferences, _| {
-        if (p.ui_font_size - size).abs() < f32::EPSILON {
-            return false;
-        }
-        p.ui_font_size = size;
-        p.save_best_effort();
-        true
-    });
-    if changed {
-        apply_font_sizes(cx);
-    }
-}
-
-pub fn set_mono_font_size(size: f32, cx: &mut App) {
-    let size = clamp_mono_font(size);
-    let changed = cx.update_global(|p: &mut NativePreferences, _| {
-        if (p.mono_font_size - size).abs() < f32::EPSILON {
-            return false;
-        }
-        p.mono_font_size = size;
-        p.save_best_effort();
-        true
-    });
-    if changed {
-        apply_font_sizes(cx);
-    }
-}
-
-pub fn adjust_ui_font_size(delta: f32, cx: &mut App) {
-    set_ui_font_size(ui_font_size(cx) + delta, cx);
-}
-
-pub fn adjust_mono_font_size(delta: f32, cx: &mut App) {
-    set_mono_font_size(mono_font_size(cx) + delta, cx);
 }
 
 pub fn collapsed_from(cx: &App) -> bool {
@@ -534,7 +652,8 @@ pub fn apply_appearance(mode: AppearanceMode, window: Option<&mut gpui::Window>,
         p.appearance_mode = mode;
         p.save_best_effort();
     });
-    apply_font_sizes(cx);
+    let chrome = chrome_prefs(cx);
+    apply_chrome(&chrome, cx);
     cx.refresh_windows();
 }
 

@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use gpui::{
-    App, Context, Entity, FocusHandle, Focusable, IntoElement, ParentElement, Render,
+    App, Context, Entity, FocusHandle, Focusable, IntoElement, ParentElement, Render, SharedString,
     StyleRefinement, Styled, Window, div, prelude::*, px,
 };
 use gpui_component::{
@@ -16,14 +16,62 @@ use gpui_component::{
     v_flex,
 };
 
-use crate::app::prefs::{self, DEFAULT_PAGE_SIZE, DEFAULT_QUERY_TIMEOUT_SECS};
-use crate::theme::{
-    ThemeNameItem, ThemePreviewAxis, ThemePreviewSession, appearance_segmented, theme_name_select,
+use crate::app::prefs::{
+    self, AppearanceMode, CodeFontFamilyId, DEFAULT_PAGE_SIZE, DEFAULT_QUERY_TIMEOUT_SECS,
+    DensityPreset, FontWeightToken, NativePreferences, SizeToken, UiFontFamilyId,
 };
+use crate::theme::{ThemeNameItem, ThemePreviewAxis, ThemePreviewSession, theme_name_select};
 
 #[cfg(target_os = "macos")]
 fn macos_settings_header_style() -> StyleRefinement {
     StyleRefinement::default().pt(px(32.0))
+}
+
+fn size_token_options() -> Vec<(SharedString, SharedString)> {
+    SizeToken::ALL
+        .iter()
+        .map(|token| (token.storage_key().into(), token.label().into()))
+        .collect()
+}
+
+fn weight_token_options() -> Vec<(SharedString, SharedString)> {
+    FontWeightToken::ALL
+        .iter()
+        .map(|token| (token.storage_key().into(), token.label().into()))
+        .collect()
+}
+
+fn ui_font_options() -> Vec<(SharedString, SharedString)> {
+    UiFontFamilyId::ALL
+        .iter()
+        .map(|id| (id.storage_key().into(), id.label().into()))
+        .collect()
+}
+
+fn code_font_options() -> Vec<(SharedString, SharedString)> {
+    CodeFontFamilyId::ALL
+        .iter()
+        .map(|id| (id.storage_key().into(), id.label().into()))
+        .collect()
+}
+
+fn appearance_mode_options() -> Vec<(SharedString, SharedString)> {
+    AppearanceMode::ALL
+        .iter()
+        .map(|mode| (mode.storage_key().into(), mode.label().into()))
+        .collect()
+}
+
+fn density_preset_options() -> Vec<(SharedString, SharedString)> {
+    let mut options: Vec<(SharedString, SharedString)> = DensityPreset::SELECTABLE
+        .iter()
+        .map(|preset| (preset.storage_key().into(), preset.label().into()))
+        .collect();
+    options.push((
+        DensityPreset::Custom.storage_key().into(),
+        DensityPreset::Custom.label().into(),
+    ));
+    options
 }
 
 struct ThemeSelectState {
@@ -169,9 +217,16 @@ impl SettingsWindow {
                     SettingGroup::new().title("Theme").items(vec![
                         SettingItem::new(
                             "Appearance",
-                            SettingField::render(|_, _window, cx| {
-                                appearance_segmented("settings", prefs::appearance_mode(cx))
-                            }),
+                            SettingField::dropdown(
+                                appearance_mode_options(),
+                                |cx: &App| prefs::appearance_mode(cx).storage_key().into(),
+                                |val: SharedString, cx: &mut App| {
+                                    if let Some(mode) = AppearanceMode::from_storage_key(&val) {
+                                        prefs::apply_appearance(mode, None, cx);
+                                    }
+                                },
+                            )
+                            .default_value(AppearanceMode::default().storage_key().to_string()),
                         )
                         .description("Light, dark, or match the system."),
                         SettingItem::new(
@@ -195,56 +250,171 @@ impl SettingsWindow {
                             "Theme used in dark mode. Arrow keys preview before you confirm.",
                         ),
                     ]),
-                    SettingGroup::new().title("Typography").items(vec![
-                        SettingItem::new(
-                            "UI font size",
-                            SettingField::number_input(
-                                NumberFieldOptions {
-                                    min: 10.0,
-                                    max: 24.0,
-                                    step: 1.0,
-                                },
-                                |cx| prefs::ui_font_size(cx) as f64,
-                                |val, cx| prefs::set_ui_font_size(val as f32, cx),
-                            )
-                            .default_value(prefs::DEFAULT_UI_FONT_SIZE as f64),
+                    SettingGroup::new().title("Density").items(vec![SettingItem::new(
+                        "UI density",
+                        SettingField::dropdown(
+                            density_preset_options(),
+                            |cx: &App| prefs::density_preset(cx).storage_key().into(),
+                            |val: SharedString, cx: &mut App| {
+                                if let Some(preset) = DensityPreset::from_storage_key(&val) {
+                                    prefs::apply_density_preset(preset, cx);
+                                }
+                            },
                         )
-                        .description("Base UI font size in pixels."),
+                        .default_value(DensityPreset::Default.storage_key().to_string()),
+                    )
+                    .description(
+                        "Compact, default, or comfortable spacing for UI, editor, and tables.",
+                    )]),
+                    SettingGroup::new().title("UI font").items(vec![
                         SettingItem::new(
-                            "Monospace font size",
-                            SettingField::number_input(
-                                NumberFieldOptions {
-                                    min: 10.0,
-                                    max: 22.0,
-                                    step: 1.0,
+                            "Font family",
+                            SettingField::dropdown(
+                                ui_font_options(),
+                                |cx: &App| {
+                                    cx.global::<NativePreferences>()
+                                        .chrome
+                                        .ui
+                                        .family
+                                        .storage_key()
+                                        .into()
                                 },
-                                |cx| prefs::mono_font_size(cx) as f64,
-                                |val, cx| prefs::set_mono_font_size(val as f32, cx),
+                                |val: SharedString, cx: &mut App| {
+                                    if let Some(family) = UiFontFamilyId::from_storage_key(&val) {
+                                        prefs::set_ui_font_family(family, cx);
+                                    }
+                                },
                             )
-                            .default_value(prefs::DEFAULT_MONO_FONT_SIZE as f64),
+                            .default_value(UiFontFamilyId::default().storage_key().to_string()),
                         )
-                        .description("Monospace font size for editors and SQL."),
+                        .description("Interface font for sidebars, tabs, and controls."),
+                        SettingItem::new(
+                            "Font weight",
+                            SettingField::dropdown(
+                                weight_token_options(),
+                                |cx: &App| {
+                                    cx.global::<NativePreferences>()
+                                        .chrome
+                                        .ui
+                                        .weight
+                                        .storage_key()
+                                        .into()
+                                },
+                                |val: SharedString, cx: &mut App| {
+                                    if let Some(weight) = FontWeightToken::from_storage_key(&val) {
+                                        prefs::set_ui_font_weight(weight, cx);
+                                    }
+                                },
+                            )
+                            .default_value(FontWeightToken::default().storage_key().to_string()),
+                        ),
+                        SettingItem::new(
+                            "Size",
+                            SettingField::dropdown(
+                                size_token_options(),
+                                |cx: &App| {
+                                    cx.global::<NativePreferences>()
+                                        .chrome
+                                        .ui
+                                        .size
+                                        .storage_key()
+                                        .into()
+                                },
+                                |val: SharedString, cx: &mut App| {
+                                    if let Some(size) = SizeToken::from_storage_key(&val) {
+                                        prefs::set_ui_size(size, cx);
+                                    }
+                                },
+                            )
+                            .default_value(SizeToken::default().storage_key().to_string()),
+                        ),
+                    ]),
+                    SettingGroup::new().title("Query editor").items(vec![
+                        SettingItem::new(
+                            "Code font family",
+                            SettingField::dropdown(
+                                code_font_options(),
+                                |cx: &App| {
+                                    cx.global::<NativePreferences>()
+                                        .chrome
+                                        .editor
+                                        .family
+                                        .storage_key()
+                                        .into()
+                                },
+                                |val: SharedString, cx: &mut App| {
+                                    if let Some(family) = CodeFontFamilyId::from_storage_key(&val)
+                                    {
+                                        prefs::set_editor_font_family(family, cx);
+                                    }
+                                },
+                            )
+                            .default_value(CodeFontFamilyId::default().storage_key().to_string()),
+                        )
+                        .description("Monospace font for SQL and JSON editors."),
+                        SettingItem::new(
+                            "Font weight",
+                            SettingField::dropdown(
+                                weight_token_options(),
+                                |cx: &App| {
+                                    cx.global::<NativePreferences>()
+                                        .chrome
+                                        .editor
+                                        .weight
+                                        .storage_key()
+                                        .into()
+                                },
+                                |val: SharedString, cx: &mut App| {
+                                    if let Some(weight) = FontWeightToken::from_storage_key(&val) {
+                                        prefs::set_editor_font_weight(weight, cx);
+                                    }
+                                },
+                            )
+                            .default_value(FontWeightToken::default().storage_key().to_string()),
+                        ),
+                        SettingItem::new(
+                            "Size",
+                            SettingField::dropdown(
+                                size_token_options(),
+                                |cx: &App| {
+                                    cx.global::<NativePreferences>()
+                                        .chrome
+                                        .editor
+                                        .size
+                                        .storage_key()
+                                        .into()
+                                },
+                                |val: SharedString, cx: &mut App| {
+                                    if let Some(size) = SizeToken::from_storage_key(&val) {
+                                        prefs::set_editor_size(size, cx);
+                                    }
+                                },
+                            )
+                            .default_value(SizeToken::default().storage_key().to_string()),
+                        ),
                     ]),
                     SettingGroup::new().title("Tables").items(vec![
                         SettingItem::new(
-                            "Compact tables",
-                            SettingField::switch(
-                                |cx| prefs::table_density(cx) == prefs::TableDensity::Compact,
-                                |on, cx| {
-                                    prefs::set_table_density(
-                                        if on {
-                                            prefs::TableDensity::Compact
-                                        } else {
-                                            prefs::TableDensity::Comfortable
-                                        },
-                                        cx,
-                                    );
+                            "Row size",
+                            SettingField::dropdown(
+                                size_token_options(),
+                                |cx: &App| {
+                                    cx.global::<NativePreferences>()
+                                        .chrome
+                                        .table
+                                        .size
+                                        .storage_key()
+                                        .into()
                                 },
-                            ),
+                                |val: SharedString, cx: &mut App| {
+                                    if let Some(size) = SizeToken::from_storage_key(&val) {
+                                        prefs::set_table_size(size, cx);
+                                    }
+                                },
+                            )
+                            .default_value(SizeToken::XSmall.storage_key().to_string()),
                         )
-                        .description(
-                            "Tighter monospace rows in data grids; turn off for roomier cells.",
-                        ),
+                        .description("Row height and cell padding in data grids."),
                         SettingItem::new(
                             "Zebra striping",
                             SettingField::switch(

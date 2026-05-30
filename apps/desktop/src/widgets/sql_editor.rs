@@ -6,6 +6,8 @@ use gpui_component::{
     input::{Input, InputState},
 };
 
+use crate::app::prefs;
+
 pub fn new_code_input(
     language: &'static str,
     initial: &str,
@@ -51,6 +53,36 @@ pub fn set_sql_input(input: &Entity<InputState>, sql: &str, window: &mut Window,
     set_input_text(input, sql, window, cx);
 }
 
+fn code_editor_shell(
+    input: &Entity<InputState>,
+    is_error: bool,
+    cx: &App,
+    height: Option<f32>,
+) -> impl IntoElement {
+    let theme = cx.theme();
+    let border: Hsla = if is_error { theme.danger } else { theme.border };
+    let font = prefs::code_font_family(cx);
+    let weight = prefs::code_font_weight(cx);
+    let size = px(prefs::editor_size_token(cx).editor_px());
+
+    let mut shell = div()
+        .p_2()
+        .border_1()
+        .rounded(px(7.0))
+        .border_color(border)
+        .font_family(font)
+        .font_weight(weight)
+        .text_size(size);
+
+    if let Some(height) = height {
+        shell = shell.h(px(height));
+    } else {
+        shell = shell.flex_1().min_h_0().h_full();
+    }
+
+    shell.child(Input::new(input).h_full().cleanable(false))
+}
+
 /// Full-height code editor surface for query / pipeline panels.
 pub fn code_editor_area(
     input: &Entity<InputState>,
@@ -58,30 +90,10 @@ pub fn code_editor_area(
     height: f32,
     cx: &App,
 ) -> impl IntoElement {
-    let theme = cx.theme();
-    let border: Hsla = if is_error { theme.danger } else { theme.border };
-
-    div()
-        .h(px(height))
-        .p_2()
-        .border_1()
-        .rounded(px(7.0))
-        .border_color(border)
-        .child(Input::new(input).h_full().cleanable(false))
+    code_editor_shell(input, is_error, cx, Some(height))
 }
 
 /// Flex child that fills remaining panel height (schema DDL, read-only viewers).
 pub fn code_editor_flex(input: &Entity<InputState>, is_error: bool, cx: &App) -> impl IntoElement {
-    let theme = cx.theme();
-    let border: Hsla = if is_error { theme.danger } else { theme.border };
-
-    div()
-        .flex_1()
-        .min_h_0()
-        .h_full()
-        .p_2()
-        .border_1()
-        .rounded(px(7.0))
-        .border_color(border)
-        .child(Input::new(input).h_full().cleanable(false))
+    code_editor_shell(input, is_error, cx, None)
 }

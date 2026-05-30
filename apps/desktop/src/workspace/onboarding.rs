@@ -211,7 +211,7 @@ fn action_row(
         .child(
             Icon::new(icon)
                 .text_color(muted)
-                .with_size(gpui_component::Size::Small),
+                .with_size(prefs::ui_component_size(cx)),
         )
         .child(div().flex_1().text_sm().text_color(fg).child(label))
 }

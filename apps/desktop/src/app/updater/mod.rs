@@ -101,7 +101,7 @@ pub fn init(cx: &mut App) {
 
     cx.spawn(async move |cx| {
         udebug("startup check scheduled in 30s");
-        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+        sleep_on_tokio(&mut cx, std::time::Duration::from_secs(30)).await;
         cx.update(|app| {
             let prefs = UpdateCoordinator::prefs(app);
             let stale = startup_check_stale(&UpdaterStateFile::load());
@@ -123,7 +123,7 @@ pub fn init(cx: &mut App) {
             });
 
             udebug(format!("periodic loop: sleeping {sleep_secs}s"));
-            tokio::time::sleep(std::time::Duration::from_secs(sleep_secs)).await;
+            sleep_on_tokio(&mut cx, std::time::Duration::from_secs(sleep_secs)).await;
 
             let should = cx.update(|app| {
                 let prefs = UpdateCoordinator::prefs(app);
@@ -140,6 +140,14 @@ pub fn init(cx: &mut App) {
         }
     })
     .detach();
+}
+
+/// GPUI `cx.spawn` tasks are not on Tokio; delays must go through `db::run_infallible`.
+async fn sleep_on_tokio(cx: &mut AsyncApp, duration: std::time::Duration) {
+    let _ = crate::db::run_infallible(cx, async move {
+        tokio::time::sleep(duration).await;
+    })
+    .await;
 }
 
 fn handle_pending_release_notes(state: &mut UpdaterStateFile, cx: &mut App) {

@@ -7,4 +7,5 @@ query = """
 SELECT table_name as name, table_schema as schema
 FROM information_schema.tables
 WHERE table_type = 'BASE TABLE'
-ORDER BY table_name;"""
+ORDER BY table_name;
+"""

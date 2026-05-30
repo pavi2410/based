@@ -33,11 +33,34 @@ username = "reader"
 password = "NWDMCE5xdipIjRrp"
 ssl = false
 
+# public postgres database (sample datasets: fraud_detection, house_sales, etc.)
+# source: https://docs.mindsdb.com/integrations/sample-database
+# postgresql://demo_user:demo_password@samples.mindsdb.com:5432/demo
+[connection.mindsdb_demo]
+label = "MindsDB Sample (read-only)"
+engine = "postgres"
+group = "public"
+host = "samples.mindsdb.com"
+port = 5432
+database = "demo"
+username = "demo_user"
+password = "demo_password"
+ssl = false
+
 [connection.test_mongo]
 label = "Local MongoDB (Docker)"
 engine = "mongodb"
 group = "local"
 url = { env = "MONGO_URL" }
+
+# public mongodb database (read-only electrolyte/chemistry data)
+# source: https://watertap.readthedocs.io/en/0.10.0/how_to_guides/how_to_use_EDB.html
+# mongodb+srv://edb-user:edbnawi@nawi-edb.utpac.mongodb.net
+[connection.watertap_edb]
+label = "WaterTAP EDB (read-only)"
+engine = "mongodb"
+group = "public"
+url = "mongodb+srv://edb-user:edbnawi@nawi-edb.utpac.mongodb.net"
 
 [settings]
 queryTimeout = 30000

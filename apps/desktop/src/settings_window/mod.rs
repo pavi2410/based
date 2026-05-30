@@ -1,17 +1,13 @@
 //! Separate settings window (theme, typography, query defaults).
 
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use gpui::{
-    App, Context, Entity, FocusHandle, Focusable, IntoElement, ParentElement, Render, SharedString,
+    App, Context, FocusHandle, Focusable, IntoElement, ParentElement, Render, SharedString,
     StyleRefinement, Styled, Window, div, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme, Icon, IconName, IndexPath, ThemeMode,
+    ActiveTheme, Icon, IconName, ThemeMode,
     group_box::GroupBoxVariant,
     searchable_list::SearchableListItem,
-    select::{SelectEvent, SelectState},
     setting::{NumberFieldOptions, SettingField, SettingGroup, SettingItem, SettingPage, Settings},
     v_flex,
 };
@@ -20,7 +16,7 @@ use crate::app::prefs::{
     self, AppearanceMode, CodeFontFamilyId, DEFAULT_PAGE_SIZE, DEFAULT_QUERY_TIMEOUT_SECS,
     DensityPreset, FontWeightToken, NativePreferences, SizeToken, UiFontFamilyId,
 };
-use crate::theme::{ThemeNameItem, ThemePreviewAxis, ThemePreviewSession, theme_name_select};
+use crate::theme::{ThemeNameItem, DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME};
 
 #[cfg(target_os = "macos")]
 fn macos_settings_header_style() -> StyleRefinement {
@@ -74,141 +70,31 @@ fn density_preset_options() -> Vec<(SharedString, SharedString)> {
     options
 }
 
-struct ThemeSelectState {
-    select: Entity<SelectState<Vec<ThemeNameItem>>>,
-    trigger_focus: FocusHandle,
-    preview: Rc<RefCell<ThemePreviewSession>>,
-    menu_was_open: bool,
-}
-
-impl ThemeSelectState {
-    fn new(
-        axis: ThemePreviewAxis,
-        mode: ThemeMode,
-        active_name: &str,
-        window: &mut Window,
-        cx: &mut Context<SettingsWindow>,
-    ) -> Self {
-        let items = ThemeNameItem::items_for_mode(mode, cx);
-        let selected_index = items
-            .iter()
-            .position(|item| item.value().as_ref() == active_name)
-            .map(IndexPath::new);
-
-        let select = cx.new(|cx| SelectState::new(items, selected_index, window, cx));
-        let trigger_focus = select.read(cx).focus_handle(cx);
-        let preview = Rc::new(RefCell::new(ThemePreviewSession::new(axis)));
-        let select_observe = select.clone();
-        let preview_on_confirm = preview.clone();
-
-        cx.subscribe(
-            &select_observe,
-            move |_, _select, event: &SelectEvent<Vec<ThemeNameItem>>, cx| {
-                let SelectEvent::Confirm(Some(name)) = event else {
-                    return;
-                };
-                match axis {
-                    ThemePreviewAxis::Light => prefs::apply_light_theme(name.as_ref(), None, cx),
-                    ThemePreviewAxis::Dark => prefs::apply_dark_theme(name.as_ref(), None, cx),
-                }
-                preview_on_confirm.borrow_mut().clear_after_commit();
-            },
-        )
-        .detach();
-
-        Self {
-            select,
-            trigger_focus,
-            preview,
-            menu_was_open: false,
-        }
-    }
-
-    fn menu_open(&self, cx: &App) -> bool {
-        self.select.read(cx).focus_handle(cx) != self.trigger_focus
-    }
-
-    fn sync_preview(&self, window: &mut Window, cx: &mut App) {
-        let Some(ix) = self.select.read(cx).selected_index(cx) else {
-            return;
-        };
-        let mode = match self.preview.borrow().axis {
-            ThemePreviewAxis::Light => ThemeMode::Light,
-            ThemePreviewAxis::Dark => ThemeMode::Dark,
-        };
-        let items = ThemeNameItem::items_for_mode(mode, cx);
-        let Some(item) = items.get(ix.row) else {
-            return;
-        };
-        self.preview
-            .borrow_mut()
-            .preview(item.value().as_ref(), Some(window), cx);
-    }
-
-    fn handle_menu_closed(&mut self, window: &mut Window, cx: &mut App) {
-        if !self.preview.borrow().is_active() {
-            return;
-        }
-        let committed = match self.preview.borrow().axis {
-            ThemePreviewAxis::Light => prefs::light_theme_name(cx),
-            ThemePreviewAxis::Dark => prefs::dark_theme_name(cx),
-        };
-        let selected = self
-            .select
-            .read(cx)
-            .selected_value()
-            .map(|value| value.as_ref());
-        if selected == Some(committed) {
-            self.preview.borrow_mut().revert(Some(window), cx);
-        } else {
-            self.preview.borrow_mut().clear_after_commit();
-        }
-    }
-
-    fn tick(&mut self, window: &mut Window, cx: &mut App) -> bool {
-        let open = self.menu_open(cx);
-        if open {
-            self.sync_preview(window, cx);
-        } else if self.menu_was_open {
-            self.handle_menu_closed(window, cx);
-        }
-        self.menu_was_open = open;
-        open
-    }
+fn theme_name_options(mode: ThemeMode, cx: &App) -> Vec<(SharedString, SharedString)> {
+    ThemeNameItem::items_for_mode(mode, cx)
+        .into_iter()
+        .map(|item| {
+            let name = item.value().clone();
+            (name.clone(), item.title())
+        })
+        .collect()
 }
 
 pub struct SettingsWindow {
     focus_handle: FocusHandle,
-    light_theme: ThemeSelectState,
-    dark_theme: ThemeSelectState,
 }
 
 impl SettingsWindow {
-    pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let light_name = prefs::light_theme_name(cx).to_string();
-        let dark_name = prefs::dark_theme_name(cx).to_string();
+    pub fn new(cx: &mut Context<Self>) -> Self {
         Self {
             focus_handle: cx.focus_handle(),
-            light_theme: ThemeSelectState::new(
-                ThemePreviewAxis::Light,
-                ThemeMode::Light,
-                &light_name,
-                window,
-                cx,
-            ),
-            dark_theme: ThemeSelectState::new(
-                ThemePreviewAxis::Dark,
-                ThemeMode::Dark,
-                &dark_name,
-                window,
-                cx,
-            ),
         }
     }
 
-    fn pages(&self, _: &mut Window, _cx: &mut Context<Self>) -> Vec<SettingPage> {
-        let light_select = self.light_theme.select.clone();
-        let dark_select = self.dark_theme.select.clone();
+    fn pages(&self, _: &mut Window, cx: &mut Context<Self>) -> Vec<SettingPage> {
+        let light_theme_options = theme_name_options(ThemeMode::Light, cx);
+        let dark_theme_options = theme_name_options(ThemeMode::Dark, cx);
+
         vec![
             SettingPage::new("Appearance")
                 .default_open(true)
@@ -231,24 +117,28 @@ impl SettingsWindow {
                         .description("Light, dark, or match the system."),
                         SettingItem::new(
                             "Light theme",
-                            SettingField::render(move |_, _, _cx| {
-                                theme_name_select(light_select.clone())
-                            }),
+                            SettingField::scrollable_dropdown(
+                                light_theme_options,
+                                |cx: &App| prefs::light_theme_name(cx).into(),
+                                |val: SharedString, cx: &mut App| {
+                                    prefs::apply_light_theme(val.as_ref(), None, cx);
+                                },
+                            )
+                            .default_value(DEFAULT_LIGHT_THEME.to_string()),
                         )
-                        .layout(gpui::Axis::Vertical)
-                        .description(
-                            "Theme used in light mode. Arrow keys preview before you confirm.",
-                        ),
+                        .description("Theme used in light mode."),
                         SettingItem::new(
                             "Dark theme",
-                            SettingField::render(move |_, _, _cx| {
-                                theme_name_select(dark_select.clone())
-                            }),
+                            SettingField::scrollable_dropdown(
+                                dark_theme_options,
+                                |cx: &App| prefs::dark_theme_name(cx).into(),
+                                |val: SharedString, cx: &mut App| {
+                                    prefs::apply_dark_theme(val.as_ref(), None, cx);
+                                },
+                            )
+                            .default_value(DEFAULT_DARK_THEME.to_string()),
                         )
-                        .layout(gpui::Axis::Vertical)
-                        .description(
-                            "Theme used in dark mode. Arrow keys preview before you confirm.",
-                        ),
+                        .description("Theme used in dark mode."),
                     ]),
                     SettingGroup::new().title("Density").items(vec![SettingItem::new(
                         "UI density",
@@ -523,12 +413,6 @@ impl Focusable for SettingsWindow {
 
 impl Render for SettingsWindow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let light_open = self.light_theme.tick(window, cx);
-        let dark_open = self.dark_theme.tick(window, cx);
-        if light_open || dark_open {
-            cx.notify();
-        }
-
         let bg = cx.theme().background;
         let fg = cx.theme().foreground;
 

@@ -18,7 +18,10 @@ const year = new Date().getFullYear();
     <span class="sep" aria-hidden="true">·</span>
     <span>Made in India</span>
   </nav>
-  <p class="footer-copy">© {year} pavi2410</p>
+  <p class="footer-copy">
+    © {year}
+    <a href="https://x.com/PavitraGolchha" target="_blank" rel="noopener noreferrer" class="footer-author">pavi2410</a>
+  </p>
 </footer>
 
 <style>
@@ -49,5 +52,17 @@ const year = new Date().getFullYear();
     margin: 0.85rem 0 0;
     color: color-mix(in srgb, var(--muted) 70%, transparent);
     font-size: 0.8rem;
+  }
+
+  .footer-author {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-color: color-mix(in srgb, var(--muted) 35%, transparent);
+    transition: color 120ms var(--motion-ease);
+  }
+
+  .footer-author:hover {
+    color: var(--text);
   }
 </style>

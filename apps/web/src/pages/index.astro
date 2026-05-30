@@ -12,9 +12,12 @@ import Nav from "../components/Nav.astro";
 import Problem from "../components/Problem.astro";
 import Screenshot from "../components/Screenshot.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { fetchStarCount } from "../lib/github";
+import { fetchLatestRelease, fetchStarCount } from "../lib/github";
 
-const stars = await fetchStarCount();
+const [stars, release] = await Promise.all([
+  fetchStarCount(),
+  fetchLatestRelease(),
+]);
 ---
 
 <BaseLayout>
@@ -22,14 +25,14 @@ const stars = await fetchStarCount();
     <AmbientGlow />
     <Nav stars={stars} />
     <main class="container content">
-      <Hero stars={stars} />
+      <Hero stars={stars} version={release?.tag_name ?? null} />
       <Screenshot />
       <Problem />
       <HowItWorks />
       <Features />
       <Engines />
       <LocalFirst />
-      <Install />
+      <Install release={release} />
       <Faq />
       <Footer />
     </main>

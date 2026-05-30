@@ -3,9 +3,10 @@ import { RELEASES_URL, REPO_URL } from "../lib/github";
 
 interface Props {
   stars: number | null;
+  version: string | null;
 }
 
-const { stars } = Astro.props;
+const { stars, version } = Astro.props;
 ---
 
 <section class="hero" id="top">
@@ -18,6 +19,8 @@ const { stars } = Astro.props;
     Version-controlled connections and queries. Native Rust and GPUI. Postgres,
     SQLite, and MongoDB — no accounts, no backend.
   </p>
+
+  {version && <p class="hero-version mono intro intro-delay-4">{version}</p>}
 
   <div class="cta-row hero-cta-row intro intro-delay-4">
     <a href={RELEASES_URL} class="btn btn-primary" target="_blank" rel="noopener noreferrer">
@@ -91,7 +94,14 @@ const { stars } = Astro.props;
     line-height: 1.6;
   }
 
+  .hero-version {
+    margin: 1.75rem 0 0;
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    color: color-mix(in srgb, var(--muted) 80%, transparent);
+  }
+
   .hero-cta-row {
-    margin-top: 2rem;
+    margin-top: 0.85rem;
   }
 </style>

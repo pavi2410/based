@@ -1,0 +1,26 @@
+---
+import GitHubStar from "./GitHubStar.astro";
+
+interface Props {
+  stars: number | null;
+}
+
+const { stars } = Astro.props;
+---
+
+<section class="hero">
+  <div class="hero-top">
+    <div class="hero-copy">
+      <h1 class="wordmark intro">based</h1>
+      <p class="headline intro intro-delay-1">
+        Version-controlled database connections for async teams.
+      </p>
+      <p class="subline intro intro-delay-2">
+        Native Rust · GPUI · Postgres, SQLite, MongoDB.
+      </p>
+    </div>
+    <div class="hero-cta">
+      <GitHubStar stars={stars} />
+    </div>
+  </div>
+</section>

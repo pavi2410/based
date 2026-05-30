@@ -1,0 +1,64 @@
+---
+import "../styles/global.css";
+import "../styles/motion.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = "based — Git-Friendly Database Client",
+  description = "Version-controlled database connections for async teams. Native Rust · GPUI · Postgres, SQLite, MongoDB.",
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="generator" content={Astro.generator} />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <title>{title}</title>
+  </head>
+  <body>
+    <slot />
+    <script>
+      const prefersReducedMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+
+      if (!prefersReducedMotion) {
+        const elements = document.querySelectorAll("[data-reveal]:not(.is-visible)");
+
+        const observer = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              if (entry.isIntersecting) {
+                entry.target.classList.add("is-visible");
+                observer.unobserve(entry.target);
+              }
+            }
+          },
+          { threshold: 0.15 },
+        );
+
+        for (const element of elements) {
+          observer.observe(element);
+        }
+      } else {
+        for (const element of document.querySelectorAll("[data-reveal]")) {
+          element.classList.add("is-visible");
+        }
+      }
+    </script>
+  </body>
+</html>

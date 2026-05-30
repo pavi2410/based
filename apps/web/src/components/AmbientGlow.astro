@@ -1,0 +1,48 @@
+<div class="ambient" aria-hidden="true">
+  <div class="ambient-orb ambient-orb--pg"></div>
+  <div class="ambient-orb ambient-orb--sqlite"></div>
+  <div class="ambient-orb ambient-orb--mongo"></div>
+</div>
+
+<style>
+  .ambient {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .ambient-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+  }
+
+  .ambient-orb--pg {
+    top: -8%;
+    left: -6%;
+    width: min(42vw, 28rem);
+    height: min(42vw, 28rem);
+    background: color-mix(in srgb, var(--pg) 18%, transparent);
+    animation: drift-a 18s ease-in-out infinite;
+  }
+
+  .ambient-orb--sqlite {
+    top: 18%;
+    right: -8%;
+    width: min(36vw, 22rem);
+    height: min(36vw, 22rem);
+    background: color-mix(in srgb, var(--sqlite) 16%, transparent);
+    animation: drift-b 22s ease-in-out infinite;
+  }
+
+  .ambient-orb--mongo {
+    bottom: -10%;
+    left: 28%;
+    width: min(40vw, 26rem);
+    height: min(40vw, 26rem);
+    background: color-mix(in srgb, var(--mongo) 14%, transparent);
+    animation: drift-c 20s ease-in-out infinite;
+  }
+</style>

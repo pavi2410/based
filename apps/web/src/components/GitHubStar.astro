@@ -1,0 +1,77 @@
+---
+import { REPO_URL } from "../lib/github";
+
+interface Props {
+  stars: number | null;
+}
+
+const { stars } = Astro.props;
+---
+
+<a
+  href={REPO_URL}
+  class="star-button intro intro-delay-3"
+  target="_blank"
+  rel="noopener noreferrer"
+>
+  <svg
+    class="star-icon"
+    width="18"
+    height="18"
+    viewBox="0 0 16 16"
+    fill="currentColor"
+    aria-hidden="true"
+  >
+    <path
+      d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"
+    ></path>
+  </svg>
+  <span>Star on GitHub</span>
+  {
+    stars !== null && (
+      <span class="star-count" aria-label={`${stars.toLocaleString()} stars`}>
+        {stars.toLocaleString()}
+      </span>
+    )
+  }
+</a>
+
+<style>
+  .star-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.65rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-fg);
+    font-size: 0.925rem;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    transition:
+      transform 120ms var(--motion-ease),
+      filter 120ms var(--motion-ease),
+      box-shadow 120ms var(--motion-ease);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--pg) 0%, transparent);
+  }
+
+  .star-button:hover {
+    color: var(--accent-fg);
+    transform: scale(1.02);
+    filter: brightness(1.04);
+    box-shadow: 0 8px 32px color-mix(in srgb, var(--pg) 22%, transparent);
+  }
+
+  .star-icon {
+    flex-shrink: 0;
+  }
+
+  .star-count {
+    padding-left: 0.55rem;
+    border-left: 1px solid color-mix(in srgb, var(--accent-fg) 18%, transparent);
+    color: color-mix(in srgb, var(--accent-fg) 72%, transparent);
+    font-variant-numeric: tabular-nums;
+  }
+</style>

@@ -1,0 +1,49 @@
+<section class="screenshot section-gap intro-scale" aria-label="Based app preview">
+  <div class="screenshot-frame">
+    <img
+      src="/images/hero-screenshot.png"
+      alt="Based database client showing SQL editor, schema tree, and query results"
+      width="1920"
+      height="1080"
+      loading="eager"
+      decoding="async"
+    />
+  </div>
+</section>
+
+<style>
+  .screenshot {
+    position: relative;
+  }
+
+  .screenshot-frame {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--surface);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--border) 60%, transparent),
+      0 24px 48px color-mix(in srgb, #000 45%, transparent),
+      0 0 80px color-mix(in srgb, var(--pg) 15%, transparent);
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .screenshot-frame::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in srgb, #fff 3%, transparent),
+      transparent 18%
+    );
+    opacity: 0.35;
+  }
+
+  .screenshot-frame img {
+    width: 100%;
+    height: auto;
+  }
+</style>

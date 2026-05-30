@@ -1,0 +1,129 @@
+---
+import Reveal from "./Reveal.astro";
+
+const chips = [
+  {
+    label: ".based/",
+    title: "in git",
+    body: "Connections and queries your team commits.",
+    icons: null as string[] | null,
+  },
+  {
+    label: null,
+    title: "Postgres · SQLite · MongoDB",
+    body: "All three engines, co-equally.",
+    icons: ["postgresql", "sqlite", "mongodb"],
+  },
+  {
+    label: null,
+    title: "No accounts · no backend",
+    body: "Your data stays on your machine.",
+    icons: null,
+  },
+];
+---
+
+<section class="chips section-gap" aria-label="Key features">
+  <div class="chips-grid">
+    {
+      chips.map((chip, index) => (
+        <Reveal delay={index}>
+          <article class="chip">
+            <div class="chip-head">
+              {chip.label ? (
+                <div class="chip-title-row">
+                  <span class="chip-label mono">{chip.label}</span>
+                  <h2 class="chip-title">{chip.title}</h2>
+                </div>
+              ) : chip.icons ? (
+                <>
+                  <div class="chip-icons" aria-hidden="true">
+                    {chip.icons.map((icon) => (
+                      <img src={`/icons/engines/${icon}.svg`} alt="" width="18" height="18" />
+                    ))}
+                  </div>
+                  <h2 class="chip-title">{chip.title}</h2>
+                </>
+              ) : (
+                <h2 class="chip-title">{chip.title}</h2>
+              )}
+            </div>
+            <p class="chip-body">{chip.body}</p>
+          </article>
+        </Reveal>
+      ))
+    }
+  </div>
+</section>
+
+<style>
+  .chips-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  .chip {
+    height: 100%;
+    padding: 1.1rem 1.15rem;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+    backdrop-filter: blur(8px);
+  }
+
+  .chip-head {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .chip-title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  .chip-label {
+    display: inline-flex;
+    width: fit-content;
+    padding: 0.2rem 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--bg) 70%, transparent);
+    color: var(--text);
+    font-size: 0.82rem;
+  }
+
+  .chip-icons {
+    display: flex;
+    gap: 0.45rem;
+    align-items: center;
+  }
+
+  .chip-icons img {
+    opacity: 0.92;
+  }
+
+  .chip-title {
+    margin: 0;
+    font-size: 0.98rem;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+  }
+
+  .chip-body {
+    margin: 0.65rem 0 0;
+    color: var(--muted);
+    font-size: 0.92rem;
+    line-height: 1.5;
+  }
+
+  @media (max-width: 900px) {
+    .chips-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

@@ -1,0 +1,51 @@
+---
+import { DISCUSSIONS_URL, RELEASES_URL, REPO_URL } from "../lib/github";
+
+const year = new Date().getFullYear();
+---
+
+<footer class="footer">
+  <nav class="footer-nav" aria-label="Footer">
+    <a href={REPO_URL} target="_blank" rel="noopener noreferrer">GitHub</a>
+    <span class="sep" aria-hidden="true">·</span>
+    <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer">Releases</a>
+    <span class="sep" aria-hidden="true">·</span>
+    <a href={DISCUSSIONS_URL} target="_blank" rel="noopener noreferrer">Discussions</a>
+    <span class="sep" aria-hidden="true">·</span>
+    <span>MIT</span>
+    <span class="sep" aria-hidden="true">·</span>
+    <span>Made in India</span>
+  </nav>
+  <p class="footer-copy">© {year} pavi2410</p>
+</footer>
+
+<style>
+  .footer {
+    margin-top: clamp(3rem, 8vw, 5rem);
+    padding-bottom: 2.5rem;
+    text-align: center;
+  }
+
+  .footer-nav {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.55rem;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  .footer-nav a:hover {
+    color: var(--text);
+  }
+
+  .sep {
+    opacity: 0.45;
+  }
+
+  .footer-copy {
+    margin: 0.85rem 0 0;
+    color: color-mix(in srgb, var(--muted) 70%, transparent);
+    font-size: 0.8rem;
+  }
+</style>

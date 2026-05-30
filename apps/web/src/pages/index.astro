@@ -1,0 +1,33 @@
+---
+import AmbientGlow from "../components/AmbientGlow.astro";
+import Footer from "../components/Footer.astro";
+import Hero from "../components/Hero.astro";
+import Screenshot from "../components/Screenshot.astro";
+import SignalChips from "../components/SignalChips.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { fetchStarCount } from "../lib/github";
+
+const stars = await fetchStarCount();
+---
+
+<BaseLayout>
+  <div class="page">
+    <AmbientGlow />
+    <main class="container content">
+      <Hero stars={stars} />
+      <Screenshot />
+      <SignalChips />
+      <p class="micro-copy">
+        Star the repo on GitHub to follow releases.
+      </p>
+      <Footer />
+    </main>
+  </div>
+</BaseLayout>
+
+<style>
+  .content {
+    position: relative;
+    z-index: 1;
+  }
+</style>

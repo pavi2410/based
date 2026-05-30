@@ -37,3 +37,19 @@ run = "cargo fmt --all"
 [tasks.test]
 description = "Run all tests"
 run = "cargo test --workspace"
+
+[tasks.web-dev]
+description = "Run Based landing page dev server"
+run = "pnpm --dir apps/web dev"
+
+[tasks.web-build]
+description = "Build Based landing page for production"
+run = "pnpm --dir apps/web build"
+
+[tasks.web-preview]
+description = "Build and preview landing page via Wrangler"
+run = "pnpm --dir apps/web preview"
+
+[tasks.web-deploy]
+description = "Build and deploy landing page to Cloudflare Workers"
+run = "pnpm --dir apps/web deploy"

@@ -1,0 +1,139 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: #0a0a0a;
+  --surface: #171717;
+  --border: #262626;
+  --text: #fafafa;
+  --muted: #a3a3a3;
+  --accent: #fafafa;
+  --accent-fg: #0a0a0a;
+  --pg: #336791;
+  --sqlite: #57aaa0;
+  --mongo: #13aa52;
+
+  --motion-fast: 280ms;
+  --motion-base: 360ms;
+  --motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-stagger: 50ms;
+
+  --font-sans: "Geist", "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
+
+  --max-width: 72rem;
+  --page-pad: clamp(1.25rem, 4vw, 2.5rem);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+a:hover {
+  color: #fff;
+}
+
+.page {
+  position: relative;
+  overflow-x: clip;
+  min-height: 100dvh;
+}
+
+.container {
+  width: min(var(--max-width), 100%);
+  margin-inline: auto;
+  padding-inline: var(--page-pad);
+}
+
+.wordmark {
+  font-size: clamp(2.5rem, 8vw, 4.5rem);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin: 0;
+}
+
+.headline {
+  margin: 1.25rem 0 0;
+  max-width: 22ch;
+  font-size: clamp(1.35rem, 3vw, 1.75rem);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.subline {
+  margin: 0.75rem 0 0;
+  max-width: 36ch;
+  color: var(--muted);
+  font-size: clamp(0.95rem, 2vw, 1.05rem);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.hero-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding-top: clamp(3rem, 10vh, 5rem);
+}
+
+.hero-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.hero-cta {
+  flex-shrink: 0;
+  padding-top: 0.35rem;
+}
+
+.section-gap {
+  margin-top: clamp(2.5rem, 6vw, 4rem);
+}
+
+.micro-copy {
+  margin: 2.5rem 0 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 720px) {
+  .hero-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hero-cta {
+    padding-top: 0;
+  }
+}

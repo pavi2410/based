@@ -9,7 +9,7 @@ const { stars } = Astro.props;
 ---
 
 <section class="hero" id="top">
-  <p class="hero-eyebrow intro mono">Local-first database client</p>
+  <p class="eyebrow intro">Local-first database client</p>
   <h1 class="hero-wordmark intro intro-delay-1">based</h1>
   <p class="hero-headline intro intro-delay-2">
     The database client your whole team can commit to git.
@@ -66,13 +66,6 @@ const { stars } = Astro.props;
     max-width: 52rem;
   }
 
-  .hero-eyebrow {
-    margin: 0 0 1.1rem;
-    font-size: 0.82rem;
-    letter-spacing: 0.06em;
-    color: color-mix(in srgb, var(--accent-blue) 80%, var(--muted));
-  }
-
   .hero-wordmark {
     font-size: clamp(3rem, 9vw, 5rem);
     font-weight: 700;
@@ -83,7 +76,7 @@ const { stars } = Astro.props;
 
   .hero-headline {
     margin: 1.4rem 0 0;
-    max-width: 18ch;
+    max-width: 24ch;
     font-size: clamp(1.6rem, 4.5vw, 2.75rem);
     font-weight: 600;
     letter-spacing: -0.03em;

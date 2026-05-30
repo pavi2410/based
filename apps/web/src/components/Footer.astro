@@ -1,5 +1,5 @@
 ---
-import { DISCUSSIONS_URL, RELEASES_URL, REPO_URL } from "../lib/github";
+import { DISCUSSIONS_URL, RELEASES_URL, REPO_URL, SPONSORS_URL } from "../lib/github";
 
 const year = new Date().getFullYear();
 ---
@@ -8,7 +8,11 @@ const year = new Date().getFullYear();
   <nav class="footer-nav" aria-label="Footer">
     <a href="#install">Download</a>
     <span class="sep" aria-hidden="true">·</span>
+    <a href="#support">Support</a>
+    <span class="sep" aria-hidden="true">·</span>
     <a href={REPO_URL} target="_blank" rel="noopener noreferrer">GitHub</a>
+    <span class="sep" aria-hidden="true">·</span>
+    <a href={SPONSORS_URL} target="_blank" rel="noopener noreferrer">Sponsor</a>
     <span class="sep" aria-hidden="true">·</span>
     <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer">Releases</a>
     <span class="sep" aria-hidden="true">·</span>

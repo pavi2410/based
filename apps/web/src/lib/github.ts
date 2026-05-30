@@ -11,6 +11,7 @@ function isRateLimited(res: Response): boolean {
 export const REPO_URL = "https://github.com/pavi2410/based";
 export const RELEASES_URL = "https://github.com/pavi2410/based/releases";
 export const DISCUSSIONS_URL = "https://github.com/pavi2410/based/discussions";
+export const SPONSORS_URL = "https://github.com/sponsors/pavi2410";
 
 export async function fetchStarCount(): Promise<number | null> {
   try {

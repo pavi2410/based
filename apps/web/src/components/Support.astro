@@ -1,0 +1,54 @@
+---
+import { REPO_URL, SPONSORS_URL } from "../lib/github";
+import StarIcon from "./icons/StarIcon.astro";
+import Reveal from "./Reveal.astro";
+---
+
+<section class="section support" id="support">
+  <Reveal>
+    <article class="support-panel card">
+      <div class="section-head support-head">
+        <span class="eyebrow">Support</span>
+        <h2 class="section-title">Help keep based independent.</h2>
+        <p class="section-lead">
+          based is free and MIT-licensed. Sponsorship funds time for features,
+          fixes, and releases across macOS, Windows, and Linux.
+        </p>
+      </div>
+      <div class="cta-row support-cta">
+        <a
+          href={SPONSORS_URL}
+          class="btn btn-primary"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Sponsor on GitHub
+        </a>
+        <a
+          href={REPO_URL}
+          class="btn btn-secondary"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <StarIcon class="btn-icon" />
+          Star the repo
+        </a>
+      </div>
+    </article>
+  </Reveal>
+</section>
+
+<style>
+  .support-panel {
+    max-width: 52rem;
+    padding: clamp(1.6rem, 4vw, 2.25rem) clamp(1.45rem, 4vw, 2rem);
+  }
+
+  .support-head {
+    margin-bottom: 1.5rem;
+  }
+
+  .support-cta {
+    margin-top: 0.25rem;
+  }
+</style>

@@ -8,6 +8,7 @@ import Hero from "../components/Hero.astro";
 import HowItWorks from "../components/HowItWorks.astro";
 import Install from "../components/Install.astro";
 import LocalFirst from "../components/LocalFirst.astro";
+import Support from "../components/Support.astro";
 import Nav from "../components/Nav.astro";
 import Problem from "../components/Problem.astro";
 import Screenshot from "../components/Screenshot.astro";
@@ -39,6 +40,7 @@ const totalDownloads =
       <Engines />
       <LocalFirst />
       <Install release={release} allReleases={allReleases} totalDownloads={totalDownloads} />
+      <Support />
       <Faq />
       <Footer />
     </main>

@@ -28,6 +28,7 @@ const RELEASES_URL: &str = "https://github.com/pavi2410/based/releases";
 const LICENSE_URL: &str = "https://github.com/pavi2410/based/blob/HEAD/LICENSE";
 const DEV_SITE_URL: &str = "https://pavi2410.com";
 const DEV_GITHUB_URL: &str = "https://github.com/pavi2410";
+const SPONSORS_URL: &str = "https://github.com/sponsors/pavi2410";
 
 /// Short curated list. Kept in sync manually with the workspace `Cargo.toml`;
 /// transitive dep changes don't need to be reflected here.
@@ -114,6 +115,12 @@ impl Render for AboutWindow {
             .child(link_row(
                 "GitHub profile",
                 DEV_GITHUB_URL,
+                IconName::Github,
+                link,
+            ))
+            .child(link_row(
+                "Sponsor on GitHub",
+                SPONSORS_URL,
                 IconName::Github,
                 link,
             ))

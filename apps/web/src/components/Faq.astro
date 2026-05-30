@@ -1,8 +1,9 @@
 ---
+import { SPONSORS_URL } from "../lib/github";
 import ChevronDownIcon from "./icons/ChevronDownIcon.astro";
 import Reveal from "./Reveal.astro";
 
-const faqs = [
+const faqs: Array<{ q: string; a?: string; html?: string }> = [
   {
     q: "Is my data sent anywhere?",
     a: "No. based has no backend and no telemetry. The app connects directly from your machine to your databases — nothing is routed through a server in between.",
@@ -21,7 +22,7 @@ const faqs = [
   },
   {
     q: "What does it cost?",
-    a: "based is free and open source under the MIT license.",
+    html: `based is free and open source under the MIT license — no license keys or subscriptions. If it saves you time, you can <a href="${SPONSORS_URL}" target="_blank" rel="noopener noreferrer">sponsor development on GitHub</a> to help fund ongoing work.`,
   },
   {
     q: "Which platforms can I run it on?",
@@ -45,7 +46,11 @@ const faqs = [
               <span>{faq.q}</span>
               <ChevronDownIcon class="faq-chevron" />
             </summary>
-            <p class="faq-a">{faq.a}</p>
+            {faq.html ? (
+              <p class="faq-a" set:html={faq.html} />
+            ) : (
+              <p class="faq-a">{faq.a}</p>
+            )}
           </details>
         </Reveal>
       ))
@@ -100,5 +105,16 @@ const faqs = [
     color: var(--muted);
     font-size: 0.94rem;
     line-height: 1.6;
+  }
+
+  .faq-a :global(a) {
+    color: color-mix(in srgb, var(--accent-blue) 75%, var(--text));
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-color: color-mix(in srgb, var(--muted) 45%, transparent);
+  }
+
+  .faq-a :global(a:hover) {
+    color: var(--text);
   }
 </style>

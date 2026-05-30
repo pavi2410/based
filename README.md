@@ -56,6 +56,10 @@ shasum -a 256 Based_2026.5.0_aarch64.dmg
 
 Installers are **unsigned**. macOS may show Gatekeeper warnings; open **System Settings → Privacy & Security** and choose **Open Anyway**, or right-click the app and choose **Open**. Windows SmartScreen may warn on first run — choose **More info → Run anyway**.
 
+## Support
+
+If Based is useful to you, consider [sponsoring development on GitHub](https://github.com/sponsors/pavi2410).
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, local packaging, and the release workflow.

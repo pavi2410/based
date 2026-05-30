@@ -1,5 +1,6 @@
 ---
 import { RELEASES_URL, REPO_URL } from "../lib/github";
+import DownloadIcon from "./icons/DownloadIcon.astro";
 import StarIcon from "./icons/StarIcon.astro";
 
 interface Props {
@@ -27,7 +28,7 @@ const links = [
     <div class="nav-actions">
       <a
         href={REPO_URL}
-        class="btn btn-secondary nav-star"
+        class="btn btn-secondary nav-btn nav-star"
         target="_blank"
         rel="noopener noreferrer"
       >
@@ -39,7 +40,8 @@ const links = [
           </span>
         )}
       </a>
-      <a href={RELEASES_URL} class="btn btn-primary" target="_blank" rel="noopener noreferrer">
+      <a href={RELEASES_URL} class="btn btn-primary nav-btn" target="_blank" rel="noopener noreferrer">
+        <DownloadIcon class="btn-icon" />
         Download
       </a>
     </div>
@@ -99,7 +101,7 @@ const links = [
     flex-shrink: 0;
   }
 
-  .nav-star {
+  .nav-btn {
     padding: 0.55rem 0.95rem;
     font-size: 0.9rem;
   }

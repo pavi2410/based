@@ -1,11 +1,46 @@
-//! Plain-text labels for dock tab strip (`Panel::tab_name`).
+//! Tab strip labels (`Panel::title` when `tab_name` is unset).
 
-use gpui::SharedString;
+use gpui::{App, EntityId, IntoElement, SharedString, px, prelude::*};
+use gpui_component::{ActiveTheme, Icon, Sizable as _, h_flex};
 
+use super::tab_open::TabManagerRef;
 use super::tab_spec::TabSpec;
+
+pub const PIN_ICON_PATH: &str = "icons/pin.svg";
+
+pub fn is_panel_pinned(panel_id: EntityId, cx: &App) -> bool {
+    cx.try_global::<TabManagerRef>()
+        .and_then(|tm| tm.0.read(cx).tab_for_panel_id(panel_id))
+        .is_some_and(|t| t.pinned)
+}
+
+pub fn render_strip_tab(
+    label: SharedString,
+    dirty: bool,
+    panel_id: EntityId,
+    cx: &mut App,
+) -> impl IntoElement {
+    let pinned = is_panel_pinned(panel_id, cx);
+    let text = with_dirty_suffix(label, dirty);
+    let color = cx.theme().tab_foreground;
+
+    h_flex()
+        .gap(px(4.0))
+        .items_center()
+        .when(pinned, |this| {
+            this.child(
+                Icon::empty()
+                    .path(PIN_ICON_PATH)
+                    .xsmall()
+                    .text_color(color.opacity(0.75)),
+            )
+        })
+        .child(text)
+}
 
 pub fn tab_label_for_spec(spec: &TabSpec, dirty: bool) -> SharedString {
     let base = match spec {
+        TabSpec::Welcome => "Welcome".to_string(),
         TabSpec::Dashboard(id) => id.0.clone(),
         TabSpec::DataViewer { object, .. } => short_object_name(object),
         TabSpec::QueryEditor { .. } => "Query".to_string(),
@@ -17,6 +52,7 @@ pub fn tab_label_for_spec(spec: &TabSpec, dirty: bool) -> SharedString {
             ..
         } => format!("{object_name} ({kind_label})"),
         TabSpec::DocumentInsert { collection, .. } => format!("Insert · {collection}"),
+        TabSpec::Builtin { panel, .. } => panel.clone(),
     };
     with_dirty_suffix(base, dirty)
 }

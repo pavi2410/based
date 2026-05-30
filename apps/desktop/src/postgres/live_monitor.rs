@@ -106,15 +106,7 @@ impl Panel for LiveMonitorPanel {
         crate::based_panel_dropdown!(menu, self, cx)
     }
 
-    fn closable(&self, _: &App) -> bool {
-        true
-    }
-
     crate::based_panel_tab_chrome!();
-
-    fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        self.tab_label.clone()
-    }
 }
 
 impl Render for LiveMonitorPanel {

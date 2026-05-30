@@ -56,10 +56,6 @@ impl Panel for WelcomePanel {
         crate::based_panel_dropdown!(menu, self, cx)
     }
 
-    fn closable(&self, _: &App) -> bool {
-        false
-    }
-
     crate::based_panel_tab_chrome!();
 }
 

@@ -37,6 +37,10 @@ impl ConnectionDashboardPanel {
             conn,
         }
     }
+
+    pub(crate) fn connection_id(&self, cx: &App) -> crate::connection::ConnectionId {
+        self.conn.read(cx).id.clone()
+    }
 }
 
 impl gpui::EventEmitter<PanelEvent> for ConnectionDashboardPanel {}
@@ -61,20 +65,26 @@ impl Panel for ConnectionDashboardPanel {
         crate::based_panel_dropdown!(menu, self, cx)
     }
 
-    fn closable(&self, _: &App) -> bool {
-        false
+    fn tab_name(&self, _: &gpui::App) -> Option<gpui::SharedString> {
+        None
     }
 
-    fn tab_name(&self, cx: &gpui::App) -> Option<gpui::SharedString> {
-        Some(self.conn.read(cx).config.label().to_string().into())
+    fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let label: SharedString = self.conn.read(cx).config.label().to_string().into();
+        crate::workspace::tab_label::render_strip_tab(
+            label,
+            false,
+            cx.entity().entity_id(),
+            cx,
+        )
     }
 
     fn zoomable(&self, _: &gpui::App) -> Option<gpui_component::dock::PanelControl> {
         None
     }
 
-    fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        self.conn.read(cx).config.label().to_string()
+    fn closable(&self, _: &gpui::App) -> bool {
+        false
     }
 }
 
@@ -200,15 +210,7 @@ impl Panel for ObjectInfoPanel {
         crate::based_panel_dropdown!(menu, self, cx)
     }
 
-    fn closable(&self, _: &App) -> bool {
-        true
-    }
-
     crate::based_panel_tab_chrome!();
-
-    fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        self.tab_label.clone()
-    }
 }
 
 impl Render for ObjectInfoPanel {

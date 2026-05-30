@@ -27,7 +27,10 @@ pub mod welcome;
 mod dock_utils;
 mod inspector;
 mod pop_out_impls;
+mod tab_commands;
 mod tab_dispatch;
+mod tab_infer;
+mod tab_navigation;
 
 pub mod context;
 pub mod query_lane;
@@ -35,7 +38,7 @@ pub mod templates;
 
 use std::sync::Arc;
 
-use dock_utils::{active_center_tab, center_tab_items, dock_area_present_views, wrap_center_root};
+use dock_utils::{active_center_tab, center_tab_items, wrap_center_root};
 use inspector::render_inspector_body;
 
 use std::path::PathBuf;
@@ -45,14 +48,16 @@ use gpui::{
     Window, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme, IndexPath,
+    ActiveTheme, IndexPath, Placement,
     dock::{DockArea, DockEvent, DockItem, DockPlacement, PanelStyle, PanelView},
     select::{SelectEvent, SelectState},
     v_flex,
 };
 
 use crate::bindings::{
-    CloseTab, CycleAppearance, DismissCommandPalette, OpenSettings, OpenWelcome,
+    CloseAllTabs, CloseCleanTabs, CloseOtherTabs, CloseTab, CloseTabsLeft, CloseTabsRight,
+    CycleAppearance, DismissCommandPalette, GoBackTab, GoForwardTab, NewQuery, OpenSettings,
+    OpenWelcome, PinTab, SplitPaneBottom, SplitPaneLeft, SplitPaneRight, SplitPaneTop,
     ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane,
     ToggleSidebarRail,
 };
@@ -66,6 +71,8 @@ use crate::widgets::query_panel_extras::HistoryFilter;
 use crate::storage;
 use context::WorkspaceContext;
 use templates::entries_from_workspace;
+
+use tab_navigation::TabNavigationHistory;
 
 use chrome::{
     layout,
@@ -103,6 +110,7 @@ pub struct Workspace {
     env_select: Entity<SelectState<Vec<SharedString>>>,
     workspace_id: uuid::Uuid,
     pending_ctx_sync: Option<WorkspaceContext>,
+    tab_navigation: TabNavigationHistory,
 }
 
 impl Workspace {
@@ -225,6 +233,7 @@ impl Workspace {
             env_select,
             workspace_id,
             pending_ctx_sync: None,
+            tab_navigation: TabNavigationHistory::default(),
         };
 
         cx.subscribe(
@@ -343,6 +352,7 @@ impl Workspace {
             tabs: tm.tabs.iter().map(|t| t.spec.clone()).collect(),
             active: tm.active_idx,
             active_connection_id: self.focused_conn_id(cx).map(|id| id.0.clone()),
+            pinned_tabs: tm.pinned_specs(),
         };
         let store = storage::store(cx);
         let handle = gpui_tokio::Tokio::handle(cx);
@@ -373,6 +383,16 @@ impl Workspace {
                     tm.activate(idx, ecx);
                 }
             });
+        }
+        if !session.pinned_tabs.is_empty() {
+            let pinned = session.pinned_tabs;
+            self.sync_tab_manager_from_dock(cx);
+            self.tab_manager.update(cx, |tm, ecx| {
+                tm.apply_pinned_specs(&pinned, ecx);
+            });
+            self.refresh_tab_strip_chrome(cx);
+        } else {
+            self.sync_tab_manager_from_dock(cx);
         }
     }
 
@@ -678,13 +698,22 @@ impl Workspace {
     }
 
     fn sync_tab_manager_from_dock(&mut self, cx: &mut Context<Self>) {
-        let views = {
-            let dock = self.dock_area.read(cx);
-            dock_area_present_views(dock, cx)
-        };
+        let dock = self.dock_area.read(cx);
+        let entries: Vec<_> = center_tab_items(dock.center())
+            .into_iter()
+            .flatten()
+            .map(|panel| {
+                let view = panel.view();
+                let spec = tab_infer::infer_tab_spec(panel, cx);
+                (view, spec)
+            })
+            .collect();
+        let active = active_center_tab(dock.center(), cx).map(|(panel, _)| panel.view());
         self.tab_manager.update(cx, |tm, ecx| {
-            tm.sync_open_tabs(&views, ecx);
+            tm.reconcile_dock_tabs(&entries, active, ecx);
         });
+        self.record_tab_navigation(cx);
+        self.refresh_tab_strip_chrome(cx);
     }
 
     /// Number of panels in the center tab strip (dock layout only; does not read panel entities).
@@ -707,7 +736,7 @@ impl Workspace {
         let Some(panel) = items.iter().find(|p| p.panel_id(cx) == panel_id) else {
             return false;
         };
-        panel.closable(cx)
+        pop_out::panel_type_allows_tab_close(panel.panel_name(cx)) && !self.is_tab_pinned(panel_id, cx)
     }
 
     /// Close a specific panel in the center tab strip (tab ⋮ menu).
@@ -739,6 +768,11 @@ impl Workspace {
             return;
         };
         self.close_center_panel(panel.panel_id(cx), window, cx);
+    }
+
+    pub fn active_center_panel_id(&self, cx: &App) -> Option<EntityId> {
+        let dock = self.dock_area.read(cx);
+        active_center_tab(dock.center(), cx).map(|(panel, _)| panel.panel_id(cx))
     }
 }
 
@@ -849,6 +883,73 @@ impl Render for Workspace {
             .on_action(window.listener_for(&this, |ws, _: &CloseTab, window, cx| {
                 ws.close_active_center_tab(window, cx);
             }))
+            .on_action(window.listener_for(&this, |ws, _: &GoBackTab, window, cx| {
+                ws.go_back_tab(window, cx);
+            }))
+            .on_action(
+                window.listener_for(&this, |ws, _: &GoForwardTab, window, cx| {
+                    ws.go_forward_tab(window, cx);
+                }),
+            )
+            .on_action(window.listener_for(&this, |ws, _: &NewQuery, window, cx| {
+                ws.open_new_query_tab(window, cx);
+            }))
+            .on_action(
+                window.listener_for(&this, |ws, _: &CloseAllTabs, window, cx| {
+                    ws.close_all_tabs(window, cx);
+                }),
+            )
+            .on_action(
+                window.listener_for(&this, |ws, _: &CloseCleanTabs, window, cx| {
+                    ws.close_clean_tabs(window, cx);
+                }),
+            )
+            .on_action(
+                window.listener_for(&this, |ws, _: &CloseOtherTabs, window, cx| {
+                    if let Some(id) = ws.active_center_panel_id(cx) {
+                        ws.close_other_tabs(id, window, cx);
+                    }
+                }),
+            )
+            .on_action(
+                window.listener_for(&this, |ws, _: &CloseTabsLeft, window, cx| {
+                    if let Some(id) = ws.active_center_panel_id(cx) {
+                        ws.close_tabs_to_left(id, window, cx);
+                    }
+                }),
+            )
+            .on_action(
+                window.listener_for(&this, |ws, _: &CloseTabsRight, window, cx| {
+                    if let Some(id) = ws.active_center_panel_id(cx) {
+                        ws.close_tabs_to_right(id, window, cx);
+                    }
+                }),
+            )
+            .on_action(window.listener_for(&this, |ws, _: &PinTab, _, cx| {
+                if let Some(id) = ws.active_center_panel_id(cx) {
+                    ws.toggle_pin_tab(id, cx);
+                }
+            }))
+            .on_action(
+                window.listener_for(&this, |ws, _: &SplitPaneTop, window, cx| {
+                    ws.split_center_pane(Placement::Top, window, cx);
+                }),
+            )
+            .on_action(
+                window.listener_for(&this, |ws, _: &SplitPaneBottom, window, cx| {
+                    ws.split_center_pane(Placement::Bottom, window, cx);
+                }),
+            )
+            .on_action(
+                window.listener_for(&this, |ws, _: &SplitPaneLeft, window, cx| {
+                    ws.split_center_pane(Placement::Left, window, cx);
+                }),
+            )
+            .on_action(
+                window.listener_for(&this, |ws, _: &SplitPaneRight, window, cx| {
+                    ws.split_center_pane(Placement::Right, window, cx);
+                }),
+            )
             .on_action(
                 window.listener_for(&this, |ws, _: &ToggleInspectorPane, _, cx| {
                     ws.toggle_side_pane(SidePane::Inspector, cx);

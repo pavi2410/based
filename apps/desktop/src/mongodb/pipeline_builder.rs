@@ -69,6 +69,14 @@ impl PipelineBuilderPanel {
         }
     }
 
+    pub(crate) fn connection_id(&self) -> &ConnectionId {
+        &self.conn_id
+    }
+
+    pub(crate) fn pipeline_collection(&self) -> &str {
+        self.collection.name()
+    }
+
     fn run(&mut self, cx: &mut Context<Self>) {
         let coll = self.collection.clone();
         let raw = text_from_input(&self.pipeline_input, cx);
@@ -234,15 +242,7 @@ impl Panel for PipelineBuilderPanel {
         crate::based_panel_dropdown!(menu, self, cx)
     }
 
-    fn closable(&self, _: &App) -> bool {
-        true
-    }
-
     crate::based_panel_tab_chrome!();
-
-    fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        self.tab_label.clone()
-    }
 }
 
 impl Render for PipelineBuilderPanel {

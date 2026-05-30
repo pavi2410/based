@@ -131,6 +131,10 @@ impl QueryEditorPanel {
         panel
     }
 
+    pub(crate) fn connection_id(&self) -> &ConnectionId {
+        &self.conn_id
+    }
+
     pub fn load_sql(&mut self, sql: &str, window: &mut Window, cx: &mut Context<Self>) {
         set_sql_input(&self.sql_input, sql, window, cx);
         cx.notify();
@@ -296,24 +300,7 @@ impl Panel for QueryEditorPanel {
         crate::based_panel_dropdown!(menu, self, cx)
     }
 
-    fn closable(&self, _: &App) -> bool {
-        true
-    }
-
-    fn tab_name(&self, _: &gpui::App) -> Option<gpui::SharedString> {
-        Some(crate::workspace::tab_label::with_dirty_suffix(
-            &self.tab_label,
-            self.dirty,
-        ))
-    }
-
-    fn zoomable(&self, _: &gpui::App) -> Option<gpui_component::dock::PanelControl> {
-        None
-    }
-
-    fn title(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        crate::workspace::tab_label::with_dirty_suffix(&self.tab_label, self.dirty)
-    }
+    crate::based_panel_tab_chrome!(dirty);
 }
 
 impl PopOutWindowTitle for QueryEditorPanel {

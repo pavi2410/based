@@ -1,4 +1,4 @@
-use gpui::{AnyView, Context, EventEmitter};
+use gpui::{AnyView, Context, EntityId, EventEmitter};
 
 use crate::connection::ConnectionId;
 
@@ -8,7 +8,8 @@ use super::tab_spec::TabSpec;
 pub struct Tab {
     pub spec: TabSpec,
     pub view: AnyView,
-    pub dirty: bool, // unsaved query content
+    pub dirty: bool,
+    pub pinned: bool,
 }
 
 pub enum TabEvent {
@@ -46,6 +47,7 @@ impl TabManager {
             spec,
             view,
             dirty: false,
+            pinned: false,
         });
         self.active_idx = Some(idx);
         cx.emit(TabEvent::TabOpened(idx));
@@ -94,6 +96,77 @@ impl TabManager {
             .collect();
         for i in indices {
             self.close(i, cx);
+        }
+    }
+
+    pub fn tab_for_view(&self, view: &AnyView) -> Option<&Tab> {
+        self.tabs.iter().find(|t| &t.view == view)
+    }
+
+    pub fn tab_for_view_mut(&mut self, view: &AnyView) -> Option<&mut Tab> {
+        self.tabs.iter_mut().find(|t| &t.view == view)
+    }
+
+    pub fn tab_for_panel_id(&self, panel_id: EntityId) -> Option<&Tab> {
+        self.tabs.iter().find(|t| t.view.entity_id() == panel_id)
+    }
+
+    pub fn tab_for_panel_id_mut(&mut self, panel_id: EntityId) -> Option<&mut Tab> {
+        self.tabs
+            .iter_mut()
+            .find(|t| t.view.entity_id() == panel_id)
+    }
+
+    pub fn apply_pinned_specs(&mut self, pinned: &[TabSpec], cx: &mut Context<Self>) {
+        for tab in &mut self.tabs {
+            tab.pinned = pinned.contains(&tab.spec);
+        }
+        cx.notify();
+    }
+
+    pub fn pinned_specs(&self) -> Vec<TabSpec> {
+        self.tabs
+            .iter()
+            .filter(|t| t.pinned)
+            .map(|t| t.spec.clone())
+            .collect()
+    }
+
+    /// Drop tabs whose panel views are no longer in the dock; register any center tabs missing from the manager.
+    pub fn reconcile_dock_tabs(
+        &mut self,
+        dock: &[(gpui::AnyView, TabSpec)],
+        active: Option<gpui::AnyView>,
+        cx: &mut Context<Self>,
+    ) {
+        let dock_views: Vec<_> = dock.iter().map(|(v, _)| v.clone()).collect();
+        let before_len = self.tabs.len();
+        let old_active = self.active_idx;
+
+        self.tabs
+            .retain(|t| dock_views.iter().any(|v| v == &t.view));
+
+        for (view, spec) in dock {
+            if let Some(tab) = self.tabs.iter_mut().find(|t| t.view == *view) {
+                tab.spec = spec.clone();
+            } else {
+                self.tabs.push(Tab {
+                    spec: spec.clone(),
+                    view: view.clone(),
+                    dirty: false,
+                    pinned: false,
+                });
+            }
+        }
+
+        let new_active = active
+            .and_then(|av| self.tabs.iter().position(|t| t.view == av))
+            .or(old_active.filter(|&i| i < self.tabs.len()));
+
+        let changed = before_len != self.tabs.len() || old_active != new_active;
+        self.active_idx = new_active.or_else(|| self.tabs.len().checked_sub(1));
+        if changed {
+            cx.notify();
         }
     }
 

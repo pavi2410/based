@@ -16,7 +16,10 @@ use gpui_component::{
 };
 
 use super::tab_open::WorkspaceRef;
-use crate::bindings::CloseTab;
+use crate::bindings::{
+    CloseAllTabs, CloseCleanTabs, CloseOtherTabs, CloseTab, CloseTabsLeft, CloseTabsRight, PinTab,
+    SplitPaneBottom, SplitPaneLeft, SplitPaneRight, SplitPaneTop,
+};
 
 /// Human-readable OS window title for a popped-out panel.
 pub trait PopOutWindowTitle: Panel {
@@ -66,7 +69,12 @@ impl PopOutManager {
     }
 }
 
-/// Append "Open in new window" to the tab ⋮ menu (merged before zoom/close by gpui-component).
+/// Whether this panel type may be closed as a center **tab** (Welcome and connection dashboard are fixed).
+pub(crate) fn panel_type_allows_tab_close(panel_name: &str) -> bool {
+    !matches!(panel_name, "WelcomePanel" | "ConnectionDashboard")
+}
+
+/// Append tab commands and "Open in new window" to the tab ⋮ menu.
 ///
 /// Pass the panel as `&self` — do not call `cx.entity().read(cx)` here: `dropdown_menu` runs inside
 /// `Entity::update`, and reading the same entity would panic.
@@ -77,30 +85,213 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
 ) -> PopupMenu {
     let weak = cx.entity().downgrade();
     let panel_id = cx.entity().entity_id();
+    let pinned = cx
+        .try_global::<WorkspaceRef>()
+        .is_some_and(|ws| ws.0.read(cx).is_tab_pinned(panel_id, cx));
     // Do not read this panel's Entity or call `can_close_center_panel` here — `dropdown_menu`
     // runs inside `Entity::update` and re-reading the panel panics.
-    let close_disabled = !panel.closable(cx)
+    let close_disabled = !panel_type_allows_tab_close(panel.panel_name())
+        || pinned
         || cx
             .try_global::<WorkspaceRef>()
             .is_none_or(|ws| ws.0.read(cx).center_tab_count(cx) <= 1);
+    let close_pane_disabled = cx
+        .try_global::<WorkspaceRef>()
+        .is_none_or(|ws| !ws.0.read(cx).can_close_center_pane(panel_id, cx));
 
-    menu.separator()
+    menu
+        // ── This tab ──────────────────────────────────────────────────────────
         .item(
-            PopupMenuItem::new("Close tab")
+            PopupMenuItem::new("Close Tab")
                 .action(CloseTab.boxed_clone())
                 .disabled(close_disabled)
+                .on_click({
+                    let panel_id = panel_id;
+                    move |_ev, window, app| {
+                        let Some(workspace) =
+                            app.try_global::<WorkspaceRef>().map(|ws| ws.0.clone())
+                        else {
+                            return;
+                        };
+                        workspace.update(app, |ws, cx| {
+                            ws.close_center_panel(panel_id, window, cx);
+                        });
+                    }
+                }),
+        )
+        .item(
+            PopupMenuItem::new(if pinned { "Unpin Tab" } else { "Pin Tab" })
+                .action(PinTab.boxed_clone())
+                .on_click({
+                    let panel_id = panel_id;
+                    move |_ev, _window, app| {
+                        let Some(workspace) =
+                            app.try_global::<WorkspaceRef>().map(|ws| ws.0.clone())
+                        else {
+                            return;
+                        };
+                        workspace.update(app, |ws, cx| {
+                            ws.toggle_pin_tab(panel_id, cx);
+                        });
+                    }
+                }),
+        )
+        .separator()
+        // ── Bulk close ──────────────────────────────────────────────────────
+        .item(
+            PopupMenuItem::new("Close Others")
+                .action(CloseOtherTabs.boxed_clone())
+                .on_click({
+                    let panel_id = panel_id;
+                    move |_ev, window, app| {
+                        let Some(workspace) =
+                            app.try_global::<WorkspaceRef>().map(|ws| ws.0.clone())
+                        else {
+                            return;
+                        };
+                        workspace.update(app, |ws, cx| {
+                            ws.close_other_tabs(panel_id, window, cx);
+                        });
+                    }
+                }),
+        )
+        .item(
+            PopupMenuItem::new("Close Tabs to the Left")
+                .action(CloseTabsLeft.boxed_clone())
+                .on_click({
+                    let panel_id = panel_id;
+                    move |_ev, window, app| {
+                        let Some(workspace) =
+                            app.try_global::<WorkspaceRef>().map(|ws| ws.0.clone())
+                        else {
+                            return;
+                        };
+                        workspace.update(app, |ws, cx| {
+                            ws.close_tabs_to_left(panel_id, window, cx);
+                        });
+                    }
+                }),
+        )
+        .item(
+            PopupMenuItem::new("Close Tabs to the Right")
+                .action(CloseTabsRight.boxed_clone())
+                .on_click({
+                    let panel_id = panel_id;
+                    move |_ev, window, app| {
+                        let Some(workspace) =
+                            app.try_global::<WorkspaceRef>().map(|ws| ws.0.clone())
+                        else {
+                            return;
+                        };
+                        workspace.update(app, |ws, cx| {
+                            ws.close_tabs_to_right(panel_id, window, cx);
+                        });
+                    }
+                }),
+        )
+        .item(
+            PopupMenuItem::new("Close All")
+                .action(CloseAllTabs.boxed_clone())
                 .on_click(move |_ev, window, app| {
                     let Some(workspace) = app.try_global::<WorkspaceRef>().map(|ws| ws.0.clone())
                     else {
                         return;
                     };
                     workspace.update(app, |ws, cx| {
-                        ws.close_center_panel(panel_id, window, cx);
+                        ws.close_all_tabs(window, cx);
                     });
                 }),
         )
         .item(
-            PopupMenuItem::new("Open in new window").on_click(move |_ev, src_window, app| {
+            PopupMenuItem::new("Close Clean")
+                .action(CloseCleanTabs.boxed_clone())
+                .on_click(move |_ev, window, app| {
+                    let Some(workspace) = app.try_global::<WorkspaceRef>().map(|ws| ws.0.clone())
+                    else {
+                        return;
+                    };
+                    workspace.update(app, |ws, cx| {
+                        ws.close_clean_tabs(window, cx);
+                    });
+                }),
+        )
+        .separator()
+        // ── Pane ──────────────────────────────────────────────────────────────
+        .item(
+            PopupMenuItem::new("Close Pane")
+                .disabled(close_pane_disabled)
+                .on_click({
+                    let panel_id = panel_id;
+                    move |_ev, window, app| {
+                        let Some(workspace) =
+                            app.try_global::<WorkspaceRef>().map(|ws| ws.0.clone())
+                        else {
+                            return;
+                        };
+                        workspace.update(app, |ws, cx| {
+                            ws.close_center_pane(panel_id, window, cx);
+                        });
+                    }
+                }),
+        )
+        .separator()
+        // ── Split ─────────────────────────────────────────────────────────────
+        .item(
+            PopupMenuItem::new("Split Left")
+                .action(SplitPaneLeft.boxed_clone())
+                .on_click(move |_ev, window, app| {
+                    let Some(workspace) = app.try_global::<WorkspaceRef>().map(|ws| ws.0.clone())
+                    else {
+                        return;
+                    };
+                    workspace.update(app, |ws, cx| {
+                        ws.split_center_pane(gpui_component::Placement::Left, window, cx);
+                    });
+                }),
+        )
+        .item(
+            PopupMenuItem::new("Split Right")
+                .action(SplitPaneRight.boxed_clone())
+                .on_click(move |_ev, window, app| {
+                    let Some(workspace) = app.try_global::<WorkspaceRef>().map(|ws| ws.0.clone())
+                    else {
+                        return;
+                    };
+                    workspace.update(app, |ws, cx| {
+                        ws.split_center_pane(gpui_component::Placement::Right, window, cx);
+                    });
+                }),
+        )
+        .item(
+            PopupMenuItem::new("Split Top")
+                .action(SplitPaneTop.boxed_clone())
+                .on_click(move |_ev, window, app| {
+                    let Some(workspace) = app.try_global::<WorkspaceRef>().map(|ws| ws.0.clone())
+                    else {
+                        return;
+                    };
+                    workspace.update(app, |ws, cx| {
+                        ws.split_center_pane(gpui_component::Placement::Top, window, cx);
+                    });
+                }),
+        )
+        .item(
+            PopupMenuItem::new("Split Bottom")
+                .action(SplitPaneBottom.boxed_clone())
+                .on_click(move |_ev, window, app| {
+                    let Some(workspace) = app.try_global::<WorkspaceRef>().map(|ws| ws.0.clone())
+                    else {
+                        return;
+                    };
+                    workspace.update(app, |ws, cx| {
+                        ws.split_center_pane(gpui_component::Placement::Bottom, window, cx);
+                    });
+                }),
+        )
+        .separator()
+        // ── Window ────────────────────────────────────────────────────────────
+        .item(
+            PopupMenuItem::new("Open in New Window").on_click(move |_ev, src_window, app| {
                 let Some(ent) = weak.upgrade() else {
                     return;
                 };
@@ -160,12 +351,47 @@ macro_rules! based_panel_dropdown {
     };
 }
 
-/// Short dock tab label and no zoom control in the tab-strip suffix.
+/// Dock tab label (via `title`) and no zoom control in the tab-strip suffix.
 #[macro_export]
 macro_rules! based_panel_tab_chrome {
     () => {
         fn tab_name(&self, _: &gpui::App) -> Option<gpui::SharedString> {
-            Some(self.tab_label.clone())
+            None
+        }
+
+        fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+            $crate::workspace::tab_label::render_strip_tab(
+                self.tab_label.clone(),
+                false,
+                cx.entity().entity_id(),
+                cx,
+            )
+        }
+
+        fn closable(&self, _: &gpui::App) -> bool {
+            false
+        }
+
+        fn zoomable(&self, _: &gpui::App) -> Option<gpui_component::dock::PanelControl> {
+            None
+        }
+    };
+    (dirty) => {
+        fn tab_name(&self, _: &gpui::App) -> Option<gpui::SharedString> {
+            None
+        }
+
+        fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+            $crate::workspace::tab_label::render_strip_tab(
+                self.tab_label.clone(),
+                self.dirty,
+                cx.entity().entity_id(),
+                cx,
+            )
+        }
+
+        fn closable(&self, _: &gpui::App) -> bool {
+            false
         }
 
         fn zoomable(&self, _: &gpui::App) -> Option<gpui_component::dock::PanelControl> {

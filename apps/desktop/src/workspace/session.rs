@@ -12,6 +12,8 @@ pub struct SessionSnapshot {
     pub active: Option<usize>,
     #[serde(default)]
     pub active_connection_id: Option<String>,
+    #[serde(default)]
+    pub pinned_tabs: Vec<TabSpec>,
 }
 
 impl SessionSnapshot {
@@ -32,10 +34,17 @@ impl SessionSnapshot {
             .await
             .ok()
             .flatten();
+        let pinned_tabs = store
+            .get_session_json("pinned_tabs")
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_default();
         Self {
             tabs,
             active,
             active_connection_id,
+            pinned_tabs,
         }
     }
 
@@ -46,6 +55,9 @@ impl SessionSnapshot {
             .await?;
         store
             .set_session_json(ACTIVE_CONNECTION_ID, &self.active_connection_id)
+            .await?;
+        store
+            .set_session_json("pinned_tabs", &self.pinned_tabs)
             .await?;
         Ok(())
     }

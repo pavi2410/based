@@ -289,6 +289,7 @@ impl Workspace {
                 });
                 register_dock_panel!(self, tab_spec_for_manager, panel_ent, window, cx);
             }
+            TabSpec::Welcome | TabSpec::Builtin { .. } => {}
         }
     }
 

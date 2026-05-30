@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use gpui::{AnyView, App, Entity, WeakEntity, Window};
+use gpui::{AnyView, App, Entity, EntityId, WeakEntity, Window};
 use gpui_component::dock::{DockArea, DockItem, PanelView, TabPanel};
 
 /// Wrap a center tab group in a vertical split root so its `TabPanel` receives a
@@ -47,6 +47,12 @@ pub(crate) fn center_tab_panels(item: &DockItem, out: &mut Vec<Entity<TabPanel>>
     }
 }
 
+pub(crate) fn center_tab_panel_count(item: &DockItem) -> usize {
+    let mut out = Vec::new();
+    center_tab_panels(item, &mut out);
+    out.len()
+}
+
 /// The `TabPanel` that owns the primary active center tab (first match in tree order).
 pub(crate) fn active_center_tab_panel(item: &DockItem) -> Option<Entity<TabPanel>> {
     match item {
@@ -57,6 +63,27 @@ pub(crate) fn active_center_tab_panel(item: &DockItem) -> Option<Entity<TabPanel
             ..
         } if items.get(*active_ix).is_some() => Some(view.clone()),
         DockItem::Split { items, .. } => items.iter().find_map(active_center_tab_panel),
+        _ => None,
+    }
+}
+
+/// Locate a center tab panel, its panel view, and index within that strip.
+pub(crate) fn center_panel_by_id(
+    item: &DockItem,
+    panel_id: EntityId,
+    cx: &App,
+) -> Option<(Entity<TabPanel>, Arc<dyn PanelView>, usize)> {
+    match item {
+        DockItem::Tabs { items, view, .. } => {
+            let (ix, panel) = items
+                .iter()
+                .enumerate()
+                .find(|(_, p)| p.panel_id(cx) == panel_id)?;
+            Some((view.clone(), panel.clone(), ix))
+        }
+        DockItem::Split { items, .. } => items
+            .iter()
+            .find_map(|child| center_panel_by_id(child, panel_id, cx)),
         _ => None,
     }
 }

@@ -2,11 +2,17 @@ use serde::{Deserialize, Serialize};
 
 use crate::connection::ConnectionId;
 
+use std::sync::LazyLock;
+
+static WELCOME_CONN_SENTINEL: LazyLock<ConnectionId> =
+    LazyLock::new(|| ConnectionId("__welcome".into()));
+
 /// Identifies what a tab shows. Used by TabManager to open-or-focus.
 /// Two specs are equal iff they refer to the same logical panel — prevents duplicate DataViewers.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TabSpec {
+    Welcome,
     Dashboard(ConnectionId),
     DataViewer {
         conn_id: ConnectionId,
@@ -40,6 +46,11 @@ pub enum TabSpec {
         conn_id: ConnectionId,
         collection: String,
     },
+    /// Connection-scoped or global panel without a dedicated tab kind (PRAGMA browser, wizards, etc.).
+    Builtin {
+        conn_id: Option<ConnectionId>,
+        panel: String,
+    },
 }
 
 impl TabSpec {
@@ -55,6 +66,7 @@ impl TabSpec {
 
     pub fn conn_id(&self) -> &ConnectionId {
         match self {
+            Self::Welcome => &WELCOME_CONN_SENTINEL,
             Self::Dashboard(id) => id,
             Self::DataViewer { conn_id, .. } => conn_id,
             Self::QueryEditor { conn_id, .. } => conn_id,
@@ -62,11 +74,13 @@ impl TabSpec {
             Self::Inspector { conn_id, .. } => conn_id,
             Self::ObjectInfo { conn_id, .. } => conn_id,
             Self::DocumentInsert { conn_id, .. } => conn_id,
+            Self::Builtin { conn_id, .. } => conn_id.as_ref().unwrap_or(&WELCOME_CONN_SENTINEL),
         }
     }
 
     pub fn kind_label(&self) -> &'static str {
         match self {
+            Self::Welcome => "welcome",
             Self::Dashboard(_) => "dashboard",
             Self::DataViewer { .. } => "data viewer",
             Self::QueryEditor { .. } => "query",
@@ -74,11 +88,13 @@ impl TabSpec {
             Self::Inspector { .. } => "structure",
             Self::ObjectInfo { .. } => "object",
             Self::DocumentInsert { .. } => "insert",
+            Self::Builtin { .. } => "panel",
         }
     }
 
     pub fn title(&self) -> String {
         match self {
+            Self::Welcome => "Welcome".to_string(),
             Self::Dashboard(id) => id.0.clone(),
             Self::DataViewer { object, .. } => object.clone(),
             Self::QueryEditor { .. } => "untitled".to_string(),
@@ -86,6 +102,7 @@ impl TabSpec {
             Self::Inspector { object, .. } => object.clone(),
             Self::ObjectInfo { object_name, .. } => object_name.clone(),
             Self::DocumentInsert { collection, .. } => format!("Insert · {collection}"),
+            Self::Builtin { panel, .. } => panel.clone(),
         }
     }
 }

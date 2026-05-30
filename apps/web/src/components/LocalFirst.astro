@@ -1,0 +1,60 @@
+---
+import Reveal from "./Reveal.astro";
+
+const points = [
+  {
+    title: "No backend, no accounts",
+    body: "There's no service to sign up for. based runs entirely on your machine — nothing to provision, nothing to trust.",
+  },
+  {
+    title: "Your data stays put",
+    body: "Connections go straight from the app to your database. No proxy, no telemetry pipeline, no cloud in the middle.",
+  },
+  {
+    title: "Native Rust + GPUI",
+    body: "Built on the same GPU-accelerated UI framework as Zed. It launches fast and stays responsive on large schemas and result sets.",
+  },
+  {
+    title: "Open source, MIT",
+    body: "The whole client is MIT-licensed and developed in the open. Read it, fork it, ship it.",
+  },
+];
+---
+
+<section class="section localfirst">
+  <div class="section-head">
+    <span class="eyebrow">Local-first</span>
+    <h2 class="section-title">Yours to run, yours to trust.</h2>
+    <p class="section-lead">
+      based is a native desktop app that keeps you in control of your data and
+      your setup — by design.
+    </p>
+  </div>
+
+  <div class="localfirst-grid">
+    {
+      points.map((point, index) => (
+        <Reveal delay={index % 2}>
+          <article class="card">
+            <h3 class="card-title">{point.title}</h3>
+            <p class="card-body">{point.body}</p>
+          </article>
+        </Reveal>
+      ))
+    }
+  </div>
+</section>
+
+<style>
+  .localfirst-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  @media (max-width: 680px) {
+    .localfirst-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

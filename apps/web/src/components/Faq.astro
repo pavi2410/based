@@ -1,0 +1,116 @@
+---
+import Reveal from "./Reveal.astro";
+
+const faqs = [
+  {
+    q: "Is my data sent anywhere?",
+    a: "No. based has no backend and no telemetry. The app connects directly from your machine to your databases — nothing is routed through a server in between.",
+  },
+  {
+    q: "How do secrets stay safe if everything's in git?",
+    a: "Connection files store hosts and non-secret config only. Passwords and connection URLs reference environment variables (for example { env = \"LOCAL_PG_PASSWORD\" }), and the actual values live in a gitignored .env. A committed .env.example documents which vars teammates need.",
+  },
+  {
+    q: "Which databases are supported?",
+    a: "PostgreSQL, SQLite, and MongoDB. Postgres has the deepest daily-driver support, with SQLite and MongoDB connections living in the same project.",
+  },
+  {
+    q: "Do I need an account?",
+    a: "No accounts, no sign-up, no license keys. Download it and connect.",
+  },
+  {
+    q: "What does it cost?",
+    a: "based is free and open source under the MIT license.",
+  },
+  {
+    q: "Which platforms can I run it on?",
+    a: "macOS (Apple Silicon and Intel), Windows, and Linux (.deb and .AppImage).",
+  },
+];
+---
+
+<section class="section faq">
+  <div class="section-head">
+    <span class="eyebrow">FAQ</span>
+    <h2 class="section-title">Questions, answered.</h2>
+  </div>
+
+  <div class="faq-list">
+    {
+      faqs.map((faq, index) => (
+        <Reveal delay={index % 2}>
+          <details class="faq-item">
+            <summary class="faq-q">
+              <span>{faq.q}</span>
+              <svg
+                class="faq-chevron"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </summary>
+            <p class="faq-a">{faq.a}</p>
+          </details>
+        </Reveal>
+      ))
+    }
+  </div>
+</section>
+
+<style>
+  .faq-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    max-width: 52rem;
+  }
+
+  .faq-item {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--surface) 86%, transparent);
+    overflow: hidden;
+  }
+
+  .faq-q {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.05rem 1.25rem;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .faq-q::-webkit-details-marker {
+    display: none;
+  }
+
+  .faq-chevron {
+    flex-shrink: 0;
+    color: var(--muted);
+    transition: transform 200ms var(--motion-ease);
+  }
+
+  .faq-item[open] .faq-chevron {
+    transform: rotate(180deg);
+  }
+
+  .faq-a {
+    margin: 0;
+    padding: 0 1.25rem 1.15rem;
+    color: var(--muted);
+    font-size: 0.94rem;
+    line-height: 1.6;
+  }
+</style>

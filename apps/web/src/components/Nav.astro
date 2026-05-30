@@ -1,0 +1,135 @@
+---
+import { RELEASES_URL, REPO_URL } from "../lib/github";
+
+interface Props {
+  stars: number | null;
+}
+
+const { stars } = Astro.props;
+
+const links = [
+  { href: "#how-it-works", label: "How it works" },
+  { href: "#features", label: "Features" },
+  { href: "#engines", label: "Engines" },
+  { href: "#install", label: "Install" },
+];
+---
+
+<header class="nav">
+  <div class="container nav-inner">
+    <a href="#top" class="nav-brand">based</a>
+
+    <nav class="nav-links" aria-label="Primary">
+      {links.map((link) => <a href={link.href}>{link.label}</a>)}
+    </nav>
+
+    <div class="nav-actions">
+      <a
+        href={REPO_URL}
+        class="btn btn-secondary nav-star"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <svg
+          class="btn-icon"
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="currentColor"
+          aria-hidden="true"
+        >
+          <path
+            d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"
+          ></path>
+        </svg>
+        <span class="nav-star-label">Star</span>
+        {
+          stars !== null && (
+            <span class="btn-count" aria-label={`${stars.toLocaleString()} stars`}>
+              {stars.toLocaleString()}
+            </span>
+          )
+        }
+      </a>
+      <a href={RELEASES_URL} class="btn btn-primary" target="_blank" rel="noopener noreferrer">
+        Download
+      </a>
+    </div>
+  </div>
+</header>
+
+<style>
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    border-bottom: 1px solid transparent;
+    background: color-mix(in srgb, var(--bg) 72%, transparent);
+    backdrop-filter: blur(14px) saturate(140%);
+    transition: border-color 200ms var(--motion-ease);
+  }
+
+  :global(body.scrolled) .nav {
+    border-bottom-color: var(--border);
+  }
+
+  .nav-inner {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    height: 3.75rem;
+  }
+
+  .nav-brand {
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    flex-shrink: 0;
+  }
+
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 1.6rem;
+    margin-inline: auto;
+    color: var(--muted);
+    font-size: 0.92rem;
+  }
+
+  .nav-links a {
+    transition: color 120ms var(--motion-ease);
+  }
+
+  .nav-links a:hover {
+    color: var(--text);
+  }
+
+  .nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-shrink: 0;
+  }
+
+  .nav-star {
+    padding: 0.55rem 0.95rem;
+    font-size: 0.9rem;
+  }
+
+  @media (max-width: 860px) {
+    .nav-links {
+      display: none;
+    }
+  }
+
+  @media (max-width: 540px) {
+    .nav-star-label,
+    .nav-star .btn-count {
+      display: none;
+    }
+
+    .nav-star {
+      padding-inline: 0.7rem;
+    }
+  }
+</style>

@@ -1,0 +1,173 @@
+---
+import { RELEASES_URL } from "../lib/github";
+import Reveal from "./Reveal.astro";
+
+const platforms = [
+  {
+    os: "mac",
+    name: "macOS",
+    detail: "Apple Silicon & Intel",
+    artifact: ".dmg installer",
+    icon: '<path d="M16.5 3c.1 1.2-.4 2.3-1.1 3.1-.8.9-2 1.5-3.1 1.4-.1-1.2.4-2.4 1.1-3.1C14.2 3.5 15.4 3 16.5 3zM19 17.3c-.5 1.2-.8 1.7-1.5 2.7-1 1.4-2.3 3.1-4 3.1-1.5 0-1.9-1-3.9-.9-2 0-2.4.9-3.9.9-1.7 0-3-1.6-4-3C-.2 16.9-.5 11.5 2 8.9 3 7.5 4.6 6.6 6.1 6.6c1.6 0 2.6 1 3.9 1 1.3 0 2-1 3.9-1 1.4 0 2.9.8 3.9 2.1-3.4 1.9-2.9 6.8 1.2 8.6z" />',
+  },
+  {
+    os: "windows",
+    name: "Windows",
+    detail: "Windows 10 & 11",
+    artifact: ".exe NSIS installer",
+    icon: '<path d="M3 5.5l8-1.1v7.2H3V5.5zM3 12.4h8v7.2l-8-1.1v-6.1zM12 4.2l9-1.2v8.6h-9V4.2zM12 12.4h9V21l-9-1.2v-7.4z" />',
+  },
+  {
+    os: "linux",
+    name: "Linux",
+    detail: "Debian & universal",
+    artifact: ".deb / .AppImage",
+    icon: '<path d="M12 2c-2 0-3 1.8-3 4 0 1.4.3 2.1.3 3.2 0 1.3-2 2.6-2.8 4.6-.8 1.9-1.4 3.6-2 4.6-.4.7.1 1.4.9 1.3.9-.1 1.6-.7 2.1-.4.6.4.8 1.4 2 1.7 1 .3 2 .3 3 0 1.2-.3 1.4-1.3 2-1.7.5-.3 1.2.3 2.1.4.8.1 1.3-.6.9-1.3-.6-1-1.2-2.7-2-4.6-.8-2-2.8-3.3-2.8-4.6 0-1.1.3-1.8.3-3.2 0-2.2-1-4-3-4z" />',
+  },
+];
+---
+
+<section class="section install" id="install">
+  <div class="section-head">
+    <span class="eyebrow">Install</span>
+    <h2 class="section-title">Download based.</h2>
+    <p class="section-lead">
+      Grab the latest stable release for your platform. Free and open source —
+      no sign-up required.
+    </p>
+  </div>
+
+  <div class="install-grid">
+    {
+      platforms.map((platform, index) => (
+        <Reveal delay={index % 3}>
+          <a
+            href={RELEASES_URL}
+            class="card install-card"
+            data-os={platform.os}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <span class="install-rec mono">Detected</span>
+            <span class="install-icon" aria-hidden="true">
+              <svg
+                width="30"
+                height="30"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                set:html={platform.icon}
+              />
+            </span>
+            <h3 class="card-title">{platform.name}</h3>
+            <p class="install-detail">{platform.detail}</p>
+            <span class="install-artifact mono">{platform.artifact}</span>
+          </a>
+        </Reveal>
+      ))
+    }
+  </div>
+
+  <Reveal class="install-note-wrap">
+    <p class="install-note">
+      Installers are currently <strong>unsigned</strong>. On macOS, open
+      <span class="mono">System Settings → Privacy &amp; Security → Open Anyway</span>;
+      on Windows, choose <span class="mono">More info → Run anyway</span>. Each release
+      ships a <span class="mono">checksums.txt</span> with SHA-256 hashes.
+    </p>
+  </Reveal>
+</section>
+
+<script>
+  const platform = navigator.platform?.toLowerCase() ?? "";
+  const ua = navigator.userAgent.toLowerCase();
+  let os: string | null = null;
+  if (platform.includes("mac") || ua.includes("mac")) os = "mac";
+  else if (platform.includes("win") || ua.includes("win")) os = "windows";
+  else if (platform.includes("linux") || ua.includes("linux")) os = "linux";
+
+  if (os) {
+    const card = document.querySelector(`.install-card[data-os="${os}"]`);
+    card?.classList.add("is-detected");
+  }
+</script>
+
+<style>
+  .install-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  .install-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    color: var(--text);
+  }
+
+  .install-card:hover {
+    color: var(--text);
+  }
+
+  .install-icon {
+    color: var(--text);
+    margin-bottom: 0.9rem;
+  }
+
+  .install-detail {
+    margin: 0.35rem 0 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  .install-artifact {
+    margin-top: 1rem;
+    font-size: 0.8rem;
+    color: var(--accent-blue);
+  }
+
+  .install-rec {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    display: none;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    color: var(--mongo);
+    background: color-mix(in srgb, var(--mongo) 14%, transparent);
+  }
+
+  .install-card.is-detected {
+    border-color: color-mix(in srgb, var(--mongo) 45%, var(--border));
+  }
+
+  .install-card.is-detected .install-rec {
+    display: inline-block;
+  }
+
+  .install-note-wrap {
+    margin-top: 1.5rem;
+  }
+
+  .install-note {
+    margin: 0;
+    max-width: 70ch;
+    color: var(--muted);
+    font-size: 0.88rem;
+    line-height: 1.6;
+  }
+
+  .install-note strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  @media (max-width: 860px) {
+    .install-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

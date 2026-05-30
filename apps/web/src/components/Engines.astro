@@ -1,0 +1,102 @@
+---
+import Reveal from "./Reveal.astro";
+
+const engines = [
+  {
+    icon: "postgresql",
+    name: "PostgreSQL",
+    color: "var(--pg)",
+    body: "The primary engine. Schemas, SSL modes, test-before-connect, and deep daily-driver parity for local, staging, and prod.",
+  },
+  {
+    icon: "sqlite",
+    name: "SQLite",
+    color: "var(--sqlite)",
+    body: "File-backed databases with connection-time PRAGMA control — journal mode, synchronous, and foreign keys, right in the connection file.",
+  },
+  {
+    icon: "mongodb",
+    name: "MongoDB",
+    color: "var(--mongo)",
+    body: "Collections and aggregations alongside your SQL connections, in the same version-controlled project.",
+  },
+];
+---
+
+<section class="section engines" id="engines">
+  <div class="section-head">
+    <span class="eyebrow">Engines</span>
+    <h2 class="section-title">Three databases, one project.</h2>
+    <p class="section-lead">
+      Postgres, SQLite, and MongoDB connections live side by side in the same
+      <span class="mono">.based/</span> folder — pick the engine per connection file.
+    </p>
+  </div>
+
+  <div class="engines-grid">
+    {
+      engines.map((engine, index) => (
+        <Reveal delay={index % 3}>
+          <article
+            class="card engine-card"
+            style={`--engine-color: ${engine.color}`}
+          >
+            <div class="engine-head">
+              <span class="engine-icon">
+                <img src={`/icons/engines/${engine.icon}.svg`} alt="" width="28" height="28" />
+              </span>
+              <h3 class="card-title">{engine.name}</h3>
+            </div>
+            <p class="card-body">{engine.body}</p>
+          </article>
+        </Reveal>
+      ))
+    }
+  </div>
+</section>
+
+<style>
+  .engines-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  .engine-card {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .engine-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background: var(--engine-color);
+    opacity: 0.7;
+  }
+
+  .engine-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .engine-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--engine-color) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--engine-color) 24%, transparent);
+  }
+
+  @media (max-width: 860px) {
+    .engines-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

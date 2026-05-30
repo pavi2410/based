@@ -1,0 +1,81 @@
+---
+import Reveal from "./Reveal.astro";
+
+const pains = [
+  {
+    title: "Connections trapped on one laptop",
+    body: "Every teammate re-enters the same hosts, ports, and databases by hand. Onboarding a new dev means a Slack thread of screenshots.",
+  },
+  {
+    title: "Secrets pasted into app settings",
+    body: "Passwords live inside a GUI's private config, never reviewed, never rotated together, impossible to audit.",
+  },
+  {
+    title: "Queries that never leave your machine",
+    body: "The useful report you wrote last week is stuck in your client's history. Nobody else can find it, run it, or improve it.",
+  },
+];
+---
+
+<section class="section problem">
+  <div class="section-head">
+    <span class="eyebrow">The problem</span>
+    <h2 class="section-title">Your database setup isn't in version control.</h2>
+    <p class="section-lead">
+      Database clients treat connections and queries as private, machine-local
+      state. So teams keep re-sharing the same things by hand.
+    </p>
+  </div>
+
+  <div class="problem-grid">
+    {
+      pains.map((pain, index) => (
+        <Reveal delay={index % 3}>
+          <article class="card problem-card">
+            <h3 class="card-title">{pain.title}</h3>
+            <p class="card-body">{pain.body}</p>
+          </article>
+        </Reveal>
+      ))
+    }
+  </div>
+
+  <Reveal class="problem-answer-wrap">
+    <p class="problem-answer">
+      based puts all of it in a <span class="mono problem-folder">.based/</span>
+      folder you commit to git — and keeps the secrets out.
+    </p>
+  </Reveal>
+</section>
+
+<style>
+  .problem-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  .problem-answer-wrap {
+    margin-top: clamp(2rem, 5vw, 3rem);
+  }
+
+  .problem-answer {
+    margin: 0;
+    max-width: 32ch;
+    font-size: clamp(1.35rem, 3.2vw, 2rem);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1.3;
+  }
+
+  .problem-folder {
+    color: var(--sqlite);
+    font-weight: 500;
+  }
+
+  @media (max-width: 860px) {
+    .problem-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

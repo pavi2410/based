@@ -1,9 +1,16 @@
 ---
 import AmbientGlow from "../components/AmbientGlow.astro";
+import Engines from "../components/Engines.astro";
+import Faq from "../components/Faq.astro";
+import Features from "../components/Features.astro";
 import Footer from "../components/Footer.astro";
 import Hero from "../components/Hero.astro";
+import HowItWorks from "../components/HowItWorks.astro";
+import Install from "../components/Install.astro";
+import LocalFirst from "../components/LocalFirst.astro";
+import Nav from "../components/Nav.astro";
+import Problem from "../components/Problem.astro";
 import Screenshot from "../components/Screenshot.astro";
-import SignalChips from "../components/SignalChips.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { fetchStarCount } from "../lib/github";
 
@@ -13,13 +20,17 @@ const stars = await fetchStarCount();
 <BaseLayout>
   <div class="page">
     <AmbientGlow />
+    <Nav stars={stars} />
     <main class="container content">
       <Hero stars={stars} />
       <Screenshot />
-      <SignalChips />
-      <p class="micro-copy">
-        Star the repo on GitHub to follow releases.
-      </p>
+      <Problem />
+      <HowItWorks />
+      <Features />
+      <Engines />
+      <LocalFirst />
+      <Install />
+      <Faq />
       <Footer />
     </main>
   </div>

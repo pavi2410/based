@@ -15,6 +15,7 @@
   --pg: #336791;
   --sqlite: #57aaa0;
   --mongo: #13aa52;
+  --accent-blue: #4a8fd1;
 
   --motion-fast: 280ms;
   --motion-base: 360ms;
@@ -136,4 +137,148 @@ a:hover {
   .hero-cta {
     padding-top: 0;
   }
+}
+
+/* ---------- Buttons ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 0.7rem 1.15rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    transform 120ms var(--motion-ease),
+    filter 120ms var(--motion-ease),
+    background 120ms var(--motion-ease),
+    border-color 120ms var(--motion-ease),
+    box-shadow 120ms var(--motion-ease);
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+}
+
+.btn-primary:hover {
+  color: var(--accent-fg);
+  filter: brightness(1.04);
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--accent-blue) 28%, transparent);
+}
+
+.btn-secondary {
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  color: var(--text);
+}
+
+.btn-secondary:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--text) 35%, var(--border));
+  background: var(--surface);
+}
+
+.btn-icon {
+  flex-shrink: 0;
+}
+
+.btn-count {
+  padding-left: 0.55rem;
+  margin-left: 0.1rem;
+  border-left: 1px solid color-mix(in srgb, currentColor 24%, transparent);
+  color: color-mix(in srgb, currentColor 72%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Section scaffolding ---------- */
+
+.section {
+  margin-top: clamp(4.5rem, 11vw, 8rem);
+  scroll-margin-top: 5rem;
+}
+
+.section-head {
+  max-width: 46rem;
+  margin: 0 0 clamp(2rem, 4vw, 3rem);
+}
+
+.eyebrow {
+  display: inline-block;
+  margin: 0 0 0.9rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--accent-blue) 80%, var(--muted));
+}
+
+.section-title {
+  margin: 0;
+  font-size: clamp(1.6rem, 4vw, 2.5rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.section-lead {
+  margin: 1rem 0 0;
+  max-width: 44ch;
+  color: var(--muted);
+  font-size: clamp(1rem, 2vw, 1.15rem);
+  line-height: 1.6;
+}
+
+/* ---------- Card ---------- */
+
+.card {
+  height: 100%;
+  padding: 1.4rem 1.45rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  backdrop-filter: blur(8px);
+  transition:
+    border-color 160ms var(--motion-ease),
+    transform 160ms var(--motion-ease),
+    box-shadow 160ms var(--motion-ease);
+}
+
+.card:hover {
+  border-color: color-mix(in srgb, var(--text) 22%, var(--border));
+  transform: translateY(-2px);
+  box-shadow: 0 16px 40px color-mix(in srgb, #000 35%, transparent);
+}
+
+.card-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.card-body {
+  margin: 0.55rem 0 0;
+  color: var(--muted);
+  font-size: 0.94rem;
+  line-height: 1.55;
+}
+
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
 }

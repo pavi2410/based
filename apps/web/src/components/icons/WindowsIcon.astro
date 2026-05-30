@@ -1,0 +1,22 @@
+---
+// Windows logo — classic 4-pane flag shape (monochrome, fill="currentColor")
+interface Props { size?: number; class?: string; }
+const { size = 20, class: cls = "" } = Astro.props;
+---
+<svg
+  width={size}
+  height={size}
+  viewBox="0 0 24 24"
+  fill="currentColor"
+  class={cls}
+  aria-hidden="true"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <!--
+    Classic Windows flag: 4 parallelogram panes.
+    Top-left and bottom-left form the left column (narrower);
+    top-right and bottom-right form the right column (wider).
+    The outer edges angle inward slightly, matching the original logo perspective.
+  -->
+  <path d="M0 3.449L9.75 2.1v9.451H0zM10.949 1.649L24 0v11.4H10.949zM0 12.6h9.75v9.451L0 20.699zM10.949 12.6H24V24l-13.051-1.8z"/>
+</svg>

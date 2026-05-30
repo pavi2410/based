@@ -1,0 +1,314 @@
+---
+import { Code } from "astro:components";
+import FileIcon from "./icons/FileIcon.astro";
+import FolderIcon from "./icons/FolderIcon.astro";
+import projectToml from "../assets/filebrowser/project.toml?raw";
+import queryToml from "../assets/filebrowser/churn.query.toml?raw";
+import connectionToml from "../assets/filebrowser/local.conn.toml?raw";
+import envExample from "../assets/filebrowser/.env.example?raw";
+
+const theme = "github-dark-default";
+---
+
+<!--
+  The outer .fb div is both the reveal target and the CSS state-machine root.
+  Radio inputs and .fb-card are siblings inside it, sharing the same Astro CID,
+  so the scoped `#fb-query:checked ~ .fb-card` selectors work correctly.
+-->
+<div class="fb" data-reveal data-reveal-stagger="0">
+  <input type="radio" name="fb-file" id="fb-query" class="fb-radio" checked />
+  <input type="radio" name="fb-file" id="fb-conn"  class="fb-radio" />
+  <input type="radio" name="fb-file" id="fb-env"   class="fb-radio" />
+  <input type="radio" name="fb-file" id="fb-proj"  class="fb-radio" />
+
+  <div class="fb-card">
+    <!-- ── Left: file tree ──────────────────────────────────── -->
+    <nav class="fb-tree" aria-label=".based/ directory">
+      <div class="fb-root mono">
+        <FolderIcon class="fb-icon fb-icon-folder" />
+        .based/
+      </div>
+
+      <ul class="fb-list">
+        <li class="fb-item" data-file="proj">
+          <label for="fb-proj" class="fb-node fb-selectable">
+            <FileIcon class="fb-icon" />
+            project.toml
+          </label>
+          <span class="tag tag-git">committed</span>
+        </li>
+
+        <li class="fb-item">
+          <span class="fb-node fb-dir">
+            <FolderIcon class="fb-icon fb-icon-folder" />
+            connections/
+          </span>
+        </li>
+        <li class="fb-item fb-child" data-file="conn">
+          <label for="fb-conn" class="fb-node fb-selectable">
+            <FileIcon class="fb-icon" />
+            local.conn.toml
+          </label>
+          <span class="tag tag-git">committed</span>
+        </li>
+
+        <li class="fb-item">
+          <span class="fb-node fb-dir">
+            <FolderIcon class="fb-icon fb-icon-folder" />
+            queries/
+          </span>
+        </li>
+        <li class="fb-item fb-child" data-file="query">
+          <label for="fb-query" class="fb-node fb-selectable">
+            <FileIcon class="fb-icon" />
+            churn.query.toml
+          </label>
+          <span class="tag tag-git">committed</span>
+        </li>
+
+        <li class="fb-item" data-file="env">
+          <label for="fb-env" class="fb-node fb-selectable">
+            <FileIcon class="fb-icon" />
+            .env.example
+          </label>
+          <span class="tag tag-git">committed</span>
+        </li>
+
+        <li class="fb-item">
+          <span class="fb-node fb-muted">
+            <FileIcon class="fb-icon" />
+            .env
+          </span>
+          <span class="tag tag-secret">gitignored</span>
+        </li>
+
+        <li class="fb-item">
+          <span class="fb-node fb-muted">
+            <FolderIcon class="fb-icon fb-icon-folder" />
+            state/
+          </span>
+          <span class="tag tag-secret">gitignored</span>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- ── Divider ──────────────────────────────────────────── -->
+    <div class="fb-divider" aria-hidden="true"></div>
+
+    <!-- ── Right: code viewer ───────────────────────────────── -->
+    <div class="fb-editor">
+      <div class="fb-filename mono">
+        <FileIcon class="fb-icon" />
+        <span class="fn fn-proj">project.toml</span>
+        <span class="fn fn-query">queries/churn.query.toml</span>
+        <span class="fn fn-conn">connections/local.conn.toml</span>
+        <span class="fn fn-env">.env.example</span>
+      </div>
+      <div class="fb-panels">
+        <div class="fb-panel fp-proj">
+          <Code code={projectToml} lang="toml" theme={theme} />
+        </div>
+        <div class="fb-panel fp-query">
+          <Code code={queryToml} lang="toml" theme={theme} />
+        </div>
+        <div class="fb-panel fp-conn">
+          <Code code={connectionToml} lang="toml" theme={theme} />
+        </div>
+        <div class="fb-panel fp-env">
+          <Code code={envExample} lang="bash" theme={theme} />
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .fb-radio {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .fb-card {
+    display: grid;
+    grid-template-columns: 250px 1px 1fr;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--surface);
+    font-size: 0.84rem;
+  }
+
+  /* ── Left: tree ──────────────────────────────────────────── */
+  .fb-tree {
+    padding: 0.75rem 0;
+    background: color-mix(in srgb, var(--bg) 40%, var(--surface));
+    overflow: hidden;
+  }
+
+  .fb-root {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0 0.75rem 0.6rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0.35rem;
+    color: var(--sqlite);
+    font-weight: 500;
+    font-size: 0.82rem;
+  }
+
+  .fb-list {
+    list-style: none;
+    margin: 0;
+    padding: 0 0.4rem;
+  }
+
+  .fb-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    min-height: 1.7rem;
+  }
+
+  .fb-child {
+    margin-left: 1rem;
+    position: relative;
+  }
+
+  .fb-child::before {
+    content: '';
+    position: absolute;
+    left: -0.6rem;
+    top: -0.45rem;
+    bottom: 50%;
+    width: 1px;
+    background: color-mix(in srgb, var(--text) 15%, transparent);
+  }
+
+  .fb-child::after {
+    content: '';
+    position: absolute;
+    left: -0.6rem;
+    top: 50%;
+    width: 0.45rem;
+    height: 1px;
+    background: color-mix(in srgb, var(--text) 15%, transparent);
+  }
+
+  .fb-node {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: var(--font-mono);
+    color: var(--text);
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0.18rem 0.35rem;
+    border-radius: 5px;
+    /* text truncation on the label text, not the row — icon is protected by flex-shrink: 0 */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .fb-selectable {
+    cursor: pointer;
+    color: var(--muted);
+    transition: background 100ms var(--motion-ease), color 100ms var(--motion-ease);
+  }
+
+  .fb-selectable:hover {
+    background: color-mix(in srgb, var(--text) 7%, transparent);
+    color: var(--text);
+  }
+
+  .fb-dir  { color: var(--muted); }
+  .fb-muted { color: color-mix(in srgb, var(--muted) 55%, transparent); }
+
+  /* Icons live inside child Astro components (different CID) — must use :global() */
+  :global(.fb-icon) {
+    flex-shrink: 0;
+    min-width: 14px; /* prevent flex from squishing below explicit width */
+    opacity: 0.7;
+  }
+  :global(.fb-icon-folder) { color: #e8a354; opacity: 0.9; }
+
+  .tag {
+    flex-shrink: 0;
+    font-size: 0.6rem;
+    letter-spacing: 0.03em;
+    padding: 0.1rem 0.32rem;
+    border-radius: 4px;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+  }
+
+  .tag-git    { color: var(--mongo); background: color-mix(in srgb, var(--mongo) 14%, transparent); }
+  .tag-secret { color: #d98c5f;      background: color-mix(in srgb, #d98c5f 14%, transparent); }
+
+  /* ── Divider ─────────────────────────────────────────────── */
+  .fb-divider { background: var(--border); }
+
+  /* ── Right: editor ───────────────────────────────────────── */
+  .fb-editor {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .fb-filename {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.77rem;
+    color: var(--muted);
+    background: color-mix(in srgb, var(--bg) 30%, var(--surface));
+  }
+
+  .fn { display: none; }
+
+  .fb-panel { display: none; }
+
+  .fb-panel :global(pre) {
+    margin: 0;
+    padding: 1rem 1.25rem;
+    background: var(--surface) !important;
+    font-size: 0.82rem;
+    line-height: 1.65;
+    overflow-x: auto;
+  }
+
+  /* ── CSS state machine ───────────────────────────────────── */
+  #fb-proj:checked  ~ .fb-card [data-file="proj"]  .fb-selectable,
+  #fb-query:checked ~ .fb-card [data-file="query"] .fb-selectable,
+  #fb-conn:checked  ~ .fb-card [data-file="conn"]  .fb-selectable,
+  #fb-env:checked   ~ .fb-card [data-file="env"]   .fb-selectable {
+    background: color-mix(in srgb, var(--accent-blue) 14%, transparent);
+    color: var(--text);
+  }
+
+  #fb-proj:checked  ~ .fb-card .fn-proj,
+  #fb-query:checked ~ .fb-card .fn-query,
+  #fb-conn:checked  ~ .fb-card .fn-conn,
+  #fb-env:checked   ~ .fb-card .fn-env { display: inline; }
+
+  #fb-proj:checked  ~ .fb-card .fp-proj,
+  #fb-query:checked ~ .fb-card .fp-query,
+  #fb-conn:checked  ~ .fb-card .fp-conn,
+  #fb-env:checked   ~ .fb-card .fp-env { display: block; }
+
+  /* ── Responsive ──────────────────────────────────────────── */
+  @media (max-width: 860px) {
+    .fb-card {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1px auto;
+    }
+
+    .fb-divider { height: 1px; }
+  }
+</style>

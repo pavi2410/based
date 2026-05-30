@@ -17,6 +17,8 @@
     "astro": "^6.4.2"
   },
   "devDependencies": {
+    "@astrojs/check": "^0.9.9",
+    "typescript": "^6.0.3",
     "wrangler": "^4.95.0"
   }
 }

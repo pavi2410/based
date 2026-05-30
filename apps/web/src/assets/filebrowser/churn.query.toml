@@ -1,0 +1,20 @@
+schema_version = 1
+
+name = "Churn by Geography"
+description = "Customer exit rate by country"
+tags = ["churn", "reports"]
+
+[target]
+# ↓ refers to connections/local.conn.toml
+connection = "local/postgres"
+
+[sql]
+query = """
+SELECT
+    Geography,
+    COUNT(*) AS customers,
+    SUM(CASE WHEN Exited = 1 THEN 1 ELSE 0 END) AS exited
+FROM demo.customer_churn
+GROUP BY Geography
+ORDER BY customers DESC;
+"""

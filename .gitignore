@@ -5,6 +5,8 @@ target
 # Packaging outputs
 **/dist/
 **/.cargo-packager/
+# Updater signing private key (public key updater-key.pub is committed)
+apps/desktop/assets/updater-key
 
 # Logs
 *.log

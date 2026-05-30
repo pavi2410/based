@@ -15,6 +15,7 @@ use gpui_component::{
 use crate::app::prefs::{
     self, AppearanceMode, CodeFontFamilyId, DEFAULT_PAGE_SIZE, DEFAULT_QUERY_TIMEOUT_SECS,
     DensityPreset, FontWeightToken, NativePreferences, SizeToken, UiFontFamilyId,
+    UpdateCheckInterval,
 };
 use crate::theme::{DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME, ThemeNameItem};
 
@@ -55,6 +56,13 @@ fn appearance_mode_options() -> Vec<(SharedString, SharedString)> {
     AppearanceMode::ALL
         .iter()
         .map(|mode| (mode.storage_key().into(), mode.label().into()))
+        .collect()
+}
+
+fn update_interval_options() -> Vec<(SharedString, SharedString)> {
+    crate::app::prefs::UpdateCheckInterval::ALL
+        .iter()
+        .map(|i| (i.storage_key().into(), i.label().into()))
         .collect()
 }
 
@@ -315,6 +323,68 @@ impl SettingsWindow {
                         .description("Alternate row shading in data grids."),
                     ]),
                 ]),
+            SettingPage::new("Updates")
+                .icon(Icon::new(IconName::Inbox))
+                .groups(vec![SettingGroup::new().title("Automatic updates").items(vec![
+                    SettingItem::new(
+                        "Check at startup",
+                        SettingField::switch(
+                            |cx| prefs::update_prefs(cx).check_at_startup,
+                            prefs::set_update_check_at_startup,
+                        ),
+                    )
+                    .description("Look for updates shortly after launch."),
+                    SettingItem::new(
+                        "Check automatically",
+                        SettingField::switch(
+                            |cx| prefs::update_prefs(cx).auto_check,
+                            prefs::set_update_auto_check,
+                        ),
+                    )
+                    .description("Periodically check while Based is running."),
+                    SettingItem::new(
+                        "Check interval",
+                        SettingField::dropdown(
+                            update_interval_options(),
+                            |cx| {
+                                prefs::update_prefs(cx)
+                                    .check_interval
+                                    .storage_key()
+                                    .into()
+                            },
+                            |val, cx| {
+                                if let Some(interval) = UpdateCheckInterval::from_storage_key(&val)
+                                {
+                                    prefs::set_update_check_interval(interval, cx);
+                                }
+                            },
+                        )
+                        .default_value(UpdateCheckInterval::Daily.storage_key().to_string()),
+                    ),
+                    SettingItem::new(
+                        "Download automatically",
+                        SettingField::switch(
+                            |cx| prefs::update_prefs(cx).auto_download,
+                            prefs::set_update_auto_download,
+                        ),
+                    )
+                    .description("Download updates in the background when available."),
+                    SettingItem::new(
+                        "Show release notes after updating",
+                        SettingField::switch(
+                            |cx| prefs::update_prefs(cx).show_release_notes_after_update,
+                            prefs::set_update_show_release_notes,
+                        ),
+                    ),
+                    SettingItem::new(
+                        "Include pre-releases",
+                        SettingField::switch(
+                            |cx| prefs::update_prefs(cx).include_prereleases,
+                            prefs::set_update_include_prereleases,
+                        ),
+                    )
+                    .description("Offer release candidates marked as pre-releases on GitHub."),
+                ])]),
             SettingPage::new("Query defaults")
                 .icon(Icon::new(IconName::Settings))
                 .groups(vec![

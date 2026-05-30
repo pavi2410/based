@@ -48,7 +48,11 @@ Download the latest stable release from [GitHub Releases](https://github.com/pav
 | Linux | `.deb` or `.AppImage` |
 | Windows | `.exe` NSIS installer |
 
-Each release includes a `checksums.txt` with SHA-256 hashes for all assets.
+Each release asset shows a **SHA-256 digest** on the [GitHub Releases](https://github.com/pavi2410/based/releases) page (and in the API as `assets[].digest`). After downloading an installer, compare your local hash:
+
+```bash
+shasum -a 256 Based_2026.5.0_aarch64.dmg
+```
 
 Installers are **unsigned**. macOS may show Gatekeeper warnings; open **System Settings → Privacy & Security** and choose **Open Anyway**, or right-click the app and choose **Open**. Windows SmartScreen may warn on first run — choose **More info → Run anyway**.
 

@@ -80,6 +80,7 @@ impl Render for AboutWindow {
             .gap(px(16.0))
             .child(header(fg, muted))
             .child(version_row(muted))
+            .child(update_section(muted, link, cx))
             .child(divider(border))
             .child(section_title("Links", muted))
             .child(link_row("Repository", REPO_URL, IconName::Github, link))
@@ -162,6 +163,57 @@ fn version_row(muted: Hsla) -> impl IntoElement {
                 .on_click(move |_, _, cx| {
                     cx.write_to_clipboard(ClipboardItem::new_string(copy_text.to_string()));
                 }),
+        )
+}
+
+fn update_section(muted: Hsla, accent: Hsla, cx: &gpui::App) -> impl IntoElement {
+    let dev = crate::app::updater::is_dev_build();
+    let snapshot = crate::app::updater::coordinator_snapshot(cx);
+    let status: SharedString = if dev {
+        "Updates disabled in dev builds".into()
+    } else {
+        match snapshot.phase {
+            crate::app::updater::UpdatePhase::Idle => "Check for updates to see status".into(),
+            crate::app::updater::UpdatePhase::Checking => "Checking for updates…".into(),
+            crate::app::updater::UpdatePhase::UpToDate => "You're up to date".into(),
+            crate::app::updater::UpdatePhase::Available => snapshot
+                .version
+                .map(|v| format!("{v} is available").into())
+                .unwrap_or_else(|| "Update available".into()),
+            crate::app::updater::UpdatePhase::Downloading => "Downloading update…".into(),
+            crate::app::updater::UpdatePhase::Ready => "Update ready — restart to apply".into(),
+            crate::app::updater::UpdatePhase::Failed => snapshot
+                .error
+                .unwrap_or_else(|| "Update check failed".into()),
+        }
+    };
+
+    v_flex()
+        .gap(px(8.0))
+        .child(section_title("Updates", muted))
+        .child(div().text_size(px(12.0)).text_color(muted).child(status))
+        .child(
+            h_flex()
+                .gap(px(8.0))
+                .when(!dev, |row| {
+                    row.child(
+                        Button::new("about-check-updates")
+                            .outline()
+                            .small()
+                            .label("Check for Updates")
+                            .on_click(|_, _, cx| crate::app::updater::check_now(cx)),
+                    )
+                })
+                .child(
+                    Button::new("about-release-notes")
+                        .ghost()
+                        .small()
+                        .label("Release Notes")
+                        .text_color(accent)
+                        .on_click(|_, _, cx| {
+                            crate::app::updater::open_release_notes_for_current(cx);
+                        }),
+                ),
         )
 }
 

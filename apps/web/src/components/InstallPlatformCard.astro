@@ -1,0 +1,88 @@
+---
+import type { InstallPlatform } from "../lib/install";
+import AppleIcon from "./icons/AppleIcon.astro";
+import InstallDownloadRow from "./InstallDownloadRow.astro";
+import LinuxIcon from "./icons/LinuxIcon.astro";
+import WindowsIcon from "./icons/WindowsIcon.astro";
+
+interface Props extends InstallPlatform {}
+
+const { os, name, detail, primary, secondary } = Astro.props;
+---
+
+<div class="card install-card" data-os={os}>
+  <span class="install-rec mono">Detected</span>
+
+  <span class="install-icon">
+    {os === "mac" && <AppleIcon size={20} />}
+    {os === "linux" && <LinuxIcon size={20} />}
+    {os === "windows" && <WindowsIcon size={20} />}
+  </span>
+
+  <h3 class="card-title">{name}</h3>
+  <p class="install-detail">{detail}</p>
+
+  <div class="install-links">
+    <InstallDownloadRow {...primary} />
+    {secondary && <InstallDownloadRow {...secondary} secondary />}
+  </div>
+</div>
+
+<style>
+  .install-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+
+  .install-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--text) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+    margin-bottom: 1rem;
+    color: var(--text);
+  }
+
+  .install-detail {
+    margin: 0.3rem 0 0;
+    color: var(--muted);
+    font-size: 0.88rem;
+  }
+
+  .install-links {
+    margin-top: 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    width: 100%;
+  }
+
+  .install-rec {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    display: none;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    color: var(--mongo);
+    background: color-mix(in srgb, var(--mongo) 14%, transparent);
+  }
+
+  .install-card:global(.is-detected) {
+    border-color: color-mix(in srgb, var(--mongo) 45%, var(--border));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--mongo) 20%, transparent);
+  }
+
+  .install-card:global(.is-detected) .install-rec {
+    display: inline-block;
+  }
+</style>

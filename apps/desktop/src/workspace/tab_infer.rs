@@ -41,6 +41,13 @@ pub(crate) fn infer_tab_spec(panel: &Arc<dyn PanelView>, cx: &App) -> TabSpec {
                 }
             })
             .unwrap_or_else(|_| builtin(panel, cx)),
+        "ReleaseNotesPanel" => panel
+            .view()
+            .downcast::<super::release_notes::ReleaseNotesPanel>()
+            .map(|ent| TabSpec::ReleaseNotes {
+                version: ent.read(cx).version_label(cx),
+            })
+            .unwrap_or_else(|_| builtin(panel, cx)),
         _ => builtin(panel, cx),
     }
 }

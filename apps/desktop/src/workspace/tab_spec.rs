@@ -46,6 +46,10 @@ pub enum TabSpec {
         conn_id: ConnectionId,
         collection: String,
     },
+    /// Release notes for a specific app version (fetched async in panel).
+    ReleaseNotes {
+        version: String,
+    },
     /// Connection-scoped or global panel without a dedicated tab kind (PRAGMA browser, wizards, etc.).
     Builtin {
         conn_id: Option<ConnectionId>,
@@ -74,6 +78,7 @@ impl TabSpec {
             Self::Inspector { conn_id, .. } => conn_id,
             Self::ObjectInfo { conn_id, .. } => conn_id,
             Self::DocumentInsert { conn_id, .. } => conn_id,
+            Self::ReleaseNotes { .. } => &WELCOME_CONN_SENTINEL,
             Self::Builtin { conn_id, .. } => conn_id.as_ref().unwrap_or(&WELCOME_CONN_SENTINEL),
         }
     }
@@ -88,6 +93,7 @@ impl TabSpec {
             Self::Inspector { .. } => "structure",
             Self::ObjectInfo { .. } => "object",
             Self::DocumentInsert { .. } => "insert",
+            Self::ReleaseNotes { .. } => "release notes",
             Self::Builtin { .. } => "panel",
         }
     }
@@ -102,6 +108,7 @@ impl TabSpec {
             Self::Inspector { object, .. } => object.clone(),
             Self::ObjectInfo { object_name, .. } => object_name.clone(),
             Self::DocumentInsert { collection, .. } => format!("Insert · {collection}"),
+            Self::ReleaseNotes { version } => format!("What's New in v{version}"),
             Self::Builtin { panel, .. } => panel.clone(),
         }
     }

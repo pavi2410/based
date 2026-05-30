@@ -95,7 +95,7 @@ Beyond “no blockers,” stable-default implies:
 - [ ] Version stamped by CI (`script/set-version.py`)
 - [ ] `validation-checklist.md` signed off
 - [ ] Release notes: features, limitations, migration notes
-- [ ] `checksums.txt` attached to GitHub Release
+- [ ] Per-asset SHA-256 digests visible on GitHub Release assets
 - [ ] Critical/Blocker query on issue tracker = empty
 
 ## Reference

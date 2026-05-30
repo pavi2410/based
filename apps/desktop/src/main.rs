@@ -51,6 +51,7 @@ fn main() {
             app::prefs::install(cx);
 
             db::init(cx);
+            app::updater::init(cx);
             if let Err(err) = storage::init(cx) {
                 log::error!("failed to open metadata store: {err:#}");
             }

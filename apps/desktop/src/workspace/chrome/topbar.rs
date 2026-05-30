@@ -197,6 +197,11 @@ impl RenderOnce for TopbarRight {
                                 .icon(IconName::Settings)
                                 .on_click(|_, _window, cx| shell::open_settings(cx)),
                         )
+                        .item(
+                            PopupMenuItem::new("Check for Updates…")
+                                .icon(IconName::Inbox)
+                                .on_click(|_, _window, cx| crate::app::updater::check_now(cx)),
+                        )
                         .item(PopupMenuItem::separator())
                         .item(
                             PopupMenuItem::new("Welcome to Based")
@@ -207,6 +212,13 @@ impl RenderOnce for TopbarRight {
                             PopupMenuItem::new("Onboarding...")
                                 .icon(IconName::Settings2)
                                 .on_click(|_, _window, cx| shell::open_onboarding(cx)),
+                        )
+                        .item(
+                            PopupMenuItem::new("Release Notes")
+                                .icon(IconName::BookOpen)
+                                .on_click(|_, _window, cx| {
+                                    crate::app::updater::open_release_notes_for_current(cx);
+                                }),
                         )
                     }),
             )

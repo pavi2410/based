@@ -1,0 +1,87 @@
+---
+interface Props {
+  /** Text copied to the clipboard on click. */
+  value: string;
+  /** Visible button label. */
+  label?: string;
+  /** Shown briefly after a successful copy. */
+  copiedLabel?: string;
+  /** Accessible name when label alone is insufficient. */
+  ariaLabel?: string;
+  /** Push the button to the end of a flex row. */
+  pushEnd?: boolean;
+  class?: string;
+}
+
+const {
+  value,
+  label = "Copy",
+  copiedLabel = "Copied",
+  ariaLabel = "Copy to clipboard",
+  pushEnd = false,
+  class: className = "",
+} = Astro.props;
+---
+
+<button
+  type="button"
+  class:list={["copy-btn", pushEnd && "copy-btn--end", className]}
+  data-copy-btn
+  data-copy-value={value}
+  data-copy-label={label}
+  data-copied-label={copiedLabel}
+  aria-label={ariaLabel}
+>
+  {label}
+</button>
+
+<script>
+  if (!document.documentElement.dataset.copyBtnBound) {
+    document.documentElement.dataset.copyBtnBound = "1";
+
+    document.addEventListener("click", async (event) => {
+      const btn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-copy-btn]");
+      if (!btn) return;
+
+      const value = btn.dataset.copyValue;
+      if (!value) return;
+
+      try {
+        await navigator.clipboard.writeText(value);
+        const prev = btn.textContent;
+        btn.textContent = btn.dataset.copiedLabel ?? "Copied";
+        btn.classList.add("is-copied");
+        window.setTimeout(() => {
+          btn.textContent = prev;
+          btn.classList.remove("is-copied");
+        }, 1500);
+      } catch {
+        /* clipboard unavailable */
+      }
+    });
+  }
+</script>
+
+<style>
+  .copy-btn {
+    padding: 0.12rem 0.45rem;
+    border-radius: 6px;
+    border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+    background: color-mix(in srgb, var(--text) 6%, transparent);
+    color: var(--muted);
+    font-size: 0.68rem;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    transition: color 120ms var(--motion-ease), border-color 120ms var(--motion-ease);
+  }
+
+  .copy-btn:hover,
+  .copy-btn.is-copied {
+    color: var(--text);
+    border-color: color-mix(in srgb, var(--accent-blue) 45%, transparent);
+  }
+
+  .copy-btn--end {
+    margin-left: auto;
+  }
+</style>

@@ -22,7 +22,16 @@ use crate::workspace::{
 
 pub const APP_NAME: &str = "Based";
 
-gpui::actions!(app_shell, [QuitApp, AboutApp, OpenSettingsMenu]);
+gpui::actions!(
+    app_shell,
+    [
+        QuitApp,
+        AboutApp,
+        OpenSettingsMenu,
+        CheckForUpdates,
+        OpenReleaseNotes
+    ]
+);
 
 /// Title bar options with a platform window title for Mission Control / ⌘`.
 pub fn titled_titlebar(window_title: impl Into<SharedString>) -> TitlebarOptions {
@@ -53,6 +62,10 @@ pub fn init(cx: &mut App) {
     cx.on_action(|_: &OpenSettingsMenu, cx| open_settings(cx));
     cx.on_action(|_: &OpenWelcome, cx| open_welcome(cx));
     cx.on_action(|_: &OpenOnboarding, cx| open_onboarding(cx));
+    cx.on_action(|_: &CheckForUpdates, cx| crate::app::updater::check_now(cx));
+    cx.on_action(|_: &OpenReleaseNotes, cx| {
+        crate::app::updater::open_release_notes_for_current(cx)
+    });
 
     cx.bind_keys([
         KeyBinding::new("cmd-q", QuitApp, None),
@@ -66,6 +79,8 @@ pub fn init(cx: &mut App) {
             MenuItem::separator(),
             MenuItem::action("Settings...", OpenSettingsMenu),
             MenuItem::separator(),
+            MenuItem::action("Check for Updates…", CheckForUpdates),
+            MenuItem::separator(),
             MenuItem::os_submenu("Services", SystemMenuType::Services),
             MenuItem::separator(),
             MenuItem::action("Quit Based", QuitApp),
@@ -73,6 +88,8 @@ pub fn init(cx: &mut App) {
         Menu::new("Help").items([
             MenuItem::action("Welcome to Based", OpenWelcome),
             MenuItem::action("Onboarding...", OpenOnboarding),
+            MenuItem::separator(),
+            MenuItem::action("Release Notes", OpenReleaseNotes),
         ]),
     ]);
 }

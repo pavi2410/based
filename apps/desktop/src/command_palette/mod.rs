@@ -37,6 +37,7 @@ pub enum WorkspacePaletteAction {
     SelectNoEnvironment,
     OpenWelcome,
     OpenOnboarding,
+    CheckForUpdates,
 }
 
 /// A search result the palette can return.
@@ -280,6 +281,17 @@ impl CommandPalette {
                 conn_label: String::new(),
                 spec: TabSpec::blank_query_editor(ConnectionId("".into())),
                 command_action: Some(WorkspacePaletteAction::OpenOnboarding),
+                project_query_path: None,
+            });
+        }
+        if q.is_empty() || q.contains("update") {
+            results.push(PaletteResult {
+                kind: ResultKind::Command,
+                label: "Check for Updates".into(),
+                sublabel: "application".into(),
+                conn_label: String::new(),
+                spec: TabSpec::blank_query_editor(ConnectionId("".into())),
+                command_action: Some(WorkspacePaletteAction::CheckForUpdates),
                 project_query_path: None,
             });
         }

@@ -52,6 +52,7 @@ pub fn tab_label_for_spec(spec: &TabSpec, dirty: bool) -> SharedString {
             ..
         } => format!("{object_name} ({kind_label})"),
         TabSpec::DocumentInsert { collection, .. } => format!("Insert · {collection}"),
+        TabSpec::ReleaseNotes { version } => format!("What's New in v{version}"),
         TabSpec::Builtin { panel, .. } => panel.clone(),
     };
     with_dirty_suffix(base, dirty)

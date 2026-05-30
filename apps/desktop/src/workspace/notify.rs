@@ -44,6 +44,16 @@ pub fn push_info(app: &mut App, message: impl Into<SharedString>) {
     push_notification(app, Notification::info(message));
 }
 
+pub fn push_update_available(app: &mut App, version: &str) {
+    push_notification(
+        app,
+        Notification::info(format!(
+            "Based {version} is available — see the status bar for options."
+        ))
+        .title("Update available"),
+    );
+}
+
 /// First line, capped — for sidebar / inline summaries. Full text lives in tooltips.
 pub fn error_one_liner(message: &str) -> SharedString {
     let line = message.lines().next().unwrap_or(message).trim();

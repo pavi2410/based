@@ -35,14 +35,17 @@ jobs:
           - runner: macos-latest
             target: aarch64-apple-darwin
             formats: dmg
+            updater_format: app
             artifact: macos-arm64
           - runner: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             formats: deb,appimage
+            updater_format: appimage
             artifact: linux
           - runner: windows-latest
             target: x86_64-pc-windows-msvc
             formats: nsis
+            updater_format: nsis
             artifact: windows
     runs-on: ${{ matrix.runner }}
     steps:
@@ -73,7 +76,7 @@ jobs:
       - name: Install cargo-packager
         run: cargo install cargo-packager --locked
 
-      - name: Build and package
+      - name: Build and package installers
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
@@ -84,6 +87,43 @@ jobs:
             -p desktop \
             --target "$TARGET" \
             --formats "$FORMATS"
+
+      - name: Build and sign updater bundle
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          UPDATER_FORMAT: ${{ matrix.updater_format }}
+          UPDATER_PRIVATE_KEY: ${{ secrets.UPDATER_PRIVATE_KEY }}
+        run: |
+          cargo packager --release \
+            -p desktop \
+            --target "$TARGET" \
+            --formats "$UPDATER_FORMAT"
+
+          if [ -z "${UPDATER_PRIVATE_KEY:-}" ]; then
+            echo "::warning::UPDATER_PRIVATE_KEY not set — skipping updater signing"
+            exit 0
+          fi
+
+          cd apps/desktop/dist
+          shopt -s nullglob
+
+          if [ "$UPDATER_FORMAT" = "app" ]; then
+            for app in *.app; do
+              [ -d "$app" ] || continue
+              tar -czf "${app}.tar.gz" "$app"
+              cargo packager signer sign -k "$UPDATER_PRIVATE_KEY" "${app}.tar.gz"
+            done
+          elif [ "$UPDATER_FORMAT" = "appimage" ]; then
+            for img in *.AppImage; do
+              cargo packager signer sign -k "$UPDATER_PRIVATE_KEY" "$img"
+            done
+          elif [ "$UPDATER_FORMAT" = "nsis" ]; then
+            for exe in *setup.exe *.exe; do
+              [ -f "$exe" ] || continue
+              cargo packager signer sign -k "$UPDATER_PRIVATE_KEY" "$exe"
+            done
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -100,6 +140,8 @@ jobs:
             apps/desktop/dist/*.AppImage
             apps/desktop/dist/*.exe
             apps/desktop/dist/*.msi
+            apps/desktop/dist/*.app.tar.gz
+            apps/desktop/dist/*.sig
           if-no-files-found: ignore
 
   release:
@@ -118,11 +160,20 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Generate checksums
+      - name: Generate latest.json
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          cd dist
-          # -maxdepth 1: don't descend into Based.app bundles, only checksum the top-level installer files.
-          find . -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum > ../checksums.txt
+          SEMVER="${VERSION#v}"
+          if find dist -name '*.sig' -print -quit | grep -q .; then
+            python3 script/generate-update-manifest.py \
+              --dist dist \
+              --version "$SEMVER" \
+              --tag "$VERSION" \
+              -o latest.json
+          else
+            echo "::warning::No signed updater artifacts — skipping latest.json (set UPDATER_PRIVATE_KEY secret)"
+          fi
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3
@@ -136,6 +187,11 @@ jobs:
           # `dist/*` matches one level only. softprops-gh-release uploads
           # files and silently skips directories from glob matches, so any
           # stray directory landing in dist/ would not break the release.
-          files: |
-            dist/*
-            checksums.txt
+          files: dist/*
+
+      - name: Upload latest.json
+        if: hashFiles('latest.json') != ''
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$VERSION" latest.json --clobber

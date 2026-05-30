@@ -54,6 +54,73 @@ fn default_true() -> bool {
     true
 }
 
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum UpdateCheckInterval {
+    #[default]
+    Daily,
+    Weekly,
+    Monthly,
+}
+
+impl UpdateCheckInterval {
+    pub const ALL: [Self; 3] = [Self::Daily, Self::Weekly, Self::Monthly];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Daily => "Daily",
+            Self::Weekly => "Weekly",
+            Self::Monthly => "Monthly",
+        }
+    }
+
+    pub fn storage_key(self) -> &'static str {
+        match self {
+            Self::Daily => "daily",
+            Self::Weekly => "weekly",
+            Self::Monthly => "monthly",
+        }
+    }
+
+    pub fn from_storage_key(key: &str) -> Option<Self> {
+        match key {
+            "daily" => Some(Self::Daily),
+            "weekly" => Some(Self::Weekly),
+            "monthly" => Some(Self::Monthly),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct UpdatePreferences {
+    #[serde(default = "default_true")]
+    pub check_at_startup: bool,
+    #[serde(default = "default_true")]
+    pub auto_check: bool,
+    #[serde(default)]
+    pub check_interval: UpdateCheckInterval,
+    #[serde(default = "default_true")]
+    pub auto_download: bool,
+    #[serde(default = "default_true")]
+    pub show_release_notes_after_update: bool,
+    #[serde(default)]
+    pub include_prereleases: bool,
+}
+
+impl Default for UpdatePreferences {
+    fn default() -> Self {
+        Self {
+            check_at_startup: true,
+            auto_check: true,
+            check_interval: UpdateCheckInterval::Daily,
+            auto_download: true,
+            show_release_notes_after_update: true,
+            include_prereleases: false,
+        }
+    }
+}
+
 fn default_light_theme() -> String {
     crate::theme::DEFAULT_LIGHT_THEME.to_string()
 }
@@ -134,6 +201,8 @@ pub struct NativePreferences {
     pub table_prefs: TablePreferences,
     #[serde(default)]
     pub onboarding_completed: bool,
+    #[serde(default)]
+    pub update: UpdatePreferences,
     /// Legacy — migrated into `chrome` on load, not written on save.
     #[serde(default, skip_serializing, rename = "ui_font_size")]
     legacy_ui_font_size: f32,
@@ -163,6 +232,7 @@ impl Default for NativePreferences {
             query_timeout_secs: DEFAULT_QUERY_TIMEOUT_SECS,
             table_prefs: TablePreferences::default(),
             onboarding_completed: false,
+            update: UpdatePreferences::default(),
             legacy_ui_font_size: 14.0,
             legacy_mono_font_size: 14.0,
             legacy_table_density: LegacyTableDensity::Compact,
@@ -754,4 +824,99 @@ pub fn set_onboarding_completed(completed: bool, cx: &mut App) {
         p.onboarding_completed = completed;
         p.save_best_effort();
     });
+}
+
+pub fn update_prefs(cx: &App) -> UpdatePreferences {
+    cx.global::<NativePreferences>().update.clone()
+}
+
+fn update_update_prefs(update: impl FnOnce(&mut UpdatePreferences) -> bool, cx: &mut App) {
+    let changed = cx.update_global(|p: &mut NativePreferences, _| {
+        let changed = update(&mut p.update);
+        if changed {
+            p.save_best_effort();
+        }
+        changed
+    });
+    if changed {
+        cx.refresh_windows();
+    }
+}
+
+pub fn set_update_check_at_startup(enabled: bool, cx: &mut App) {
+    update_update_prefs(
+        |u| {
+            if u.check_at_startup == enabled {
+                return false;
+            }
+            u.check_at_startup = enabled;
+            true
+        },
+        cx,
+    );
+}
+
+pub fn set_update_auto_check(enabled: bool, cx: &mut App) {
+    update_update_prefs(
+        |u| {
+            if u.auto_check == enabled {
+                return false;
+            }
+            u.auto_check = enabled;
+            true
+        },
+        cx,
+    );
+}
+
+pub fn set_update_check_interval(interval: UpdateCheckInterval, cx: &mut App) {
+    update_update_prefs(
+        |u| {
+            if u.check_interval == interval {
+                return false;
+            }
+            u.check_interval = interval;
+            true
+        },
+        cx,
+    );
+}
+
+pub fn set_update_auto_download(enabled: bool, cx: &mut App) {
+    update_update_prefs(
+        |u| {
+            if u.auto_download == enabled {
+                return false;
+            }
+            u.auto_download = enabled;
+            true
+        },
+        cx,
+    );
+}
+
+pub fn set_update_show_release_notes(enabled: bool, cx: &mut App) {
+    update_update_prefs(
+        |u| {
+            if u.show_release_notes_after_update == enabled {
+                return false;
+            }
+            u.show_release_notes_after_update = enabled;
+            true
+        },
+        cx,
+    );
+}
+
+pub fn set_update_include_prereleases(enabled: bool, cx: &mut App) {
+    update_update_prefs(
+        |u| {
+            if u.include_prereleases == enabled {
+                return false;
+            }
+            u.include_prereleases = enabled;
+            true
+        },
+        cx,
+    );
 }

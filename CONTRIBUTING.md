@@ -43,9 +43,43 @@ The version in [`apps/desktop/Cargo.toml`](apps/desktop/Cargo.toml) is **permane
 2. CI:
    - Computes the next CalVer by running [`script/next-version.py`](script/next-version.py), which scans existing `v*` tags and emits `vYYYY.M.PATCH` for the current UTC month.
    - Stamps it into `Cargo.toml` on each runner via [`script/set-version.py`](script/set-version.py).
-   - Builds installers for macOS (arm64, x64), Linux, and Windows with `cargo-packager`.
-   - Publishes a GitHub Release at the new tag with auto-generated notes from PRs/commits since the previous tag, all installers, and a `checksums.txt`.
+   - Builds installers for macOS (arm64), Linux, and Windows with `cargo-packager`, plus signed updater bundles and a `latest.json` manifest for in-app updates.
+   - Publishes a GitHub Release at the new tag with auto-generated notes from PRs/commits since the previous tag and all installers.
 3. (Optional) Edit the release on GitHub afterward to polish the auto-generated notes.
+
+### In-app updater signing (one-time setup)
+
+Generate a minisign key pair for update manifests:
+
+```bash
+cargo install cargo-packager --locked
+cargo packager signer generate --path apps/desktop/assets/updater-key --ci --force
+```
+
+- Commit **`apps/desktop/assets/updater-key.pub`** (already gitignored: `apps/desktop/assets/updater-key` private key).
+- Store the private key in the GitHub Actions secret **`UPDATER_PRIVATE_KEY`** using the [GitHub CLI](https://cli.github.com/):
+
+```bash
+# From the repo root, after generating the key pair above:
+gh secret set UPDATER_PRIVATE_KEY < apps/desktop/assets/updater-key
+
+# Or inline (same result):
+gh secret set UPDATER_PRIVATE_KEY --body "$(cat apps/desktop/assets/updater-key)"
+
+# Verify the secret exists (value is never shown):
+gh secret list | grep UPDATER_PRIVATE_KEY
+```
+
+Each release job signs platform updater artifacts (`.app.tar.gz`, `.AppImage`, NSIS `.exe`) and uploads `latest.json` alongside user-facing installers. Update signing is separate from Apple/Microsoft code signing — Gatekeeper/SmartScreen warnings on first install may still appear.
+
+### Manual download verification
+
+GitHub exposes a SHA-256 digest for every release asset. After downloading, compare locally:
+
+```bash
+shasum -a 256 Based_2026.5.0_aarch64.dmg
+# vs assets[].digest from GET /repos/pavi2410/based/releases/latest
+```
 
 ### Notes
 

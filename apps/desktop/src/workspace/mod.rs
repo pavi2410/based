@@ -7,7 +7,8 @@ pub mod tab_open;
 pub mod tab_spec;
 pub use tab_open::{
     DockAreaRef, SqlInject, TabManagerRef, TabOpenQueue, WorkspaceNavQueue, WorkspaceRef,
-    enqueue_show_onboarding, enqueue_show_welcome, enqueue_sql_inject, mark_query_tab_dirty,
+    enqueue_open_tab, enqueue_show_onboarding, enqueue_show_welcome, enqueue_sql_inject,
+    mark_query_tab_dirty,
 };
 pub use tab_spec::TabSpec;
 
@@ -24,6 +25,7 @@ pub mod pane;
 pub mod pop_out;
 pub use pop_out::PopOutManager;
 pub mod onboarding;
+pub mod release_notes;
 pub mod welcome;
 
 mod dock_utils;
@@ -478,6 +480,7 @@ impl Workspace {
             WorkspacePaletteAction::SelectNoEnvironment => {}
             WorkspacePaletteAction::OpenWelcome => enqueue_show_welcome(cx),
             WorkspacePaletteAction::OpenOnboarding => enqueue_show_onboarding(cx),
+            WorkspacePaletteAction::CheckForUpdates => crate::app::updater::check_now(cx),
         }
     }
 
@@ -628,18 +631,36 @@ impl Workspace {
     }
 
     fn flush_nav_queue(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let (show_welcome, show_onboarding, open_wizard, toggle_side, toggle_left) = cx
-            .update_global(|q: &mut WorkspaceNavQueue, _| {
-                let welcome = q.show_welcome;
-                let onboarding = q.show_onboarding;
-                let wizard = q.open_postgres_wizard;
-                let side = q.toggle_side_pane.take();
-                let left = q.toggle_left_pane.take();
-                q.show_welcome = false;
-                q.show_onboarding = false;
-                q.open_postgres_wizard = false;
-                (welcome, onboarding, wizard, side, left)
-            });
+        let (
+            show_welcome,
+            show_onboarding,
+            open_wizard,
+            toggle_side,
+            toggle_left,
+            open_notes,
+            notes_version,
+        ) = cx.update_global(|q: &mut WorkspaceNavQueue, _| {
+            let welcome = q.show_welcome;
+            let onboarding = q.show_onboarding;
+            let wizard = q.open_postgres_wizard;
+            let side = q.toggle_side_pane.take();
+            let left = q.toggle_left_pane.take();
+            let notes = q.open_release_notes;
+            let notes_version = q.pending_release_notes_version.take();
+            q.show_welcome = false;
+            q.show_onboarding = false;
+            q.open_postgres_wizard = false;
+            q.open_release_notes = false;
+            (
+                welcome,
+                onboarding,
+                wizard,
+                side,
+                left,
+                notes,
+                notes_version,
+            )
+        });
         if let Some(pane) = toggle_side {
             self.toggle_side_pane(pane, cx);
         }
@@ -654,6 +675,11 @@ impl Workspace {
         }
         if open_wizard {
             self.open_postgres_wizard_tab(window, cx);
+        }
+        if open_notes && let Some(version) = notes_version {
+            enqueue_open_tab(TabSpec::ReleaseNotes { version }, cx);
+            self.drain_tab_open_queue(cx);
+            self.flush_pending_open_tab(window, cx);
         }
     }
 
@@ -959,9 +985,11 @@ impl Render for Workspace {
                         .history
                         .recent(1)
                         .is_empty(),
+                    update: crate::app::updater::coordinator_snapshot(cx),
                 },
                 active_pane,
                 self.active_left_pane,
+                self.registry.clone(),
             ))
             .child(self.command_palette.clone());
 

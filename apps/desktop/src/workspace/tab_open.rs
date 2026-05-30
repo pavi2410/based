@@ -96,6 +96,8 @@ pub struct WorkspaceNavQueue {
     pub open_postgres_wizard: bool,
     pub toggle_side_pane: Option<SidePane>,
     pub toggle_left_pane: Option<LeftPane>,
+    pub open_release_notes: bool,
+    pub pending_release_notes_version: Option<String>,
 }
 
 impl Global for WorkspaceNavQueue {}
@@ -118,4 +120,11 @@ pub fn enqueue_toggle_side_pane(pane: SidePane, cx: &mut impl BorrowAppContext) 
 
 pub fn enqueue_toggle_left_pane(pane: LeftPane, cx: &mut impl BorrowAppContext) {
     cx.update_global(|q: &mut WorkspaceNavQueue, _| q.toggle_left_pane = Some(pane));
+}
+
+pub fn enqueue_open_release_notes(version: String, cx: &mut impl BorrowAppContext) {
+    cx.update_global(|q: &mut WorkspaceNavQueue, _| {
+        q.open_release_notes = true;
+        q.pending_release_notes_version = Some(version);
+    });
 }

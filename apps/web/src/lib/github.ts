@@ -35,6 +35,8 @@ export interface ReleaseAsset {
   name: string;
   browser_download_url: string;
   download_count: number;
+  /** GitHub-computed SHA-256, e.g. `sha256:abc…` */
+  digest?: string;
 }
 
 export interface LatestRelease {
@@ -106,17 +108,35 @@ export function lifetimeAssetDownloads(
   );
 }
 
-/** Find the first asset on the latest release matching any pattern (URL only). */
+/** Find the first asset on the latest release matching any pattern. */
 export function findAssetInfo(
   release: LatestRelease | null,
   ...patterns: RegExp[]
-): { url: string } | null {
+): { url: string; digest?: string; name: string } | null {
   if (!release || release.rateLimited) return null;
   for (const pattern of patterns) {
     const asset = release.assets.find((a) => pattern.test(a.name));
-    if (asset) return { url: asset.browser_download_url };
+    if (asset) {
+      return {
+        url: asset.browser_download_url,
+        digest: asset.digest,
+        name: asset.name,
+      };
+    }
   }
   return null;
+}
+
+/** Strip `sha256:` prefix for display and local verification. */
+export function digestHex(digest: string | undefined): string | null {
+  if (!digest) return null;
+  return digest.replace(/^sha256:/i, "");
+}
+
+/** Middle-truncated hex for compact UI. */
+export function digestShort(hex: string): string {
+  if (hex.length <= 20) return hex;
+  return `${hex.slice(0, 8)}…${hex.slice(-8)}`;
 }
 
 /** Find the first asset whose filename matches any of the given patterns. */

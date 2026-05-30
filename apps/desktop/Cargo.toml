@@ -70,6 +70,10 @@ log.workspace = true
 env_logger = "0.11"
 dirs.workspace = true
 rust-embed = "8"
+cargo-packager-updater = "0.2"
+semver = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+url = "2"
 
 # Project / config / state
 toml.workspace = true

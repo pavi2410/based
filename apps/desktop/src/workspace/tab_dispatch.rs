@@ -289,6 +289,14 @@ impl Workspace {
                 });
                 register_dock_panel!(self, tab_spec_for_manager, panel_ent, window, cx);
             }
+            TabSpec::ReleaseNotes { version } => {
+                let tab_spec_for_manager = TabSpec::ReleaseNotes {
+                    version: version.clone(),
+                };
+                let panel_ent =
+                    cx.new(|cx| super::release_notes::ReleaseNotesPanel::new(version, window, cx));
+                register_dock_panel!(self, tab_spec_for_manager, panel_ent, window, cx);
+            }
             TabSpec::Welcome | TabSpec::Builtin { .. } => {}
         }
     }

@@ -8,3 +8,4 @@ pub mod globals;
 pub mod prefs;
 pub mod quit;
 pub mod shell;
+pub mod updater;

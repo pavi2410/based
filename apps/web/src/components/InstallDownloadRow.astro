@@ -1,0 +1,102 @@
+---
+import { digestHex, digestShort } from "../lib/github";
+import CopyButton from "./CopyButton.astro";
+import DownloadIcon from "./icons/DownloadIcon.astro";
+import type { InstallDownload } from "../lib/install";
+
+interface Props extends InstallDownload {
+  secondary?: boolean;
+}
+
+const { label, url, digest, downloads, secondary = false } = Astro.props;
+const hex = digestHex(digest);
+---
+
+<div class="install-dl-group">
+  <a
+    href={url}
+    class:list={["install-dl-link", secondary && "install-dl-link--secondary"]}
+    download
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    <DownloadIcon size={13} />
+    {label}
+    {import.meta.env.DEV && (
+      <span class="asset-dl-count">{downloads === -1 ? "?" : downloads} ↓</span>
+    )}
+  </a>
+  {hex && (
+    <div class="install-digest">
+      <span class="install-digest-label">SHA-256</span>
+      <code class="install-digest-value" title={hex}>{digestShort(hex)}</code>
+      <CopyButton value={hex} ariaLabel={`Copy SHA-256 for ${label}`} pushEnd />
+    </div>
+  )}
+</div>
+
+<style>
+  .install-dl-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    width: 100%;
+  }
+
+  .install-digest {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+    padding-left: 0.1rem;
+  }
+
+  .install-digest-label {
+    font-size: 0.68rem;
+    font-family: var(--font-mono);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .install-digest-value {
+    font-size: 0.72rem;
+    font-family: var(--font-mono);
+    color: var(--muted);
+    background: none;
+    padding: 0;
+  }
+
+  .install-dl-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    font-family: var(--font-mono);
+    color: var(--accent-blue);
+    transition: color 120ms var(--motion-ease), gap 120ms var(--motion-ease);
+  }
+
+  .install-dl-link:hover {
+    color: var(--text);
+    gap: 0.6rem;
+  }
+
+  .install-dl-link--secondary {
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+
+  .install-dl-link--secondary:hover {
+    color: var(--text);
+  }
+
+  .asset-dl-count {
+    margin-left: auto;
+    font-size: 0.68rem;
+    font-family: var(--font-mono);
+    color: var(--muted);
+    opacity: 0.55;
+    white-space: nowrap;
+  }
+</style>

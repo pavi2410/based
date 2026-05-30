@@ -1,0 +1,395 @@
+---
+import GitIcon from "./icons/GitIcon.astro";
+
+const CX = 100;
+const CY = 100;
+const RX = 96;
+const RY = 42;
+const VIEW_PAD = 22;
+const VIEW_SIZE = 200 + VIEW_PAD * 2;
+const ELECTRON_SIZE = 28;
+const ELECTRON_OFFSET = ELECTRON_SIZE / 2;
+const ICON_SIZE = 18;
+const ICON_INSET = (ELECTRON_SIZE - ICON_SIZE) / 2;
+const GLOW_RADIUS = ELECTRON_OFFSET + 5;
+
+function mixHex(hex: string, toward: "white" | "black", amount: number): string {
+  const n = Number.parseInt(hex.slice(1), 16);
+  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255] as const;
+  const target = toward === "white" ? 255 : 0;
+  const mix = (c: number) => Math.round(c + (target - c) * amount);
+  return `#${ch.map((c) => mix(c).toString(16).padStart(2, "0")).join("")}`;
+}
+
+function sphereGradientId(id: string, layer: "body" | "spec" | "rim"): string {
+  return `sphere-${layer}-${id}`;
+}
+
+function electronGlowFilterId(id: string): string {
+  return `electron-glow-${id}`;
+}
+
+/** Point on the ellipse at `deg` (0° = top), then rotated by shell tilt. */
+function electronPoint(deg: number, tilt: number): { x: number; y: number } {
+  const t = (deg * Math.PI) / 180;
+  const x = CX + RX * Math.sin(t);
+  const y = CY - RY * Math.cos(t);
+  const rad = (tilt * Math.PI) / 180;
+  const dx = x - CX;
+  const dy = y - CY;
+  return {
+    x: CX + dx * Math.cos(rad) - dy * Math.sin(rad),
+    y: CY + dx * Math.sin(rad) + dy * Math.cos(rad),
+  };
+}
+
+/** Single closed orbit path — rotation baked in so animateMotion matches the ring exactly. */
+function orbitPath(tilt: number): string {
+  const parts: string[] = [];
+  for (let deg = 0; deg <= 360; deg++) {
+    const { x, y } = electronPoint(deg, tilt);
+    parts.push(`${deg === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`);
+  }
+  return `${parts.join(" ")} Z`;
+}
+
+const shells = [
+  {
+    id: "pg",
+    icon: "/icons/engines/postgresql.svg",
+    color: "var(--pg)",
+    hex: "#336791",
+    tilt: 0,
+    start: 0,
+    duration: 17,
+  },
+  {
+    id: "sqlite",
+    icon: "/icons/engines/sqlite.svg",
+    color: "var(--sqlite)",
+    hex: "#57aaa0",
+    tilt: 62,
+    start: 148,
+    duration: 23,
+  },
+  {
+    id: "mongo",
+    icon: "/icons/engines/mongodb.svg",
+    color: "var(--mongo)",
+    hex: "#13aa52",
+    tilt: 118,
+    start: 264,
+    duration: 31,
+  },
+];
+---
+
+<div class="atom" aria-hidden="true">
+  <svg
+    class="atom-svg"
+    viewBox={`${CX - VIEW_SIZE / 2} ${CY - VIEW_SIZE / 2} ${VIEW_SIZE} ${VIEW_SIZE}`}
+  >
+    <defs>
+      {shells.map((s) => (
+        <path id={`orbit-${s.id}`} d={orbitPath(s.tilt)} />
+      ))}
+
+      <clipPath id="clip-electron">
+        <circle cx={ELECTRON_OFFSET} cy={ELECTRON_OFFSET} r={ELECTRON_OFFSET} />
+      </clipPath>
+
+      {shells.map((s) => {
+        const hi = mixHex(s.hex, "white", 0.78);
+        const lit = mixHex(s.hex, "white", 0.28);
+        const mid = s.hex;
+        const shade = mixHex(s.hex, "black", 0.32);
+        const lo = mixHex(s.hex, "black", 0.68);
+        return (
+          <>
+            <filter
+              id={electronGlowFilterId(s.id)}
+              filterUnits="objectBoundingBox"
+              x="-1"
+              y="-1"
+              width="3"
+              height="3"
+              color-interpolation-filters="sRGB"
+            >
+              <feGaussianBlur in="SourceGraphic" stdDeviation="2.8" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+              </feMerge>
+            </filter>
+            {/* Object-space gradients — strong highlight + shadow on every orb. */}
+            <radialGradient
+              id={sphereGradientId(s.id, "body")}
+              gradientUnits="objectBoundingBox"
+              cx="0.36"
+              cy="0.28"
+              r="0.78"
+              fx="0.28"
+              fy="0.18"
+            >
+              <stop offset="0%" stop-color={hi} />
+              <stop offset="18%" stop-color={lit} />
+              <stop offset="42%" stop-color={mid} />
+              <stop offset="72%" stop-color={shade} />
+              <stop offset="100%" stop-color={lo} />
+            </radialGradient>
+            <radialGradient
+              id={sphereGradientId(s.id, "spec")}
+              gradientUnits="objectBoundingBox"
+              cx="0.26"
+              cy="0.16"
+              r="0.42"
+              fx="0.22"
+              fy="0.12"
+            >
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="1" />
+              <stop offset="28%" stop-color="#ffffff" stop-opacity="0.55" />
+              <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+            </radialGradient>
+            <radialGradient
+              id={sphereGradientId(s.id, "rim")}
+              gradientUnits="objectBoundingBox"
+              cx="0.78"
+              cy="0.84"
+              r="0.62"
+            >
+              <stop offset="0%" stop-color={lo} stop-opacity="0" />
+              <stop offset="45%" stop-color={lo} stop-opacity="0.15" />
+              <stop offset="100%" stop-color={mixHex(s.hex, "black", 0.82)} stop-opacity="0.92" />
+            </radialGradient>
+          </>
+        );
+      })}
+    </defs>
+
+    {shells.map((s) => (
+      <ellipse
+        class="atom-ring"
+        style={`--ring-color: ${s.color}`}
+        cx={CX}
+        cy={CY}
+        rx={RX}
+        ry={RY}
+        transform={`rotate(${s.tilt} ${CX} ${CY})`}
+      />
+    ))}
+
+    {shells.map((s, i) => {
+      const begin = -((s.start / 360) * s.duration).toFixed(3);
+      const { x, y } = electronPoint(s.start, s.tilt);
+      return (
+        <g class="atom-shell" style={`--shell-color: ${s.color}; --glow-delay: ${i * 1.15}s`}>
+          <g class="electron electron-animated">
+            <animateMotion
+              dur={`${s.duration}s`}
+              repeatCount="indefinite"
+              rotate="0"
+              begin={`${begin}s`}
+            >
+              <mpath href={`#orbit-${s.id}`} />
+            </animateMotion>
+            <g transform={`translate(-${ELECTRON_OFFSET}, -${ELECTRON_OFFSET})`}>
+              <circle
+                class="electron-halo"
+                cx={ELECTRON_OFFSET}
+                cy={ELECTRON_OFFSET}
+                r={GLOW_RADIUS}
+                fill={s.hex}
+                filter={`url(#${electronGlowFilterId(s.id)})`}
+              />
+              <g clip-path="url(#clip-electron)">
+                <circle
+                  cx={ELECTRON_OFFSET}
+                  cy={ELECTRON_OFFSET}
+                  r={ELECTRON_OFFSET}
+                  fill={`url(#${sphereGradientId(s.id, "body")})`}
+                />
+                <circle
+                  cx={ELECTRON_OFFSET}
+                  cy={ELECTRON_OFFSET}
+                  r={ELECTRON_OFFSET}
+                  fill={`url(#${sphereGradientId(s.id, "spec")})`}
+                />
+                <circle
+                  cx={ELECTRON_OFFSET}
+                  cy={ELECTRON_OFFSET}
+                  r={ELECTRON_OFFSET}
+                  fill={`url(#${sphereGradientId(s.id, "rim")})`}
+                />
+              </g>
+              <image
+                href={s.icon}
+                x={ICON_INSET}
+                y={ICON_INSET}
+                width={ICON_SIZE}
+                height={ICON_SIZE}
+              />
+            </g>
+          </g>
+
+          <g class="electron electron-static" transform={`translate(${x}, ${y})`}>
+            <g transform={`translate(-${ELECTRON_OFFSET}, -${ELECTRON_OFFSET})`}>
+              <circle
+                class="electron-halo"
+                cx={ELECTRON_OFFSET}
+                cy={ELECTRON_OFFSET}
+                r={GLOW_RADIUS}
+                fill={s.hex}
+                filter={`url(#${electronGlowFilterId(s.id)})`}
+              />
+              <g clip-path="url(#clip-electron)">
+                <circle
+                  cx={ELECTRON_OFFSET}
+                  cy={ELECTRON_OFFSET}
+                  r={ELECTRON_OFFSET}
+                  fill={`url(#${sphereGradientId(s.id, "body")})`}
+                />
+                <circle
+                  cx={ELECTRON_OFFSET}
+                  cy={ELECTRON_OFFSET}
+                  r={ELECTRON_OFFSET}
+                  fill={`url(#${sphereGradientId(s.id, "spec")})`}
+                />
+                <circle
+                  cx={ELECTRON_OFFSET}
+                  cy={ELECTRON_OFFSET}
+                  r={ELECTRON_OFFSET}
+                  fill={`url(#${sphereGradientId(s.id, "rim")})`}
+                />
+              </g>
+              <image
+                href={s.icon}
+                x={ICON_INSET}
+                y={ICON_INSET}
+                width={ICON_SIZE}
+                height={ICON_SIZE}
+              />
+            </g>
+          </g>
+        </g>
+      );
+    })}
+
+    <foreignObject x="72" y="72" width="56" height="56">
+      <div class="atom-nucleus">
+        <span class="atom-nucleus-glow"></span>
+        <GitIcon size={48} />
+      </div>
+    </foreignObject>
+  </svg>
+</div>
+
+<style>
+  .atom {
+    position: absolute;
+    top: 42%;
+    right: clamp(0.5rem, 3vw, 2rem);
+    width: min(38vw, 22rem);
+    aspect-ratio: 1;
+    translate: 0 -46%;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0;
+    animation: atom-in 1.1s var(--motion-ease) 0.45s forwards;
+  }
+
+  @keyframes atom-in {
+    from { opacity: 0; scale: 0.92; }
+    to   { opacity: 0.9; scale: 1; }
+  }
+
+  .atom-svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  .atom-ring {
+    fill: none;
+    stroke: var(--ring-color);
+    stroke-width: 1;
+    opacity: 0.35;
+    stroke-dasharray: 4 6;
+    animation: ring-dash 2.4s linear infinite;
+  }
+
+  .atom-ring:nth-of-type(2) { animation-delay: -0.8s; }
+  .atom-ring:nth-of-type(3) { animation-delay: -1.6s; }
+
+  @keyframes ring-dash {
+    from { stroke-dashoffset: 0; }
+    to   { stroke-dashoffset: -10; }
+  }
+
+  .electron-static {
+    visibility: hidden;
+  }
+
+  .electron image {
+    pointer-events: none;
+  }
+
+  .electron-halo {
+    mix-blend-mode: screen;
+    opacity: 0.2;
+    animation: electron-glow-pulse 3.8s ease-in-out infinite;
+    animation-delay: var(--glow-delay, 0s);
+  }
+
+  @keyframes electron-glow-pulse {
+    0%, 100% { opacity: 0.12; }
+    50%      { opacity: 0.28; }
+  }
+
+  .atom-nucleus {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+  }
+
+  .atom-nucleus-glow {
+    position: absolute;
+    inset: -8%;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle,
+      color-mix(in srgb, #f05032 32%, transparent) 0%,
+      transparent 72%
+    );
+    animation: nucleus-pulse 4.5s ease-in-out infinite;
+  }
+
+  @keyframes nucleus-pulse {
+    0%, 100% { opacity: 0.45; scale: 1; }
+    50%      { opacity: 1; scale: 1.1; }
+  }
+
+  @media (max-width: 960px) {
+    .atom { display: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .atom {
+      opacity: 0.85;
+      animation: none;
+    }
+
+    .atom-ring,
+    .atom-nucleus-glow,
+    .electron-halo {
+      animation: none;
+    }
+
+    .electron-halo { opacity: 0.2; }
+
+    .atom-ring { opacity: 0.35; }
+
+    .electron-animated { visibility: hidden; }
+    .electron-static { visibility: visible; }
+  }
+</style>

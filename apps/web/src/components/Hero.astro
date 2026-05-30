@@ -2,6 +2,7 @@
 import { RELEASES_URL, REPO_URL } from "../lib/github";
 import DownloadIcon from "./icons/DownloadIcon.astro";
 import StarIcon from "./icons/StarIcon.astro";
+import HeroConstellation from "./HeroConstellation.astro";
 
 interface Props {
   stars: number | null;
@@ -12,6 +13,9 @@ const { stars, version } = Astro.props;
 ---
 
 <section class="hero" id="top">
+  <HeroConstellation />
+
+  <div class="hero-copy">
   <p class="eyebrow intro">Local-first database client</p>
   <h1 class="hero-wordmark intro intro-delay-1">based</h1>
   <p class="hero-headline intro intro-delay-2">
@@ -41,11 +45,18 @@ const { stars, version } = Astro.props;
       }
     </a>
   </div>
+  </div>
 </section>
 
 <style>
   .hero {
+    position: relative;
     padding-top: clamp(3.5rem, 12vh, 6rem);
+  }
+
+  .hero-copy {
+    position: relative;
+    z-index: 1;
     max-width: 52rem;
   }
 

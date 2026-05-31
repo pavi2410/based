@@ -14,12 +14,20 @@ use gpui_component::{
     button::{Button, ButtonVariants},
     h_flex, v_flex,
 };
+use time::OffsetDateTime;
 
 const APP_NAME: &str = "Based";
 const TAGLINE: &str = "Git-Friendly Database Client";
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const COMMIT: &str = env!("BASED_GIT_SHA");
 const LICENSE: &str = env!("CARGO_PKG_LICENSE");
+
+static BUILD_DATE: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+    let ts: i64 = env!("BASED_BUILD_TIMESTAMP").parse().unwrap_or(0);
+    OffsetDateTime::from_unix_timestamp(ts)
+        .map(|dt| format!("{:04}-{:02}-{:02}", dt.year(), dt.month() as u8, dt.day()))
+        .unwrap_or_else(|_| "unknown".into())
+});
 
 const WEBSITE_URL: &str = "https://based.pavi2410.com";
 const REPO_URL: &str = "https://github.com/pavi2410/based";
@@ -111,8 +119,10 @@ fn hero(fg: Hsla, muted: Hsla) -> impl IntoElement {
 }
 
 fn version_row(muted: Hsla) -> impl IntoElement {
-    let copy_text: SharedString = format!("Based v{VERSION} ({COMMIT})").into();
-    let display: SharedString = format!("v{VERSION}  ·  commit {COMMIT}").into();
+    let copy_text: SharedString =
+        format!("Based v{VERSION} ({COMMIT}) built {}", *BUILD_DATE).into();
+    let display: SharedString =
+        format!("v{VERSION}  ·  commit {COMMIT}  ·  {}", *BUILD_DATE).into();
 
     h_flex()
         .items_center()

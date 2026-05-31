@@ -8,7 +8,7 @@ use gpui_component::dock::PanelView;
 use crate::mongodb::pipeline_builder::PipelineBuilderPanel;
 use crate::postgres;
 use crate::sqlite;
-use crate::workspace::object_info::ConnectionDashboardPanel;
+use crate::workspace::panels::object_info::ConnectionDashboardPanel;
 
 use super::spec::TabSpec;
 
@@ -43,7 +43,7 @@ pub(crate) fn infer_tab_spec(panel: &Arc<dyn PanelView>, cx: &App) -> TabSpec {
             .unwrap_or_else(|_| builtin(panel, cx)),
         "ReleaseNotesPanel" => panel
             .view()
-            .downcast::<crate::workspace::release_notes::ReleaseNotesPanel>()
+            .downcast::<crate::workspace::panels::release_notes::ReleaseNotesPanel>()
             .map(|ent| TabSpec::ReleaseNotes {
                 version: ent.read(cx).version_label(cx),
             })

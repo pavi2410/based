@@ -13,9 +13,9 @@ use gpui_component::{
 use crate::connection::ConnectionId;
 use crate::query_store::QueryStore;
 use crate::widgets::query_panel_extras::{HistoryFilter, filtered_history};
+use crate::workspace::TabSpec;
 use crate::workspace::Workspace;
-use crate::workspace::tab_open::enqueue_open_tab;
-use crate::workspace::tab_spec::TabSpec;
+use crate::workspace::tabs::enqueue_open_tab;
 
 pub fn render_history_pane(
     workspace: Entity<Workspace>,

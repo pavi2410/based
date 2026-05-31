@@ -7,7 +7,7 @@ use gpui_component::dock::{DockItem, PanelView};
 use crate::connection::AnyConnection;
 use crate::postgres;
 use crate::sqlite;
-use crate::workspace::tab_open::WorkspaceRef;
+use crate::workspace::WorkspaceRef;
 
 use super::super::dock_utils::wrap_center_root;
 use super::ConnectionTree;
@@ -39,7 +39,11 @@ impl ConnectionTree {
 
         let weak = self.dock_area.downgrade();
         let dashboard = cx.new(|cx| {
-            super::super::object_info::ConnectionDashboardPanel::new(conn_ent.clone(), window, cx)
+            crate::workspace::panels::object_info::ConnectionDashboardPanel::new(
+                conn_ent.clone(),
+                window,
+                cx,
+            )
         });
 
         let (center, panel_arcs): (DockItem, Vec<Arc<dyn PanelView>>) = match ac {

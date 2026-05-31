@@ -12,9 +12,7 @@ use crate::bindings::{ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane};
 use crate::connection::registry::ConnectionRegistry;
 use crate::widgets::status_item::{STATUS_BAR_HEIGHT, status_divider, status_segment, status_text};
 use crate::workspace::chrome::{left_pane::LeftPane, side_pane::SidePane};
-use crate::workspace::tab_open::{
-    WorkspaceRef, enqueue_toggle_left_pane, enqueue_toggle_side_pane,
-};
+use crate::workspace::tabs::{WorkspaceRef, enqueue_toggle_left_pane, enqueue_toggle_side_pane};
 
 /// Context passed into the workspace status rail.
 #[derive(Clone, Debug)]

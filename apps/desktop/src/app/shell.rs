@@ -26,7 +26,7 @@ use crate::bindings::{
 use crate::settings_window::SettingsWindow;
 use crate::workspace::{
     WorkspaceRef,
-    tab_open::{enqueue_show_home, request_workspace_flush},
+    tabs::{enqueue_show_home, request_workspace_flush},
 };
 
 pub const APP_NAME: &str = "Based";

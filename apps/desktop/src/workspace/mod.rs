@@ -5,16 +5,6 @@ pub mod panels;
 pub mod pop_out;
 pub mod tabs;
 
-// Backward-compatible module path aliases so existing `crate::workspace::tab_spec::X`,
-// `crate::workspace::tab_open::X`, etc. continue to resolve without changes at call sites.
-pub use self::panels::home;
-pub use self::panels::object_info;
-pub use self::panels::release_notes;
-pub use self::tabs::label as tab_label;
-pub use self::tabs::open as tab_open;
-pub use self::tabs::spec as tab_spec;
-
-// Flat re-exports: allow `crate::workspace::TabSpec`, `crate::workspace::WorkspaceRef`, etc.
 pub use pop_out::PopOutManager;
 pub use tabs::{
     DockAreaRef, SqlInject, TabManager, TabManagerRef, TabOpenQueue, TabSpec, WorkspaceNavQueue,

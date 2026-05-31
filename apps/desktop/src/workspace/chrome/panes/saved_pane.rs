@@ -11,7 +11,7 @@ use crate::connection::registry::ConnectionRegistry;
 use crate::query_store::QueryStore;
 use crate::workspace::Workspace;
 use crate::workspace::project_query::{OpenQueryResult, open_project_query, target_hint};
-use crate::workspace::tab_open::enqueue_open_tab;
+use crate::workspace::tabs::enqueue_open_tab;
 
 pub fn render_saved_pane(
     conn_id: Option<ConnectionId>,

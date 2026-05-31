@@ -19,11 +19,11 @@ use gpui_component::{
 };
 
 use super::dock_utils::{center_panel_by_id, center_tab_panel_count};
-use super::tab_open::{DockAreaRef, TabManagerRef, WorkspaceRef};
 use crate::bindings::{
     CloseAllTabs, CloseCleanTabs, CloseOtherTabs, CloseTab, CloseTabsLeft, CloseTabsRight, PinTab,
     SplitPaneBottom, SplitPaneLeft, SplitPaneRight, SplitPaneTop,
 };
+use crate::workspace::tabs::{DockAreaRef, TabManagerRef, WorkspaceRef};
 
 /// Human-readable OS window title for a popped-out panel.
 pub trait PopOutWindowTitle: Panel {
@@ -382,7 +382,7 @@ macro_rules! based_panel_tab_chrome {
         }
 
         fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-            $crate::workspace::tab_label::render_strip_tab(
+            $crate::workspace::tabs::render_strip_tab(
                 self.tab_label.clone(),
                 false,
                 cx.entity().entity_id(),
@@ -404,7 +404,7 @@ macro_rules! based_panel_tab_chrome {
         }
 
         fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-            $crate::workspace::tab_label::render_strip_tab(
+            $crate::workspace::tabs::render_strip_tab(
                 self.tab_label.clone(),
                 self.dirty,
                 cx.entity().entity_id(),

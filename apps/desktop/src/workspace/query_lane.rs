@@ -8,10 +8,10 @@ use uuid::Uuid;
 
 use crate::connection::ConnectionId;
 use crate::storage;
+use crate::workspace::TabSpec;
 use crate::workspace::WorkspaceRef;
 use crate::workspace::context::WorkspaceContext;
-use crate::workspace::tab_open::enqueue_open_tab;
-use crate::workspace::tab_spec::TabSpec;
+use crate::workspace::tabs::enqueue_open_tab;
 
 pub fn render_query_lane(cx: &mut App) -> AnyElement {
     let ctx = cx

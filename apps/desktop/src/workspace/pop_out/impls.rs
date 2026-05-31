@@ -16,9 +16,9 @@ use crate::sqlite::fts_console::FtsConsolePanel;
 use crate::sqlite::inspector::TableInspectorPanel as SqliteInspectorPanel;
 use crate::sqlite::tree::SchemaTreePanel as SqliteSchemaTreePanel;
 use crate::sqlite::wizard::ConnectionWizardPanel as SqliteWizardPanel;
-use crate::workspace::home::HomePanel;
-use crate::workspace::object_info::{ConnectionDashboardPanel, ObjectInfoPanel};
-use crate::workspace::release_notes::ReleaseNotesPanel;
+use crate::workspace::panels::home::HomePanel;
+use crate::workspace::panels::object_info::{ConnectionDashboardPanel, ObjectInfoPanel};
+use crate::workspace::panels::release_notes::ReleaseNotesPanel;
 
 impl PopOutWindowTitle for HomePanel {}
 impl PopOutWindowTitle for ReleaseNotesPanel {}

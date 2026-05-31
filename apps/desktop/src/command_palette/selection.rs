@@ -1,6 +1,6 @@
 use gpui::Context;
 
-use crate::workspace::tab_spec::TabSpec;
+use crate::workspace::TabSpec;
 
 use super::CommandPalette;
 use super::types::{PaletteEvent, PaletteResult, ResultKind};

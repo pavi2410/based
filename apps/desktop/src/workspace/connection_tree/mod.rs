@@ -11,7 +11,7 @@ use crate::connection::{
 };
 
 use super::notify;
-use super::tab_spec::TabSpec;
+use crate::workspace::TabSpec;
 
 mod browser_list;
 mod connect;

@@ -5,8 +5,8 @@ use gpui::{App, Entity};
 use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{ConnectionId, EngineKind};
 use crate::query_store::QueryStore;
+use crate::workspace::TabSpec;
 use crate::workspace::connection_tree::ConnectionTree;
-use crate::workspace::tab_spec::TabSpec;
 
 use super::types::{PaletteResult, ResultKind, WorkspacePaletteAction};
 

@@ -1,5 +1,5 @@
 use crate::connection::ConnectionId;
-use crate::workspace::tab_spec::TabSpec;
+use crate::workspace::TabSpec;
 
 /// Emitted when the user picks a palette row — workspace opens the tab.
 #[derive(Clone, Debug)]

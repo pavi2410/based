@@ -1,5 +1,5 @@
 use crate::connection::EngineKind;
-use crate::workspace::tab_spec::TabSpec;
+use crate::workspace::TabSpec;
 use gpui_component::IconName;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

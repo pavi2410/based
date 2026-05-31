@@ -4,7 +4,7 @@ use based_project::{
 
 use crate::connection::ConnectionId;
 use crate::connection::registry::ConnectionRegistry;
-use crate::workspace::tab_spec::TabSpec;
+use crate::workspace::TabSpec;
 
 pub enum OpenQueryResult {
     Open(TabSpec),

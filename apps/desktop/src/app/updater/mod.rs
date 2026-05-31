@@ -18,7 +18,7 @@ use crate::app::quit;
 use crate::connection::live_connection_count;
 use crate::connection::registry::ConnectionRegistry;
 use crate::workspace::notify;
-use crate::workspace::tab_open::{WorkspaceRef, enqueue_open_release_notes};
+use crate::workspace::tabs::{WorkspaceRef, enqueue_open_release_notes};
 
 use self::check::{check_packager_update, is_newer};
 use self::log::{debug as udebug, info as uinfo, warn as uwarn};

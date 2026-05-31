@@ -29,7 +29,7 @@ use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input, sql_from_in
 use crate::widgets::ui::{metadata_pill, shortcut_run_kbd_in_primary_button};
 use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
 use crate::workspace::pop_out::PopOutWindowTitle;
-use crate::workspace::{mark_query_tab_dirty, tab_open::take_sql_inject};
+use crate::workspace::{mark_query_tab_dirty, tabs::take_sql_inject};
 
 pub enum QueryStatus {
     Idle,

@@ -13,7 +13,7 @@ use gpui_component::{
 use crate::app::prefs::{self, panel_header_h, sidebar_row_gap, sidebar_row_py};
 use crate::bindings::{DismissCommandPalette, ToggleCommandPalette, ToggleSidebarRail};
 use crate::connection::EngineKind;
-use crate::workspace::tab_open::WorkspaceRef;
+use crate::workspace::WorkspaceRef;
 
 /// Unbound / literal keys — `Kbd` formats symbols vs labels per platform.
 pub fn kbd(stroke: &str) -> Kbd {

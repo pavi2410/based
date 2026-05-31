@@ -77,7 +77,7 @@ pub fn open_main_workspace(cx: &mut App) -> anyhow::Result<()> {
 
 /// First-run onboarding gate. Closing the window is equivalent to Finish Setup.
 pub fn open_onboarding_gate(cx: &mut App) -> anyhow::Result<AnyWindowHandle> {
-    let opened = cx.open_window(onboarding_window_options(), |window, cx| {
+    let opened = cx.open_window(onboarding_window_options(cx), |window, cx| {
         window.set_window_title("Based — Setup");
         if !prefs::onboarding_completed(cx) {
             window.on_window_should_close(cx, |_window, cx| {
@@ -97,7 +97,7 @@ pub fn open_onboarding_gate(cx: &mut App) -> anyhow::Result<AnyWindowHandle> {
 
 /// Help-menu review window (theme + shortcuts). Close dismisses only this window.
 pub fn open_onboarding_review(cx: &mut App) -> anyhow::Result<AnyWindowHandle> {
-    let opened = cx.open_window(onboarding_window_options(), |window, cx| {
+    let opened = cx.open_window(onboarding_window_options(cx), |window, cx| {
         window.set_window_title("Based — Onboarding");
         let onboarding = cx.new(|cx| OnboardingWindow::new(OnboardingMode::Review, cx));
         cx.new(|cx| Root::new(onboarding, window, cx))
@@ -105,12 +105,9 @@ pub fn open_onboarding_review(cx: &mut App) -> anyhow::Result<AnyWindowHandle> {
     Ok(opened.into())
 }
 
-fn onboarding_window_options() -> WindowOptions {
+fn onboarding_window_options(cx: &App) -> WindowOptions {
     WindowOptions {
-        window_bounds: Some(WindowBounds::Windowed(Bounds {
-            origin: point(px(140.0), px(140.0)),
-            size: size(px(680.0), px(560.0)),
-        })),
+        window_bounds: Some(WindowBounds::centered(size(px(680.0), px(560.0)), cx)),
         titlebar: Some(shell::titled_titlebar("Based — Setup")),
         ..Default::default()
     }

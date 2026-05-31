@@ -119,10 +119,7 @@ pub fn open_about(cx: &mut App) {
     }
     let opened = cx.open_window(
         WindowOptions {
-            window_bounds: Some(WindowBounds::Windowed(Bounds {
-                origin: point(px(160.0), px(160.0)),
-                size: size(px(380.0), px(480.0)),
-            })),
+            window_bounds: Some(WindowBounds::centered(size(px(380.0), px(480.0)), cx)),
             titlebar: Some(titled_titlebar("About Based")),
             is_resizable: false,
             ..Default::default()

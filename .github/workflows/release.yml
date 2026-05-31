@@ -240,3 +240,19 @@ jobs:
           identifier: pavi2410.Based
           installers-regex: 'based_.*_x64-setup\.exe$'
           token: ${{ secrets.WINGET_RELEASE_TOKEN }}
+
+  website:
+    name: Deploy website
+    needs: [release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Cloudflare deploy
+        shell: bash
+        env:
+          CLOUDFLARE_DEPLOY_HOOK: ${{ secrets.CLOUDFLARE_DEPLOY_HOOK }}
+        run: |
+          if [ -z "${CLOUDFLARE_DEPLOY_HOOK:-}" ]; then
+            echo "::warning::CLOUDFLARE_DEPLOY_HOOK not set — skipping website deploy"
+            exit 0
+          fi
+          curl -fsS -X POST "${CLOUDFLARE_DEPLOY_HOOK}"

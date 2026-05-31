@@ -14,7 +14,7 @@ use mongodb::Collection;
 use mongodb::bson::Document;
 use mongodb::bson::doc;
 
-use crate::mongodb::mutations::document_from_json;
+use crate::mongodb::document_from_json;
 use crate::widgets::sql_editor::new_json_input;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -251,7 +251,7 @@ impl Render for DocumentEditorPanel {
 
 #[cfg(test)]
 mod tests {
-    use crate::mongodb::mutations::document_from_json;
+    use crate::mongodb::document_from_json;
 
     #[test]
     fn valid_json_object_passes() {

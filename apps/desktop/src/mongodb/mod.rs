@@ -4,12 +4,11 @@ pub mod change_stream;
 pub mod document_editor;
 pub mod document_viewer;
 pub mod inspector;
-pub mod mutations;
 pub mod pipeline_builder;
 pub mod tree;
 pub mod wizard;
 
-pub use based_mongo::MongoConfig;
+pub use based_mongo::{MongoConfig, document_from_json};
 
 use mongodb::Database;
 use mongodb::bson::doc;

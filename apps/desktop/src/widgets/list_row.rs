@@ -1,7 +1,7 @@
 //! Shared `ListItem` row chrome for selectable lists.
 
 use gpui::{ElementId, Hsla, IntoElement, ParentElement, SharedString, div, prelude::*, px};
-use gpui_component::{Icon, IconName, Sizable as _, h_flex, list::ListItem, v_flex};
+use gpui_component::{Icon, IconName, Sizable as _, h_flex, list::ListItem};
 
 use crate::widgets::ui::{SCHEMA_ROW_ICON_SIZE, SIDEBAR_INSET};
 
@@ -14,7 +14,7 @@ pub struct SchemaRowStyle {
     pub row_gap: f32,
 }
 
-/// Command palette result row (connection hint + primary label + meta).
+/// Command palette result row — single-line label with trailing meta (VS Code style).
 pub fn palette_result_row(
     id: impl Into<ElementId>,
     selected: bool,
@@ -24,10 +24,17 @@ pub fn palette_result_row(
     muted: Hsla,
     fg: Hsla,
 ) -> ListItem {
+    let meta: SharedString = if conn_label.is_empty() {
+        sublabel
+    } else if sublabel.contains(conn_label.as_ref()) {
+        sublabel
+    } else {
+        format!("{conn_label} · {sublabel}").into()
+    };
     ListItem::new(id)
         .selected(selected)
         .px(px(12.0))
-        .py(px(8.0))
+        .py(px(4.0))
         .cursor_pointer()
         .child(
             h_flex()
@@ -36,26 +43,21 @@ pub fn palette_result_row(
                 .items_center()
                 .child(
                     div()
+                        .flex_1()
+                        .min_w_0()
+                        .text_sm()
+                        .text_color(fg)
+                        .truncate()
+                        .child(label),
+                )
+                .child(
+                    div()
                         .flex_shrink_0()
-                        .w(px(72.0))
+                        .max_w(px(220.0))
                         .text_xs()
                         .text_color(muted)
                         .truncate()
-                        .child(conn_label),
-                )
-                .child(
-                    v_flex()
-                        .flex_1()
-                        .min_w_0()
-                        .gap(px(1.0))
-                        .child(div().text_sm().text_color(fg).truncate().child(label))
-                        .child(
-                            div()
-                                .text_xs()
-                                .text_color(muted.opacity(0.9))
-                                .truncate()
-                                .child(sublabel),
-                        ),
+                        .child(meta),
                 ),
         )
 }

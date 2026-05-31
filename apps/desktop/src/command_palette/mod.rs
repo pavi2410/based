@@ -1,13 +1,18 @@
 //! Command palette (⌘K / Ctrl+K): quick jump to connections, saved queries, and history.
 
 use std::collections::HashSet;
-use std::ops::DerefMut;
 
 use gpui::{
-    App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, KeyDownEvent,
-    MouseButton, Render, SharedString, Window, div, prelude::*,
+    App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, KeyBinding,
+    MouseButton, Render, ScrollHandle, SharedString, Subscription, Window, actions, div, point,
+    prelude::*, px,
 };
-use gpui_component::{ActiveTheme, h_flex, scroll::ScrollableElement, v_flex};
+use gpui_component::{
+    ActiveTheme, Icon, IconName,
+    input::{Input, InputEvent, InputState},
+    scroll::Scrollbar,
+    v_flex,
+};
 
 use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{ConnectionId, EngineKind};
@@ -16,6 +21,27 @@ use crate::widgets::list_row::palette_result_row;
 use crate::widgets::ui::palette_footer_hints;
 use crate::workspace::connection_tree::ConnectionTree;
 use crate::workspace::tab_spec::TabSpec;
+
+const PALETTE_LIST_H: f32 = 360.0;
+const PALETTE_ROW_H: f32 = 28.0;
+
+actions!(command_palette, [PaletteSelectUp, PaletteSelectDown]);
+
+#[derive(Clone, PartialEq, Eq, serde::Deserialize, gpui::Action)]
+#[action(namespace = command_palette, no_json)]
+struct PaletteConfirm {
+    secondary: bool,
+}
+
+pub fn init(cx: &mut App) {
+    let ctx = Some("CommandPalette");
+    cx.bind_keys([
+        KeyBinding::new("up", PaletteSelectUp, ctx),
+        KeyBinding::new("down", PaletteSelectDown, ctx),
+        KeyBinding::new("enter", PaletteConfirm { secondary: false }, ctx),
+        KeyBinding::new("secondary-enter", PaletteConfirm { secondary: true }, ctx),
+    ]);
+}
 
 /// Emitted when the user picks a palette row — workspace opens the tab.
 #[derive(Clone, Debug)]
@@ -66,28 +92,42 @@ pub enum ResultKind {
 pub struct CommandPalette {
     registry: Entity<ConnectionRegistry>,
     connection_tree: Entity<ConnectionTree>,
-    query: String,
+    search_input: Entity<InputState>,
     results: Vec<PaletteResult>,
     selected: usize,
     visible: bool,
     focus_handle: FocusHandle,
+    results_scroll: ScrollHandle,
+    _search_subscription: Subscription,
 }
 
 impl CommandPalette {
     pub fn new(
         registry: Entity<ConnectionRegistry>,
         connection_tree: Entity<ConnectionTree>,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        let search_input = cx
+            .new(|cx| InputState::new(window, cx).placeholder("Search tables, queries, history…"));
+        let _search_subscription =
+            cx.subscribe_in(&search_input, window, Self::on_search_input_event);
+
         Self {
             registry,
             connection_tree,
-            query: String::new(),
+            search_input,
             results: vec![],
             selected: 0,
             visible: false,
             focus_handle: cx.focus_handle(),
+            results_scroll: ScrollHandle::new(),
+            _search_subscription,
         }
+    }
+
+    fn query(&self, cx: &App) -> String {
+        self.search_input.read(cx).value().trim().to_string()
     }
 
     pub fn is_visible(&self) -> bool {
@@ -97,9 +137,16 @@ impl CommandPalette {
     pub fn toggle(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.visible = !self.visible;
         if self.visible {
-            self.query.clear();
+            self.search_input.update(cx, |input, cx| {
+                input.set_value("", window, cx);
+            });
+            self.selected = 0;
+            self.results_scroll.set_offset(point(px(0.0), px(0.0)));
             self.refresh_results(cx);
-            self.focus_handle.focus(window, cx.deref_mut());
+            self.search_input
+                .read(cx)
+                .focus_handle(cx)
+                .focus(window, cx);
         }
         cx.notify();
     }
@@ -163,70 +210,54 @@ impl CommandPalette {
         self.dismiss(cx);
     }
 
-    fn handle_palette_key(&mut self, ev: &KeyDownEvent, cx: &mut Context<Self>) {
-        let mods = ev.keystroke.modifiers;
-        let key = ev.keystroke.key.as_str();
-
-        if matches!(key, "up" | "down") && !mods.secondary() && !mods.control {
-            cx.stop_propagation();
-            if self.results.is_empty() {
-                return;
-            }
-            let max = self.results.len() - 1;
-            if key == "up" {
-                self.selected = self.selected.saturating_sub(1);
-            } else {
-                self.selected = (self.selected + 1).min(max);
-            }
-            cx.notify();
-            return;
-        }
-
-        if key == "enter" && !mods.control && !mods.alt && !mods.function {
-            cx.stop_propagation();
-            let secondary = mods.secondary();
-            self.open_selected(secondary, cx);
-            return;
-        }
-
-        if mods.control || mods.alt || mods.function {
-            return;
-        }
-
-        if key == "backspace" {
-            cx.stop_propagation();
-            if self.query.pop().is_some() {
-                self.selected = 0;
-                self.refresh_results(cx);
-            }
-            return;
-        }
-
-        let mut pushed = false;
-        if let Some(s) = ev.keystroke.key_char.as_ref() {
-            if let Some(ch) = s.chars().next()
-                && !ch.is_control()
-            {
-                self.query.push(ch);
-                pushed = true;
-            }
-        } else if key.len() == 1 {
-            let ch = key.chars().next().unwrap();
-            if !ch.is_control() {
-                self.query.push(ch);
-                pushed = true;
-            }
-        }
-
-        if pushed {
-            cx.stop_propagation();
+    fn on_search_input_event(
+        &mut self,
+        _input: &Entity<InputState>,
+        event: &InputEvent,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let InputEvent::Change = event {
             self.selected = 0;
+            self.results_scroll.set_offset(point(px(0.0), px(0.0)));
             self.refresh_results(cx);
         }
     }
 
+    fn select_prev(&mut self, cx: &mut Context<Self>) {
+        if self.results.is_empty() {
+            return;
+        }
+        self.selected = self.selected.saturating_sub(1);
+        self.scroll_to_selected();
+        cx.notify();
+    }
+
+    fn select_next(&mut self, cx: &mut Context<Self>) {
+        if self.results.is_empty() {
+            return;
+        }
+        let max = self.results.len() - 1;
+        self.selected = (self.selected + 1).min(max);
+        self.scroll_to_selected();
+        cx.notify();
+    }
+
+    fn scroll_to_selected(&self) {
+        let row_top = px(self.selected as f32 * PALETTE_ROW_H);
+        let row_bottom = row_top + px(PALETTE_ROW_H);
+        let view_top = self.results_scroll.offset().y;
+        let view_bottom = view_top + px(PALETTE_LIST_H);
+        if row_top < view_top {
+            self.results_scroll.set_offset(point(px(0.0), row_top));
+        } else if row_bottom > view_bottom {
+            self.results_scroll
+                .set_offset(point(px(0.0), row_bottom - px(PALETTE_LIST_H)));
+        }
+    }
+
     fn refresh_results(&mut self, cx: &mut Context<Self>) {
-        let q = self.query.to_lowercase();
+        let q = self.query(cx).to_lowercase();
         let mut results = vec![];
 
         if q.is_empty()
@@ -352,7 +383,7 @@ impl CommandPalette {
                     kind: ResultKind::SavedQuery,
                     label: query.name.clone(),
                     sublabel: format!("query · {target}"),
-                    conn_label: target,
+                    conn_label: String::new(),
                     spec: TabSpec::Welcome,
                     project_query_path: Some(query.path.clone()),
                     command_action: None,
@@ -416,8 +447,12 @@ impl CommandPalette {
 impl EventEmitter<PaletteEvent> for CommandPalette {}
 
 impl Focusable for CommandPalette {
-    fn focus_handle(&self, _: &App) -> FocusHandle {
-        self.focus_handle.clone()
+    fn focus_handle(&self, cx: &App) -> FocusHandle {
+        if self.visible {
+            self.search_input.read(cx).focus_handle(cx)
+        } else {
+            self.focus_handle.clone()
+        }
     }
 }
 
@@ -442,16 +477,24 @@ impl Render for CommandPalette {
                 }),
             )
             .child(
-                div()
+                v_flex()
                     .absolute()
                     .top(gpui::px(120.0))
                     .left_1_2()
                     .ml(gpui::px(-280.0))
                     .w(gpui::px(560.0))
+                    .max_h(gpui::px(480.0))
+                    .overflow_hidden()
                     .track_focus(&self.focus_handle)
                     .key_context("CommandPalette")
-                    .on_key_down(cx.listener(|this, ev: &KeyDownEvent, _, cx| {
-                        this.handle_palette_key(ev, cx);
+                    .on_action(cx.listener(|this, _: &PaletteSelectUp, _, cx| {
+                        this.select_prev(cx);
+                    }))
+                    .on_action(cx.listener(|this, _: &PaletteSelectDown, _, cx| {
+                        this.select_next(cx);
+                    }))
+                    .on_action(cx.listener(|this, action: &PaletteConfirm, _, cx| {
+                        this.open_selected(action.secondary, cx);
                     }))
                     .on_mouse_down(
                         MouseButton::Left,
@@ -465,68 +508,70 @@ impl Render for CommandPalette {
                     .rounded_lg()
                     .shadow_lg()
                     .child(
-                        h_flex()
-                            .p_3()
-                            .gap_2()
+                        div()
+                            .flex_shrink_0()
+                            .p_2()
                             .border_b_1()
                             .border_color(theme.border)
-                            .child(div().text_color(theme.muted_foreground).child("⌕"))
                             .child(
-                                div()
-                                    .flex_1()
-                                    .min_w_0()
-                                    .when(self.query.is_empty(), |row| {
-                                        row.text_sm().text_color(theme.muted_foreground).child(
-                                            SharedString::from("Search tables, queries, history…"),
-                                        )
-                                    })
-                                    .when(!self.query.is_empty(), |row| {
-                                        row.text_sm()
-                                            .text_color(theme.foreground)
-                                            .font_family(crate::app::prefs::ui_font_family(cx))
-                                            .child(self.query.clone())
-                                    }),
+                                Input::new(&self.search_input)
+                                    .appearance(false)
+                                    .p_0()
+                                    .prefix(
+                                        Icon::new(IconName::Search)
+                                            .text_color(theme.muted_foreground),
+                                    ),
                             ),
                     )
                     .child(
-                        v_flex()
-                            .max_h(gpui::px(360.0))
-                            .overflow_y_scrollbar()
-                            .children({
-                                let results: Vec<_> = self
-                                    .results
-                                    .iter()
-                                    .enumerate()
-                                    .map(|(i, r)| {
-                                        let is_sel = i == self.selected;
-                                        let conn_label: SharedString = r.conn_label.clone().into();
-                                        let label: SharedString = r.label.clone().into();
-                                        let sublabel: SharedString = r.sublabel.clone().into();
-                                        (i, is_sel, conn_label, label, sublabel)
-                                    })
-                                    .collect();
-                                results.into_iter().map(
-                                    |(i, is_sel, conn_label, label, sublabel)| {
-                                        palette_result_row(
-                                            ("palette-result", i),
-                                            is_sel,
-                                            conn_label,
-                                            label,
-                                            sublabel,
-                                            muted,
-                                            fg,
+                        div()
+                            .relative()
+                            .h(gpui::px(PALETTE_LIST_H))
+                            .child(
+                                div()
+                                    .id("palette-results-scroll")
+                                    .track_scroll(&self.results_scroll)
+                                    .overflow_y_scroll()
+                                    .size_full()
+                                    .child(v_flex().children({
+                                        let results: Vec<_> = self
+                                            .results
+                                            .iter()
+                                            .enumerate()
+                                            .map(|(i, r)| {
+                                                let is_sel = i == self.selected;
+                                                let conn_label: SharedString =
+                                                    r.conn_label.clone().into();
+                                                let label: SharedString = r.label.clone().into();
+                                                let sublabel: SharedString =
+                                                    r.sublabel.clone().into();
+                                                (i, is_sel, conn_label, label, sublabel)
+                                            })
+                                            .collect();
+                                        results.into_iter().map(
+                                            |(i, is_sel, conn_label, label, sublabel)| {
+                                                palette_result_row(
+                                                    ("palette-result", i),
+                                                    is_sel,
+                                                    conn_label,
+                                                    label,
+                                                    sublabel,
+                                                    muted,
+                                                    fg,
+                                                )
+                                                .on_mouse_down(
+                                                    MouseButton::Left,
+                                                    cx.listener(move |this, _, _, cx| {
+                                                        cx.stop_propagation();
+                                                        this.selected = i;
+                                                        this.open_selected(false, cx);
+                                                    }),
+                                                )
+                                            },
                                         )
-                                        .on_mouse_down(
-                                            MouseButton::Left,
-                                            cx.listener(move |this, _, _, cx| {
-                                                cx.stop_propagation();
-                                                this.selected = i;
-                                                this.open_selected(false, cx);
-                                            }),
-                                        )
-                                    },
-                                )
-                            }),
+                                    })),
+                            )
+                            .child(Scrollbar::vertical(&self.results_scroll)),
                     )
                     .child(palette_footer_hints(window, cx)),
             )

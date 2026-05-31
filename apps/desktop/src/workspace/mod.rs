@@ -181,7 +181,7 @@ impl Workspace {
             cx.set_global(crate::project::ProjectRoot(root));
         }
         let command_palette =
-            cx.new(|cx| CommandPalette::new(registry.clone(), connection_tree.clone(), cx));
+            cx.new(|cx| CommandPalette::new(registry.clone(), connection_tree.clone(), window, cx));
         let palette_observe = command_palette.clone();
 
         let workspace_options: Vec<SharedString> = workspace_ctx

@@ -13,6 +13,7 @@ use gpui_component::{
 use crate::app::prefs::{self, panel_header_h, sidebar_row_gap, sidebar_row_py};
 use crate::bindings::{DismissCommandPalette, ToggleCommandPalette, ToggleSidebarRail};
 use crate::connection::EngineKind;
+use crate::workspace::tab_open::WorkspaceRef;
 
 /// Unbound / literal keys — `Kbd` formats symbols vs labels per platform.
 pub fn kbd(stroke: &str) -> Kbd {
@@ -75,26 +76,38 @@ fn shortcut_row_styled(label: &'static str, kbd_el: Kbd, muted: Hsla) -> impl In
         .child(kbd_el)
 }
 
+fn palette_hint_kbd(k: Kbd, cx: &App) -> Kbd {
+    k.outline().text_color(cx.theme().foreground)
+}
+
 /// Command palette footer key hints.
 pub fn palette_footer_hints(window: &Window, cx: &mut App) -> impl IntoElement {
-    let muted = cx.theme().muted_foreground;
+    let theme = cx.theme();
+    let muted = theme.muted_foreground;
     let dismiss = kbd_for_action(&DismissCommandPalette, window).unwrap_or_else(|| kbd("escape"));
     h_flex()
+        .flex_shrink_0()
+        .w_full()
+        .px_3()
+        .py_2()
         .gap_2()
         .items_center()
+        .border_t_1()
+        .border_color(theme.border)
+        .bg(theme.muted.opacity(0.12))
         .text_xs()
         .text_color(muted)
-        .child(kbd("up"))
-        .child(kbd("down"))
+        .child(palette_hint_kbd(kbd("up"), cx))
+        .child(palette_hint_kbd(kbd("down"), cx))
         .child("navigate")
         .child("·")
-        .child(kbd("enter"))
+        .child(palette_hint_kbd(kbd("enter"), cx))
         .child("open")
         .child("·")
-        .child(shortcut_run_kbd())
+        .child(palette_hint_kbd(shortcut_run_kbd(), cx))
         .child("query")
         .child("·")
-        .child(dismiss)
+        .child(palette_hint_kbd(dismiss, cx))
         .child("dismiss")
 }
 
@@ -322,6 +335,14 @@ pub fn command_shell(window: &Window, cx: &mut App, placeholder: &'static str) -
         .bg(cx.theme().tab_active)
         .shadow_xs()
         .hover(|s| s.border_color(cx.theme().border))
+        .cursor_pointer()
+        .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+            if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+                ws.update(cx, |ws, cx| {
+                    ws.toggle_command_palette(window, cx);
+                });
+            }
+        })
         .child(
             Icon::new(IconName::Search)
                 .text_color(cx.theme().muted_foreground)

@@ -5,6 +5,7 @@ pub mod actions;
 pub mod aux_windows;
 pub mod chrome;
 pub mod globals;
+pub mod launch;
 pub mod prefs;
 pub mod quit;
 pub mod shell;

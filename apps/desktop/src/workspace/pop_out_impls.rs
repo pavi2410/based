@@ -1,6 +1,5 @@
 //! Blanket [`PopOutWindowTitle`] impls for panels that use the default `panel_name` title.
 
-use super::onboarding::OnboardingPanel;
 use super::pop_out::PopOutWindowTitle;
 use super::release_notes::ReleaseNotesPanel;
 use super::welcome::WelcomePanel;
@@ -23,7 +22,6 @@ use crate::workspace::object_info::{ConnectionDashboardPanel, ObjectInfoPanel};
 
 impl PopOutWindowTitle for WelcomePanel {}
 impl PopOutWindowTitle for ReleaseNotesPanel {}
-impl PopOutWindowTitle for OnboardingPanel {}
 impl PopOutWindowTitle for ConnectionDashboardPanel {}
 impl PopOutWindowTitle for ObjectInfoPanel {}
 impl PopOutWindowTitle for ChangeStreamPanel {}

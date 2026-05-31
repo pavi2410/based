@@ -13,6 +13,7 @@ mod connection;
 mod db;
 mod fonts;
 mod mongodb;
+mod onboarding_window;
 mod postgres;
 mod project;
 mod query_store;
@@ -23,11 +24,7 @@ mod theme;
 mod widgets;
 mod workspace;
 
-use gpui::prelude::*;
-use gpui::*;
-use gpui_component::Root;
-
-use workspace::{PopOutManager, SqlInject, TabOpenQueue, Workspace, WorkspaceNavQueue};
+use workspace::{PopOutManager, SqlInject, TabOpenQueue, WorkspaceNavQueue};
 
 // ── Entry point ──────────────────────────────────────────────────────────────
 
@@ -57,6 +54,7 @@ fn main() {
             }
             PopOutManager::init(cx);
             app::aux_windows::AuxWindows::init(cx);
+            app::launch::AppLaunch::init(cx);
             cx.set_global(TabOpenQueue::default());
             cx.set_global(WorkspaceNavQueue::default());
             cx.set_global(SqlInject::default());
@@ -92,32 +90,12 @@ fn main() {
             cx.on_window_closed(|cx, id| {
                 PopOutManager::on_any_window_closed(cx, id);
                 app::aux_windows::AuxWindows::on_window_closed(id, cx);
+                if app::launch::AppLaunch::is_gate_window(id, cx) {
+                    app::launch::AppLaunch::clear_gate(cx);
+                }
             })
             .detach();
 
-            cx.spawn(async move |cx| {
-                let main = cx
-                    .open_window(
-                        WindowOptions {
-                            window_bounds: Some(WindowBounds::Windowed(Bounds {
-                                origin: point(px(100.0), px(100.0)),
-                                size: size(px(1280.0), px(800.0)),
-                            })),
-                            titlebar: Some(app::shell::titled_titlebar(app::shell::APP_NAME)),
-                            ..Default::default()
-                        },
-                        |window, cx| {
-                            window.set_window_title(app::shell::APP_NAME);
-                            let workspace = cx.new(|cx| Workspace::new(window, cx));
-                            cx.set_global(crate::workspace::WorkspaceRef(workspace.clone()));
-                            cx.new(|cx| Root::new(workspace, window, cx))
-                        },
-                    )
-                    .expect("Failed to open main window");
-                cx.update_global(|manager: &mut PopOutManager, _| {
-                    manager.main_window_id = Some(main.window_id());
-                });
-            })
-            .detach();
+            app::launch::spawn_initial_window(cx);
         });
 }

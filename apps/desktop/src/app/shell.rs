@@ -16,9 +16,7 @@ use super::quit;
 use crate::about_window::AboutWindow;
 use crate::bindings::{OpenOnboarding, OpenWelcome};
 use crate::settings_window::SettingsWindow;
-use crate::workspace::{
-    WorkspaceRef, tab_open::enqueue_show_onboarding, tab_open::enqueue_show_welcome,
-};
+use crate::workspace::{WorkspaceRef, tab_open::enqueue_show_welcome};
 
 pub const APP_NAME: &str = "Based";
 
@@ -103,13 +101,15 @@ pub fn open_welcome(cx: &mut App) {
     cx.refresh_windows();
 }
 
-/// Focus or re-open the Onboarding center tab (Help menu and topbar overflow).
+/// Open the onboarding review window (Help menu and topbar overflow).
 pub fn open_onboarding(cx: &mut App) {
-    if cx.try_global::<WorkspaceRef>().is_none() {
+    if AuxWindows::focus_existing(AuxKind::Onboarding, cx) {
         return;
     }
-    enqueue_show_onboarding(cx);
-    cx.refresh_windows();
+    match crate::app::launch::open_onboarding_review(cx) {
+        Ok(handle) => AuxWindows::insert(AuxKind::Onboarding, handle, cx),
+        Err(err) => log::warn!("onboarding window: {err:#}"),
+    }
 }
 
 /// Open the About window, or focus the existing one if already open.

@@ -7,8 +7,7 @@ pub mod tab_open;
 pub mod tab_spec;
 pub use tab_open::{
     DockAreaRef, SqlInject, TabManagerRef, TabOpenQueue, WorkspaceNavQueue, WorkspaceRef,
-    enqueue_open_tab, enqueue_show_onboarding, enqueue_show_welcome, enqueue_sql_inject,
-    mark_query_tab_dirty,
+    enqueue_open_tab, enqueue_show_welcome, enqueue_sql_inject, mark_query_tab_dirty,
 };
 pub use tab_spec::TabSpec;
 
@@ -24,7 +23,6 @@ pub mod object_info;
 pub mod pane;
 pub mod pop_out;
 pub use pop_out::PopOutManager;
-pub mod onboarding;
 pub mod release_notes;
 pub mod welcome;
 
@@ -60,9 +58,9 @@ use gpui_component::{
 
 use crate::bindings::{
     CloseAllTabs, CloseCleanTabs, CloseOtherTabs, CloseTab, CloseTabsLeft, CloseTabsRight,
-    CycleAppearance, DismissCommandPalette, GoBackTab, GoForwardTab, NewQuery, OpenOnboarding,
-    OpenSettings, OpenWelcome, PinTab, SplitPaneBottom, SplitPaneLeft, SplitPaneRight,
-    SplitPaneTop, ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane,
+    CycleAppearance, DismissCommandPalette, GoBackTab, GoForwardTab, NewQuery, OpenSettings,
+    OpenWelcome, PinTab, SplitPaneBottom, SplitPaneLeft, SplitPaneRight, SplitPaneTop,
+    ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane,
     ToggleSidebarRail,
 };
 use crate::command_palette::CommandPalette;
@@ -91,13 +89,11 @@ use chrome::{
     target_picker::render_target_picker,
     topbar::Topbar,
 };
-use onboarding::OnboardingPanel;
 use welcome::WelcomePanel;
 
 pub struct Workspace {
     registry: Entity<ConnectionRegistry>,
     welcome_panel: Entity<WelcomePanel>,
-    onboarding_panel: Entity<OnboardingPanel>,
     dock_area: Entity<DockArea>,
     connection_tree: Entity<ConnectionTree>,
     tab_manager: Entity<TabManager>,
@@ -117,7 +113,6 @@ pub struct Workspace {
     /// Set by platform close; dialog is shown on the next [`Render`] (see `app::quit`).
     pub(crate) pending_close_confirm: bool,
     tab_navigation: TabNavigationHistory,
-    onboarding_prompted: bool,
 }
 
 impl Workspace {
@@ -165,8 +160,6 @@ impl Workspace {
 
         let welcome = cx.new(|cx| WelcomePanel::new(window, cx));
         let welcome_panel = welcome.clone();
-        let onboarding = cx.new(|cx| OnboardingPanel::new(window, cx));
-        let onboarding_panel = onboarding.clone();
         let weak_dock = dock_area.downgrade();
         let tabs = DockItem::tab(welcome, &weak_dock, window, cx);
         let center = wrap_center_root(tabs, &weak_dock, window, cx);
@@ -200,7 +193,6 @@ impl Workspace {
         let workspace = Self {
             registry: registry.clone(),
             welcome_panel,
-            onboarding_panel,
             dock_area,
             connection_tree,
             tab_manager,
@@ -217,7 +209,6 @@ impl Workspace {
             pending_target_pick: None,
             pending_close_confirm: false,
             tab_navigation: TabNavigationHistory::default(),
-            onboarding_prompted: false,
         };
 
         cx.subscribe(&tree_observe, |ws, _, event, ecx| {
@@ -479,7 +470,7 @@ impl Workspace {
             }
             WorkspacePaletteAction::SelectNoEnvironment => {}
             WorkspacePaletteAction::OpenWelcome => enqueue_show_welcome(cx),
-            WorkspacePaletteAction::OpenOnboarding => enqueue_show_onboarding(cx),
+            WorkspacePaletteAction::OpenOnboarding => crate::app::shell::open_onboarding(cx),
             WorkspacePaletteAction::CheckForUpdates => crate::app::updater::check_now(cx),
         }
     }
@@ -583,40 +574,6 @@ impl Workspace {
         cx.notify();
     }
 
-    /// Focus the Onboarding tab, re-adding it to the center strip if it was removed.
-    pub fn show_onboarding(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let onboarding: Arc<dyn PanelView> = Arc::new(self.onboarding_panel.clone());
-        let dock = self.dock_area.read(cx);
-        let onboarding_ix = center_tab_items(dock.center()).and_then(|items| {
-            items
-                .iter()
-                .position(|p| p.panel_name(cx) == "OnboardingPanel")
-        });
-        let is_active = active_center_tab(dock.center(), cx)
-            .is_some_and(|(p, _)| p.panel_name(cx) == "OnboardingPanel");
-
-        self.dock_area.update(cx, |dock, ecx| match onboarding_ix {
-            Some(_ix) if is_active => {}
-            Some(ix) => {
-                if let Some(panel) =
-                    center_tab_items(dock.center()).and_then(|items| items.get(ix).cloned())
-                {
-                    dock.remove_panel(panel, DockPlacement::Center, window, ecx);
-                    dock.add_panel(onboarding.clone(), DockPlacement::Center, None, window, ecx);
-                }
-            }
-            None => {
-                dock.add_panel(onboarding, DockPlacement::Center, None, window, ecx);
-            }
-        });
-
-        self.onboarding_panel
-            .read(cx)
-            .focus_handle(cx)
-            .focus(window, cx);
-        cx.notify();
-    }
-
     fn drain_tab_open_queue(&mut self, cx: &mut Context<Self>) {
         if let Some(spec) = cx.update_global(|q: &mut TabOpenQueue, _| q.pending.take()) {
             self.pending_open_tab = Some(spec);
@@ -631,44 +588,24 @@ impl Workspace {
     }
 
     fn flush_nav_queue(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let (
-            show_welcome,
-            show_onboarding,
-            open_wizard,
-            toggle_side,
-            toggle_left,
-            open_notes,
-            notes_version,
-        ) = cx.update_global(|q: &mut WorkspaceNavQueue, _| {
-            let welcome = q.show_welcome;
-            let onboarding = q.show_onboarding;
-            let wizard = q.open_postgres_wizard;
-            let side = q.toggle_side_pane.take();
-            let left = q.toggle_left_pane.take();
-            let notes = q.open_release_notes;
-            let notes_version = q.pending_release_notes_version.take();
-            q.show_welcome = false;
-            q.show_onboarding = false;
-            q.open_postgres_wizard = false;
-            q.open_release_notes = false;
-            (
-                welcome,
-                onboarding,
-                wizard,
-                side,
-                left,
-                notes,
-                notes_version,
-            )
-        });
+        let (show_welcome, open_wizard, toggle_side, toggle_left, open_notes, notes_version) = cx
+            .update_global(|q: &mut WorkspaceNavQueue, _| {
+                let welcome = q.show_welcome;
+                let wizard = q.open_postgres_wizard;
+                let side = q.toggle_side_pane.take();
+                let left = q.toggle_left_pane.take();
+                let notes = q.open_release_notes;
+                let notes_version = q.pending_release_notes_version.take();
+                q.show_welcome = false;
+                q.open_postgres_wizard = false;
+                q.open_release_notes = false;
+                (welcome, wizard, side, left, notes, notes_version)
+            });
         if let Some(pane) = toggle_side {
             self.toggle_side_pane(pane, cx);
         }
         if let Some(pane) = toggle_left {
             self.toggle_left_pane(pane, cx);
-        }
-        if show_onboarding {
-            self.show_onboarding(window, cx);
         }
         if show_welcome {
             self.show_welcome(window, cx);
@@ -781,14 +718,6 @@ impl Render for Workspace {
             self.session_restored = true;
             self.restore_session(window, cx);
         }
-        if !self.onboarding_prompted {
-            self.onboarding_prompted = true;
-            if !crate::app::prefs::onboarding_completed(cx)
-                && self.tab_manager.read(cx).tabs.is_empty()
-            {
-                enqueue_show_onboarding(cx);
-            }
-        }
         self.flush_nav_queue(window, cx);
         self.flush_pending_open_tab(window, cx);
         let this = cx.entity().clone();
@@ -880,11 +809,6 @@ impl Render for Workspace {
             .on_action(
                 window.listener_for(&this, |ws, _: &OpenWelcome, window, cx| {
                     ws.show_welcome(window, cx);
-                }),
-            )
-            .on_action(
-                window.listener_for(&this, |ws, _: &OpenOnboarding, window, cx| {
-                    ws.show_onboarding(window, cx);
                 }),
             )
             .on_action(window.listener_for(&this, |ws, _: &CloseTab, window, cx| {

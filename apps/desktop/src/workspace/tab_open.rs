@@ -92,7 +92,6 @@ pub fn enqueue_open_tab(spec: TabSpec, cx: &mut impl BorrowAppContext) {
 #[derive(Default)]
 pub struct WorkspaceNavQueue {
     pub show_welcome: bool,
-    pub show_onboarding: bool,
     pub open_postgres_wizard: bool,
     pub toggle_side_pane: Option<SidePane>,
     pub toggle_left_pane: Option<LeftPane>,
@@ -104,10 +103,6 @@ impl Global for WorkspaceNavQueue {}
 
 pub fn enqueue_show_welcome(cx: &mut impl BorrowAppContext) {
     cx.update_global(|q: &mut WorkspaceNavQueue, _| q.show_welcome = true);
-}
-
-pub fn enqueue_show_onboarding(cx: &mut impl BorrowAppContext) {
-    cx.update_global(|q: &mut WorkspaceNavQueue, _| q.show_onboarding = true);
 }
 
 pub fn enqueue_open_postgres_wizard(cx: &mut impl BorrowAppContext) {

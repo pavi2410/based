@@ -7,10 +7,16 @@ export interface InstallDownload {
   downloads: number;
 }
 
+export interface InstallPackageManager {
+  label: string;
+  command: string;
+}
+
 export interface InstallPlatform {
   os: InstallOs;
   name: string;
   detail: string;
   primary: InstallDownload;
   secondary?: InstallDownload | null;
+  packageManager?: InstallPackageManager;
 }

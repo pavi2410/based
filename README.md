@@ -62,11 +62,11 @@ docker compose up -d   # Postgres → localhost:15432, MongoDB → localhost:370
 
 Download the latest stable release from [GitHub Releases](https://github.com/pavi2410/based/releases). Stable builds are the latest non-prerelease; release candidates are tagged with `-rc.N` and marked as prereleases.
 
-| Platform | Artifact |
-|----------|----------|
-| macOS (Apple Silicon) | `.dmg` |
-| Linux | `.deb` or `.AppImage` |
-| Windows | `.exe` NSIS installer |
+| Platform | Artifact | Package manager |
+|----------|----------|-----------------|
+| macOS (Apple Silicon) | `.dmg` | `brew tap pavi2410/tap && brew install --cask based` |
+| Linux | `.deb` or `.AppImage` | — |
+| Windows | `.exe` NSIS installer | `winget install pavi2410.Based` |
 
 Each release asset shows a **SHA-256 digest** on the [GitHub Releases](https://github.com/pavi2410/based/releases) page (and in the API as `assets[].digest`). After downloading an installer, compare your local hash:
 
@@ -75,6 +75,8 @@ shasum -a 256 Based_2026.5.0_aarch64.dmg
 ```
 
 Installers are **unsigned**. macOS may show Gatekeeper warnings; open **System Settings → Privacy & Security** and choose **Open Anyway**, or right-click the app and choose **Open**. Windows SmartScreen may warn on first run — choose **More info → Run anyway**.
+
+Homebrew and winget install the same GitHub Release binaries — see [packaging/README.md](packaging/README.md) for maintainer details.
 
 ## Support
 

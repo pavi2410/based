@@ -195,3 +195,34 @@ jobs:
           VERSION: ${{ needs.prepare.outputs.version }}
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "$VERSION" latest.json --clobber
+
+  distribute:
+    name: Package managers
+    needs: [prepare, release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Bump Homebrew cask
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "${HOMEBREW_TAP_TOKEN:-}" ]; then
+            echo "::warning::HOMEBREW_TAP_TOKEN not set — skipping Homebrew cask bump"
+            exit 0
+          fi
+          python3 script/bump-packaging.py --homebrew
+
+      - name: winget-releaser
+        if: ${{ secrets.WINGET_RELEASE_TOKEN != '' }}
+        uses: vedantmgoyal/winget-releaser@v2
+        with:
+          identifier: pavi2410.Based
+          installers-regex: 'based_.*_x64-setup\.exe$'
+          token: ${{ secrets.WINGET_RELEASE_TOKEN }}
+
+      - name: winget-releaser skipped
+        if: ${{ secrets.WINGET_RELEASE_TOKEN == '' }}
+        run: echo "::warning::WINGET_RELEASE_TOKEN not set — skipping winget-releaser (see packaging/winget/BOOTSTRAP.md)"

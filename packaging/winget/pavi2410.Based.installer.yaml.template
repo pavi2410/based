@@ -1,0 +1,22 @@
+# Optional companion installer manifest (some winget-pkgs layouts use version + locale only).
+# The version manifest above inlines installer fields; this file is kept for wingetcreate parity.
+
+PackageIdentifier: pavi2410.Based
+PackageVersion: {{VERSION}}
+InstallerType: nullsoft
+Scope: user
+Installers:
+- Architecture: x64
+  InstallerUrl: {{INSTALLER_URL}}
+  InstallerSha256: {{INSTALLER_SHA256}}
+  InstallerSwitches:
+    Silent: /S
+    SilentWithProgress: /S
+  UpgradeBehavior: install
+  InstallModes:
+  - silent
+  - interactive
+  ExpectedReturnCodes:
+  - InstallerReturnCode: 0
+ManifestType: installer
+ManifestVersion: 1.6.0

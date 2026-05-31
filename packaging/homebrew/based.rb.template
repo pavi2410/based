@@ -1,0 +1,14 @@
+cask "based" do
+  version "{{VERSION}}"
+  sha256 "{{SHA256}}"
+
+  url "https://github.com/pavi2410/based/releases/download/v#{version}/Based_#{version}_aarch64.dmg"
+  name "Based"
+  desc "Git-friendly database client"
+  homepage "https://github.com/pavi2410/based"
+
+  depends_on macos: ">= :ventura"
+  depends_on arch: :arm64
+
+  app "Based.app"
+end

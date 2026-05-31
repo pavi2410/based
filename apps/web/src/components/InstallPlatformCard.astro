@@ -7,7 +7,7 @@ import WindowsIcon from "./icons/WindowsIcon.astro";
 
 interface Props extends InstallPlatform {}
 
-const { os, name, detail, primary, secondary } = Astro.props;
+const { os, name, detail, primary, secondary, packageManager } = Astro.props;
 ---
 
 <div class="card install-card" data-os={os}>
@@ -26,6 +26,13 @@ const { os, name, detail, primary, secondary } = Astro.props;
     <InstallDownloadRow {...primary} />
     {secondary && <InstallDownloadRow {...secondary} secondary />}
   </div>
+
+  {packageManager && (
+    <p class="install-pm">
+      <span class="install-pm-label">{packageManager.label}</span>
+      <code class="install-pm-cmd mono">{packageManager.command}</code>
+    </p>
+  )}
 </div>
 
 <style>
@@ -62,6 +69,33 @@ const { os, name, detail, primary, secondary } = Astro.props;
     flex-direction: column;
     gap: 0.75rem;
     width: 100%;
+  }
+
+  .install-pm {
+    margin: 1rem 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    width: 100%;
+  }
+
+  .install-pm-label {
+    font-size: 0.75rem;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+  }
+
+  .install-pm-cmd {
+    display: block;
+    font-size: 0.72rem;
+    line-height: 1.45;
+    padding: 0.45rem 0.55rem;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--text) 6%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+    color: var(--text);
+    overflow-x: auto;
+    white-space: nowrap;
   }
 
   .install-rec {

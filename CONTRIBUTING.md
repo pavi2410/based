@@ -30,6 +30,7 @@ The version in [`apps/desktop/Cargo.toml`](apps/desktop/Cargo.toml) is **permane
    - Stamps it into `Cargo.toml` on each runner via [`script/set-version.py`](script/set-version.py).
    - Builds installers for macOS (arm64), Linux, and Windows with `cargo-packager`, plus signed updater bundles and a `latest.json` manifest for in-app updates.
    - Publishes a GitHub Release at the new tag with auto-generated notes from PRs/commits since the previous tag and all installers.
+   - Bumps the [Homebrew cask](https://github.com/pavi2410/homebrew-tap) and opens a [winget-pkgs](https://github.com/microsoft/winget-pkgs) PR when `HOMEBREW_TAP_TOKEN` / `WINGET_RELEASE_TOKEN` secrets are set.
 3. (Optional) Edit the release on GitHub afterward to polish the auto-generated notes.
 
 ### In-app updater signing (one-time setup)
@@ -71,3 +72,37 @@ shasum -a 256 Based_2026.5.0_aarch64.dmg
 - **No bot push to `main`.** The version is never committed back; the tag is created by `gh release create` pointing at the workflow's commit SHA.
 - **Do not hand-edit** the `[package].version` in `apps/desktop/Cargo.toml` — it should always be `0.0.0-dev`. The release flow owns the real version end-to-end.
 - **First release:** if no prior `v*` tag exists for the current month, the action starts at `.0`; no bootstrap tag is required.
+
+## Package managers (Homebrew + winget)
+
+GitHub Releases remain the only artifact builder. Homebrew and winget are thin manifests (URL + SHA-256) updated after each release. See [packaging/README.md](packaging/README.md) for filename contracts.
+
+### Homebrew (macOS arm64)
+
+Tap repo: [pavi2410/homebrew-tap](https://github.com/pavi2410/homebrew-tap)
+
+```bash
+brew tap pavi2410/tap
+brew install --cask based
+```
+
+After each release, CI runs `script/bump-packaging.py --homebrew` when **`HOMEBREW_TAP_TOKEN`** is set (fine-grained PAT with **contents: write** on `pavi2410/homebrew-tap` only).
+
+Manual bump:
+
+```bash
+VERSION=v2026.5.2 python3 script/bump-packaging.py --homebrew --dry-run
+HOMEBREW_TAP_TOKEN=... VERSION=v2026.5.2 python3 script/bump-packaging.py --homebrew
+```
+
+### winget (Windows x64)
+
+Package ID: **`pavi2410.Based`**
+
+```powershell
+winget install pavi2410.Based
+```
+
+**One-time bootstrap:** fork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs), copy manifests from `packaging/winget/` templates (or run `VERSION=v2026.5.2 python3 script/bump-packaging.py --winget-snapshot`), and open a PR. Full steps: [packaging/winget/BOOTSTRAP.md](packaging/winget/BOOTSTRAP.md).
+
+**Ongoing updates:** set GitHub secret **`WINGET_RELEASE_TOKEN`** (PAT with fork + PR access to your `winget-pkgs` fork). The release workflow runs [winget-releaser](https://github.com/vedantmgoyal/winget-releaser) and opens a bump PR — merge when convenient.

@@ -1,0 +1,28 @@
+# Created with wingetcreate — template for bootstrap PR to microsoft/winget-pkgs
+# Replace {{VERSION}}, {{INSTALLER_URL}}, {{INSTALLER_SHA256}} via script/bump-packaging.py --winget-snapshot
+
+PackageIdentifier: pavi2410.Based
+PackageVersion: {{VERSION}}
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: 1.6.0
+Installers:
+- Architecture: x64
+  InstallerType: nullsoft
+  Scope: user
+  InstallerUrl: {{INSTALLER_URL}}
+  InstallerSha256: {{INSTALLER_SHA256}}
+  InstallerSwitches:
+    Silent: /S
+    SilentWithProgress: /S
+  UpgradeBehavior: install
+  InstallModes:
+  - silent
+  - interactive
+  ExpectedReturnCodes:
+  - InstallerReturnCode: 0
+Manifests:
+- PackageLocale: en-US
+  ManifestType: locale
+  ManifestVersion: 1.6.0
+  Path: ./pavi2410.Based.locale.en-US.yaml

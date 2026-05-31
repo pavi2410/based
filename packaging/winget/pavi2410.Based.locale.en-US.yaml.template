@@ -1,0 +1,27 @@
+PackageIdentifier: pavi2410.Based
+PackageVersion: {{VERSION}}
+PackageLocale: en-US
+Publisher: pavi2410
+PublisherUrl: https://github.com/pavi2410
+PublisherSupportUrl: https://github.com/pavi2410/based/issues
+PrivacyUrl: https://github.com/pavi2410/based
+Author: pavi2410
+PackageName: Based
+PackageUrl: https://github.com/pavi2410/based
+License: MIT
+LicenseUrl: https://github.com/pavi2410/based/blob/main/LICENSE
+Copyright: Copyright (c) pavi2410
+ShortDescription: Git-friendly database client
+Description: |
+  Based is a local-first desktop database client for PostgreSQL, SQLite, and MongoDB.
+  Connection configs and saved queries live in a committed .based/ folder.
+Moniker: based
+Tags:
+- database
+- postgresql
+- sqlite
+- mongodb
+- sql
+ReleaseNotesUrl: https://github.com/pavi2410/based/releases/tag/v{{VERSION}}
+ManifestType: locale
+ManifestVersion: 1.6.0

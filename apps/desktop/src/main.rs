@@ -49,6 +49,9 @@ fn main() {
             app::prefs::install(cx);
 
             db::init(cx);
+            cx.set_global(TabOpenQueue::default());
+            cx.set_global(WorkspaceNavQueue::default());
+            cx.set_global(SqlInject::default());
             app::updater::init(cx);
             if let Err(err) = storage::init(cx) {
                 log::error!("failed to open metadata store: {err:#}");
@@ -56,9 +59,6 @@ fn main() {
             PopOutManager::init(cx);
             app::aux_windows::AuxWindows::init(cx);
             app::launch::AppLaunch::init(cx);
-            cx.set_global(TabOpenQueue::default());
-            cx.set_global(WorkspaceNavQueue::default());
-            cx.set_global(SqlInject::default());
 
             let project_root = crate::project::find_project_root();
             let project_context = project_root

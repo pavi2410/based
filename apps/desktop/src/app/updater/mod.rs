@@ -101,7 +101,7 @@ pub fn init(cx: &mut App) {
 
     cx.spawn(async move |cx| {
         udebug("startup check scheduled in 30s");
-        sleep_on_tokio(&mut cx, std::time::Duration::from_secs(30)).await;
+        sleep_on_tokio(cx, std::time::Duration::from_secs(30)).await;
         cx.update(|app| {
             let prefs = UpdateCoordinator::prefs(app);
             let stale = startup_check_stale(&UpdaterStateFile::load());
@@ -123,7 +123,7 @@ pub fn init(cx: &mut App) {
             });
 
             udebug(format!("periodic loop: sleeping {sleep_secs}s"));
-            sleep_on_tokio(&mut cx, std::time::Duration::from_secs(sleep_secs)).await;
+            sleep_on_tokio(cx, std::time::Duration::from_secs(sleep_secs)).await;
 
             let should = cx.update(|app| {
                 let prefs = UpdateCoordinator::prefs(app);

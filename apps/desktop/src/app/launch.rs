@@ -1,8 +1,8 @@
 //! Application window launch: onboarding gate before the main workspace.
 
 use gpui::{
-    AnyWindowHandle, App, AppContext, BorrowAppContext, Bounds, Global, WindowBounds, WindowId,
-    WindowOptions, point, px, size,
+    AnyWindowHandle, App, AppContext, BorrowAppContext, Global, WindowBounds, WindowId,
+    WindowOptions, px, size,
 };
 use gpui_component::Root;
 
@@ -53,10 +53,7 @@ pub fn open_main_workspace(cx: &mut App) -> anyhow::Result<()> {
 
     let opened = cx.open_window(
         WindowOptions {
-            window_bounds: Some(WindowBounds::Windowed(Bounds {
-                origin: point(px(100.0), px(100.0)),
-                size: size(px(1280.0), px(800.0)),
-            })),
+            window_bounds: Some(WindowBounds::centered(size(px(1280.0), px(800.0)), cx)),
             titlebar: Some(shell::titled_titlebar(APP_NAME)),
             ..Default::default()
         },

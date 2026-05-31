@@ -1,4 +1,6 @@
 ---
+import ClipboardIcon from "./icons/ClipboardIcon.astro";
+
 interface Props {
   /** Text copied to the clipboard on click. */
   value: string;
@@ -10,6 +12,8 @@ interface Props {
   ariaLabel?: string;
   /** Push the button to the end of a flex row. */
   pushEnd?: boolean;
+  /** Icon-only control (no text label). */
+  iconOnly?: boolean;
   class?: string;
 }
 
@@ -19,20 +23,22 @@ const {
   copiedLabel = "Copied",
   ariaLabel = "Copy to clipboard",
   pushEnd = false,
+  iconOnly = false,
   class: className = "",
 } = Astro.props;
 ---
 
 <button
   type="button"
-  class:list={["copy-btn", pushEnd && "copy-btn--end", className]}
+  class:list={["copy-btn", iconOnly && "copy-btn--icon", pushEnd && "copy-btn--end", className]}
   data-copy-btn
   data-copy-value={value}
   data-copy-label={label}
   data-copied-label={copiedLabel}
+  data-copy-icon={iconOnly ? "true" : undefined}
   aria-label={ariaLabel}
 >
-  {label}
+  {iconOnly ? <ClipboardIcon size={14} /> : label}
 </button>
 
 <script>
@@ -48,13 +54,24 @@ const {
 
       try {
         await navigator.clipboard.writeText(value);
-        const prev = btn.textContent;
-        btn.textContent = btn.dataset.copiedLabel ?? "Copied";
-        btn.classList.add("is-copied");
-        window.setTimeout(() => {
-          btn.textContent = prev;
-          btn.classList.remove("is-copied");
-        }, 1500);
+        const isIcon = btn.dataset.copyIcon === "true";
+        if (isIcon) {
+          const prevLabel = btn.getAttribute("aria-label");
+          btn.setAttribute("aria-label", btn.dataset.copiedLabel ?? "Copied");
+          btn.classList.add("is-copied");
+          window.setTimeout(() => {
+            if (prevLabel) btn.setAttribute("aria-label", prevLabel);
+            btn.classList.remove("is-copied");
+          }, 1500);
+        } else {
+          const prev = btn.textContent;
+          btn.textContent = btn.dataset.copiedLabel ?? "Copied";
+          btn.classList.add("is-copied");
+          window.setTimeout(() => {
+            btn.textContent = prev;
+            btn.classList.remove("is-copied");
+          }, 1500);
+        }
       } catch {
         /* clipboard unavailable */
       }
@@ -83,5 +100,18 @@ const {
 
   .copy-btn--end {
     margin-left: auto;
+  }
+
+  .copy-btn--icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.35rem 0.45rem;
+    line-height: 0;
+  }
+
+  .copy-btn--icon.is-copied {
+    color: var(--mongo);
+    border-color: color-mix(in srgb, var(--mongo) 45%, transparent);
   }
 </style>

@@ -1,6 +1,7 @@
 ---
 import type { InstallPlatform } from "../lib/install";
 import AppleIcon from "./icons/AppleIcon.astro";
+import CopyButton from "./CopyButton.astro";
 import InstallDownloadRow from "./InstallDownloadRow.astro";
 import LinuxIcon from "./icons/LinuxIcon.astro";
 import WindowsIcon from "./icons/WindowsIcon.astro";
@@ -28,10 +29,18 @@ const { os, name, detail, primary, secondary, packageManager } = Astro.props;
   </div>
 
   {packageManager && (
-    <p class="install-pm">
+    <div class="install-pm">
       <span class="install-pm-label">{packageManager.label}</span>
-      <code class="install-pm-cmd mono">{packageManager.command}</code>
-    </p>
+      <div class="install-pm-box">
+        <code class="install-pm-cmd mono" title={packageManager.command}>{packageManager.command}</code>
+        <CopyButton
+          iconOnly
+          value={packageManager.command}
+          ariaLabel={`Copy ${packageManager.label}`}
+          class="install-pm-copy"
+        />
+      </div>
+    </div>
   )}
 </div>
 
@@ -85,17 +94,40 @@ const { os, name, detail, primary, secondary, packageManager } = Astro.props;
     letter-spacing: 0.02em;
   }
 
-  .install-pm-cmd {
-    display: block;
-    font-size: 0.72rem;
-    line-height: 1.45;
-    padding: 0.45rem 0.55rem;
+  .install-pm-box {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
     border-radius: 6px;
     background: color-mix(in srgb, var(--text) 6%, transparent);
     border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+    overflow: hidden;
+  }
+
+  .install-pm-cmd {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.72rem;
+    line-height: 1.45;
+    padding: 0.45rem 0.55rem;
+    background: none;
+    border: none;
     color: var(--text);
     overflow-x: auto;
     white-space: nowrap;
+  }
+
+  .install-pm-box :global(.install-pm-copy) {
+    flex-shrink: 0;
+    align-self: stretch;
+    border: none;
+    border-left: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+    border-radius: 0;
+    background: color-mix(in srgb, var(--text) 4%, transparent);
+  }
+
+  .install-pm-box :global(.install-pm-copy:hover) {
+    background: color-mix(in srgb, var(--text) 10%, transparent);
   }
 
   .install-rec {

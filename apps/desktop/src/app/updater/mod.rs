@@ -6,7 +6,6 @@ mod persist;
 mod release_notes;
 mod state;
 
-pub use config::is_dev_build;
 pub use install::{open_releases_page, relaunch_app};
 pub use release_notes::fetch_release_body;
 pub use state::{UpdateBarSnapshot, UpdatePhase};
@@ -23,9 +22,7 @@ use crate::workspace::tab_open::{WorkspaceRef, enqueue_open_release_notes};
 
 use self::check::{check_packager_update, is_newer};
 use self::log::{debug as udebug, info as uinfo, warn as uwarn};
-use self::persist::{
-    UpdaterStateFile, should_run_periodic_check, startup_check_stale, updates_enabled,
-};
+use self::persist::{UpdaterStateFile, should_run_periodic_check, startup_check_stale};
 use self::release_notes::fetch_latest_release;
 
 /// Global update coordinator state (UI + scheduling).
@@ -85,10 +82,6 @@ pub fn coordinator_snapshot(cx: &App) -> UpdateBarSnapshot {
 }
 
 pub fn init(cx: &mut App) {
-    if !updates_enabled() {
-        uinfo("init skipped: dev build (updates disabled)");
-        return;
-    }
     uinfo(format!(
         "init current={} in_app={}",
         config::current_version_string(),
@@ -169,8 +162,8 @@ fn handle_pending_release_notes(state: &mut UpdaterStateFile, cx: &mut App) {
 
 /// Manual or scheduled update check.
 pub fn check_now(cx: &mut App) {
-    if !updates_enabled() {
-        udebug("check_now: skipped (dev build)");
+    if !prefs::manual_update_checks_enabled() {
+        udebug("check_now: skipped (update checks locked)");
         return;
     }
     uinfo("check_now: manual check");
@@ -192,10 +185,6 @@ pub fn dismiss(cx: &mut App) {
 }
 
 pub fn start_download(cx: &mut App) {
-    if !updates_enabled() {
-        udebug("start_download: skipped (dev build)");
-        return;
-    }
     let version = cx.update_global(|coord: &mut UpdateCoordinator, _| {
         coord.phase = UpdatePhase::Downloading;
         coord.download_progress = 0;
@@ -218,10 +207,6 @@ pub fn install_and_restart(
     window: &mut Window,
     cx: &mut App,
 ) {
-    if !updates_enabled() {
-        udebug("install_and_restart: skipped (dev build)");
-        return;
-    }
     let live = live_connection_count(registry, cx);
     if live == 0 {
         uinfo("install_and_restart: no live connections, proceeding");

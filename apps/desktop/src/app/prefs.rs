@@ -311,6 +311,7 @@ impl NativePreferences {
         }
         migrate_legacy_theme_names(&mut prefs);
         migrate_legacy_chrome(&mut prefs, &raw);
+        apply_dev_update_policy(&mut prefs.update);
         prefs
     }
 
@@ -830,6 +831,27 @@ pub fn update_prefs(cx: &App) -> UpdatePreferences {
     cx.global::<NativePreferences>().update.clone()
 }
 
+/// Dev builds cannot enable automatic update checks; settings UI reflects this.
+pub fn update_check_settings_locked() -> bool {
+    is_dev_build()
+}
+
+fn is_dev_build() -> bool {
+    env!("CARGO_PKG_VERSION") == "0.0.0-dev"
+}
+
+fn apply_dev_update_policy(update: &mut UpdatePreferences) {
+    if update_check_settings_locked() {
+        update.check_at_startup = false;
+        update.auto_check = false;
+    }
+}
+
+/// Whether manual "Check for Updates" actions should run (release builds only).
+pub fn manual_update_checks_enabled() -> bool {
+    !update_check_settings_locked()
+}
+
 fn update_update_prefs(update: impl FnOnce(&mut UpdatePreferences) -> bool, cx: &mut App) {
     let changed = cx.update_global(|p: &mut NativePreferences, _| {
         let changed = update(&mut p.update);
@@ -844,6 +866,9 @@ fn update_update_prefs(update: impl FnOnce(&mut UpdatePreferences) -> bool, cx: 
 }
 
 pub fn set_update_check_at_startup(enabled: bool, cx: &mut App) {
+    if update_check_settings_locked() {
+        return;
+    }
     update_update_prefs(
         |u| {
             if u.check_at_startup == enabled {
@@ -857,6 +882,9 @@ pub fn set_update_check_at_startup(enabled: bool, cx: &mut App) {
 }
 
 pub fn set_update_auto_check(enabled: bool, cx: &mut App) {
+    if update_check_settings_locked() {
+        return;
+    }
     update_update_prefs(
         |u| {
             if u.auto_check == enabled {
@@ -870,6 +898,9 @@ pub fn set_update_auto_check(enabled: bool, cx: &mut App) {
 }
 
 pub fn set_update_check_interval(interval: UpdateCheckInterval, cx: &mut App) {
+    if update_check_settings_locked() {
+        return;
+    }
     update_update_prefs(
         |u| {
             if u.check_interval == interval {

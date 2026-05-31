@@ -53,6 +53,23 @@ pub fn settings_titlebar() -> TitlebarOptions {
     options
 }
 
+fn app_menu_items() -> Vec<MenuItem> {
+    let mut items = vec![
+        MenuItem::action("About Based", AboutApp),
+        MenuItem::separator(),
+        MenuItem::action("Settings...", OpenSettingsMenu),
+        MenuItem::separator(),
+    ];
+    if crate::app::prefs::manual_update_checks_enabled() {
+        items.push(MenuItem::action("Check for Updates…", CheckForUpdates));
+        items.push(MenuItem::separator());
+    }
+    items.push(MenuItem::os_submenu("Services", SystemMenuType::Services));
+    items.push(MenuItem::separator());
+    items.push(MenuItem::action("Quit Based", QuitApp));
+    items
+}
+
 pub fn init(cx: &mut App) {
     cx.activate(true);
     cx.on_action(|_: &QuitApp, cx| quit::request_app_quit(cx));
@@ -72,17 +89,7 @@ pub fn init(cx: &mut App) {
     ]);
 
     cx.set_menus([
-        Menu::new(APP_NAME).items([
-            MenuItem::action("About Based", AboutApp),
-            MenuItem::separator(),
-            MenuItem::action("Settings...", OpenSettingsMenu),
-            MenuItem::separator(),
-            MenuItem::action("Check for Updates…", CheckForUpdates),
-            MenuItem::separator(),
-            MenuItem::os_submenu("Services", SystemMenuType::Services),
-            MenuItem::separator(),
-            MenuItem::action("Quit Based", QuitApp),
-        ]),
+        Menu::new(APP_NAME).items(app_menu_items()),
         Menu::new("Help").items([
             MenuItem::action("Welcome to Based", OpenWelcome),
             MenuItem::action("Onboarding...", OpenOnboarding),

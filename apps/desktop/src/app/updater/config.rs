@@ -7,10 +7,6 @@ pub const UPDATE_MANIFEST_URL: &str =
 /// Minisign public key generated via `cargo packager signer generate`.
 pub const UPDATER_PUBKEY: &str = include_str!("../../../assets/updater-key.pub");
 
-pub fn is_dev_build() -> bool {
-    env!("CARGO_PKG_VERSION") == "0.0.0-dev"
-}
-
 pub fn current_version_string() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }

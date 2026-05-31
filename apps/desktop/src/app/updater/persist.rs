@@ -3,7 +3,6 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
-use super::config;
 use super::log::{debug as udebug, warn as uwarn};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
@@ -122,9 +121,4 @@ pub fn startup_check_stale(state: &UpdaterStateFile) -> bool {
         return true;
     };
     now_unix().saturating_sub(last) >= 6 * 3600
-}
-
-/// Dev builds skip network updater entirely.
-pub fn updates_enabled() -> bool {
-    !config::is_dev_build()
 }

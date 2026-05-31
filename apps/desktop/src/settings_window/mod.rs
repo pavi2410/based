@@ -103,6 +103,7 @@ impl SettingsWindow {
     fn pages(&self, _: &mut Window, cx: &mut Context<Self>) -> Vec<SettingPage> {
         let light_theme_options = theme_name_options(ThemeMode::Light, cx);
         let dark_theme_options = theme_name_options(ThemeMode::Dark, cx);
+        let update_checks_locked = prefs::update_check_settings_locked();
 
         let mut pages = vec![
             SettingPage::new("Appearance")
@@ -334,6 +335,7 @@ impl SettingsWindow {
                             prefs::set_update_check_at_startup,
                         ),
                     )
+                    .disabled(update_checks_locked)
                     .description("Look for updates shortly after launch."),
                     SettingItem::new(
                         "Check automatically",
@@ -342,6 +344,7 @@ impl SettingsWindow {
                             prefs::set_update_auto_check,
                         ),
                     )
+                    .disabled(update_checks_locked)
                     .description("Periodically check while Based is running."),
                     SettingItem::new(
                         "Check interval",
@@ -361,7 +364,8 @@ impl SettingsWindow {
                             },
                         )
                         .default_value(UpdateCheckInterval::Daily.storage_key().to_string()),
-                    ),
+                    )
+                    .disabled(update_checks_locked),
                     SettingItem::new(
                         "Download automatically",
                         SettingField::switch(
@@ -483,8 +487,7 @@ impl SettingsWindow {
 fn dev_settings_page() -> SettingPage {
     SettingPage::new("Developer")
         .icon(Icon::new(IconName::Settings))
-        .groups(vec![
-            SettingGroup::new().items(vec![
+        .groups(vec![SettingGroup::new().items(vec![
                 SettingItem::new(
                     "Reset onboarding",
                     SettingField::render(|options, _window, _cx| {
@@ -509,8 +512,7 @@ fn dev_settings_page() -> SettingPage {
                     }),
                 )
                 .description("Relaunch Based with the same command-line arguments."),
-            ]),
-        ])
+            ])])
 }
 
 impl Focusable for SettingsWindow {

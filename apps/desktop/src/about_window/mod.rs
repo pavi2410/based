@@ -132,10 +132,10 @@ fn version_row(muted: Hsla) -> impl IntoElement {
 }
 
 fn update_card(muted: Hsla, border: Hsla, accent: Hsla, cx: &gpui::App) -> impl IntoElement {
-    let dev = crate::app::updater::is_dev_build();
+    let checks_locked = crate::app::prefs::update_check_settings_locked();
     let snapshot = crate::app::updater::coordinator_snapshot(cx);
-    let status: SharedString = if dev {
-        "Dev build — updates disabled".into()
+    let status: SharedString = if checks_locked {
+        "Dev build — update checks disabled".into()
     } else {
         match snapshot.phase {
             crate::app::updater::UpdatePhase::Idle => "Check for updates to see status".into(),
@@ -164,7 +164,7 @@ fn update_card(muted: Hsla, border: Hsla, accent: Hsla, cx: &gpui::App) -> impl 
         .child(
             h_flex()
                 .gap(px(8.0))
-                .when(!dev, |row| {
+                .when(crate::app::prefs::manual_update_checks_enabled(), |row| {
                     row.child(
                         Button::new("about-check-updates")
                             .outline()

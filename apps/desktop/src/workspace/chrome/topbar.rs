@@ -186,40 +186,43 @@ impl RenderOnce for TopbarRight {
                     .icon(IconName::Ellipsis)
                     .tooltip(SharedString::from("Menu"))
                     .dropdown_menu(|menu, _window, _cx| {
-                        menu.item(
-                            PopupMenuItem::new("About Based")
-                                .icon(IconName::Info)
-                                .on_click(|_, _window, cx| shell::open_about(cx)),
-                        )
-                        .item(PopupMenuItem::separator())
-                        .item(
-                            PopupMenuItem::new("Settings...")
-                                .icon(IconName::Settings)
-                                .on_click(|_, _window, cx| shell::open_settings(cx)),
-                        )
-                        .item(
-                            PopupMenuItem::new("Check for Updates…")
-                                .icon(IconName::Inbox)
-                                .on_click(|_, _window, cx| crate::app::updater::check_now(cx)),
-                        )
-                        .item(PopupMenuItem::separator())
-                        .item(
-                            PopupMenuItem::new("Welcome to Based")
-                                .icon(IconName::BookOpen)
-                                .on_click(|_, _window, cx| shell::open_welcome(cx)),
-                        )
-                        .item(
-                            PopupMenuItem::new("Onboarding...")
-                                .icon(IconName::Settings2)
-                                .on_click(|_, _window, cx| shell::open_onboarding(cx)),
-                        )
-                        .item(
-                            PopupMenuItem::new("Release Notes")
-                                .icon(IconName::BookOpen)
-                                .on_click(|_, _window, cx| {
-                                    crate::app::updater::open_release_notes_for_current(cx);
-                                }),
-                        )
+                        let mut menu = menu
+                            .item(
+                                PopupMenuItem::new("About Based")
+                                    .icon(IconName::Info)
+                                    .on_click(|_, _window, cx| shell::open_about(cx)),
+                            )
+                            .item(PopupMenuItem::separator())
+                            .item(
+                                PopupMenuItem::new("Settings...")
+                                    .icon(IconName::Settings)
+                                    .on_click(|_, _window, cx| shell::open_settings(cx)),
+                            );
+                        if crate::app::prefs::manual_update_checks_enabled() {
+                            menu = menu.item(
+                                PopupMenuItem::new("Check for Updates…")
+                                    .icon(IconName::Inbox)
+                                    .on_click(|_, _window, cx| crate::app::updater::check_now(cx)),
+                            );
+                        }
+                        menu.item(PopupMenuItem::separator())
+                            .item(
+                                PopupMenuItem::new("Welcome to Based")
+                                    .icon(IconName::BookOpen)
+                                    .on_click(|_, _window, cx| shell::open_welcome(cx)),
+                            )
+                            .item(
+                                PopupMenuItem::new("Onboarding...")
+                                    .icon(IconName::Settings2)
+                                    .on_click(|_, _window, cx| shell::open_onboarding(cx)),
+                            )
+                            .item(
+                                PopupMenuItem::new("Release Notes")
+                                    .icon(IconName::BookOpen)
+                                    .on_click(|_, _window, cx| {
+                                        crate::app::updater::open_release_notes_for_current(cx);
+                                    }),
+                            )
                     }),
             )
     }

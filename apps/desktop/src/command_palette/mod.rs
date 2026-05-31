@@ -284,7 +284,9 @@ impl CommandPalette {
                 project_query_path: None,
             });
         }
-        if q.is_empty() || q.contains("update") {
+        if crate::app::prefs::manual_update_checks_enabled()
+            && (q.is_empty() || q.contains("update"))
+        {
             results.push(PaletteResult {
                 kind: ResultKind::Command,
                 label: "Check for Updates".into(),

@@ -7,7 +7,7 @@ use gpui_component::{
 };
 
 use crate::app::updater::UpdateBarSnapshot;
-use crate::app::updater::{self, UpdatePhase, is_dev_build};
+use crate::app::updater::{self, UpdatePhase};
 use crate::bindings::{ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane};
 use crate::connection::registry::ConnectionRegistry;
 use crate::widgets::status_item::{STATUS_BAR_HEIGHT, status_divider, status_segment, status_text};
@@ -112,10 +112,6 @@ fn update_widget(
     registry: gpui::Entity<ConnectionRegistry>,
     cx: &App,
 ) -> Option<impl IntoElement> {
-    if is_dev_build() {
-        return None;
-    }
-
     let phase = snapshot.phase;
     if matches!(phase, UpdatePhase::Idle) {
         return None;

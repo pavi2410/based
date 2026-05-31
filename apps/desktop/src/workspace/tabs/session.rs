@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use based_storage::{ACTIVE_CONNECTION_ID, ACTIVE_TAB_INDEX, MetadataStore, OPEN_TABS};
 
-use super::TabSpec;
+use super::spec::TabSpec;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SessionSnapshot {

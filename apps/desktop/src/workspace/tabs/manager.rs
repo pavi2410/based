@@ -2,7 +2,7 @@ use gpui::{AnyView, Context, EntityId, EventEmitter};
 
 use crate::connection::ConnectionId;
 
-use super::tab_spec::TabSpec;
+use super::spec::TabSpec;
 
 /// An open tab — its spec (identity) and the live panel view.
 pub struct Tab {

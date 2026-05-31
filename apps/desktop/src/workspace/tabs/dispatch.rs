@@ -9,10 +9,10 @@ use crate::connection::{AnyConnection, ConnectionEntry, ConnectionId, Connection
 use crate::postgres;
 use crate::sqlite;
 
-use super::TabSpec;
-use super::Workspace;
-use super::object_info::ObjectInfoPanel;
-use super::tab_label::tab_label_for_spec;
+use super::label::tab_label_for_spec;
+use super::spec::TabSpec;
+use crate::workspace::Workspace;
+use crate::workspace::object_info::ObjectInfoPanel;
 
 /// Set dock tab label from [`TabSpec`] then register the panel.
 macro_rules! register_dock_panel {
@@ -293,8 +293,9 @@ impl Workspace {
                 let tab_spec_for_manager = TabSpec::ReleaseNotes {
                     version: version.clone(),
                 };
-                let panel_ent =
-                    cx.new(|cx| super::release_notes::ReleaseNotesPanel::new(version, window, cx));
+                let panel_ent = cx.new(|cx| {
+                    crate::workspace::release_notes::ReleaseNotesPanel::new(version, window, cx)
+                });
                 register_dock_panel!(self, tab_spec_for_manager, panel_ent, window, cx);
             }
             TabSpec::Home => {

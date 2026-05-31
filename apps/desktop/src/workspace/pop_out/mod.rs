@@ -4,6 +4,9 @@
 //!   existing window. The docked tab **stays** — both views render the same entity (mirror), not a move.
 //! - When the **main** workspace window closes, all pop-outs are closed so the process isn't left with
 //!   orphan windows holding references into a torn-down workspace.
+//! - Blanket [`PopOutWindowTitle`] impls for all engine panels live in `impls`.
+
+mod impls;
 
 use std::collections::HashMap;
 

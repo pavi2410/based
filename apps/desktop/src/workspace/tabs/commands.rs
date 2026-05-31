@@ -5,19 +5,19 @@ use gpui::{App, AppContext, Context, Entity, EntityId, Window};
 use gpui_component::Placement;
 use gpui_component::dock::{DockPlacement, PanelView, TabPanel};
 
-use super::Workspace;
-use super::dock_utils::{
+use super::spec::TabSpec;
+use crate::workspace::Workspace;
+use crate::workspace::dock_utils::{
     activate_center_panel, active_center_tab_panel, active_live_center_panel, center_panel_by_id,
     center_tab_panel_count,
 };
-use super::tab_spec::TabSpec;
 
 pub(crate) fn panel_index_in_strip(
     center: &gpui_component::dock::DockItem,
     panel_id: EntityId,
     cx: &App,
 ) -> Option<(Entity<TabPanel>, usize, Arc<dyn PanelView>)> {
-    super::dock_utils::center_panel_by_id(center, panel_id, cx)
+    crate::workspace::dock_utils::center_panel_by_id(center, panel_id, cx)
         .map(|(tab_panel, panel, ix)| (tab_panel, ix, panel))
 }
 
@@ -63,7 +63,7 @@ impl Workspace {
             activate_center_panel(&center, panel, window, cx);
             cx.notify();
         } else if let Some((tab_panel, panel, _)) =
-            super::dock_utils::center_panel_by_id(&center, panel_id, cx)
+            crate::workspace::dock_utils::center_panel_by_id(&center, panel_id, cx)
         {
             if tab_panel
                 .read(cx)
@@ -328,7 +328,7 @@ impl Workspace {
         &mut self,
         window: &mut Window,
         cx: &mut Context<Self>,
-        mut pred: impl FnMut(EntityId, &super::tab_manager::Tab, bool) -> bool,
+        mut pred: impl FnMut(EntityId, &super::manager::Tab, bool) -> bool,
     ) {
         let candidates: Vec<(EntityId, Arc<dyn PanelView>)> = self
             .center_panels

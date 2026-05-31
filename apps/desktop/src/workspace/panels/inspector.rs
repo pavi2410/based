@@ -7,8 +7,8 @@ use crate::widgets::ui::{
     metadata_pill,
 };
 
-use super::Workspace;
-use super::notify;
+use crate::workspace::Workspace;
+use crate::workspace::notify;
 
 /// Body of the Inspector side pane. The 320 px column chrome (border + header)
 /// comes from [`crate::workspace::chrome::side_pane::render_side_pane`].

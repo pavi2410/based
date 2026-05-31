@@ -3,8 +3,8 @@
 use gpui::{App, EntityId, IntoElement, SharedString, prelude::*, px};
 use gpui_component::{ActiveTheme, Icon, Sizable as _, h_flex};
 
-use super::tab_open::TabManagerRef;
-use super::tab_spec::TabSpec;
+use super::open::TabManagerRef;
+use super::spec::TabSpec;
 
 pub const PIN_ICON_PATH: &str = "icons/pin.svg";
 

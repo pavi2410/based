@@ -13,6 +13,7 @@ use gpui_component::{
     h_flex,
     list::ListItem,
     list::{ListDelegate, ListState},
+    menu::{ContextMenuExt, PopupMenuItem},
     v_flex,
 };
 
@@ -238,6 +239,7 @@ fn connection_row_element(
 
     let tree_click = tree.clone();
     let tree_chevron = tree.clone();
+    let tree_menu = tree.clone();
     let err_fg = cx.theme().danger_foreground;
 
     let chevron = Button::new(("browser-chevron", idx))
@@ -262,41 +264,76 @@ fn connection_row_element(
         .justify_center()
         .when(is_connected, |slot| slot.child(chevron));
 
-    ListItem::new(("browser-conn", idx))
-        .selected(selected)
-        .pl(px(SIDEBAR_INSET))
-        .pr(px(SIDEBAR_INSET))
-        .py(px(sidebar_row_padding_y(cx)))
-        .cursor_pointer()
-        .on_mouse_down(MouseButton::Left, move |_, window, cx| {
-            if let Some(ent) = tree_click.upgrade() {
-                ent.update(cx, |t, cx| t.on_connection_row_clicked(idx, window, cx));
+    div()
+        .w_full()
+        .context_menu(move |menu, _window, cx| {
+            if let Some(tree_ent) = tree_menu.upgrade() {
+                tree_ent.update(cx, |tree, cx| {
+                    tree.selected_connection = Some(idx);
+                    cx.notify();
+                });
             }
+            let mut menu = menu.item(PopupMenuItem::new("New Query").on_click({
+                let tree = tree_menu.clone();
+                move |_, _window, cx| {
+                    if let Some(tree_ent) = tree.upgrade() {
+                        tree_ent.update(cx, |tree, cx| {
+                            tree.open_new_query(idx, cx);
+                        });
+                    }
+                }
+            }));
+            if is_connected {
+                menu = menu.item(PopupMenuItem::new("Disconnect").on_click({
+                    let tree = tree_menu.clone();
+                    move |_, _window, cx| {
+                        if let Some(tree_ent) = tree.upgrade() {
+                            tree_ent.update(cx, |tree, cx| {
+                                tree.disconnect_at(idx, cx);
+                            });
+                        }
+                    }
+                }));
+            }
+            menu
         })
         .child(
-            h_flex()
-                .w_full()
-                .gap(px(sidebar_row_inner_gap(cx)))
-                .items_center()
-                .child(chevron_lead)
-                .child(engine_icon(engine))
+            ListItem::new(("browser-conn", idx))
+                .selected(selected)
+                .pl(px(SIDEBAR_INSET))
+                .pr(px(SIDEBAR_INSET))
+                .py(px(sidebar_row_padding_y(cx)))
+                .cursor_pointer()
+                .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                    if let Some(ent) = tree_click.upgrade() {
+                        ent.update(cx, |t, cx| t.on_connection_row_clicked(idx, window, cx));
+                    }
+                })
                 .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .text_sm()
-                        .truncate()
-                        .when(is_failed, |d| d.text_color(err_fg.opacity(0.92)))
-                        .child(conn_label),
-                )
-                .child(connection_row_status_indicator(
-                    is_connected,
-                    is_failed,
-                    is_connecting,
-                    state_color,
-                    err_fg,
-                    cx,
-                )),
+                    h_flex()
+                        .w_full()
+                        .gap(px(sidebar_row_inner_gap(cx)))
+                        .items_center()
+                        .child(chevron_lead)
+                        .child(engine_icon(engine))
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .text_sm()
+                                .truncate()
+                                .when(is_failed, |d| d.text_color(err_fg.opacity(0.92)))
+                                .child(conn_label),
+                        )
+                        .child(connection_row_status_indicator(
+                            is_connected,
+                            is_failed,
+                            is_connecting,
+                            state_color,
+                            err_fg,
+                            cx,
+                        )),
+                ),
         )
 }
 

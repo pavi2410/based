@@ -1,5 +1,5 @@
 ---
-import { RELEASES_URL, REPO_URL } from "../lib/github";
+import { REPO_URL } from "../lib/github";
 import DownloadIcon from "./icons/DownloadIcon.astro";
 import StarIcon from "./icons/StarIcon.astro";
 import HeroConstellation from "./HeroConstellation.astro";
@@ -29,7 +29,7 @@ const { stars, version } = Astro.props;
   {version && <p class="hero-version mono intro intro-delay-4">{version}</p>}
 
   <div class="cta-row hero-cta-row intro intro-delay-4">
-    <a href={RELEASES_URL} class="btn btn-primary" target="_blank" rel="noopener noreferrer">
+    <a href="#install" class="btn btn-primary">
       <DownloadIcon class="btn-icon" />
       <span>Download for free</span>
     </a>

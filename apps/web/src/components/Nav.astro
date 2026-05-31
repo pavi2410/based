@@ -1,5 +1,5 @@
 ---
-import { RELEASES_URL, REPO_URL } from "../lib/github";
+import { REPO_URL } from "../lib/github";
 import DownloadIcon from "./icons/DownloadIcon.astro";
 import StarIcon from "./icons/StarIcon.astro";
 
@@ -40,7 +40,7 @@ const links = [
           </span>
         )}
       </a>
-      <a href={RELEASES_URL} class="btn btn-primary nav-btn" target="_blank" rel="noopener noreferrer">
+      <a href="#install" class="btn btn-primary nav-btn">
         <DownloadIcon class="btn-icon" />
         Download
       </a>

@@ -1,21 +1,28 @@
 //! macOS shell integration: menu bar items, app menu, and platform window titles.
 //!
-//! Owns the macOS app menubar (`Menu::new(APP_NAME)`) — only fully rendered on
-//! macOS, where it includes About / Settings / Services / Quit, an empty Window
-//! menu (macOS injects Fill, Center, Minimize, Zoom, etc.), and Help.
-//! Non-macOS platforms get the same app/help items via the topbar overflow menu
-//! in [`crate::workspace::chrome::topbar`].
+//! Owns the macOS app menubar (`Menu::new(APP_NAME)`) — File, Edit, View, an empty
+//! Window menu (macOS injects Fill, Center, Minimize, Zoom, etc.), and Help.
+//! Non-macOS platforms get app/help items via the topbar overflow menu in
+//! [`crate::workspace::chrome::topbar`].
 
 use gpui::{
-    AnyWindowHandle, App, AppContext, Bounds, KeyBinding, Menu, MenuItem, SharedString,
+    AnyWindowHandle, App, AppContext, Bounds, KeyBinding, Menu, MenuItem, OsAction, SharedString,
     SystemMenuType, TitlebarOptions, WindowBounds, WindowOptions, point, px, size,
 };
-use gpui_component::{Root, TitleBar};
+use gpui_component::{
+    Root, TitleBar,
+    input::{Copy, Cut, Paste, Redo, SelectAll, Undo},
+};
 
 use super::aux_windows::{AuxKind, AuxWindows};
 use super::quit;
 use crate::about_window::AboutWindow;
-use crate::bindings::{OpenOnboarding, OpenWelcome};
+use crate::bindings::{
+    CloseAllTabs, CloseCleanTabs, CloseOtherTabs, CloseTab, CycleAppearance, GoBackTab,
+    GoForwardTab, NewQuery, OpenOnboarding, OpenWelcome, SplitPaneBottom, SplitPaneLeft,
+    SplitPaneRight, SplitPaneTop, ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane,
+    ToggleSavedPane, ToggleSidebarRail,
+};
 use crate::settings_window::SettingsWindow;
 use crate::workspace::{WorkspaceRef, tab_open::enqueue_show_welcome};
 
@@ -28,7 +35,10 @@ gpui::actions!(
         AboutApp,
         OpenSettingsMenu,
         CheckForUpdates,
-        OpenReleaseNotes
+        OpenReleaseNotes,
+        HideApp,
+        HideOthers,
+        ShowAll,
     ]
 );
 
@@ -67,8 +77,61 @@ fn app_menu_items() -> Vec<MenuItem> {
     }
     items.push(MenuItem::os_submenu("Services", SystemMenuType::Services));
     items.push(MenuItem::separator());
+    #[cfg(target_os = "macos")]
+    {
+        items.push(MenuItem::action("Hide Based", HideApp));
+        items.push(MenuItem::action("Hide Others", HideOthers));
+        items.push(MenuItem::action("Show All", ShowAll));
+        items.push(MenuItem::separator());
+    }
     items.push(MenuItem::action("Quit Based", QuitApp));
     items
+}
+
+fn file_menu_items() -> Vec<MenuItem> {
+    vec![
+        MenuItem::action("New Query", NewQuery),
+        MenuItem::separator(),
+        MenuItem::action("Close Tab", CloseTab),
+        MenuItem::action("Close Others", CloseOtherTabs),
+        MenuItem::action("Close All", CloseAllTabs),
+        MenuItem::action("Close Clean", CloseCleanTabs),
+    ]
+}
+
+fn edit_menu_items() -> Vec<MenuItem> {
+    vec![
+        MenuItem::os_action("Undo", Undo, OsAction::Undo),
+        MenuItem::os_action("Redo", Redo, OsAction::Redo),
+        MenuItem::separator(),
+        MenuItem::os_action("Cut", Cut, OsAction::Cut),
+        MenuItem::os_action("Copy", Copy, OsAction::Copy),
+        MenuItem::os_action("Paste", Paste, OsAction::Paste),
+        MenuItem::separator(),
+        MenuItem::os_action("Select All", SelectAll, OsAction::SelectAll),
+    ]
+}
+
+fn view_menu_items() -> Vec<MenuItem> {
+    vec![
+        MenuItem::action("Command Palette…", ToggleCommandPalette),
+        MenuItem::separator(),
+        MenuItem::action("Toggle Sidebar", ToggleSidebarRail),
+        MenuItem::action("Inspector", ToggleInspectorPane),
+        MenuItem::action("History", ToggleHistoryPane),
+        MenuItem::action("Saved Queries", ToggleSavedPane),
+        MenuItem::separator(),
+        MenuItem::action("Cycle Appearance", CycleAppearance),
+        MenuItem::action("Back", GoBackTab),
+        MenuItem::action("Forward", GoForwardTab),
+        MenuItem::separator(),
+        MenuItem::submenu(Menu::new("Split Pane").items([
+            MenuItem::action("Split Left", SplitPaneLeft),
+            MenuItem::action("Split Right", SplitPaneRight),
+            MenuItem::action("Split Top", SplitPaneTop),
+            MenuItem::action("Split Bottom", SplitPaneBottom),
+        ])),
+    ]
 }
 
 pub fn init(cx: &mut App) {
@@ -82,6 +145,10 @@ pub fn init(cx: &mut App) {
     cx.on_action(|_: &OpenReleaseNotes, cx| {
         crate::app::updater::open_release_notes_for_current(cx)
     });
+    #[cfg(target_os = "macos")]
+    cx.on_action(|_: &HideApp, cx| cx.hide());
+    cx.on_action(|_: &HideOthers, cx| cx.hide_other_apps());
+    cx.on_action(|_: &ShowAll, cx| cx.unhide_other_apps());
 
     cx.bind_keys([
         KeyBinding::new("cmd-q", QuitApp, None),
@@ -91,6 +158,9 @@ pub fn init(cx: &mut App) {
 
     cx.set_menus([
         Menu::new(APP_NAME).items(app_menu_items()),
+        Menu::new("File").items(file_menu_items()),
+        Menu::new("Edit").items(edit_menu_items()),
+        Menu::new("View").items(view_menu_items()),
         // macOS injects Fill, Center, Minimize, Zoom, etc. via setWindowsMenu_.
         Menu::new("Window").items([]),
         Menu::new("Help").items([

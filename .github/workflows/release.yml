@@ -196,14 +196,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "$VERSION" latest.json --clobber
 
-  distribute:
-    name: Package managers
+  homebrew:
+    name: Homebrew cask
     needs: [prepare, release]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
-      - name: Bump Homebrew cask
+      - name: Bump cask
         shell: bash
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
@@ -215,14 +215,28 @@ jobs:
           fi
           python3 script/bump-packaging.py --homebrew
 
+  winget:
+    name: winget manifest
+    needs: [prepare, release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
       - name: winget-releaser
-        if: ${{ secrets.WINGET_RELEASE_TOKEN != '' }}
+        id: winget
+        shell: bash
+        env:
+          WINGET_RELEASE_TOKEN: ${{ secrets.WINGET_RELEASE_TOKEN }}
+        run: |
+          if [ -z "${WINGET_RELEASE_TOKEN:-}" ]; then
+            echo "::warning::WINGET_RELEASE_TOKEN not set — skipping winget-releaser (see packaging/winget/BOOTSTRAP.md)"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Submit manifest
+        if: steps.winget.outputs.skip != 'true'
         uses: vedantmgoyal/winget-releaser@v2
         with:
           identifier: pavi2410.Based
           installers-regex: 'based_.*_x64-setup\.exe$'
           token: ${{ secrets.WINGET_RELEASE_TOKEN }}
-
-      - name: winget-releaser skipped
-        if: ${{ secrets.WINGET_RELEASE_TOKEN == '' }}
-        run: echo "::warning::WINGET_RELEASE_TOKEN not set — skipping winget-releaser (see packaging/winget/BOOTSTRAP.md)"

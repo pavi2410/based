@@ -61,7 +61,7 @@ gh secret set UPDATER_PRIVATE_KEY --body "$(cat apps/desktop/assets/updater-key)
 gh secret list | grep UPDATER_PRIVATE_KEY
 ```
 
-Each release job signs platform updater artifacts (`.app.tar.gz`, `.AppImage`, NSIS `.exe`) and uploads `latest.json` alongside user-facing installers. Update signing is separate from Apple/Microsoft code signing — Gatekeeper/SmartScreen warnings on first install may still appear.
+Each release job ad-hoc signs macOS `.app` bundles (`signing_identity = "-"` in [`apps/desktop/Cargo.toml`](apps/desktop/Cargo.toml)) so Gatekeeper does not treat linker-signed binaries as “damaged.” Update signing (minisign on `.app.tar.gz`, `.AppImage`, NSIS `.exe`) is separate from Apple Developer ID / notarization — first install may still show an unverified-developer or SmartScreen prompt.
 
 ### Manual download verification
 

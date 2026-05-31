@@ -88,6 +88,23 @@ jobs:
             --target "$TARGET" \
             --formats "$FORMATS"
 
+      - name: Verify macOS bundle signature
+        if: matrix.runner == 'macos-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          DMG=$(find apps/desktop/dist -name '*.dmg' | head -1)
+          if [ -z "$DMG" ]; then
+            echo "::error::No .dmg found in apps/desktop/dist"
+            exit 1
+          fi
+          MNT=$(mktemp -d)
+          cleanup() { hdiutil detach "$MNT" -quiet 2>/dev/null || true; rmdir "$MNT" 2>/dev/null || true; }
+          trap cleanup EXIT
+          hdiutil attach "$DMG" -mountpoint "$MNT" -nobrowse -quiet
+          APP="$MNT/Based.app"
+          codesign --verify --deep --strict "$APP"
+
       - name: Build and sign updater bundle
         shell: bash
         env:

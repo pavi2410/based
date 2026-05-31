@@ -29,6 +29,10 @@ icons = [
 
 [package.metadata.packager.macos]
 minimum-system-version = "13.0"
+# Ad-hoc sign the .app bundle so Apple Silicon Gatekeeper does not treat the
+# linker-signed binary + unsigned bundle as "damaged" (no GUI bypass). Still
+# not a Developer ID build — first launch may show an unverified-developer prompt.
+signing_identity = "-"
 
 [package.metadata.packager.linux]
 generate-desktop-entry = true

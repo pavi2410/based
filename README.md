@@ -74,7 +74,7 @@ Each release asset shows a **SHA-256 digest** on the [GitHub Releases](https://g
 shasum -a 256 Based_2026.5.0_aarch64.dmg
 ```
 
-Installers are **unsigned**. macOS may show Gatekeeper warnings; open **System Settings → Privacy & Security** and choose **Open Anyway**, or right-click the app and choose **Open**. Windows SmartScreen may warn on first run — choose **More info → Run anyway**.
+macOS builds are **ad-hoc signed** (not Apple Developer ID). First launch may show an unverified-developer prompt — right-click the app and choose **Open**, or use **System Settings → Privacy & Security → Open Anyway**. Windows SmartScreen may warn on first run — choose **More info → Run anyway**.
 
 Homebrew and winget install the same GitHub Release binaries — see [packaging/README.md](packaging/README.md) for maintainer details.
 

@@ -50,7 +50,7 @@ packaging/
 | Direct download | [GitHub Releases](https://github.com/pavi2410/based/releases) | `release.yml` build job |
 | In-app updater | `latest.json` on release | `release.yml` release job |
 | Homebrew cask | [pavi2410/homebrew-tap](https://github.com/pavi2410/homebrew-tap) | `script/bump-packaging.py --homebrew` |
-| winget | [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) | [winget-releaser](https://github.com/vedantmgoyal/winget-releaser) on release |
+| winget | [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) | [winget-releaser](https://github.com/vedantmgoyal9/winget-releaser) on release |
 
 ## Manual bump (before automation or if CI secret missing)
 

@@ -235,10 +235,11 @@ jobs:
 
       - name: Submit manifest
         if: steps.winget.outputs.skip != 'true'
-        uses: vedantmgoyal/winget-releaser@v2
+        uses: vedantmgoyal9/winget-releaser@v2
         with:
           identifier: pavi2410.Based
           installers-regex: 'based_.*_x64-setup\.exe$'
+          release-tag: ${{ needs.prepare.outputs.version }}
           token: ${{ secrets.WINGET_RELEASE_TOKEN }}
 
   website:

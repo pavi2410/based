@@ -1,6 +1,6 @@
 # winget bootstrap (one-time)
 
-Submit **pavi2410.Based** to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) once, then let [winget-releaser](https://github.com/vedantmgoyal/winget-releaser) open update PRs on each release.
+Submit **pavi2410.Based** to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) once, then let [winget-releaser](https://github.com/vedantmgoyal9/winget-releaser) open update PRs on each release.
 
 Use a **working** release (v2026.5.2 or later — not v2026.5.1, which crashes on launch).
 

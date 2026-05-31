@@ -110,4 +110,4 @@ winget install pavi2410.Based
 
 **One-time bootstrap:** fork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs), copy manifests from `packaging/winget/` templates (or run `VERSION=v2026.5.2 python3 script/bump-packaging.py --winget-snapshot`), and open a PR. Full steps: [packaging/winget/BOOTSTRAP.md](packaging/winget/BOOTSTRAP.md).
 
-**Ongoing updates:** set GitHub secret **`WINGET_RELEASE_TOKEN`** (PAT with fork + PR access to your `winget-pkgs` fork). The release workflow runs [winget-releaser](https://github.com/vedantmgoyal/winget-releaser) and opens a bump PR — merge when convenient.
+**Ongoing updates:** set GitHub secret **`WINGET_RELEASE_TOKEN`** (PAT with fork + PR access to your `winget-pkgs` fork). The release workflow runs [winget-releaser](https://github.com/vedantmgoyal9/winget-releaser) and opens a bump PR — merge when convenient.

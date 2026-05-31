@@ -14,7 +14,7 @@ use gpui_component::{
 use sqlx::{AssertSqlSafe, Row, SqlitePool};
 
 use crate::widgets::data_table::{configure_row_table, render_row_table};
-use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input};
+use crate::widgets::sql_editor::{self, new_sql_input, set_input_text};
 use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_rows};
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -191,7 +191,7 @@ impl TableInspectorPanel {
                 });
                 if let Some(handle) = cx.active_window() {
                     let _ = handle.update(cx, |_root, window, cx| {
-                        set_sql_input(&ddl_input, &ddl_for_input, window, cx);
+                        set_input_text(&ddl_input, &ddl_for_input, window, cx);
                     });
                 }
             });

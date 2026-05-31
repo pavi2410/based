@@ -44,15 +44,6 @@ pub fn set_input_text(input: &Entity<InputState>, text: &str, window: &mut Windo
     });
 }
 
-/// Back-compat aliases for SQL query panels.
-pub fn sql_from_input(input: &Entity<InputState>, cx: &App) -> String {
-    text_from_input(input, cx)
-}
-
-pub fn set_sql_input(input: &Entity<InputState>, sql: &str, window: &mut Window, cx: &mut App) {
-    set_input_text(input, sql, window, cx);
-}
-
 fn code_editor_shell(
     input: &Entity<InputState>,
     is_error: bool,

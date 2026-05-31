@@ -19,13 +19,13 @@ use gpui_component::{
 use sqlx::{AssertSqlSafe, PgPool, Row};
 
 use crate::connection::ConnectionId;
+use crate::postgres::execute_sql;
 use crate::postgres::explain_plan::{PlanNode, parse_pg_explain_json, render_plan_node};
-use crate::postgres::mutations::execute_sql;
 use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::query_panel_extras;
 use crate::widgets::result_tabs::{BottomTab, result_tab_strip};
-use crate::widgets::sql_editor::{self, new_sql_input, set_sql_input, sql_from_input};
+use crate::widgets::sql_editor::{self, new_sql_input, set_input_text, text_from_input};
 use crate::widgets::ui::{metadata_pill, shortcut_run_kbd_in_primary_button};
 use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
 use crate::workspace::pop_out::PopOutWindowTitle;
@@ -136,12 +136,12 @@ impl QueryEditorPanel {
     }
 
     pub fn load_sql(&mut self, sql: &str, window: &mut Window, cx: &mut Context<Self>) {
-        set_sql_input(&self.sql_input, sql, window, cx);
+        set_input_text(&self.sql_input, sql, window, cx);
         cx.notify();
     }
 
     pub fn current_sql(&self, cx: &App) -> String {
-        sql_from_input(&self.sql_input, cx)
+        text_from_input(&self.sql_input, cx)
     }
 
     /// Switch the bottom dock to the Explain tab and (re)run EXPLAIN inline.
@@ -519,7 +519,7 @@ impl QueryEditorPanel {
 impl Render for QueryEditorPanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if let Some(sql) = take_sql_inject(&self.conn_id, cx) {
-            set_sql_input(&self.sql_input, &sql, window, cx);
+            set_input_text(&self.sql_input, &sql, window, cx);
         }
         let border = cx.theme().border;
 

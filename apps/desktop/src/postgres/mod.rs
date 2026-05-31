@@ -5,12 +5,11 @@ pub mod explain_plan;
 pub mod grammar;
 pub mod inspector;
 pub mod live_monitor;
-pub mod mutations;
 pub mod query_editor;
 pub mod tree;
 pub mod wizard;
 
-pub use based_postgres::{PostgresConfig, SslMode, pg_connect_options};
+pub use based_postgres::{PostgresConfig, SslMode, execute_sql, pg_connect_options};
 
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;

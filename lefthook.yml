@@ -1,0 +1,35 @@
+min_version: 1.6.0
+
+pre-commit:
+  parallel: false
+  commands:
+    lint-fix:
+      run: mise run lint-fix
+      stage_fixed: true
+      glob: "*.rs"
+    format:
+      run: mise run format
+      stage_fixed: true
+      glob: "*.rs"
+    web-lint-fix:
+      run: mise run web-lint-fix
+      stage_fixed: true
+      glob: "apps/web/**"
+    web-format:
+      run: mise run web-format
+      stage_fixed: true
+      glob: "apps/web/**"
+
+pre-push:
+  parallel: false
+  commands:
+    lint:
+      run: mise run lint
+    test:
+      run: mise run test
+    web-lint:
+      run: mise run web-lint
+      glob: "apps/web/**"
+    web-check:
+      run: mise run web-check
+      glob: "apps/web/**"

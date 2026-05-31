@@ -2,6 +2,7 @@
 rust = "latest"
 node = "26"
 pnpm = "11"
+lefthook = { version = "latest", postinstall = "lefthook install" }
 
 [tasks.dev]
 description = "Run desktop app in development mode"
@@ -43,6 +44,22 @@ run = "cargo test --workspace"
 [tasks.web-dev]
 description = "Run Based landing page dev server"
 run = "pnpm --dir apps/web dev"
+
+[tasks.web-format]
+description = "Format apps/web with oxfmt"
+run = "pnpm --dir apps/web format"
+
+[tasks.web-lint-fix]
+description = "Fix oxlint issues in apps/web"
+run = "pnpm --dir apps/web lint-fix"
+
+[tasks.web-lint]
+description = "Run oxlint in apps/web"
+run = "pnpm --dir apps/web lint"
+
+[tasks.web-check]
+description = "Run astro check in apps/web"
+run = "pnpm --dir apps/web check"
 
 [tasks.web-build]
 description = "Build Based landing page for production"

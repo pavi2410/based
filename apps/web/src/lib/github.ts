@@ -4,8 +4,9 @@ const GITHUB_API = "https://api.github.com/repos/pavi2410/based";
 export const RATE_LIMITED = -1 as const;
 
 function isRateLimited(res: Response): boolean {
-  return res.status === 429 ||
-    (res.status === 403 && res.headers.get("X-RateLimit-Remaining") === "0");
+  return (
+    res.status === 429 || (res.status === 403 && res.headers.get("X-RateLimit-Remaining") === "0")
+  );
 }
 
 export const REPO_URL = "https://github.com/pavi2410/based";
@@ -93,10 +94,7 @@ export function sumAllDownloads(releases: GitHubRelease[]): number {
 }
 
 /** Lifetime downloads for assets whose filename matches any pattern, across all releases. */
-export function lifetimeAssetDownloads(
-  releases: AllReleasesResult,
-  ...patterns: RegExp[]
-): number {
+export function lifetimeAssetDownloads(releases: AllReleasesResult, ...patterns: RegExp[]): number {
   if (releases === "rate_limited") return RATE_LIMITED;
   if (!releases) return 0;
   return releases.reduce(
@@ -141,9 +139,6 @@ export function digestShort(hex: string): string {
 }
 
 /** Find the first asset whose filename matches any of the given patterns. */
-export function findAssetUrl(
-  release: LatestRelease | null,
-  ...patterns: RegExp[]
-): string | null {
+export function findAssetUrl(release: LatestRelease | null, ...patterns: RegExp[]): string | null {
   return findAssetInfo(release, ...patterns)?.url ?? null;
 }

@@ -38,11 +38,11 @@ Connect this repo in the Cloudflare dashboard and let Workers Builds handle CI/C
 3. Select the `based` repo
 4. Configure the build:
 
-| Setting | Value |
-|---------|-------|
-| Root directory | `apps/web` |
-| Build command | `pnpm install && SITE=https://your-domain.com pnpm build` |
-| Deploy command | `pnpm exec wrangler deploy` |
+| Setting        | Value                                                     |
+| -------------- | --------------------------------------------------------- |
+| Root directory | `apps/web`                                                |
+| Build command  | `pnpm install && SITE=https://your-domain.com pnpm build` |
+| Deploy command | `pnpm exec wrangler deploy`                               |
 
 Set **`SITE`** to your public origin (custom domain or `*.workers.dev`) so canonical URLs and Open Graph/Twitter image links are absolute. Add the same variable under **Settings → Variables** in the Worker build configuration.
 

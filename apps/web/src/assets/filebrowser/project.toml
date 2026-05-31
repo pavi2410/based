@@ -4,7 +4,7 @@ name = "based"
 description = "A new Based project"
 
 [settings]
-query_timeout = 30_000     # ms
+query_timeout = 30_000 # ms
 max_result_rows = 1_000
 enable_query_cache = true
-cache_ttl = 3_600          # seconds
+cache_ttl = 3_600 # seconds

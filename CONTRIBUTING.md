@@ -6,6 +6,11 @@ Prerequisites, common tasks, and optional local database setup are in [README.md
 
 On Linux, run [Zed's `script/linux`](https://github.com/zed-industries/zed/blob/main/script/linux) once for GPUI build dependencies before building or packaging.
 
+Git hooks (via [lefthook](https://github.com/evilmartians/lefthook)) run automatically after `mise install`:
+
+- **pre-commit:** Rust — `lint-fix` → `format`; Web — `lint-fix` → `format` (oxlint/oxfmt)
+- **pre-push:** Rust — `lint` → `test`; Web — `lint` → `check` (astro check)
+
 ### Local packaging
 
 Install [cargo-packager](https://github.com/crabnebula-dev/cargo-packager) (`cargo install cargo-packager --locked`), then:

@@ -1,9 +1,10 @@
 //! macOS shell integration: menu bar items, app menu, and platform window titles.
 //!
 //! Owns the macOS app menubar (`Menu::new(APP_NAME)`) — only fully rendered on
-//! macOS, where it includes About / Settings / Services / Quit. Non-macOS
-//! platforms get the same items via the topbar overflow menu in
-//! [`crate::workspace::chrome::topbar`].
+//! macOS, where it includes About / Settings / Services / Quit, an empty Window
+//! menu (macOS injects Fill, Center, Minimize, Zoom, etc.), and Help.
+//! Non-macOS platforms get the same app/help items via the topbar overflow menu
+//! in [`crate::workspace::chrome::topbar`].
 
 use gpui::{
     AnyWindowHandle, App, AppContext, Bounds, KeyBinding, Menu, MenuItem, SharedString,
@@ -90,6 +91,8 @@ pub fn init(cx: &mut App) {
 
     cx.set_menus([
         Menu::new(APP_NAME).items(app_menu_items()),
+        // macOS injects Fill, Center, Minimize, Zoom, etc. via setWindowsMenu_.
+        Menu::new("Window").items([]),
         Menu::new("Help").items([
             MenuItem::action("Welcome to Based", OpenWelcome),
             MenuItem::action("Onboarding...", OpenOnboarding),

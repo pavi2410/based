@@ -40,7 +40,7 @@ pub fn render_strip_tab(
 
 pub fn tab_label_for_spec(spec: &TabSpec, dirty: bool) -> SharedString {
     let base = match spec {
-        TabSpec::Welcome => "Welcome".to_string(),
+        TabSpec::Home => "Home".to_string(),
         TabSpec::Dashboard(id) => id.0.clone(),
         TabSpec::DataViewer { object, .. } => short_object_name(object),
         TabSpec::QueryEditor { .. } => "Query".to_string(),

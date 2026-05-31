@@ -217,9 +217,9 @@ impl RenderOnce for TopbarRight {
                         }
                         menu.item(PopupMenuItem::separator())
                             .item(
-                                PopupMenuItem::new("Welcome to Based")
+                                PopupMenuItem::new("Show Home")
                                     .icon(IconName::BookOpen)
-                                    .on_click(|_, _window, cx| shell::open_welcome(cx)),
+                                    .on_click(|_, _window, cx| shell::open_home(cx)),
                             )
                             .item(
                                 PopupMenuItem::new("Onboarding...")

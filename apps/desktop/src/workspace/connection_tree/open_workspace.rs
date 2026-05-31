@@ -2,11 +2,12 @@ use std::sync::Arc;
 
 use ::mongodb::bson::Document;
 use gpui::{Context, Window, prelude::*};
-use gpui_component::dock::DockItem;
+use gpui_component::dock::{DockItem, PanelView};
 
 use crate::connection::AnyConnection;
 use crate::postgres;
 use crate::sqlite;
+use crate::workspace::tab_open::WorkspaceRef;
 
 use super::super::dock_utils::wrap_center_root;
 use super::ConnectionTree;
@@ -40,7 +41,8 @@ impl ConnectionTree {
         let dashboard = cx.new(|cx| {
             super::super::object_info::ConnectionDashboardPanel::new(conn_ent.clone(), window, cx)
         });
-        let center = match ac {
+
+        let (center, panel_arcs): (DockItem, Vec<Arc<dyn PanelView>>) = match ac {
             AnyConnection::SQLite(ent) => {
                 let pool = ent.read(cx).pool.clone();
                 let query = cx.new(|cx| {
@@ -54,16 +56,19 @@ impl ConnectionTree {
                 let pragma = cx.new(|cx| {
                     sqlite::pragma_browser::PragmaBrowserPanel::new(pool.clone(), window, cx)
                 });
-                wrap_center_root(
-                    DockItem::tabs(
-                        vec![Arc::new(dashboard), Arc::new(query), Arc::new(pragma)],
+                let panels = vec![
+                    Arc::new(dashboard) as Arc<dyn PanelView>,
+                    Arc::new(query),
+                    Arc::new(pragma),
+                ];
+                (
+                    wrap_center_root(
+                        DockItem::tabs(panels.clone(), &weak, window, cx),
                         &weak,
                         window,
                         cx,
                     ),
-                    &weak,
-                    window,
-                    cx,
+                    panels,
                 )
             }
             AnyConnection::Postgres(ent) => {
@@ -79,16 +84,19 @@ impl ConnectionTree {
                 let monitor = cx.new(|cx| {
                     postgres::live_monitor::LiveMonitorPanel::new(pool.clone(), window, cx)
                 });
-                wrap_center_root(
-                    DockItem::tabs(
-                        vec![Arc::new(dashboard), Arc::new(query), Arc::new(monitor)],
+                let panels = vec![
+                    Arc::new(dashboard) as Arc<dyn PanelView>,
+                    Arc::new(query),
+                    Arc::new(monitor),
+                ];
+                (
+                    wrap_center_root(
+                        DockItem::tabs(panels.clone(), &weak, window, cx),
                         &weak,
                         window,
                         cx,
                     ),
-                    &weak,
-                    window,
-                    cx,
+                    panels,
                 )
             }
             AnyConnection::MongoDB(ent) => {
@@ -105,22 +113,32 @@ impl ConnectionTree {
                 let stream = cx.new(|cx| {
                     crate::mongodb::change_stream::ChangeStreamPanel::new(coll, window, cx)
                 });
-                wrap_center_root(
-                    DockItem::tabs(
-                        vec![Arc::new(dashboard), Arc::new(builder), Arc::new(stream)],
+                let panels = vec![
+                    Arc::new(dashboard) as Arc<dyn PanelView>,
+                    Arc::new(builder),
+                    Arc::new(stream),
+                ];
+                (
+                    wrap_center_root(
+                        DockItem::tabs(panels.clone(), &weak, window, cx),
                         &weak,
                         window,
                         cx,
                     ),
-                    &weak,
-                    window,
-                    cx,
+                    panels,
                 )
             }
         };
 
+        // Replaces the Home tab with connection dashboards; Home returns when all DB tabs close.
         self.dock_area.update(cx, |dock, cx| {
             dock.set_center(center, window, cx);
         });
+
+        if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+            ws.update(cx, |ws, cx| {
+                ws.replace_center_panels(panel_arcs, cx);
+            });
+        }
     }
 }

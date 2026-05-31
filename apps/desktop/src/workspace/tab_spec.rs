@@ -4,15 +4,15 @@ use crate::connection::ConnectionId;
 
 use std::sync::LazyLock;
 
-static WELCOME_CONN_SENTINEL: LazyLock<ConnectionId> =
-    LazyLock::new(|| ConnectionId("__welcome".into()));
+static HOME_CONN_SENTINEL: LazyLock<ConnectionId> = LazyLock::new(|| ConnectionId("__home".into()));
 
 /// Identifies what a tab shows. Used by TabManager to open-or-focus.
 /// Two specs are equal iff they refer to the same logical panel — prevents duplicate DataViewers.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TabSpec {
-    Welcome,
+    #[serde(alias = "welcome")]
+    Home,
     Dashboard(ConnectionId),
     DataViewer {
         conn_id: ConnectionId,
@@ -70,7 +70,7 @@ impl TabSpec {
 
     pub fn conn_id(&self) -> &ConnectionId {
         match self {
-            Self::Welcome => &WELCOME_CONN_SENTINEL,
+            Self::Home => &HOME_CONN_SENTINEL,
             Self::Dashboard(id) => id,
             Self::DataViewer { conn_id, .. } => conn_id,
             Self::QueryEditor { conn_id, .. } => conn_id,
@@ -78,14 +78,14 @@ impl TabSpec {
             Self::Inspector { conn_id, .. } => conn_id,
             Self::ObjectInfo { conn_id, .. } => conn_id,
             Self::DocumentInsert { conn_id, .. } => conn_id,
-            Self::ReleaseNotes { .. } => &WELCOME_CONN_SENTINEL,
-            Self::Builtin { conn_id, .. } => conn_id.as_ref().unwrap_or(&WELCOME_CONN_SENTINEL),
+            Self::ReleaseNotes { .. } => &HOME_CONN_SENTINEL,
+            Self::Builtin { conn_id, .. } => conn_id.as_ref().unwrap_or(&HOME_CONN_SENTINEL),
         }
     }
 
     pub fn kind_label(&self) -> &'static str {
         match self {
-            Self::Welcome => "welcome",
+            Self::Home => "home",
             Self::Dashboard(_) => "dashboard",
             Self::DataViewer { .. } => "data viewer",
             Self::QueryEditor { .. } => "query",
@@ -100,7 +100,7 @@ impl TabSpec {
 
     pub fn title(&self) -> String {
         match self {
-            Self::Welcome => "Welcome".to_string(),
+            Self::Home => "Home".to_string(),
             Self::Dashboard(id) => id.0.clone(),
             Self::DataViewer { object, .. } => object.clone(),
             Self::QueryEditor { .. } => "untitled".to_string(),

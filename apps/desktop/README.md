@@ -14,14 +14,14 @@ Startup in `main.rs` initializes globals (prefs, storage, `PopOutManager`, `AuxW
    - **Finish Setup** or closing the window (traffic-light ×) both call `launch::complete_onboarding`:
      - Sets `onboarding_completed` in `native_preferences.toml`
      - Opens the main workspace window
-3. **Main workspace window** opens with the Welcome center tab and normal session restore.
+3. **Main workspace window** opens with the Home center tab and normal session restore.
 
 The gate window is tracked in `AppLaunch` (not `AuxWindows`). It is not the main window; closing it does not quit the app once completion runs.
 
 ### Returning users (`onboarding_completed == true`)
 
 1. App init (same as above).
-2. **Main workspace window** opens directly — Welcome tab + session restore. No onboarding gate.
+2. **Main workspace window** opens directly — Home tab + session restore. No onboarding gate.
 
 ### Auxiliary windows (any time after main exists)
 

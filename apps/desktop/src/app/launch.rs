@@ -113,7 +113,7 @@ fn onboarding_window_options(cx: &App) -> WindowOptions {
     }
 }
 
-/// Mark onboarding complete and open the main workspace with Welcome.
+/// Mark onboarding complete and open the main workspace with Home.
 pub fn complete_onboarding(cx: &mut App) {
     if !prefs::onboarding_completed(cx) {
         prefs::set_onboarding_completed(true, cx);

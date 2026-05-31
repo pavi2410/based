@@ -57,10 +57,10 @@ fn push_workspace_commands(results: &mut Vec<PaletteResult>, q: &str) {
             "environment",
         ));
     }
-    if q.is_empty() || q.contains("welcome") {
+    if q.is_empty() || q.contains("home") {
         results.push(blank_command(
-            WorkspacePaletteAction::OpenWelcome,
-            "Open Welcome",
+            WorkspacePaletteAction::OpenHome,
+            "Show Home",
             "navigation",
         ));
     }
@@ -133,7 +133,7 @@ fn push_saved_queries(results: &mut Vec<PaletteResult>, q: &str, cx: &App) {
                 label: query.name.clone(),
                 sublabel: format!("query · {target}"),
                 conn_label: String::new(),
-                spec: TabSpec::Welcome,
+                spec: TabSpec::Home,
                 project_query_path: Some(query.path.clone()),
                 command_action: None,
             });

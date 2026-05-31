@@ -297,7 +297,10 @@ impl Workspace {
                     cx.new(|cx| super::release_notes::ReleaseNotesPanel::new(version, window, cx));
                 register_dock_panel!(self, tab_spec_for_manager, panel_ent, window, cx);
             }
-            TabSpec::Welcome | TabSpec::Builtin { .. } => {}
+            TabSpec::Home => {
+                self.show_home(window, cx);
+            }
+            TabSpec::Builtin { .. } => {}
         }
     }
 
@@ -311,6 +314,7 @@ impl Workspace {
         self.dock_area.update(cx, |dock, ecx| {
             dock.add_panel(panel.clone(), DockPlacement::Center, None, window, ecx);
         });
+        self.register_center_panel(panel.clone(), cx);
         let view: AnyView = panel.as_ref().into();
         self.tab_manager.update(cx, |tm, ecx| {
             tm.open_or_focus(spec, view, ecx);

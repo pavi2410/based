@@ -14,7 +14,7 @@ use super::tab_spec::TabSpec;
 
 pub(crate) fn infer_tab_spec(panel: &Arc<dyn PanelView>, cx: &App) -> TabSpec {
     match panel.panel_name(cx) {
-        "WelcomePanel" => TabSpec::Welcome,
+        "HomePanel" => TabSpec::Home,
         "ConnectionDashboard" => panel
             .view()
             .downcast::<ConnectionDashboardPanel>()

@@ -103,6 +103,57 @@ pub(crate) fn active_center_tab(item: &DockItem, _cx: &App) -> Option<(Arc<dyn P
     }
 }
 
+pub(crate) fn collect_center_panels(item: &DockItem, out: &mut Vec<Arc<dyn PanelView>>) {
+    match item {
+        DockItem::Split { items, .. } => {
+            for child in items {
+                collect_center_panels(child, out);
+            }
+        }
+        DockItem::Tabs { items, .. } => out.extend(items.iter().cloned()),
+        DockItem::Panel { view, .. } => out.push(view.clone()),
+        DockItem::Tiles { .. } => {}
+    }
+}
+
+pub(crate) fn center_live_panel_count(item: &DockItem) -> usize {
+    let mut panels = Vec::new();
+    collect_center_panels(item, &mut panels);
+    panels.len()
+}
+
+pub(crate) fn active_live_center_panel(item: &DockItem, cx: &App) -> Option<Arc<dyn PanelView>> {
+    let mut tab_panels = Vec::new();
+    center_tab_panels(item, &mut tab_panels);
+    tab_panels
+        .iter()
+        .find_map(|tp| tp.read(cx).active_panel(cx))
+}
+
+/// Focus a center tab via `TabPanel::add_panel` (dedupes when already present).
+pub(crate) fn activate_center_panel(
+    center: &DockItem,
+    panel: Arc<dyn PanelView>,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let panel_id = panel.panel_id(cx);
+    let mut tab_panels = Vec::new();
+    center_tab_panels(center, &mut tab_panels);
+    if tab_panels.iter().any(|tp| {
+        tp.read(cx)
+            .active_panel(cx)
+            .is_some_and(|p| p.panel_id(cx) == panel_id)
+    }) {
+        return;
+    }
+    if let Some(tp_ent) = tab_panels.into_iter().next() {
+        tp_ent.update(cx, |tp, cx| {
+            tp.add_panel(panel, window, cx);
+        });
+    }
+}
+
 pub(crate) fn collect_dock_panel_views(item: &DockItem, out: &mut Vec<AnyView>) {
     match item {
         DockItem::Split { items, .. } => {

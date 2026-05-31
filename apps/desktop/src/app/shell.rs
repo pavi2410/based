@@ -19,12 +19,15 @@ use super::quit;
 use crate::about_window::AboutWindow;
 use crate::bindings::{
     CloseAllTabs, CloseCleanTabs, CloseOtherTabs, CloseTab, CycleAppearance, GoBackTab,
-    GoForwardTab, NewQuery, OpenOnboarding, OpenWelcome, SplitPaneBottom, SplitPaneLeft,
+    GoForwardTab, NewQuery, OpenHome, OpenOnboarding, SplitPaneBottom, SplitPaneLeft,
     SplitPaneRight, SplitPaneTop, ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane,
     ToggleSavedPane, ToggleSidebarRail,
 };
 use crate::settings_window::SettingsWindow;
-use crate::workspace::{WorkspaceRef, tab_open::enqueue_show_welcome};
+use crate::workspace::{
+    WorkspaceRef,
+    tab_open::{enqueue_show_home, request_workspace_flush},
+};
 
 pub const APP_NAME: &str = "Based";
 
@@ -144,7 +147,7 @@ pub fn init(cx: &mut App) {
     cx.on_action(|_: &QuitApp, cx| quit::request_app_quit(cx));
     cx.on_action(|_: &AboutApp, cx| open_about(cx));
     cx.on_action(|_: &OpenSettingsMenu, cx| open_settings(cx));
-    cx.on_action(|_: &OpenWelcome, cx| open_welcome(cx));
+    cx.on_action(|_: &OpenHome, cx| open_home(cx));
     cx.on_action(|_: &OpenOnboarding, cx| open_onboarding(cx));
     cx.on_action(|_: &CheckForUpdates, cx| crate::app::updater::check_now(cx));
     cx.on_action(|_: &OpenReleaseNotes, cx| {
@@ -175,7 +178,7 @@ pub fn init(cx: &mut App) {
         // macOS injects Fill, Center, Minimize, Zoom, etc. via setWindowsMenu_.
         Menu::new("Window").items([]),
         Menu::new("Help").items([
-            MenuItem::action("Welcome to Based", OpenWelcome),
+            MenuItem::action("Show Home", OpenHome),
             MenuItem::action("Onboarding...", OpenOnboarding),
             MenuItem::separator(),
             MenuItem::action("Release Notes", OpenReleaseNotes),
@@ -183,13 +186,13 @@ pub fn init(cx: &mut App) {
     ]);
 }
 
-/// Focus or re-open the Welcome center tab (Help menu and topbar overflow).
-pub fn open_welcome(cx: &mut App) {
+/// Focus or re-open the Home center tab (Help menu and topbar overflow).
+pub fn open_home(cx: &mut App) {
     if cx.try_global::<WorkspaceRef>().is_none() {
         return;
     }
-    enqueue_show_welcome(cx);
-    cx.refresh_windows();
+    enqueue_show_home(cx);
+    request_workspace_flush(cx);
 }
 
 /// Open the onboarding review window (Help menu and topbar overflow).

@@ -63,7 +63,7 @@ apps/desktop/src/
 
 Center editor tabs use gpui-component `DockArea` + `PanelStyle::TabBar`, not the standalone Tabs story component. Labels come from `Panel::tab_name` (short plain text via [`tab_label_for_spec`](apps/desktop/src/workspace/tab_label.rs)); panel chrome uses `based_panel_tab_chrome!` (no zoom button in the tab suffix).
 
-**Close tabs:** gpui-component hides “Close” on the center `TabPanel` when `stack_panel` is unset. Based works around this with **Close tab** in the panel ⋯ menu and **⌘W / Ctrl+W** (`CloseTab` → `Workspace::close_active_center_tab` → `DockArea::remove_panel`). Welcome and the connection dashboard tab are not closable; the last center tab cannot be closed.
+**Close tabs:** gpui-component hides “Close” on the center `TabPanel` when `stack_panel` is unset. Based works around this with **Close tab** in the panel ⋯ menu and **⌘W / Ctrl+W** (`CloseTab` → `Workspace::close_active_center_tab` → `DockArea::remove_panel`). Closing the last tab respawns **Home** via `ensure_home_tab`. Home is closable like any other tab when others are open; pinned tabs stay non-closable.
 
 Full Tabs-demo parity (per-tab ×, overflow chevron menu) needs upstream `TabPanel` API changes in [gpui-component](https://github.com/longbridge/gpui-component)—no fork in this repo.
 

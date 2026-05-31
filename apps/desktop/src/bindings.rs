@@ -18,7 +18,7 @@ gpui::actions!([
     GoForwardTab,
     NewQuery,
     OpenSettings,
-    OpenWelcome,
+    OpenHome,
     OpenOnboarding,
     SplitPaneTop,
     SplitPaneBottom,

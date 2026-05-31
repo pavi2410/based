@@ -1,8 +1,8 @@
 //! Blanket [`PopOutWindowTitle`] impls for panels that use the default `panel_name` title.
 
+use super::home::HomePanel;
 use super::pop_out::PopOutWindowTitle;
 use super::release_notes::ReleaseNotesPanel;
-use super::welcome::WelcomePanel;
 use crate::mongodb::change_stream::ChangeStreamPanel;
 use crate::mongodb::document_editor::DocumentEditorPanel;
 use crate::mongodb::document_viewer::DocumentViewerPanel;
@@ -20,7 +20,7 @@ use crate::sqlite::tree::SchemaTreePanel as SqliteSchemaTreePanel;
 use crate::sqlite::wizard::ConnectionWizardPanel as SqliteWizardPanel;
 use crate::workspace::object_info::{ConnectionDashboardPanel, ObjectInfoPanel};
 
-impl PopOutWindowTitle for WelcomePanel {}
+impl PopOutWindowTitle for HomePanel {}
 impl PopOutWindowTitle for ReleaseNotesPanel {}
 impl PopOutWindowTitle for ConnectionDashboardPanel {}
 impl PopOutWindowTitle for ObjectInfoPanel {}

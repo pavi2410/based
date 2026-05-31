@@ -19,7 +19,7 @@ pub enum WorkspacePaletteAction {
     NewLooseQuery,
     NewCollection,
     SelectNoEnvironment,
-    OpenWelcome,
+    OpenHome,
     OpenOnboarding,
     CheckForUpdates,
     OpenProject,

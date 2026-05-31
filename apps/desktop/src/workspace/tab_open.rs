@@ -91,7 +91,7 @@ pub fn enqueue_open_tab(spec: TabSpec, cx: &mut impl BorrowAppContext) {
 /// Deferred center-tab navigation (avoid re-entering [`Workspace`](crate::workspace::Workspace) update).
 #[derive(Default)]
 pub struct WorkspaceNavQueue {
-    pub show_welcome: bool,
+    pub show_home: bool,
     pub open_postgres_wizard: bool,
     pub toggle_side_pane: Option<SidePane>,
     pub toggle_left_pane: Option<LeftPane>,
@@ -101,8 +101,15 @@ pub struct WorkspaceNavQueue {
 
 impl Global for WorkspaceNavQueue {}
 
-pub fn enqueue_show_welcome(cx: &mut impl BorrowAppContext) {
-    cx.update_global(|q: &mut WorkspaceNavQueue, _| q.show_welcome = true);
+pub fn enqueue_show_home(cx: &mut impl BorrowAppContext) {
+    cx.update_global(|q: &mut WorkspaceNavQueue, _| q.show_home = true);
+}
+
+/// Notify the workspace entity after nav-queue mutations (titlebar overflow, Help menu).
+pub fn request_workspace_flush(cx: &mut App) {
+    if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+        ws.update(cx, |_, cx| cx.notify());
+    }
 }
 
 pub fn enqueue_open_postgres_wizard(cx: &mut impl BorrowAppContext) {

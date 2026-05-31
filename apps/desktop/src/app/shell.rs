@@ -129,6 +129,7 @@ pub fn open_about(cx: &mut App) {
             window_bounds: Some(WindowBounds::centered(size(px(380.0), px(480.0)), cx)),
             titlebar: Some(titled_titlebar("About Based")),
             is_resizable: false,
+            is_minimizable: false,
             ..Default::default()
         },
         |win, cx| {

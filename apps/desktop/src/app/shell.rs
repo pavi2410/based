@@ -39,6 +39,8 @@ gpui::actions!(
         HideApp,
         HideOthers,
         ShowAll,
+        OpenProject,
+        OpenProjectInNewWindow,
     ]
 );
 
@@ -90,6 +92,9 @@ fn app_menu_items() -> Vec<MenuItem> {
 
 fn file_menu_items() -> Vec<MenuItem> {
     vec![
+        MenuItem::action("Open Project…", OpenProject),
+        MenuItem::action("Open Project in New Window…", OpenProjectInNewWindow),
+        MenuItem::separator(),
         MenuItem::action("New Query", NewQuery),
         MenuItem::separator(),
         MenuItem::action("Close Tab", CloseTab),
@@ -145,6 +150,10 @@ pub fn init(cx: &mut App) {
     cx.on_action(|_: &OpenReleaseNotes, cx| {
         crate::app::updater::open_release_notes_for_current(cx)
     });
+    cx.on_action(|_: &OpenProject, cx| crate::project::prompt_open_project_in_window(cx));
+    cx.on_action(|_: &OpenProjectInNewWindow, cx| {
+        crate::project::prompt_open_project_in_new_window(cx);
+    });
     #[cfg(target_os = "macos")]
     cx.on_action(|_: &HideApp, cx| cx.hide());
     cx.on_action(|_: &HideOthers, cx| cx.hide_other_apps());
@@ -154,6 +163,8 @@ pub fn init(cx: &mut App) {
         KeyBinding::new("cmd-q", QuitApp, None),
         KeyBinding::new("ctrl-q", QuitApp, None),
         KeyBinding::new("cmd-,", OpenSettingsMenu, None),
+        KeyBinding::new("cmd-o", OpenProject, None),
+        KeyBinding::new("ctrl-o", OpenProject, None),
     ]);
 
     cx.set_menus([

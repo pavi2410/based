@@ -38,6 +38,8 @@ pub enum WorkspacePaletteAction {
     OpenWelcome,
     OpenOnboarding,
     CheckForUpdates,
+    OpenProject,
+    OpenProjectInNewWindow,
 }
 
 /// A search result the palette can return.
@@ -281,6 +283,26 @@ impl CommandPalette {
                 conn_label: String::new(),
                 spec: TabSpec::blank_query_editor(ConnectionId("".into())),
                 command_action: Some(WorkspacePaletteAction::OpenOnboarding),
+                project_query_path: None,
+            });
+        }
+        if q.is_empty() || q.contains("project") || q.contains("folder") || q.contains("open") {
+            results.push(PaletteResult {
+                kind: ResultKind::Command,
+                label: "Open Project".into(),
+                sublabel: "project".into(),
+                conn_label: String::new(),
+                spec: TabSpec::blank_query_editor(ConnectionId("".into())),
+                command_action: Some(WorkspacePaletteAction::OpenProject),
+                project_query_path: None,
+            });
+            results.push(PaletteResult {
+                kind: ResultKind::Command,
+                label: "Open Project in New Window".into(),
+                sublabel: "project".into(),
+                conn_label: String::new(),
+                spec: TabSpec::blank_query_editor(ConnectionId("".into())),
+                command_action: Some(WorkspacePaletteAction::OpenProjectInNewWindow),
                 project_query_path: None,
             });
         }

@@ -96,7 +96,10 @@ pub fn render_saved_pane(
                 .child(div().text_xs().text_color(muted).truncate().child(sub))
                 .on_mouse_down(MouseButton::Left, move |ev, _, cx| {
                     if ev.modifiers.shift {
-                        if let Some(root) = crate::project::find_project_root() {
+                        if let Some(root) = cx
+                            .try_global::<crate::project::ProjectRoot>()
+                            .map(|p| p.0.clone())
+                        {
                             cx.update_global(|store: &mut QueryStore, _| {
                                 store.toggle_favorite(&root, &path);
                             });

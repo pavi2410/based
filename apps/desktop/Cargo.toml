@@ -82,6 +82,7 @@ url = "2"
 # Project / config / state
 toml.workspace = true
 notify.workspace = true
+rfd.workspace = true
 
 # DB engines — all three included so Phase 3/4/5 modules compile without
 # touching the workspace Cargo.toml again.

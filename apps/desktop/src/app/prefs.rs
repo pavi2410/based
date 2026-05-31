@@ -203,6 +203,10 @@ pub struct NativePreferences {
     pub onboarding_completed: bool,
     #[serde(default)]
     pub update: UpdatePreferences,
+    #[serde(default)]
+    pub last_opened_project: Option<PathBuf>,
+    #[serde(default)]
+    pub recent_projects: Vec<PathBuf>,
     /// Legacy — migrated into `chrome` on load, not written on save.
     #[serde(default, skip_serializing, rename = "ui_font_size")]
     legacy_ui_font_size: f32,
@@ -233,6 +237,8 @@ impl Default for NativePreferences {
             table_prefs: TablePreferences::default(),
             onboarding_completed: false,
             update: UpdatePreferences::default(),
+            last_opened_project: None,
+            recent_projects: Vec::new(),
             legacy_ui_font_size: 14.0,
             legacy_mono_font_size: 14.0,
             legacy_table_density: LegacyTableDensity::Compact,
@@ -937,6 +943,19 @@ pub fn set_update_show_release_notes(enabled: bool, cx: &mut App) {
         },
         cx,
     );
+}
+
+const MAX_RECENT_PROJECTS: usize = 10;
+
+/// Record a successfully opened project for Dock relaunch and future Open Recent UI.
+pub fn record_opened_project(path: PathBuf, cx: &mut App) {
+    cx.update_global(|p: &mut NativePreferences, _| {
+        p.last_opened_project = Some(path.clone());
+        p.recent_projects.retain(|entry| entry != &path);
+        p.recent_projects.insert(0, path);
+        p.recent_projects.truncate(MAX_RECENT_PROJECTS);
+        p.save_best_effort();
+    });
 }
 
 pub fn set_update_include_prereleases(enabled: bool, cx: &mut App) {

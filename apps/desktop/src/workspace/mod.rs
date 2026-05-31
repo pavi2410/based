@@ -112,6 +112,9 @@ pub struct Workspace {
     pending_target_pick: Option<(ProjectQuery, Vec<ConnectionId>)>,
     /// Set by platform close; dialog is shown on the next [`Render`] (see `app::quit`).
     pub(crate) pending_close_confirm: bool,
+    /// Queued in-place project switch; confirm dialog on next [`Render`].
+    pub(crate) pending_project_switch: Option<PathBuf>,
+    pub(crate) pending_project_switch_confirm: bool,
     tab_navigation: TabNavigationHistory,
 }
 
@@ -208,6 +211,8 @@ impl Workspace {
             pending_open_tab: None,
             pending_target_pick: None,
             pending_close_confirm: false,
+            pending_project_switch: None,
+            pending_project_switch_confirm: false,
             tab_navigation: TabNavigationHistory::default(),
         };
 
@@ -398,6 +403,19 @@ impl Workspace {
         }
     }
 
+    pub fn has_dirty_tabs(&self, cx: &App) -> bool {
+        self.tab_manager.read(cx).tabs.iter().any(|t| t.dirty)
+    }
+
+    pub fn apply_opened_project(&mut self, root: PathBuf, cx: &mut Context<Self>) {
+        self.project_dir = Some(root);
+        if let Some(pctx) = cx.try_global::<ProjectContext>() {
+            self.project_title = pctx.project_name().into();
+        }
+        self.connection_tree.update(cx, |_, cx| cx.notify());
+        cx.notify();
+    }
+
     pub fn apply_workspace_context(&mut self, ctx: WorkspaceContext, cx: &mut Context<Self>) {
         if let Some(pctx) = cx.try_global::<ProjectContext>() {
             self.project_title = pctx.project_name().into();
@@ -472,6 +490,12 @@ impl Workspace {
             WorkspacePaletteAction::OpenWelcome => enqueue_show_welcome(cx),
             WorkspacePaletteAction::OpenOnboarding => crate::app::shell::open_onboarding(cx),
             WorkspacePaletteAction::CheckForUpdates => crate::app::updater::check_now(cx),
+            WorkspacePaletteAction::OpenProject => {
+                crate::project::prompt_open_project_in_window(cx);
+            }
+            WorkspacePaletteAction::OpenProjectInNewWindow => {
+                crate::project::prompt_open_project_in_new_window(cx);
+            }
         }
     }
 
@@ -620,7 +644,7 @@ impl Workspace {
         }
     }
 
-    fn sync_tab_manager_from_dock(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn sync_tab_manager_from_dock(&mut self, cx: &mut Context<Self>) {
         let dock = self.dock_area.read(cx);
         let entries: Vec<_> = center_tab_items(dock.center())
             .into_iter()
@@ -709,6 +733,7 @@ impl Focusable for Workspace {
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::app::quit::maybe_show_pending_close_dialog(self, window, cx);
+        crate::project::open::maybe_show_pending_project_switch_dialog(self, window, cx);
         if crate::project::drain_pending_reload(cx)
             && let Some(pctx) = cx.try_global::<ProjectContext>()
         {

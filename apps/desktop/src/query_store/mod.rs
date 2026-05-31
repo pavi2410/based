@@ -13,7 +13,7 @@ pub struct QueryStore {
     pub history: QueryHistory,
     pub queries: Vec<ProjectQuery>,
     pub favorites: HashSet<String>,
-    history_dir: PathBuf,
+    pub(crate) history_dir: PathBuf,
 }
 
 impl QueryStore {

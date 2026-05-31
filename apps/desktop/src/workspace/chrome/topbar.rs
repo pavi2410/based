@@ -99,7 +99,16 @@ impl RenderOnce for ContextRail {
                         menu.item(
                             PopupMenuItem::new("Open Folder…")
                                 .icon(IconName::FolderOpen)
-                                .disabled(true),
+                                .on_click(|_, _, cx| {
+                                    crate::project::prompt_open_project_in_window(cx)
+                                }),
+                        )
+                        .item(
+                            PopupMenuItem::new("Open Folder in New Window…")
+                                .icon(IconName::FolderOpen)
+                                .on_click(|_, _, cx| {
+                                    crate::project::prompt_open_project_in_new_window(cx);
+                                }),
                         )
                     }),
             )

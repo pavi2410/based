@@ -53,7 +53,9 @@ pub fn reload_from_disk(project_root: &Path, registry: &Entity<ConnectionRegistr
     };
 
     let queries_dir = project_root.join(".based").join("local");
+    let _ = std::fs::create_dir_all(&queries_dir);
     cx.update_global(|store: &mut QueryStore, _| {
+        store.history_dir = queries_dir.clone();
         store.history = crate::query_store::history::QueryHistory::load(&queries_dir);
         store.apply_snapshot(&ctx.snapshot);
     });
@@ -102,7 +104,17 @@ pub fn install_reload_watcher(project_root: std::path::PathBuf, cx: &mut App) {
     cx.set_global(signal);
     cx.set_global(ProjectRoot(project_root.clone()));
 
-    let _ = super::watcher::ConfigWatcher::new(project_root, move || {
+    match super::watcher::ConfigWatcher::new(project_root, move || {
         let _ = notify_tx.send(());
-    });
+    }) {
+        Ok(watcher) => {
+            cx.set_global(super::ConfigWatcherGlobal {
+                _watcher: Some(watcher),
+            });
+        }
+        Err(e) => {
+            log::warn!("config watcher install failed: {e:#}");
+            cx.set_global(super::ConfigWatcherGlobal { _watcher: None });
+        }
+    }
 }

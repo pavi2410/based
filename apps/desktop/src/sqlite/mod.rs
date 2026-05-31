@@ -92,13 +92,6 @@ async fn apply_sqlite_pragmas(pool: &SqlitePool, config: &SqliteConfig) -> anyho
             "PRAGMA foreign_keys=OFF"
         };
         sqlx::query(AssertSqlSafe(fk)).execute(pool).await?;
-    } else if config.wal {
-        sqlx::query(AssertSqlSafe("PRAGMA journal_mode=WAL"))
-            .execute(pool)
-            .await?;
-        sqlx::query(AssertSqlSafe("PRAGMA foreign_keys=ON"))
-            .execute(pool)
-            .await?;
     }
     Ok(())
 }

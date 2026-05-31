@@ -207,21 +207,6 @@ pub struct NativePreferences {
     pub last_opened_project: Option<PathBuf>,
     #[serde(default)]
     pub recent_projects: Vec<PathBuf>,
-    /// Legacy — migrated into `chrome` on load, not written on save.
-    #[serde(default, skip_serializing, rename = "ui_font_size")]
-    legacy_ui_font_size: f32,
-    #[serde(default, skip_serializing, rename = "mono_font_size")]
-    legacy_mono_font_size: f32,
-    #[serde(default, skip_serializing, rename = "table_density")]
-    legacy_table_density: LegacyTableDensity,
-}
-
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-enum LegacyTableDensity {
-    #[default]
-    Compact,
-    Comfortable,
 }
 
 impl Default for NativePreferences {
@@ -239,9 +224,6 @@ impl Default for NativePreferences {
             update: UpdatePreferences::default(),
             last_opened_project: None,
             recent_projects: Vec::new(),
-            legacy_ui_font_size: 14.0,
-            legacy_mono_font_size: 14.0,
-            legacy_table_density: LegacyTableDensity::Compact,
         }
     }
 }
@@ -257,17 +239,8 @@ fn migrate_legacy_theme_names(prefs: &mut NativePreferences) {
     }
 }
 
-fn migrate_legacy_chrome(prefs: &mut NativePreferences, raw: &str) {
-    if raw.contains("[ui]") || raw.contains("density_preset") {
-        prefs.chrome.sync_density_preset();
-        return;
-    }
-    let table_compact = prefs.legacy_table_density == LegacyTableDensity::Compact;
-    prefs.chrome.migrate_from_legacy(
-        prefs.legacy_ui_font_size,
-        prefs.legacy_mono_font_size,
-        table_compact,
-    );
+fn migrate_legacy_chrome(prefs: &mut NativePreferences) {
+    prefs.chrome.sync_density_preset();
 }
 
 impl NativePreferences {
@@ -316,7 +289,7 @@ impl NativePreferences {
             }
         }
         migrate_legacy_theme_names(&mut prefs);
-        migrate_legacy_chrome(&mut prefs, &raw);
+        migrate_legacy_chrome(&mut prefs);
         apply_dev_update_policy(&mut prefs.update);
         prefs
     }

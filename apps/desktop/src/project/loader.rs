@@ -11,10 +11,6 @@ pub fn entry_from_project(conn: &ProjectConnection) -> anyhow::Result<Connection
             ConnectionConfig::SQLite(crate::sqlite::SqliteConfig {
                 label: conn.label.clone(),
                 path: file.clone(),
-                wal: pragma
-                    .as_ref()
-                    .and_then(|p| p.journal_mode.as_deref())
-                    .is_none_or(|m| m.eq_ignore_ascii_case("wal")),
                 pragma: pragma.as_ref().map(map_pragma),
             })
         }

@@ -30,7 +30,6 @@ pub struct ConnectionWizardPanel {
     focus_handle: FocusHandle,
     label: String,
     path: String,
-    wal: bool,
     status: WizardStatus,
     pub(crate) tab_label: SharedString,
 }
@@ -41,7 +40,6 @@ impl ConnectionWizardPanel {
             focus_handle: cx.focus_handle(),
             label: String::from("My SQLite DB"),
             path: String::new(),
-            wal: false,
             status: WizardStatus::Idle,
             tab_label: "New SQLite Connection".into(),
         }
@@ -51,7 +49,6 @@ impl ConnectionWizardPanel {
         SqliteConfig {
             label: self.label.clone(),
             path: std::path::PathBuf::from(&self.path),
-            wal: self.wal,
             pragma: None,
         }
     }
@@ -152,7 +149,6 @@ impl Render for ConnectionWizardPanel {
 
         let label_val: SharedString = self.label.clone().into();
         let path_val: SharedString = self.path.clone().into();
-        let wal_val: SharedString = if self.wal { "WAL: ON" } else { "WAL: OFF" }.into();
 
         v_flex()
             .w_full()
@@ -200,17 +196,6 @@ impl Render for ConnectionWizardPanel {
                             .text_sm()
                             .child(path_val),
                     ),
-            )
-            .child(
-                div()
-                    .id("wizard-wal")
-                    .border_1()
-                    .border_color(border)
-                    .rounded(px(4.0))
-                    .px(px(8.0))
-                    .py(px(4.0))
-                    .text_sm()
-                    .child(wal_val),
             )
             .child(
                 h_flex()

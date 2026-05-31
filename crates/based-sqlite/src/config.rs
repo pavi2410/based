@@ -29,15 +29,8 @@ fn default_foreign_keys() -> bool {
 pub struct SqliteConfig {
     pub label: String,
     pub path: PathBuf,
-    /// Legacy WAL toggle; ignored when `pragma.journal_mode` is set explicitly.
-    #[serde(default = "default_wal")]
-    pub wal: bool,
     #[serde(default)]
     pub pragma: Option<SqlitePragma>,
-}
-
-fn default_wal() -> bool {
-    true
 }
 
 /// Hints for resolving relative database file paths without a GUI dependency.

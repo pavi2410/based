@@ -25,5 +25,12 @@ pub fn init(cx: &mut App) -> Result<()> {
 }
 
 pub fn store(cx: &App) -> Arc<MetadataStore> {
-    cx.global::<AppStorage>().store.clone()
+    cx.try_global::<AppStorage>()
+        .expect("AppStorage not initialized — storage::init must be called before storage::store")
+        .store
+        .clone()
+}
+
+pub fn try_store(cx: &App) -> Option<Arc<MetadataStore>> {
+    cx.try_global::<AppStorage>().map(|s| s.store.clone())
 }

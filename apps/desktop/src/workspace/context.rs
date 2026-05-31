@@ -21,7 +21,7 @@ impl Global for WorkspaceContext {}
 
 impl WorkspaceContext {
     pub fn load_initial(cx: &App) -> Result<Self> {
-        let store = storage::store(cx);
+        let store = storage::try_store(cx).context("metadata store not initialized")?;
         let handle = gpui_tokio::Tokio::handle(cx);
         handle.block_on(async move {
             let active = store.ensure_default_workspace().await?;

@@ -37,7 +37,9 @@ Pop-out editor tabs and aux windows are closed when the **main** workspace windo
 
 ### Testing first-run again
 
-Set `onboarding_completed = false` in native prefs (see `NativePreferences::prefs_path()` — typically `~/Library/Application Support/based/native_preferences.toml` on macOS) and restart the app.
+In **debug builds**, open Settings → **Developer** → **Reset onboarding**, then **Restart app**.
+
+Or set `onboarding_completed = false` in native prefs (see `NativePreferences::prefs_path()` — typically `~/Library/Application Support/based/native_preferences.toml` on macOS) and restart the app.
 
 ## Related modules
 

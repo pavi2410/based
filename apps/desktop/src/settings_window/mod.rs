@@ -5,7 +5,8 @@ use gpui::{
     StyleRefinement, Styled, Window, div, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme, Icon, IconName, ThemeMode,
+    ActiveTheme, Icon, IconName, Sizable as _, ThemeMode,
+    button::Button,
     group_box::GroupBoxVariant,
     searchable_list::SearchableListItem,
     setting::{NumberFieldOptions, SettingField, SettingGroup, SettingItem, SettingPage, Settings},
@@ -103,7 +104,7 @@ impl SettingsWindow {
         let light_theme_options = theme_name_options(ThemeMode::Light, cx);
         let dark_theme_options = theme_name_options(ThemeMode::Dark, cx);
 
-        vec![
+        let mut pages = vec![
             SettingPage::new("Appearance")
                 .default_open(true)
                 .icon(Icon::new(IconName::Settings2))
@@ -471,8 +472,45 @@ impl SettingsWindow {
                         .description("Keyboard selection wraps at table edges."),
                     ]),
                 ]),
-        ]
+        ];
+        #[cfg(debug_assertions)]
+        pages.push(dev_settings_page());
+        pages
     }
+}
+
+#[cfg(debug_assertions)]
+fn dev_settings_page() -> SettingPage {
+    SettingPage::new("Developer")
+        .icon(Icon::new(IconName::Settings))
+        .groups(vec![
+            SettingGroup::new().items(vec![
+                SettingItem::new(
+                    "Reset onboarding",
+                    SettingField::render(|options, _window, _cx| {
+                        Button::new("dev-reset-onboarding")
+                            .outline()
+                            .label("Reset")
+                            .with_size(options.size)
+                            .on_click(|_, _, cx| prefs::set_onboarding_completed(false, cx))
+                    }),
+                )
+                .description(
+                    "Clears onboarding_completed. Restart the app to show the first-run gate.",
+                ),
+                SettingItem::new(
+                    "Restart app",
+                    SettingField::render(|options, _window, _cx| {
+                        Button::new("dev-restart-app")
+                            .outline()
+                            .label("Restart")
+                            .with_size(options.size)
+                            .on_click(|_, _, _cx| crate::app::restart::restart_app())
+                    }),
+                )
+                .description("Relaunch Based with the same command-line arguments."),
+            ]),
+        ])
 }
 
 impl Focusable for SettingsWindow {

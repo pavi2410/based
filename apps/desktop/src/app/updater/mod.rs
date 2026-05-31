@@ -7,7 +7,7 @@ mod release_notes;
 mod state;
 
 pub use config::is_dev_build;
-pub use install::open_releases_page;
+pub use install::{open_releases_page, relaunch_app};
 pub use release_notes::fetch_release_body;
 pub use state::{UpdateBarSnapshot, UpdatePhase};
 

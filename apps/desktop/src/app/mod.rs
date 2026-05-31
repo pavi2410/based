@@ -8,5 +8,6 @@ pub mod globals;
 pub mod launch;
 pub mod prefs;
 pub mod quit;
+pub mod restart;
 pub mod shell;
 pub mod updater;

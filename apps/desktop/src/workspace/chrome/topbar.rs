@@ -1,4 +1,4 @@
-use gpui::{App, Entity, IntoElement, ParentElement, RenderOnce, SharedString, Styled, div};
+use gpui::{App, Entity, IntoElement, ParentElement, RenderOnce, SharedString, Styled, div, px};
 use gpui_component::{
     ActiveTheme as _, IconName, Sizable as _, TitleBar,
     button::{Button, ButtonVariants},
@@ -10,7 +10,7 @@ use crate::app::{prefs, shell};
 use crate::bindings::CycleAppearance;
 use crate::connection::registry::ConnectionRegistry;
 use crate::project::ProjectContext;
-use crate::widgets::ui::command_shell;
+use crate::widgets::ui::{SIDEBAR_INSET, command_shell};
 
 /// A `RenderOnce` top bar that renders inside the window's `TitleBar`.
 #[derive(IntoElement)]
@@ -165,6 +165,7 @@ impl RenderOnce for TopbarRight {
             .items_center()
             .justify_end()
             .gap_1()
+            .pr(px(SIDEBAR_INSET))
             .child(
                 Button::new("appearance")
                     .ghost()

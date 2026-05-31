@@ -108,7 +108,7 @@ Errors shown to users use: **category** + **summary** + **details** + **suggeste
 |------|--------|
 | Wizard test/connect | Implemented (`postgres/wizard.rs`) |
 | SSL modes | Implemented (`SslMode`) |
-| Global profiles store | Partial — tied to `.based/config.toml` project model; P0 needs global user dir |
+| Global profiles store | Partial — tied to `.based/project.toml` project model; P0 needs global user dir |
 | SSH tunnel | Not implemented |
 | Ephemeral connect | Not explicit — add toggle |
 | Session tab restore | Partial — `persistence.rs` tracks connections, not full tab payloads |

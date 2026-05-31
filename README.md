@@ -1,29 +1,49 @@
-# Based - Native Desktop Database App
+# Based — Git-Friendly Database Client
 
-Based is a local-first, git-friendly desktop database client written in Rust.
+Based is a local-first desktop database client written in Rust. Connection configs and saved queries live in a committed `.based/` folder — no backend service, data stays on your machine.
+
+**Website:** [based.pavi2410.com](https://based.pavi2410.com)
 
 ## Features
-- Native GPUI desktop client (`apps/desktop`)
-- Local project metadata in `.based/config.toml`
-- SQLite, PostgreSQL, and MongoDB workflows
-- No backend service; data stays on your machine
 
-## Project Structure
+- Native GPUI desktop app ([`apps/desktop`](apps/desktop))
+- Git-friendly project format: `project.toml`, `connections/`, and `queries/` under `.based/`
+- PostgreSQL, SQLite, and MongoDB workflows
+- In-app updates on release builds (signed updater manifests)
+- No backend service — connections and queries run locally
+
+See **[The `.based` project format](docs/based-project/README.md)** for the full specification.
+
+## Project structure
 
 ```text
 based/
 ├── apps/
-│   └── desktop/   # Main native desktop app (Rust + GPUI)
-├── docs/
-├── .based/
-└── mise.toml             # Task runner configuration
+│   ├── desktop/   # Main native app (Rust + GPUI)
+│   └── web/       # Marketing site (Astro + Cloudflare)
+├── crates/        # Shared libraries (project format, engines, query layer)
+├── docs/          # Project format spec and engineering docs
+├── .based/        # Example project config for this repo
+├── Cargo.toml
+└── mise.toml      # Task runner
 ```
 
-## Quick Start
+For architecture details, see [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Quick start
 
 ### Prerequisites
+
 - Rust (latest stable)
 - [mise](https://mise.jdx.dev/) task runner
+
+On Linux, run [Zed's `script/linux`](https://github.com/zed-industries/zed/blob/main/script/linux) once for GPUI build dependencies.
+
+Optional — local databases for development:
+
+```bash
+docker compose up -d   # Postgres → localhost:15432, MongoDB → localhost:37017
+```
 
 ### Tasks
 
@@ -35,6 +55,7 @@ based/
 | Lint | `mise run lint` |
 | Format | `mise run format` |
 | Test | `mise run test` |
+| Clean | `mise run clean` |
 | Package installers | `mise run package` |
 
 ## Installing
@@ -43,8 +64,7 @@ Download the latest stable release from [GitHub Releases](https://github.com/pav
 
 | Platform | Artifact |
 |----------|----------|
-| macOS (Apple Silicon) | `.dmg` from the macOS arm64 job |
-| macOS (Intel) | `.dmg` from the macOS x64 job |
+| macOS (Apple Silicon) | `.dmg` |
 | Linux | `.deb` or `.AppImage` |
 | Windows | `.exe` NSIS installer |
 

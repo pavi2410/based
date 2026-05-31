@@ -25,7 +25,7 @@ cargo test --workspace
 
 Start local databases for development:
 ```bash
-docker compose up -d          # PostgreSQL 16 (5432), MongoDB 7 (27017)
+docker compose up -d          # PostgreSQL 18 → localhost:15432, MongoDB 8 → localhost:37017
 ```
 
 ## Architecture

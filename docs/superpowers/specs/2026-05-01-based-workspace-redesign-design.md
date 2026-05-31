@@ -4,6 +4,8 @@
 **Status:** Approved  
 **Scope:** Workspace-first redesign + v1 feature set across PostgreSQL, SQLite, MongoDB
 
+> **Format note:** Sections 7 and 12 describe an early monolithic TOML layout (`config.toml`, `queries.toml`). The shipped format is documented in [The `.based` project format](../../based-project/README.md) (`project.toml`, `connections/**/*.conn.toml`, `queries/**/*.query.toml`). UI and workspace concepts elsewhere in this doc remain directionally valid.
+
 ---
 
 ## 1. Product Context

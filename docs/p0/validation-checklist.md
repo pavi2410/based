@@ -13,7 +13,7 @@ Workflow-based manual QA for stable-default release. Run on **macOS** plus at le
 | # | Step | Result | Notes |
 |---|------|--------|-------|
 | 0.1 | Fresh install or clean user data dir | ☐ | |
-| 0.2 | Postgres reachable at `localhost:5432` | ☐ | |
+| 0.2 | Postgres reachable at `localhost:15432` (Docker Compose) | ☐ | |
 | 0.3 | App launches without panic | ☐ | |
 
 ---

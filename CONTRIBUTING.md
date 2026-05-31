@@ -2,22 +2,7 @@
 
 ## Development
 
-### Prerequisites
-
-- Rust (latest stable)
-- [mise](https://mise.jdx.dev/) task runner
-
-### Tasks
-
-| Task | Command |
-|------|---------|
-| Run (dev) | `mise run dev` |
-| Release build | `mise run build` |
-| Fast check | `mise run check` |
-| Lint | `mise run lint` |
-| Format | `mise run format` |
-| Test | `mise run test` |
-| Package installers | `mise run package` |
+Prerequisites, common tasks, and optional local database setup are in [README.md](README.md).
 
 On Linux, run [Zed's `script/linux`](https://github.com/zed-industries/zed/blob/main/script/linux) once for GPUI build dependencies before building or packaging.
 

@@ -6,6 +6,7 @@ pub mod grammar;
 pub mod inspector;
 pub mod live_monitor;
 pub mod query_editor;
+pub mod tab_dispatch;
 pub mod tree;
 pub mod wizard;
 

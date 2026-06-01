@@ -5,6 +5,7 @@ pub mod document_editor;
 pub mod document_viewer;
 pub mod inspector;
 pub mod pipeline_builder;
+pub mod tab_dispatch;
 pub mod tree;
 pub mod wizard;
 

@@ -8,6 +8,7 @@ pub mod fts_console;
 pub mod inspector;
 pub mod pragma_browser;
 pub mod query_editor;
+pub mod tab_dispatch;
 pub mod tree;
 pub mod wizard;
 

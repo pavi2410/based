@@ -37,7 +37,7 @@ pub fn mark_query_tab_dirty(conn_id: &ConnectionId, cx: &mut App) {
         let Some(tab) = tm.tabs.get_mut(active) else {
             return;
         };
-        if tab.spec.conn_id() == conn_id && matches!(tab.spec, TabSpec::QueryEditor { .. }) {
+        if tab.spec.conn_id() == Some(conn_id) && matches!(tab.spec, TabSpec::QueryEditor { .. }) {
             tab.dirty = true;
             cx.notify();
         }

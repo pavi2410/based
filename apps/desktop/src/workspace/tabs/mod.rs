@@ -20,4 +20,4 @@ pub use open::{
     request_workspace_flush, take_sql_inject,
 };
 pub use session::SessionSnapshot;
-pub use spec::TabSpec;
+pub use spec::{QueryEditorInit, TabSpec};

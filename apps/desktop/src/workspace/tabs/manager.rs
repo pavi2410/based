@@ -90,7 +90,7 @@ impl TabManager {
             .tabs
             .iter()
             .enumerate()
-            .filter(|(_, t)| t.spec.conn_id() == conn_id)
+            .filter(|(_, t)| t.spec.conn_id() == Some(conn_id))
             .map(|(i, _)| i)
             .rev()
             .collect();

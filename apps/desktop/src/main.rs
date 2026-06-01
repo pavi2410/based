@@ -11,6 +11,7 @@ mod bindings;
 mod command_palette;
 mod connection;
 mod db;
+mod editor;
 mod fonts;
 mod mongodb;
 mod onboarding_window;
@@ -49,6 +50,16 @@ fn main() {
             app::prefs::install(cx);
 
             db::init(cx);
+
+            // Engine registry — register new engines here; no other files need to change.
+            {
+                let mut registry = crate::connection::EngineRegistry::new();
+                registry.register(crate::postgres::PostgresEngine);
+                registry.register(crate::sqlite::SqliteEngine);
+                registry.register(crate::mongodb::MongoEngine);
+                cx.set_global(registry);
+            }
+
             cx.set_global(TabOpenQueue::default());
             cx.set_global(WorkspaceNavQueue::default());
             cx.set_global(SqlInject::default());

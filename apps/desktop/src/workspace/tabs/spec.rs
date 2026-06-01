@@ -2,9 +2,59 @@ use serde::{Deserialize, Serialize};
 
 use crate::connection::ConnectionId;
 
-use std::sync::LazyLock;
+/// Classifies a tab by the number and kind of connections it operates on.
+///
+/// Use this to decide whether a tab survives connection disconnect, appears
+/// in connection-scoped menus, or is surfaced in workspace-level views
+/// (e.g. ER diagrams, agent chat, chart builder).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TabScope {
+    /// Tab operates on exactly one connection.
+    Connection(ConnectionId),
+    /// Tab spans multiple connections (ER diagrams, cross-DB joins).
+    MultiConnection(Vec<ConnectionId>),
+    /// Workspace-scoped but not connection-specific (agent chat, chart builder).
+    Workspace,
+    /// Fully global — not tied to any project or connection (Home, ReleaseNotes).
+    Global,
+}
 
-static HOME_CONN_SENTINEL: LazyLock<ConnectionId> = LazyLock::new(|| ConnectionId("__home".into()));
+/// Typed initialization payload for a query editor tab.
+///
+/// This replaces the old flat fields on `TabSpec::QueryEditor`
+/// so engine-specific init data doesn't pollute the shared type.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum QueryEditorInit {
+    /// SQL editor — Postgres or SQLite.
+    Sql {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        sql: Option<String>,
+        #[serde(default = "default_auto_run")]
+        auto_run: bool,
+    },
+    /// MongoDB aggregation pipeline editor.
+    MongoPipeline {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pipeline: Option<String>,
+        /// Target collection name. `None` means use a default collection name.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        collection: Option<String>,
+    },
+}
+
+fn default_auto_run() -> bool {
+    true
+}
+
+impl Default for QueryEditorInit {
+    fn default() -> Self {
+        Self::Sql {
+            sql: None,
+            auto_run: true,
+        }
+    }
+}
 
 /// Identifies what a tab shows. Used by TabManager to open-or-focus.
 /// Two specs are equal iff they refer to the same logical panel — prevents duplicate DataViewers.
@@ -18,14 +68,10 @@ pub enum TabSpec {
         conn_id: ConnectionId,
         object: String,
     },
-    /// SQL editors (Postgres/SQLite) or Mongo pipeline workspace (initial_pipeline).
+    /// Query/pipeline editor. Always opens a new tab (see TabManager).
     QueryEditor {
         conn_id: ConnectionId,
-        initial_sql: Option<String>,
-        initial_pipeline: Option<String>,
-        auto_run: bool,
-        /// Target Mongo collection when opening a pipeline/query tab (PG/SQLite ignore).
-        mongo_collection: Option<String>,
+        init: QueryEditorInit,
     },
     Pipeline {
         conn_id: ConnectionId,
@@ -61,25 +107,43 @@ impl TabSpec {
     pub fn blank_query_editor(conn_id: ConnectionId) -> Self {
         Self::QueryEditor {
             conn_id,
-            initial_sql: None,
-            initial_pipeline: None,
-            auto_run: true,
-            mongo_collection: None,
+            init: QueryEditorInit::default(),
         }
     }
 
-    pub fn conn_id(&self) -> &ConnectionId {
+    /// Returns the primary connection ID for this tab, or `None` for global/workspace tabs.
+    ///
+    /// Use [`TabSpec::scope()`] for richer classification.
+    pub fn conn_id(&self) -> Option<&ConnectionId> {
         match self {
-            Self::Home => &HOME_CONN_SENTINEL,
-            Self::Dashboard(id) => id,
-            Self::DataViewer { conn_id, .. } => conn_id,
-            Self::QueryEditor { conn_id, .. } => conn_id,
-            Self::Pipeline { conn_id, .. } => conn_id,
-            Self::Inspector { conn_id, .. } => conn_id,
-            Self::ObjectInfo { conn_id, .. } => conn_id,
-            Self::DocumentInsert { conn_id, .. } => conn_id,
-            Self::ReleaseNotes { .. } => &HOME_CONN_SENTINEL,
-            Self::Builtin { conn_id, .. } => conn_id.as_ref().unwrap_or(&HOME_CONN_SENTINEL),
+            Self::Home | Self::ReleaseNotes { .. } => None,
+            Self::Dashboard(id) => Some(id),
+            Self::DataViewer { conn_id, .. } => Some(conn_id),
+            Self::QueryEditor { conn_id, .. } => Some(conn_id),
+            Self::Pipeline { conn_id, .. } => Some(conn_id),
+            Self::Inspector { conn_id, .. } => Some(conn_id),
+            Self::ObjectInfo { conn_id, .. } => Some(conn_id),
+            Self::DocumentInsert { conn_id, .. } => Some(conn_id),
+            Self::Builtin { conn_id, .. } => conn_id.as_ref(),
+        }
+    }
+
+    /// Returns the connection scope for this tab.
+    pub fn scope(&self) -> TabScope {
+        match self {
+            Self::Home | Self::ReleaseNotes { .. } => TabScope::Global,
+            Self::Dashboard(id) => TabScope::Connection(id.clone()),
+            Self::DataViewer { conn_id, .. } => TabScope::Connection(conn_id.clone()),
+            Self::QueryEditor { conn_id, .. } => TabScope::Connection(conn_id.clone()),
+            Self::Pipeline { conn_id, .. } => TabScope::Connection(conn_id.clone()),
+            Self::Inspector { conn_id, .. } => TabScope::Connection(conn_id.clone()),
+            Self::ObjectInfo { conn_id, .. } => TabScope::Connection(conn_id.clone()),
+            Self::DocumentInsert { conn_id, .. } => TabScope::Connection(conn_id.clone()),
+            Self::Builtin { conn_id, .. } => conn_id
+                .as_ref()
+                .cloned()
+                .map(TabScope::Connection)
+                .unwrap_or(TabScope::Global),
         }
     }
 

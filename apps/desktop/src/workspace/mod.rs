@@ -7,8 +7,8 @@ pub mod tabs;
 
 pub use pop_out::PopOutManager;
 pub use tabs::{
-    DockAreaRef, SqlInject, TabManager, TabManagerRef, TabOpenQueue, TabSpec, WorkspaceNavQueue,
-    WorkspaceRef, enqueue_sql_inject, mark_query_tab_dirty,
+    DockAreaRef, QueryEditorInit, SqlInject, TabManager, TabManagerRef, TabOpenQueue, TabSpec,
+    WorkspaceNavQueue, WorkspaceRef, enqueue_sql_inject, mark_query_tab_dirty,
 };
 
 pub mod connection_tree;
@@ -208,10 +208,10 @@ impl Workspace {
                     } else {
                         ws.pending_open_tab = Some(TabSpec::QueryEditor {
                             conn_id: conn_id.clone(),
-                            initial_sql: Some(sql.clone()),
-                            initial_pipeline: None,
-                            mongo_collection: None,
-                            auto_run: false,
+                            init: QueryEditorInit::Sql {
+                                sql: Some(sql.clone()),
+                                auto_run: false,
+                            },
                         });
                     }
                 }
@@ -373,7 +373,7 @@ impl Workspace {
         self.tab_manager
             .read(cx)
             .active_tab()
-            .map(|t| t.spec.conn_id().clone())
+            .and_then(|t| t.spec.conn_id().cloned())
     }
 
     /// Thin shim retained so the existing `OpenSettings` action listener

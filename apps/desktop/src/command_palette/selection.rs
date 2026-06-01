@@ -1,6 +1,6 @@
 use gpui::Context;
 
-use crate::workspace::TabSpec;
+use crate::workspace::{QueryEditorInit, TabSpec};
 
 use super::CommandPalette;
 use super::types::{PaletteEvent, PaletteResult, ResultKind};
@@ -15,19 +15,21 @@ pub fn emit_selection(entry: &PaletteResult, secondary: bool, cx: &mut Context<C
         (ResultKind::History, false) => {
             let sql = match &entry.spec {
                 TabSpec::QueryEditor {
-                    initial_sql: Some(s),
+                    init: QueryEditorInit::Sql { sql: Some(s), .. },
                     ..
                 } => s.clone(),
                 TabSpec::QueryEditor {
-                    initial_pipeline: Some(p),
+                    init:
+                        QueryEditorInit::MongoPipeline {
+                            pipeline: Some(p), ..
+                        },
                     ..
                 } => p.clone(),
                 _ => entry.label.clone(),
             };
-            cx.emit(PaletteEvent::InjectSql {
-                conn_id: entry.spec.conn_id().clone(),
-                sql,
-            });
+            if let Some(conn_id) = entry.spec.conn_id().cloned() {
+                cx.emit(PaletteEvent::InjectSql { conn_id, sql });
+            }
         }
         (ResultKind::SavedQuery, _) => {
             if let Some(path) = &entry.project_query_path {
@@ -39,13 +41,17 @@ pub fn emit_selection(entry: &PaletteResult, secondary: bool, cx: &mut Context<C
         _ => {
             let spec = match (&entry.kind, secondary) {
                 (ResultKind::SchemaObject, true) => {
-                    let table = entry.label.clone();
-                    TabSpec::QueryEditor {
-                        conn_id: entry.spec.conn_id().clone(),
-                        initial_sql: Some(format!("SELECT * FROM {table} LIMIT 100")),
-                        initial_pipeline: None,
-                        mongo_collection: None,
-                        auto_run: false,
+                    if let Some(conn_id) = entry.spec.conn_id().cloned() {
+                        let table = entry.label.clone();
+                        TabSpec::QueryEditor {
+                            conn_id,
+                            init: QueryEditorInit::Sql {
+                                sql: Some(format!("SELECT * FROM {table} LIMIT 100")),
+                                auto_run: false,
+                            },
+                        }
+                    } else {
+                        entry.spec.clone()
                     }
                 }
                 _ => entry.spec.clone(),

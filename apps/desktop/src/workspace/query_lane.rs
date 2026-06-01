@@ -8,10 +8,10 @@ use uuid::Uuid;
 
 use crate::connection::ConnectionId;
 use crate::storage;
-use crate::workspace::TabSpec;
 use crate::workspace::WorkspaceRef;
 use crate::workspace::context::WorkspaceContext;
 use crate::workspace::tabs::enqueue_open_tab;
+use crate::workspace::{QueryEditorInit, TabSpec};
 
 pub fn render_query_lane(cx: &mut App) -> AnyElement {
     let ctx = cx
@@ -215,10 +215,10 @@ fn open_loose_query(sql: &str, cx: &mut App) {
     enqueue_open_tab(
         TabSpec::QueryEditor {
             conn_id,
-            initial_sql: Some(sql.to_string()),
-            initial_pipeline: None,
-            auto_run: false,
-            mongo_collection: None,
+            init: QueryEditorInit::Sql {
+                sql: Some(sql.to_string()),
+                auto_run: false,
+            },
         },
         cx,
     );

@@ -13,9 +13,9 @@ use gpui_component::{
 use crate::connection::ConnectionId;
 use crate::query_store::QueryStore;
 use crate::widgets::query_panel_extras::{HistoryFilter, filtered_history};
-use crate::workspace::TabSpec;
 use crate::workspace::Workspace;
 use crate::workspace::tabs::enqueue_open_tab;
+use crate::workspace::{QueryEditorInit, TabSpec};
 
 pub fn render_history_pane(
     workspace: Entity<Workspace>,
@@ -90,10 +90,10 @@ pub fn render_history_pane(
                 enqueue_open_tab(
                     TabSpec::QueryEditor {
                         conn_id: conn_for_open.clone(),
-                        initial_sql: Some(full_query.clone()),
-                        initial_pipeline: None,
-                        auto_run: false,
-                        mongo_collection: None,
+                        init: QueryEditorInit::Sql {
+                            sql: Some(full_query.clone()),
+                            auto_run: false,
+                        },
                     },
                     cx,
                 );

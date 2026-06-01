@@ -66,7 +66,9 @@ impl Workspace {
         }
 
         // ── Connection-scoped tabs ────────────────────────────────────────────────
-        let conn_id = spec.conn_id().clone();
+        let Some(conn_id) = spec.conn_id().cloned() else {
+            return;
+        };
         let Some(ent) = self.find_connection(&conn_id, cx) else {
             return;
         };

@@ -2,9 +2,22 @@ use serde::{Deserialize, Serialize};
 
 use crate::connection::ConnectionId;
 
-use std::sync::LazyLock;
-
-static HOME_CONN_SENTINEL: LazyLock<ConnectionId> = LazyLock::new(|| ConnectionId("__home".into()));
+/// Classifies a tab by the number and kind of connections it operates on.
+///
+/// Use this to decide whether a tab survives connection disconnect, appears
+/// in connection-scoped menus, or is surfaced in workspace-level views
+/// (e.g. ER diagrams, agent chat, chart builder).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TabScope {
+    /// Tab operates on exactly one connection.
+    Connection(ConnectionId),
+    /// Tab spans multiple connections (ER diagrams, cross-DB joins).
+    MultiConnection(Vec<ConnectionId>),
+    /// Workspace-scoped but not connection-specific (agent chat, chart builder).
+    Workspace,
+    /// Fully global — not tied to any project or connection (Home, ReleaseNotes).
+    Global,
+}
 
 /// Typed initialization payload for a query editor tab.
 ///
@@ -98,18 +111,39 @@ impl TabSpec {
         }
     }
 
-    pub fn conn_id(&self) -> &ConnectionId {
+    /// Returns the primary connection ID for this tab, or `None` for global/workspace tabs.
+    ///
+    /// Use [`TabSpec::scope()`] for richer classification.
+    pub fn conn_id(&self) -> Option<&ConnectionId> {
         match self {
-            Self::Home => &HOME_CONN_SENTINEL,
-            Self::Dashboard(id) => id,
-            Self::DataViewer { conn_id, .. } => conn_id,
-            Self::QueryEditor { conn_id, .. } => conn_id,
-            Self::Pipeline { conn_id, .. } => conn_id,
-            Self::Inspector { conn_id, .. } => conn_id,
-            Self::ObjectInfo { conn_id, .. } => conn_id,
-            Self::DocumentInsert { conn_id, .. } => conn_id,
-            Self::ReleaseNotes { .. } => &HOME_CONN_SENTINEL,
-            Self::Builtin { conn_id, .. } => conn_id.as_ref().unwrap_or(&HOME_CONN_SENTINEL),
+            Self::Home | Self::ReleaseNotes { .. } => None,
+            Self::Dashboard(id) => Some(id),
+            Self::DataViewer { conn_id, .. } => Some(conn_id),
+            Self::QueryEditor { conn_id, .. } => Some(conn_id),
+            Self::Pipeline { conn_id, .. } => Some(conn_id),
+            Self::Inspector { conn_id, .. } => Some(conn_id),
+            Self::ObjectInfo { conn_id, .. } => Some(conn_id),
+            Self::DocumentInsert { conn_id, .. } => Some(conn_id),
+            Self::Builtin { conn_id, .. } => conn_id.as_ref(),
+        }
+    }
+
+    /// Returns the connection scope for this tab.
+    pub fn scope(&self) -> TabScope {
+        match self {
+            Self::Home | Self::ReleaseNotes { .. } => TabScope::Global,
+            Self::Dashboard(id) => TabScope::Connection(id.clone()),
+            Self::DataViewer { conn_id, .. } => TabScope::Connection(conn_id.clone()),
+            Self::QueryEditor { conn_id, .. } => TabScope::Connection(conn_id.clone()),
+            Self::Pipeline { conn_id, .. } => TabScope::Connection(conn_id.clone()),
+            Self::Inspector { conn_id, .. } => TabScope::Connection(conn_id.clone()),
+            Self::ObjectInfo { conn_id, .. } => TabScope::Connection(conn_id.clone()),
+            Self::DocumentInsert { conn_id, .. } => TabScope::Connection(conn_id.clone()),
+            Self::Builtin { conn_id, .. } => conn_id
+                .as_ref()
+                .cloned()
+                .map(TabScope::Connection)
+                .unwrap_or(TabScope::Global),
         }
     }
 

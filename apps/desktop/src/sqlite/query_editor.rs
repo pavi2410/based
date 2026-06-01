@@ -59,6 +59,7 @@ pub struct QueryEditorPanel {
     bottom_tab: BottomTab,
     explain: ExplainView,
     pub(crate) tab_label: SharedString,
+    pub editor_ctx: gpui::Entity<crate::editor::EditorContext>,
 }
 
 impl QueryEditorPanel {
@@ -84,6 +85,17 @@ impl QueryEditorPanel {
         let delegate = RowDelegate::default();
         let result = cx.new(|cx| configure_row_table(delegate, window, cx));
         let split_state = cx.new(|_| ResizableState::default());
+        let variables = cx
+            .try_global::<crate::project::ProjectVars>()
+            .map(|pv| crate::editor::VariableScope::from_string_map(&pv.vars))
+            .unwrap_or_default();
+        let editor_ctx = cx.new(|_| {
+            crate::editor::EditorContext::new(
+                conn_id.clone(),
+                based_core::EngineKind::SQLite,
+                variables,
+            )
+        });
         let panel = Self {
             focus_handle: cx.focus_handle(),
             pool,
@@ -95,6 +107,7 @@ impl QueryEditorPanel {
             bottom_tab: BottomTab::Results,
             explain: ExplainView::Empty,
             tab_label: "Query".into(),
+            editor_ctx,
         };
         cx.subscribe_in(&sql_input, window, |panel, _, event, window, cx| {
             if let InputEvent::PressEnter {

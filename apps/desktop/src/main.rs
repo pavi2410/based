@@ -11,6 +11,7 @@ mod bindings;
 mod command_palette;
 mod connection;
 mod db;
+mod editor;
 mod fonts;
 mod mongodb;
 mod onboarding_window;

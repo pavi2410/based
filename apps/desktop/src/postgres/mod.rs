@@ -73,3 +73,30 @@ impl Connectable for PgConnection {
         db::close_pg_pool(self.pool);
     }
 }
+
+use crate::connection::descriptor::EngineDescriptor;
+use based_core::EngineKind;
+
+/// Engine descriptor for PostgreSQL — registered at startup via [`crate::connection::EngineRegistry`].
+pub struct PostgresEngine;
+
+impl EngineDescriptor for PostgresEngine {
+    fn kind(&self) -> EngineKind {
+        EngineKind::Postgres
+    }
+    fn display_name(&self) -> &str {
+        "PostgreSQL"
+    }
+    fn icon_name(&self) -> &str {
+        "postgres"
+    }
+    fn default_port(&self) -> Option<u16> {
+        Some(5432)
+    }
+    fn supports_tab_kind(&self, kind: &str) -> bool {
+        matches!(
+            kind,
+            "query_editor" | "data_viewer" | "inspector" | "object_info" | "dashboard"
+        )
+    }
+}

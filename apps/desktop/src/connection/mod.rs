@@ -4,9 +4,12 @@
 // for open/test/close lifecycle.  Tab content reaches into engine-specific
 // APIs directly; nothing from this module leaks DB-querying concerns.
 
+pub mod descriptor;
 pub mod lifecycle;
 pub mod open;
 pub mod registry;
+
+pub use descriptor::EngineRegistry;
 
 pub use open::{OpenedConnection, open_connection, opened_into_any};
 

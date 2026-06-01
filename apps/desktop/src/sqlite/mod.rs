@@ -117,3 +117,30 @@ fn synchronous_pragma(mode: &str) -> anyhow::Result<&'static str> {
         other => anyhow::bail!("unsupported synchronous: {other}"),
     }
 }
+
+use crate::connection::descriptor::EngineDescriptor;
+use based_core::EngineKind;
+
+/// Engine descriptor for SQLite — registered at startup via [`crate::connection::EngineRegistry`].
+pub struct SqliteEngine;
+
+impl EngineDescriptor for SqliteEngine {
+    fn kind(&self) -> EngineKind {
+        EngineKind::SQLite
+    }
+    fn display_name(&self) -> &str {
+        "SQLite"
+    }
+    fn icon_name(&self) -> &str {
+        "sqlite"
+    }
+    fn default_port(&self) -> Option<u16> {
+        None
+    }
+    fn supports_tab_kind(&self, kind: &str) -> bool {
+        matches!(
+            kind,
+            "query_editor" | "data_viewer" | "inspector" | "object_info" | "dashboard"
+        )
+    }
+}

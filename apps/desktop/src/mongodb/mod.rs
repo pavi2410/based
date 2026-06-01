@@ -97,3 +97,35 @@ impl Connectable for MongoConnection {
         drop(self.client);
     }
 }
+
+use crate::connection::descriptor::EngineDescriptor;
+use based_core::EngineKind;
+
+/// Engine descriptor for MongoDB — registered at startup via [`crate::connection::EngineRegistry`].
+pub struct MongoEngine;
+
+impl EngineDescriptor for MongoEngine {
+    fn kind(&self) -> EngineKind {
+        EngineKind::MongoDB
+    }
+    fn display_name(&self) -> &str {
+        "MongoDB"
+    }
+    fn icon_name(&self) -> &str {
+        "mongodb"
+    }
+    fn default_port(&self) -> Option<u16> {
+        Some(27017)
+    }
+    fn supports_tab_kind(&self, kind: &str) -> bool {
+        matches!(
+            kind,
+            "query_editor"
+                | "pipeline"
+                | "data_viewer"
+                | "inspector"
+                | "document_insert"
+                | "dashboard"
+        )
+    }
+}

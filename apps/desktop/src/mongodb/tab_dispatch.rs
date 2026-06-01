@@ -14,7 +14,7 @@ use mongodb::{Collection, Database};
 use crate::connection::ConnectionId;
 use crate::workspace::Workspace;
 use crate::workspace::tabs::label::tab_label_for_spec;
-use crate::workspace::tabs::spec::TabSpec;
+use crate::workspace::tabs::spec::{QueryEditorInit, TabSpec};
 
 /// Try to build a MongoDB panel for `spec`.
 ///
@@ -36,24 +36,25 @@ pub fn build_panel(
             Some(Arc::new(panel))
         }
         TabSpec::QueryEditor {
-            initial_sql,
-            initial_pipeline,
-            mongo_collection,
+            init:
+                QueryEditorInit::MongoPipeline {
+                    pipeline,
+                    collection,
+                },
             ..
         } => {
             let label = tab_label_for_spec(spec, false);
-            let coll_name = mongo_collection
+            let coll_name = collection
                 .as_deref()
                 .map(str::trim)
                 .filter(|s| !s.is_empty())
                 .unwrap_or("based_explorer");
             let coll: Collection<Document> = db.collection(coll_name);
-            let merged = initial_pipeline.clone().or_else(|| initial_sql.clone());
             let panel = cx.new(|cx| {
                 super::pipeline_builder::PipelineBuilderPanel::new_with_pipeline(
                     coll,
                     conn_id.clone(),
-                    merged,
+                    pipeline.clone(),
                     window,
                     cx,
                 )
@@ -61,6 +62,10 @@ pub fn build_panel(
             panel.update(cx, |p, _| p.tab_label = label);
             Some(Arc::new(panel))
         }
+        TabSpec::QueryEditor {
+            init: QueryEditorInit::Sql { .. },
+            ..
+        } => None,
         TabSpec::Pipeline { collection, .. } => {
             let label = tab_label_for_spec(spec, false);
             let coll: Collection<Document> = db.collection(collection);

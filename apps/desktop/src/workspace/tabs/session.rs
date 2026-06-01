@@ -16,14 +16,28 @@ pub struct SessionSnapshot {
     pub pinned_tabs: Vec<TabSpec>,
 }
 
+/// Load tabs from the session, skipping any that fail to deserialize.
+/// This gracefully handles the migration from pre-QueryEditorInit sessions
+/// (P3 refactor), where QueryEditor had flat serde fields.
+async fn load_tabs_with_migration(store: &MetadataStore) -> Vec<TabSpec> {
+    if let Ok(Some(tabs)) = store.get_session_json::<Vec<TabSpec>>(OPEN_TABS).await {
+        return tabs;
+    }
+    if let Ok(Some(raw)) = store
+        .get_session_json::<Vec<serde_json::Value>>(OPEN_TABS)
+        .await
+    {
+        return raw
+            .into_iter()
+            .filter_map(|v| serde_json::from_value(v).ok())
+            .collect();
+    }
+    vec![]
+}
+
 impl SessionSnapshot {
     pub async fn load(store: &MetadataStore) -> Self {
-        let tabs = store
-            .get_session_json(OPEN_TABS)
-            .await
-            .ok()
-            .flatten()
-            .unwrap_or_default();
+        let tabs = load_tabs_with_migration(store).await;
         let active = store
             .get_session_json(ACTIVE_TAB_INDEX)
             .await

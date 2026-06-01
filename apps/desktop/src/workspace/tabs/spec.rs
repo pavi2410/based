@@ -6,6 +6,43 @@ use std::sync::LazyLock;
 
 static HOME_CONN_SENTINEL: LazyLock<ConnectionId> = LazyLock::new(|| ConnectionId("__home".into()));
 
+/// Typed initialization payload for a query editor tab.
+///
+/// This replaces the old flat fields on `TabSpec::QueryEditor`
+/// so engine-specific init data doesn't pollute the shared type.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum QueryEditorInit {
+    /// SQL editor — Postgres or SQLite.
+    Sql {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        sql: Option<String>,
+        #[serde(default = "default_auto_run")]
+        auto_run: bool,
+    },
+    /// MongoDB aggregation pipeline editor.
+    MongoPipeline {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pipeline: Option<String>,
+        /// Target collection name. `None` means use a default collection name.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        collection: Option<String>,
+    },
+}
+
+fn default_auto_run() -> bool {
+    true
+}
+
+impl Default for QueryEditorInit {
+    fn default() -> Self {
+        Self::Sql {
+            sql: None,
+            auto_run: true,
+        }
+    }
+}
+
 /// Identifies what a tab shows. Used by TabManager to open-or-focus.
 /// Two specs are equal iff they refer to the same logical panel — prevents duplicate DataViewers.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -18,14 +55,10 @@ pub enum TabSpec {
         conn_id: ConnectionId,
         object: String,
     },
-    /// SQL editors (Postgres/SQLite) or Mongo pipeline workspace (initial_pipeline).
+    /// Query/pipeline editor. Always opens a new tab (see TabManager).
     QueryEditor {
         conn_id: ConnectionId,
-        initial_sql: Option<String>,
-        initial_pipeline: Option<String>,
-        auto_run: bool,
-        /// Target Mongo collection when opening a pipeline/query tab (PG/SQLite ignore).
-        mongo_collection: Option<String>,
+        init: QueryEditorInit,
     },
     Pipeline {
         conn_id: ConnectionId,
@@ -61,10 +94,7 @@ impl TabSpec {
     pub fn blank_query_editor(conn_id: ConnectionId) -> Self {
         Self::QueryEditor {
             conn_id,
-            initial_sql: None,
-            initial_pipeline: None,
-            auto_run: true,
-            mongo_collection: None,
+            init: QueryEditorInit::default(),
         }
     }
 

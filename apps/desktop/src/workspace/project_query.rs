@@ -4,7 +4,7 @@ use based_project::{
 
 use crate::connection::ConnectionId;
 use crate::connection::registry::ConnectionRegistry;
-use crate::workspace::TabSpec;
+use crate::workspace::{QueryEditorInit, TabSpec};
 
 pub enum OpenQueryResult {
     Open(TabSpec),
@@ -61,20 +61,20 @@ pub fn tab_spec_for_query(query: &ProjectQuery, conn_id: ConnectionId) -> TabSpe
     match &query.body {
         QueryBody::Sql { query } => TabSpec::QueryEditor {
             conn_id,
-            initial_sql: Some(query.clone()),
-            initial_pipeline: None,
-            auto_run: false,
-            mongo_collection: None,
+            init: QueryEditorInit::Sql {
+                sql: Some(query.clone()),
+                auto_run: false,
+            },
         },
         QueryBody::Aggregate {
             pipeline,
             collection,
         } => TabSpec::QueryEditor {
             conn_id,
-            initial_sql: None,
-            initial_pipeline: Some(pipeline.clone()),
-            auto_run: false,
-            mongo_collection: collection.clone(),
+            init: QueryEditorInit::MongoPipeline {
+                pipeline: Some(pipeline.clone()),
+                collection: collection.clone(),
+            },
         },
     }
 }

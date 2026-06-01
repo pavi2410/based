@@ -5,8 +5,8 @@ use gpui::{App, Entity};
 use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{ConnectionId, EngineKind};
 use crate::query_store::QueryStore;
-use crate::workspace::TabSpec;
 use crate::workspace::connection_tree::ConnectionTree;
+use crate::workspace::{QueryEditorInit, TabSpec};
 
 use super::types::{PaletteResult, ResultKind, WorkspacePaletteAction};
 
@@ -162,17 +162,17 @@ fn push_history(
             let spec = match engine {
                 Some(EngineKind::MongoDB) => TabSpec::QueryEditor {
                     conn_id: entry.conn_id.clone(),
-                    initial_sql: None,
-                    initial_pipeline: Some(entry.query.clone()),
-                    mongo_collection: None,
-                    auto_run: false,
+                    init: QueryEditorInit::MongoPipeline {
+                        pipeline: Some(entry.query.clone()),
+                        collection: None,
+                    },
                 },
                 _ => TabSpec::QueryEditor {
                     conn_id: entry.conn_id.clone(),
-                    initial_sql: Some(entry.query.clone()),
-                    initial_pipeline: None,
-                    mongo_collection: None,
-                    auto_run: false,
+                    init: QueryEditorInit::Sql {
+                        sql: Some(entry.query.clone()),
+                        auto_run: false,
+                    },
                 },
             };
             results.push(PaletteResult {

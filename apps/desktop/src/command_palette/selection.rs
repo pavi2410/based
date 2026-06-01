@@ -1,6 +1,6 @@
 use gpui::Context;
 
-use crate::workspace::TabSpec;
+use crate::workspace::{QueryEditorInit, TabSpec};
 
 use super::CommandPalette;
 use super::types::{PaletteEvent, PaletteResult, ResultKind};
@@ -15,11 +15,14 @@ pub fn emit_selection(entry: &PaletteResult, secondary: bool, cx: &mut Context<C
         (ResultKind::History, false) => {
             let sql = match &entry.spec {
                 TabSpec::QueryEditor {
-                    initial_sql: Some(s),
+                    init: QueryEditorInit::Sql { sql: Some(s), .. },
                     ..
                 } => s.clone(),
                 TabSpec::QueryEditor {
-                    initial_pipeline: Some(p),
+                    init:
+                        QueryEditorInit::MongoPipeline {
+                            pipeline: Some(p), ..
+                        },
                     ..
                 } => p.clone(),
                 _ => entry.label.clone(),
@@ -42,10 +45,10 @@ pub fn emit_selection(entry: &PaletteResult, secondary: bool, cx: &mut Context<C
                     let table = entry.label.clone();
                     TabSpec::QueryEditor {
                         conn_id: entry.spec.conn_id().clone(),
-                        initial_sql: Some(format!("SELECT * FROM {table} LIMIT 100")),
-                        initial_pipeline: None,
-                        mongo_collection: None,
-                        auto_run: false,
+                        init: QueryEditorInit::Sql {
+                            sql: Some(format!("SELECT * FROM {table} LIMIT 100")),
+                            auto_run: false,
+                        },
                     }
                 }
                 _ => entry.spec.clone(),

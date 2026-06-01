@@ -13,7 +13,7 @@ use sqlx::SqlitePool;
 use crate::connection::ConnectionId;
 use crate::workspace::Workspace;
 use crate::workspace::tabs::label::tab_label_for_spec;
-use crate::workspace::tabs::spec::TabSpec;
+use crate::workspace::tabs::spec::{QueryEditorInit, TabSpec};
 
 /// Try to build a SQLite panel for `spec`.
 ///
@@ -35,8 +35,7 @@ pub fn build_panel(
             Some(Arc::new(panel))
         }
         TabSpec::QueryEditor {
-            initial_sql,
-            auto_run,
+            init: QueryEditorInit::Sql { sql, auto_run },
             ..
         } => {
             let label = tab_label_for_spec(spec, false);
@@ -44,7 +43,7 @@ pub fn build_panel(
                 super::query_editor::QueryEditorPanel::new_with_initial(
                     pool,
                     conn_id.clone(),
-                    initial_sql.clone(),
+                    sql.clone(),
                     *auto_run,
                     window,
                     cx,
@@ -53,6 +52,10 @@ pub fn build_panel(
             panel.update(cx, |p, _| p.tab_label = label);
             Some(Arc::new(panel))
         }
+        TabSpec::QueryEditor {
+            init: QueryEditorInit::MongoPipeline { .. },
+            ..
+        } => None,
         TabSpec::Inspector { object, .. } => {
             let label = tab_label_for_spec(spec, false);
             let panel = cx.new(|cx| {

@@ -83,6 +83,8 @@ url = "2"
 toml.workspace = true
 notify.workspace = true
 rfd.workspace = true
+csv = "1"
+rust_xlsxwriter = "0"
 
 # DB engines — all three included so Phase 3/4/5 modules compile without
 # touching the workspace Cargo.toml again.

@@ -10,6 +10,7 @@ use gpui_component::{
     h_flex,
     input::{InputEvent, InputState},
     menu::PopupMenu,
+    popover::Popover,
     resizable::{ResizableState, resizable_panel, v_resizable},
     scroll::ScrollableElement as _,
     spinner::Spinner,
@@ -23,6 +24,7 @@ use crate::postgres::execute_sql;
 use crate::postgres::explain_plan::{PlanNode, parse_pg_explain_json, render_plan_node};
 use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
+use crate::widgets::export;
 use crate::widgets::query_panel_extras;
 use crate::widgets::result_tabs::{BottomTab, result_tab_strip};
 use crate::widgets::sql_editor::{self, new_sql_input, set_input_text, text_from_input};
@@ -544,6 +546,96 @@ impl Render for QueryEditorPanel {
         let var_map = cx.global::<crate::project::ProjectVars>().vars.clone();
         let mono_font = cx.theme().mono_font_family.clone();
 
+        let (export_headers, export_rows) = {
+            let st = self.result.read(cx);
+            let d = st.delegate();
+            let h = d
+                .columns
+                .iter()
+                .map(|c| c.key.to_string())
+                .collect::<Vec<_>>();
+            let r = d
+                .rows
+                .iter()
+                .map(|row| row.iter().map(|c| c.to_string()).collect())
+                .collect::<Vec<Vec<String>>>();
+            (h, r)
+        };
+        let export_popover = {
+            let (h, r) = (export_headers.clone(), export_rows.clone());
+            let (h2, r2) = (export_headers.clone(), export_rows.clone());
+            Popover::new("pg-export-popover")
+                .trigger(
+                    Button::new("pg-export-trigger")
+                        .ghost()
+                        .small()
+                        .label("Export"),
+                )
+                .content(move |_, _, _| {
+                    let (hc, rc) = (h.clone(), r.clone());
+                    let (hx, rx) = (h2.clone(), r2.clone());
+                    v_flex()
+                        .gap(px(2.0))
+                        .p(px(4.0))
+                        .child(
+                            Button::new("pg-export-csv")
+                                .ghost()
+                                .small()
+                                .label("CSV")
+                                .on_click(move |_, _, cx| {
+                                    let (hc, rc) = (hc.clone(), rc.clone());
+                                    cx.spawn(async move |cx| {
+                                        if let Ok(bytes) = export::to_csv(&hc, &rc)
+                                            && let Some(path) = export::save_bytes(
+                                                cx,
+                                                "export.csv",
+                                                "CSV",
+                                                &["csv"],
+                                                bytes,
+                                            )
+                                            .await
+                                        {
+                                            cx.update(|app| {
+                                                crate::workspace::notify::push_export_success(
+                                                    app, &path,
+                                                )
+                                            });
+                                        }
+                                    })
+                                    .detach();
+                                }),
+                        )
+                        .child(
+                            Button::new("pg-export-xlsx")
+                                .ghost()
+                                .small()
+                                .label("Excel (.xlsx)")
+                                .on_click(move |_, _, cx| {
+                                    let (hx, rx) = (hx.clone(), rx.clone());
+                                    cx.spawn(async move |cx| {
+                                        if let Ok(bytes) = export::to_xlsx(&hx, &rx)
+                                            && let Some(path) = export::save_bytes(
+                                                cx,
+                                                "export.xlsx",
+                                                "Excel",
+                                                &["xlsx"],
+                                                bytes,
+                                            )
+                                            .await
+                                        {
+                                            cx.update(|app| {
+                                                crate::workspace::notify::push_export_success(
+                                                    app, &path,
+                                                )
+                                            });
+                                        }
+                                    })
+                                    .detach();
+                                }),
+                        )
+                })
+        };
+
         let toolbar = h_flex()
             .gap(px(6.0))
             .px_2()
@@ -575,6 +667,7 @@ impl Render for QueryEditorPanel {
                 mono_font,
                 cx,
             ))
+            .child(export_popover)
             .child(div().flex_1())
             .child(render_status_cluster(&self.status, cx));
 

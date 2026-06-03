@@ -2,6 +2,7 @@
 
 use gpui::{prelude::*, *};
 use gpui_component::{
+    Sizable as _,
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,
@@ -16,6 +17,7 @@ use mongodb::bson::Document;
 use crate::connection::ConnectionId;
 use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
+use crate::widgets::export;
 use crate::widgets::sql_editor::{self, new_json_input, text_from_input};
 use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
 
@@ -211,6 +213,22 @@ impl Panel for PipelineBuilderPanel {
 
 impl Render for PipelineBuilderPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let (export_headers, export_rows) = {
+            let st = self.result.read(cx);
+            let d = st.delegate();
+            let h = d
+                .columns
+                .iter()
+                .map(|c| c.key.to_string())
+                .collect::<Vec<_>>();
+            let r = d
+                .rows
+                .iter()
+                .map(|row| row.iter().map(|c| c.to_string()).collect())
+                .collect::<Vec<Vec<String>>>();
+            (h, r)
+        };
+
         v_flex()
             .size_full()
             .child(
@@ -234,6 +252,33 @@ impl Render for PipelineBuilderPanel {
                             .primary()
                             .label("Run pipeline")
                             .on_click(cx.listener(|p, _, _, cx| p.run(cx))),
+                    )
+                    .child(
+                        Button::new("mongo-pipe-export-json")
+                            .ghost()
+                            .small()
+                            .label("Export JSON")
+                            .on_click(move |_, _, cx| {
+                                let json = export::to_json(&export_headers, &export_rows);
+                                cx.spawn(async move |cx| {
+                                    if let Some(path) = export::save_bytes(
+                                        cx,
+                                        "export.json",
+                                        "JSON",
+                                        &["json"],
+                                        json.into_bytes(),
+                                    )
+                                    .await
+                                    {
+                                        cx.update(|app| {
+                                            crate::workspace::notify::push_export_success(
+                                                app, &path,
+                                            )
+                                        });
+                                    }
+                                })
+                                .detach();
+                            }),
                     )
                     .child(div().flex_1().text_sm().child(self.status.clone())),
             )

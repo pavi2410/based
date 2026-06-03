@@ -2,11 +2,12 @@
 
 use gpui::{prelude::*, *};
 use gpui_component::{
-    ActiveTheme,
-    button::Button,
+    ActiveTheme, Sizable as _,
+    button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,
     menu::PopupMenu,
+    popover::Popover,
     table::{Column, TableState},
     v_flex,
 };
@@ -17,6 +18,7 @@ use gpui_component::table::TableEvent;
 use crate::app::prefs;
 use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_display};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
+use crate::widgets::export;
 use crate::widgets::filter_bar::FilterBar;
 use crate::widgets::pagination::sql_page_state;
 use crate::widgets::pagination::{offset_for_page, sql_pagination_controls, sql_row_range_label};
@@ -228,6 +230,96 @@ impl Render for DataViewerPanel {
         let muted = cx.theme().muted_foreground;
         let border = cx.theme().border;
 
+        let (export_headers, export_rows) = {
+            let st = self.table.read(cx);
+            let d = st.delegate();
+            let h = d
+                .columns
+                .iter()
+                .map(|c| c.key.to_string())
+                .collect::<Vec<_>>();
+            let r = d
+                .rows
+                .iter()
+                .map(|row| row.iter().map(|c| c.to_string()).collect())
+                .collect::<Vec<Vec<String>>>();
+            (h, r)
+        };
+        let export_popover = {
+            let (h, r) = (export_headers.clone(), export_rows.clone());
+            let (h2, r2) = (export_headers.clone(), export_rows.clone());
+            Popover::new("sqlite-dv-export-popover")
+                .trigger(
+                    Button::new("sqlite-dv-export-trigger")
+                        .ghost()
+                        .small()
+                        .label("Export"),
+                )
+                .content(move |_, _, _| {
+                    let (hc, rc) = (h.clone(), r.clone());
+                    let (hx, rx) = (h2.clone(), r2.clone());
+                    v_flex()
+                        .gap(px(2.0))
+                        .p(px(4.0))
+                        .child(
+                            Button::new("sqlite-dv-export-csv")
+                                .ghost()
+                                .small()
+                                .label("CSV")
+                                .on_click(move |_, _, cx| {
+                                    let (hc, rc) = (hc.clone(), rc.clone());
+                                    cx.spawn(async move |cx| {
+                                        if let Ok(bytes) = export::to_csv(&hc, &rc)
+                                            && let Some(path) = export::save_bytes(
+                                                cx,
+                                                "export.csv",
+                                                "CSV",
+                                                &["csv"],
+                                                bytes,
+                                            )
+                                            .await
+                                        {
+                                            cx.update(|app| {
+                                                crate::workspace::notify::push_export_success(
+                                                    app, &path,
+                                                )
+                                            });
+                                        }
+                                    })
+                                    .detach();
+                                }),
+                        )
+                        .child(
+                            Button::new("sqlite-dv-export-xlsx")
+                                .ghost()
+                                .small()
+                                .label("Excel (.xlsx)")
+                                .on_click(move |_, _, cx| {
+                                    let (hx, rx) = (hx.clone(), rx.clone());
+                                    cx.spawn(async move |cx| {
+                                        if let Ok(bytes) = export::to_xlsx(&hx, &rx)
+                                            && let Some(path) = export::save_bytes(
+                                                cx,
+                                                "export.xlsx",
+                                                "Excel",
+                                                &["xlsx"],
+                                                bytes,
+                                            )
+                                            .await
+                                        {
+                                            cx.update(|app| {
+                                                crate::workspace::notify::push_export_success(
+                                                    app, &path,
+                                                )
+                                            });
+                                        }
+                                    })
+                                    .detach();
+                                }),
+                        )
+                })
+        };
+
         let toolbar = h_flex()
             .w_full()
             .px(px(8.0))
@@ -256,6 +348,7 @@ impl Render for DataViewerPanel {
                         panel.load_page(0, cx);
                     })),
             )
+            .child(export_popover)
             .child(div().flex_1())
             .when(loading, |d| {
                 d.child(div().text_sm().text_color(muted).child("Loading…"))

@@ -2,8 +2,8 @@
 
 use gpui::{prelude::*, *};
 use gpui_component::{
-    ActiveTheme,
-    button::Button,
+    ActiveTheme, Sizable as _,
+    button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,
     menu::PopupMenu,
@@ -18,6 +18,7 @@ use gpui_component::table::TableEvent;
 
 use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_display};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
+use crate::widgets::export;
 use crate::widgets::filter_bar::{FilterBar, FilterExpr};
 use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
 
@@ -200,6 +201,23 @@ impl Render for DocumentViewerPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let border = cx.theme().border;
         let muted = cx.theme().muted_foreground;
+
+        let (export_headers, export_rows) = {
+            let st = self.table.read(cx);
+            let d = st.delegate();
+            let h = d
+                .columns
+                .iter()
+                .map(|c| c.key.to_string())
+                .collect::<Vec<_>>();
+            let r = d
+                .rows
+                .iter()
+                .map(|row| row.iter().map(|c| c.to_string()).collect())
+                .collect::<Vec<Vec<String>>>();
+            (h, r)
+        };
+
         v_flex()
             .relative()
             .size_full()
@@ -231,6 +249,33 @@ impl Render for DocumentViewerPanel {
                                 });
                                 p.reload(cx);
                             })),
+                    )
+                    .child(
+                        Button::new("mongo-export-json")
+                            .ghost()
+                            .small()
+                            .label("Export JSON")
+                            .on_click(move |_, _, cx| {
+                                let json = export::to_json(&export_headers, &export_rows);
+                                cx.spawn(async move |cx| {
+                                    if let Some(path) = export::save_bytes(
+                                        cx,
+                                        "export.json",
+                                        "JSON",
+                                        &["json"],
+                                        json.into_bytes(),
+                                    )
+                                    .await
+                                    {
+                                        cx.update(|app| {
+                                            crate::workspace::notify::push_export_success(
+                                                app, &path,
+                                            )
+                                        });
+                                    }
+                                })
+                                .detach();
+                            }),
                     )
                     .when(self.loading, |h| {
                         h.child(div().text_sm().text_color(muted).child("Loading…"))

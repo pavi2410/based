@@ -1,18 +1,19 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use gpui::{App, Context, Entity, SharedString, Task, Window, div, prelude::*, px};
+use gpui::{App, Context, Entity, SharedString, Task, Window, prelude::*, px};
 use gpui_component::{
-    ActiveTheme, IndexPath, Sizable as _, StyledExt,
+    ActiveTheme, IndexPath, Sizable as _,
     button::{Button, ButtonVariants},
     h_flex,
     list::{ListDelegate, ListItem, ListState},
-    v_flex,
 };
 
 use crate::connection::{ConnectionId, EngineKind};
 use crate::widgets::SIDEBAR_INSET;
+use crate::widgets::empty_state::pane_empty_hint;
 use crate::widgets::list_row::{SchemaRowStyle, schema_object_row_with_actions};
+use crate::widgets::section_eyebrow::section_eyebrow_counted;
 
 use super::ConnectionTree;
 use super::types::{ActiveObjects, ObjectKind, SchemaObject};
@@ -193,30 +194,11 @@ impl ListDelegate for ObjectListDelegate {
         cx: &mut Context<ListState<Self>>,
     ) -> Option<impl IntoElement> {
         let sec = self.sections.get(section)?;
-        let muted = cx.theme().muted_foreground;
-        Some(
-            h_flex()
-                .px(px(SIDEBAR_INSET))
-                .py_1()
-                .items_center()
-                .justify_between()
-                .child(
-                    div()
-                        .text_xs()
-                        .font_bold()
-                        .font_family(crate::app::prefs::ui_font_family(cx))
-                        .font_weight(crate::app::prefs::ui_font_weight(cx))
-                        .text_color(muted.opacity(0.86))
-                        .child(sec.name.clone()),
-                )
-                .child(
-                    div()
-                        .text_xs()
-                        .font_family(crate::app::prefs::code_font_family(cx))
-                        .text_color(muted.opacity(0.76))
-                        .child(sec.items.len().to_string()),
-                ),
-        )
+        Some(section_eyebrow_counted(
+            sec.name.clone(),
+            sec.items.len(),
+            cx,
+        ))
     }
 
     fn render_item(
@@ -300,17 +282,7 @@ impl ListDelegate for ObjectListDelegate {
         _window: &mut Window,
         cx: &mut Context<ListState<Self>>,
     ) -> impl IntoElement {
-        v_flex()
-            .flex_1()
-            .items_center()
-            .justify_center()
-            .p_3()
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(cx.theme().muted_foreground)
-                    .child(self.empty_message.clone()),
-            )
+        pane_empty_hint(self.empty_message.clone(), cx)
     }
 
     fn loading(&self, _: &App) -> bool {

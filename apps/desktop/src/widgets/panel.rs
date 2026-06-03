@@ -128,3 +128,13 @@ pub fn toolbar_button(id: &'static str, icon: IconName, tooltip: &'static str, c
         .icon(icon)
         .tooltip(SharedString::from(tooltip))
 }
+
+/// Active/inactive styling for a tab-switcher button inside an inspector panel.
+///
+/// Attach `.on_click(cx.listener(...))` to the returned `Button` to wire up the
+/// selection logic — the `on_click` must stay at the call site because it
+/// captures `cx.listener`, which binds to the specific panel `Context`.
+pub fn tab_button_styled(id: &'static str, label: &'static str, active: bool) -> Button {
+    let b = Button::new(id).label(label).small();
+    if active { b.outline() } else { b.ghost() }
+}

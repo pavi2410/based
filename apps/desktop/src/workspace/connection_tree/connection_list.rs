@@ -12,6 +12,7 @@ use gpui_component::{
 };
 
 use crate::connection::{ConnectionState, EngineKind};
+use crate::widgets::empty_state::pane_empty_hint;
 use crate::widgets::{SIDEBAR_INSET, engine_color, engine_label_inline};
 
 use super::ConnectionTree;
@@ -343,17 +344,7 @@ impl ListDelegate for ConnectionListDelegate {
         _window: &mut Window,
         cx: &mut Context<ListState<Self>>,
     ) -> impl IntoElement {
-        v_flex()
-            .flex_1()
-            .items_center()
-            .justify_center()
-            .p_3()
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(cx.theme().muted_foreground)
-                    .child("No connections match your search."),
-            )
+        pane_empty_hint("No connections match your search.", cx)
     }
 
     fn set_selected_index(

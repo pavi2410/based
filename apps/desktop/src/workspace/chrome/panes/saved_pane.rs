@@ -9,6 +9,7 @@ use gpui_component::{ActiveTheme, h_flex, v_flex};
 use crate::connection::ConnectionId;
 use crate::connection::registry::ConnectionRegistry;
 use crate::query_store::QueryStore;
+use crate::widgets::empty_state::pane_empty_hint;
 use crate::workspace::Workspace;
 use crate::workspace::project_query::{OpenQueryResult, open_project_query, target_hint};
 use crate::workspace::tabs::enqueue_open_tab;
@@ -32,18 +33,7 @@ pub fn render_saved_pane(
     });
 
     if queries.is_empty() {
-        return v_flex()
-            .size_full()
-            .items_center()
-            .justify_center()
-            .p_4()
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(muted)
-                    .child("No queries in this project."),
-            )
-            .into_any_element();
+        return pane_empty_hint("No queries in this project.", cx).into_any_element();
     }
 
     let conn_for_queries = conn_id.clone();

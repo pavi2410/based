@@ -4,15 +4,13 @@ use std::rc::Rc;
 
 use gpui::{App, prelude::*, *};
 use gpui_component::{
-    ActiveTheme, Icon, IconName, Sizable as _,
+    ActiveTheme, IconName, Sizable as _,
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,
     input::{InputEvent, InputState},
     menu::PopupMenu,
-    popover::Popover,
     resizable::{ResizableState, resizable_panel, v_resizable},
-    spinner::Spinner,
     table::{Column, TableState},
     v_flex,
 };
@@ -25,13 +23,14 @@ use crate::connection::ConnectionId;
 use crate::db;
 use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
-use crate::widgets::export;
+use crate::widgets::export_popover::export_popover;
 use crate::widgets::query_panel_extras;
+use crate::widgets::query_status::{QueryStatusDisplay, query_error_card, query_status_indicator};
 use crate::widgets::result_tabs::{BottomTab, result_tab_strip};
 use crate::widgets::row_cell::sqlite_cell_display;
+use crate::widgets::shortcut_run_kbd_in_primary_button;
 use crate::widgets::sql_editor::{self, new_sql_input, set_input_text, text_from_input};
 use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
-use crate::widgets::{metadata_pill, shortcut_run_kbd_in_primary_button};
 use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::tabs::take_sql_inject;
 
@@ -309,57 +308,16 @@ impl QueryEditorPanel {
         let theme = cx.theme();
         let muted = theme.muted_foreground;
         match &self.status {
-            QueryStatus::Error(full) => {
-                let err_fg = theme.danger_foreground;
-                let danger_bg = theme.danger.opacity(0.06);
-                let danger_border = theme.danger.opacity(0.20);
-                let mono = theme.mono_font_family.clone();
-                let copy_text = full.clone();
-                div()
-                    .flex_1()
-                    .min_h(px(0.0))
-                    .p_3()
-                    .child(
-                        h_flex()
-                            .id("sqlite-query-error-card")
-                            .p_3()
-                            .gap_2()
-                            .items_start()
-                            .rounded(px(6.0))
-                            .border_1()
-                            .border_color(danger_border)
-                            .bg(danger_bg)
-                            .child(
-                                div().mt(px(2.0)).child(
-                                    Icon::new(IconName::TriangleAlert)
-                                        .text_color(err_fg)
-                                        .xsmall(),
-                                ),
-                            )
-                            .child(
-                                div()
-                                    .flex_1()
-                                    .min_w_0()
-                                    .text_xs()
-                                    .font_family(mono)
-                                    .text_color(err_fg)
-                                    .child(full.clone()),
-                            )
-                            .child(
-                                Button::new("sqlite-error-copy")
-                                    .ghost()
-                                    .xsmall()
-                                    .icon(IconName::Copy)
-                                    .tooltip(SharedString::from("Copy error"))
-                                    .on_click(move |_, _, cx| {
-                                        cx.write_to_clipboard(ClipboardItem::new_string(
-                                            copy_text.clone(),
-                                        ));
-                                    }),
-                            ),
-                    )
-                    .into_any_element()
-            }
+            QueryStatus::Error(full) => div()
+                .flex_1()
+                .min_h(px(0.0))
+                .p_3()
+                .child(query_error_card(
+                    "sqlite-query-error-card",
+                    full.clone().into(),
+                    cx,
+                ))
+                .into_any_element(),
             QueryStatus::Done { rows, elapsed_ms } => div()
                 .flex_1()
                 .min_h(px(0.0))
@@ -428,60 +386,17 @@ impl QueryEditorPanel {
 
 /// Right-aligned status cluster shown at the end of the toolbar.
 fn render_status_cluster(status: &QueryStatus, cx: &mut App) -> AnyElement {
-    let muted = cx.theme().muted_foreground;
-    match status {
-        QueryStatus::Idle => h_flex()
-            .gap(px(6.0))
-            .items_center()
-            .child(
-                div()
-                    .w(px(6.0))
-                    .h(px(6.0))
-                    .rounded_full()
-                    .bg(muted.opacity(0.55)),
-            )
-            .child(div().text_xs().text_color(muted).child("Ready"))
-            .into_any_element(),
-        QueryStatus::Running => h_flex()
-            .gap(px(6.0))
-            .items_center()
-            .child(Spinner::new().xsmall().color(cx.theme().primary))
-            .child(div().text_xs().text_color(muted).child("Running"))
-            .into_any_element(),
-        QueryStatus::Done { rows, elapsed_ms } => {
-            let success = cx.theme().success_foreground;
-            h_flex()
-                .gap(px(6.0))
-                .items_center()
-                .child(
-                    Icon::new(IconName::CircleCheck)
-                        .text_color(success)
-                        .xsmall(),
-                )
-                .child(metadata_pill("rows", rows.to_string(), cx))
-                .child(metadata_pill("time", format!("{elapsed_ms} ms"), cx))
-                .into_any_element()
-        }
-        QueryStatus::Error(_) => {
-            let danger = cx.theme().danger_foreground;
-            h_flex()
-                .gap(px(6.0))
-                .items_center()
-                .child(
-                    Icon::new(IconName::TriangleAlert)
-                        .text_color(danger)
-                        .xsmall(),
-                )
-                .child(
-                    div()
-                        .text_xs()
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(danger)
-                        .child("Failed"),
-                )
-                .into_any_element()
-        }
-    }
+    let display = match status {
+        QueryStatus::Idle => QueryStatusDisplay::Idle,
+        QueryStatus::Running => QueryStatusDisplay::Running,
+        QueryStatus::Done { rows, elapsed_ms } => QueryStatusDisplay::Done {
+            rows: *rows,
+            affected: None,
+            elapsed_ms: *elapsed_ms,
+        },
+        QueryStatus::Error(e) => QueryStatusDisplay::Error(e.clone().into()),
+    };
+    query_status_indicator(&display, cx)
 }
 
 impl Render for QueryEditorPanel {
@@ -514,80 +429,7 @@ impl Render for QueryEditorPanel {
                 .collect::<Vec<Vec<String>>>();
             (h, r)
         };
-        let export_popover = {
-            let (h, r) = (export_headers.clone(), export_rows.clone());
-            let (h2, r2) = (export_headers.clone(), export_rows.clone());
-            Popover::new("sqlite-export-popover")
-                .trigger(
-                    Button::new("sqlite-export-trigger")
-                        .ghost()
-                        .small()
-                        .label("Export"),
-                )
-                .content(move |_, _, _| {
-                    let (hc, rc) = (h.clone(), r.clone());
-                    let (hx, rx) = (h2.clone(), r2.clone());
-                    v_flex()
-                        .gap(px(2.0))
-                        .p(px(4.0))
-                        .child(
-                            Button::new("sqlite-export-csv")
-                                .ghost()
-                                .small()
-                                .label("CSV")
-                                .on_click(move |_, _, cx| {
-                                    let (hc, rc) = (hc.clone(), rc.clone());
-                                    cx.spawn(async move |cx| {
-                                        if let Ok(bytes) = export::to_csv(&hc, &rc)
-                                            && let Some(path) = export::save_bytes(
-                                                cx,
-                                                "export.csv",
-                                                "CSV",
-                                                &["csv"],
-                                                bytes,
-                                            )
-                                            .await
-                                        {
-                                            cx.update(|app| {
-                                                crate::workspace::notify::push_export_success(
-                                                    app, &path,
-                                                )
-                                            });
-                                        }
-                                    })
-                                    .detach();
-                                }),
-                        )
-                        .child(
-                            Button::new("sqlite-export-xlsx")
-                                .ghost()
-                                .small()
-                                .label("Excel (.xlsx)")
-                                .on_click(move |_, _, cx| {
-                                    let (hx, rx) = (hx.clone(), rx.clone());
-                                    cx.spawn(async move |cx| {
-                                        if let Ok(bytes) = export::to_xlsx(&hx, &rx)
-                                            && let Some(path) = export::save_bytes(
-                                                cx,
-                                                "export.xlsx",
-                                                "Excel",
-                                                &["xlsx"],
-                                                bytes,
-                                            )
-                                            .await
-                                        {
-                                            cx.update(|app| {
-                                                crate::workspace::notify::push_export_success(
-                                                    app, &path,
-                                                )
-                                            });
-                                        }
-                                    })
-                                    .detach();
-                                }),
-                        )
-                })
-        };
+        let export_popover = export_popover("sqlite-qe", export_headers, export_rows);
 
         let toolbar = h_flex()
             .gap(px(6.0))

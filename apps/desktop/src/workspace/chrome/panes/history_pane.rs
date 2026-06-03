@@ -12,6 +12,7 @@ use gpui_component::{
 
 use crate::connection::ConnectionId;
 use crate::query_store::QueryStore;
+use crate::widgets::empty_state::pane_empty_hint;
 use crate::widgets::query_panel_extras::{HistoryFilter, filtered_history};
 use crate::workspace::Workspace;
 use crate::workspace::tabs::enqueue_open_tab;
@@ -27,18 +28,7 @@ pub fn render_history_pane(
     let muted = cx.theme().muted_foreground;
 
     let Some(conn_id) = conn_id else {
-        return v_flex()
-            .size_full()
-            .items_center()
-            .justify_center()
-            .p_4()
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(muted)
-                    .child("Open a Query tab to see its run history."),
-            )
-            .into_any_element();
+        return pane_empty_hint("Open a Query tab to see its run history.", cx).into_any_element();
     };
 
     let entries = {

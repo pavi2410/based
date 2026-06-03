@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use crate::connection::ConnectionId;
 use crate::storage;
+use crate::widgets::section_eyebrow::section_eyebrow;
 use crate::workspace::WorkspaceRef;
 use crate::workspace::context::WorkspaceContext;
 use crate::workspace::tabs::enqueue_open_tab;
@@ -30,7 +31,7 @@ pub fn render_query_lane(cx: &mut App) -> AnyElement {
         .w_full()
         .border_b_1()
         .border_color(border)
-        .child(section_header("LOOSE QUERIES", cx));
+        .child(section_eyebrow("LOOSE QUERIES", cx));
 
     if ctx.active.loose_queries.is_empty() {
         body = body.child(
@@ -93,7 +94,7 @@ pub fn render_query_lane(cx: &mut App) -> AnyElement {
     }
 
     body = body
-        .child(section_header("COLLECTIONS", cx))
+        .child(section_eyebrow("COLLECTIONS", cx))
         .child(new_actions(cx));
 
     if ctx.active.collections.is_empty() {
@@ -157,18 +158,6 @@ pub fn render_query_lane(cx: &mut App) -> AnyElement {
     }
 
     body.into_any_element()
-}
-
-fn section_header(label: &str, cx: &App) -> impl IntoElement {
-    div()
-        .h_8()
-        .px_3()
-        .flex()
-        .items_center()
-        .text_xs()
-        .font_weight(FontWeight::BOLD)
-        .text_color(cx.theme().muted_foreground)
-        .child(label.to_string())
 }
 
 fn new_actions(cx: &mut App) -> impl IntoElement {

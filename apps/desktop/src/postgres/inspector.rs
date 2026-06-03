@@ -2,8 +2,8 @@
 
 use gpui::{prelude::*, *};
 use gpui_component::{
-    ActiveTheme, Sizable,
-    button::{Button, ButtonVariants},
+    ActiveTheme,
+    button::Button,
     dock::{Panel, PanelEvent},
     h_flex,
     menu::PopupMenu,
@@ -14,6 +14,7 @@ use sqlx::{PgPool, Row};
 
 use crate::widgets::compact_description_list_vertical;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
+use crate::widgets::panel::tab_button_styled;
 use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -286,17 +287,12 @@ impl TableInspectorPanel {
         tab: PgInspectorTab,
         cx: &mut Context<Self>,
     ) -> Button {
-        let active = self.tab == tab;
-        let mut b = Button::new(id).label(label).small();
-        if active {
-            b = b.outline();
-        } else {
-            b = b.ghost();
-        }
-        b.on_click(cx.listener(move |panel, _, _, cx| {
-            panel.tab = tab;
-            cx.notify();
-        }))
+        tab_button_styled(id, label, self.tab == tab).on_click(cx.listener(
+            move |panel, _, _, cx| {
+                panel.tab = tab;
+                cx.notify();
+            },
+        ))
     }
 }
 

@@ -14,10 +14,10 @@ use gpui_component::{
     list::ListItem,
     list::{ListDelegate, ListState},
     menu::{ContextMenuExt, PopupMenuItem},
-    v_flex,
 };
 
 use crate::app::prefs;
+use crate::widgets::empty_state::empty_state;
 use crate::widgets::list_row::{SchemaRowStyle, schema_object_row};
 use crate::widgets::{
     CONNECTION_CHEVRON_SLOT_W, SIDEBAR_INSET, browser_tree_object_pl, browser_tree_section_pl,
@@ -426,17 +426,12 @@ impl ListDelegate for BrowserListDelegate {
         _window: &mut Window,
         cx: &mut Context<ListState<Self>>,
     ) -> impl IntoElement {
-        v_flex()
-            .flex_1()
-            .items_center()
-            .justify_center()
-            .p_3()
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(cx.theme().muted_foreground)
-                    .child("No connections match your search."),
-            )
+        empty_state(
+            "No matches",
+            "No connections match your search.",
+            IconName::Search,
+            cx,
+        )
     }
 
     fn set_selected_index(

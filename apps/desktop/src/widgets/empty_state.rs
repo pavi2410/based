@@ -1,4 +1,4 @@
-//! Empty state view — centered icon + title + body for panels with no data.
+//! Empty state views — full-panel icon+text and lightweight muted hint variants.
 
 use gpui::{prelude::*, *};
 use gpui_component::{ActiveTheme, Icon, IconName, Sizable, v_flex};
@@ -50,5 +50,23 @@ pub fn empty_state(
                         .text_color(cx.theme().muted_foreground)
                         .child(body),
                 ),
+        )
+}
+
+/// Lightweight centered muted hint for sidebars and small panes (no icon).
+///
+/// Use this for inline "nothing to show" states where the full `empty_state`
+/// (icon + title + body) would be too heavy.
+pub fn pane_empty_hint(message: impl Into<SharedString>, cx: &App) -> impl IntoElement {
+    v_flex()
+        .flex_1()
+        .items_center()
+        .justify_center()
+        .p_3()
+        .child(
+            div()
+                .text_xs()
+                .text_color(cx.theme().muted_foreground)
+                .child(message.into()),
         )
 }

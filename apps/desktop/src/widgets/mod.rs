@@ -4,6 +4,7 @@
 
 pub mod cell_detail;
 pub mod data_table;
+pub mod export;
 pub mod filter_bar;
 pub mod list_row;
 pub mod pagination;

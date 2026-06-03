@@ -2,7 +2,7 @@ use gpui::{Context, IntoElement, MouseButton, Render, SharedString, Window, div,
 use gpui_component::{ActiveTheme, Icon, IconName, input::Input, scroll::Scrollbar, v_flex};
 
 use crate::widgets::list_row::palette_result_row;
-use crate::widgets::ui::palette_footer_hints;
+use crate::widgets::palette_footer_hints;
 
 use super::CommandPalette;
 use super::actions::{PaletteConfirm, PaletteSelectDown, PaletteSelectUp};

@@ -2,7 +2,7 @@ use gpui::{AnyElement, Context, Entity, FontWeight, IntoElement, Window, div, pr
 use gpui_component::{ActiveTheme, h_flex, v_flex};
 
 use crate::connection::{ConnectionEntry, ConnectionState};
-use crate::widgets::ui::{
+use crate::widgets::{
     engine_chip, engine_name, inspector_description_section, inspector_shortcuts_section,
     metadata_pill,
 };
@@ -91,7 +91,7 @@ fn inspector_note(
     v_flex()
         .gap_1()
         .p_2()
-        .rounded(gpui::px(crate::widgets::ui::PANEL_RADIUS))
+        .rounded(gpui::px(crate::widgets::PANEL_RADIUS))
         .border_1()
         .border_color(cx.theme().border.opacity(0.85))
         .bg(cx.theme().muted.opacity(0.28))

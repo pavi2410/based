@@ -5,7 +5,7 @@ use gpui_component::ActiveTheme;
 
 use crate::app::prefs;
 use crate::connection::EngineKind;
-use crate::widgets::ui::{engine_color, engine_label};
+use crate::widgets::{engine_color, engine_label};
 
 pub fn tab_chip(
     engine: EngineKind,

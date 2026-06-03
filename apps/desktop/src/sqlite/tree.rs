@@ -3,7 +3,7 @@
 use gpui::{InteractiveElement, prelude::*, *};
 
 use crate::widgets::list_row::{SchemaRowStyle, schema_object_row};
-use crate::widgets::ui::{metadata_pill, panel_header};
+use crate::widgets::{metadata_pill, panel_header};
 use gpui_component::{
     ActiveTheme,
     dock::{Panel, PanelEvent},
@@ -162,8 +162,8 @@ impl Render for SchemaTreePanel {
                         muted,
                         fg,
                         mono_family: crate::app::prefs::code_font_family(cx),
-                        row_py: crate::widgets::ui::sidebar_row_padding_y(cx),
-                        row_gap: crate::widgets::ui::sidebar_row_inner_gap(cx),
+                        row_py: crate::widgets::sidebar_row_padding_y(cx),
+                        row_gap: crate::widgets::sidebar_row_inner_gap(cx),
                     },
                 )
                 .on_mouse_down(

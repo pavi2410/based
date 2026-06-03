@@ -1,7 +1,7 @@
 use gpui::{Entity, FontWeight, IntoElement, ParentElement, div, prelude::*, px};
 use gpui_component::{ActiveTheme, h_flex, list::List, list::ListState, v_flex};
 
-use crate::widgets::ui::SIDEBAR_INSET;
+use crate::widgets::SIDEBAR_INSET;
 
 use super::connection_list::ConnectionListDelegate;
 use super::object_list::ObjectListDelegate;
@@ -77,7 +77,7 @@ pub(super) fn render_objects_pane(
                 .py_2()
                 .gap_2()
                 .items_center()
-                .child(crate::widgets::ui::engine_label_inline(*engine, cx))
+                .child(crate::widgets::engine_label_inline(*engine, cx))
                 .child(
                     div()
                         .text_xs()

@@ -30,8 +30,8 @@ use crate::widgets::query_panel_extras;
 use crate::widgets::result_tabs::{BottomTab, result_tab_strip};
 use crate::widgets::row_cell::sqlite_cell_display;
 use crate::widgets::sql_editor::{self, new_sql_input, set_input_text, text_from_input};
-use crate::widgets::ui::{metadata_pill, shortcut_run_kbd_in_primary_button};
 use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
+use crate::widgets::{metadata_pill, shortcut_run_kbd_in_primary_button};
 use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::tabs::take_sql_inject;
 

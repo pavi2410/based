@@ -12,7 +12,7 @@ use gpui_component::{
 };
 
 use crate::connection::{ConnectionState, EngineKind};
-use crate::widgets::ui::{SIDEBAR_INSET, engine_color, engine_label_inline};
+use crate::widgets::{SIDEBAR_INSET, engine_color, engine_label_inline};
 
 use super::ConnectionTree;
 

@@ -10,7 +10,7 @@ use crate::app::{prefs, shell};
 use crate::bindings::CycleAppearance;
 use crate::connection::registry::ConnectionRegistry;
 use crate::project::ProjectContext;
-use crate::widgets::ui::{SIDEBAR_INSET, command_shell};
+use crate::widgets::{SIDEBAR_INSET, command_shell};
 
 /// A `RenderOnce` top bar that renders inside the window's `TitleBar`.
 #[derive(IntoElement)]

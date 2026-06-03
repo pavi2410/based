@@ -13,8 +13,8 @@ use gpui_component::{
 use mongodb::Collection;
 use mongodb::bson::{Document, doc};
 
+use crate::widgets::compact_description_list_vertical;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
-use crate::widgets::ui::compact_description_list_vertical;
 use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]

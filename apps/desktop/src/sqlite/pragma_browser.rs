@@ -8,7 +8,7 @@ use gpui_component::{
 };
 use sqlx::{AssertSqlSafe, Row, SqlitePool};
 
-use crate::widgets::ui::compact_description_list_vertical;
+use crate::widgets::compact_description_list_vertical;
 use crate::workspace::pop_out::PopOutWindowTitle;
 
 const PRAGMA_LIST: &[&str] = &[

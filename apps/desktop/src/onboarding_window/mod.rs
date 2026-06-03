@@ -22,7 +22,7 @@ use crate::app::shell::OpenSettingsMenu;
 use crate::bindings::{
     ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane, ToggleSidebarRail,
 };
-use crate::widgets::ui::kbd_for_action;
+use crate::widgets::kbd_for_action;
 
 const ONBOARDING_COLUMN_W: f32 = 560.0;
 

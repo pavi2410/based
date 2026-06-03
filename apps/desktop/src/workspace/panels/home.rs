@@ -15,7 +15,7 @@ use gpui_component::{
 use crate::app::shell::OpenSettingsMenu;
 use crate::bindings::{NewQuery, ToggleCommandPalette};
 use crate::project::prompt_open_project_in_window;
-use crate::widgets::ui::kbd_for_action;
+use crate::widgets::kbd_for_action;
 use crate::workspace::WorkspaceRef;
 use crate::workspace::query_lane::create_loose_query_from_palette;
 

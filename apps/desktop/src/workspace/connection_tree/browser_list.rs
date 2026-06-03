@@ -19,7 +19,7 @@ use gpui_component::{
 
 use crate::app::prefs;
 use crate::widgets::list_row::{SchemaRowStyle, schema_object_row};
-use crate::widgets::ui::{
+use crate::widgets::{
     CONNECTION_CHEVRON_SLOT_W, SIDEBAR_INSET, browser_tree_object_pl, browser_tree_section_pl,
     engine_icon, sidebar_row_inner_gap, sidebar_row_padding_y,
 };

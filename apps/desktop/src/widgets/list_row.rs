@@ -3,7 +3,7 @@
 use gpui::{ElementId, Hsla, IntoElement, ParentElement, SharedString, div, prelude::*, px};
 use gpui_component::{Icon, IconName, Sizable as _, h_flex, list::ListItem};
 
-use crate::widgets::ui::{SCHEMA_ROW_ICON_SIZE, SIDEBAR_INSET};
+use crate::widgets::{SCHEMA_ROW_ICON_SIZE, SIDEBAR_INSET};
 
 /// Fixed row height for command palette list items.
 const PALETTE_ROW_H: f32 = 28.0;

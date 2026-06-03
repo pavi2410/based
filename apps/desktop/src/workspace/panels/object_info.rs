@@ -12,9 +12,7 @@ use gpui_component::{
 
 use crate::connection::{AnyConnection, ConnectionEntry, ConnectionState};
 use crate::query_store::QueryStore;
-use crate::widgets::ui::{
-    compact_description_list_vertical, engine_chip, metadata_pill, panel_header,
-};
+use crate::widgets::{compact_description_list_vertical, engine_chip, metadata_pill, panel_header};
 
 pub struct ConnectionDashboardPanel {
     focus_handle: FocusHandle,
@@ -254,7 +252,7 @@ fn dashboard_card_with_list(
         .gap_1()
         .p_3()
         .w_full()
-        .rounded(gpui::px(crate::widgets::ui::PANEL_RADIUS))
+        .rounded(gpui::px(crate::widgets::PANEL_RADIUS))
         .border_1()
         .border_color(cx.theme().border.opacity(0.85))
         .bg(cx.theme().muted.opacity(0.22))
@@ -279,7 +277,7 @@ fn dashboard_card(
         .gap_1()
         .p_3()
         .w_full()
-        .rounded(gpui::px(crate::widgets::ui::PANEL_RADIUS))
+        .rounded(gpui::px(crate::widgets::PANEL_RADIUS))
         .border_1()
         .border_color(cx.theme().border.opacity(0.85))
         .bg(cx.theme().muted.opacity(0.22))

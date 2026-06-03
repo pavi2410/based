@@ -23,8 +23,8 @@ use crate::widgets::filter_bar::FilterBar;
 use crate::widgets::pagination::sql_page_state;
 use crate::widgets::pagination::{offset_for_page, sql_pagination_controls, sql_row_range_label};
 use crate::widgets::row_cell::sqlite_cell_display;
-use crate::widgets::ui::{metadata_pill, panel_shell};
 use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
+use crate::widgets::{metadata_pill, panel_shell};
 use crate::workspace::pop_out::{PopOutManager, PopOutWindowTitle};
 
 pub struct DataViewerPanel {

@@ -11,8 +11,8 @@ use gpui_component::{
 };
 
 use crate::connection::{ConnectionId, EngineKind};
+use crate::widgets::SIDEBAR_INSET;
 use crate::widgets::list_row::{SchemaRowStyle, schema_object_row_with_actions};
-use crate::widgets::ui::SIDEBAR_INSET;
 
 use super::ConnectionTree;
 use super::types::{ActiveObjects, ObjectKind, SchemaObject};
@@ -98,8 +98,8 @@ impl ObjectListDelegate {
             muted: cx.theme().muted_foreground,
             fg: cx.theme().sidebar_foreground,
             mono_family: crate::app::prefs::code_font_family(cx),
-            row_py: crate::widgets::ui::sidebar_row_padding_y(cx),
-            row_gap: crate::widgets::ui::sidebar_row_inner_gap(cx),
+            row_py: crate::widgets::sidebar_row_padding_y(cx),
+            row_gap: crate::widgets::sidebar_row_inner_gap(cx),
         }
     }
 }

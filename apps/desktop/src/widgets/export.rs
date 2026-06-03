@@ -124,9 +124,10 @@ pub async fn save_bytes(
 
             // Enforce the extension if the platform omitted it.
             if let Some(expected) = exts_ref.first()
-                && path.extension().and_then(|e| e.to_str()) != Some(expected) {
-                    path.set_extension(expected);
-                }
+                && path.extension().and_then(|e| e.to_str()) != Some(expected)
+            {
+                path.set_extension(expected);
+            }
 
             if std::fs::write(&path, &bytes).is_ok() {
                 Some(path)

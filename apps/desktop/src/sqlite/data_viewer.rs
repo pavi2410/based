@@ -278,13 +278,13 @@ impl Render for DataViewerPanel {
                                                 bytes,
                                             )
                                             .await
-                                            {
-                                                cx.update(|app| {
-                                                    crate::workspace::notify::push_export_success(
-                                                        app, &path,
-                                                    )
-                                                });
-                                            }
+                                        {
+                                            cx.update(|app| {
+                                                crate::workspace::notify::push_export_success(
+                                                    app, &path,
+                                                )
+                                            });
+                                        }
                                     })
                                     .detach();
                                 }),
@@ -306,13 +306,13 @@ impl Render for DataViewerPanel {
                                                 bytes,
                                             )
                                             .await
-                                            {
-                                                cx.update(|app| {
-                                                    crate::workspace::notify::push_export_success(
-                                                        app, &path,
-                                                    )
-                                                });
-                                            }
+                                        {
+                                            cx.update(|app| {
+                                                crate::workspace::notify::push_export_success(
+                                                    app, &path,
+                                                )
+                                            });
+                                        }
                                     })
                                     .detach();
                                 }),

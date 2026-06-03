@@ -52,15 +52,14 @@ mongodb = { version = "2", features = ["tokio-runtime"] }
 
 [workspace.lints.clippy]
 # Upgrade all default-warn groups to errors.
-# priority = -1 so individual allow-overrides below take precedence.
+# priority = -1 so individual allow-overrides in member crates take precedence.
 correctness = { level = "deny", priority = -1 }
 suspicious  = { level = "deny", priority = -1 }
 style       = { level = "deny", priority = -1 }
 complexity  = { level = "deny", priority = -1 }
 perf        = { level = "deny", priority = -1 }
-# gpui-component conventions require these overrides
-arc_with_non_send_sync = "allow"
-type_complexity        = "allow"
+# SQLx row tuples and other non-GPUI code legitimately produces complex types
+type_complexity = "allow"
 
 # Required patch for stacker compatibility (used transitively by gpui)
 [patch.crates-io]

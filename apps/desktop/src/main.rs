@@ -4,6 +4,11 @@
 // are declared here so `cargo check` validates the tree even before each
 // phase fills in real implementations.
 
+// gpui-component uses Arc<dyn Trait> patterns that aren't Send+Sync, and
+// complex return types from builder chains — both are idiomatic in this ecosystem.
+#![allow(clippy::arc_with_non_send_sync)]
+#![allow(clippy::type_complexity)]
+
 mod about_window;
 mod app;
 mod assets;

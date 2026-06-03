@@ -90,50 +90,55 @@ pub fn to_json(headers: &[String], rows: &[Vec<String>]) -> String {
 
 // ── File dialog + write ───────────────────────────────────────────────────────
 
-/// Open a native save-file dialog, then write `bytes` to the chosen path.
+/// Open a native save-file dialog, write `bytes` to the chosen path, and
+/// return the saved path.
 ///
 /// Both the dialog and the write run inside `spawn_blocking` on Tokio's thread
-/// pool — the same pattern as `project/pick.rs`.  Using `std::fs::write` (not
+/// pool — the same pattern as `project/pick.rs`. Using `std::fs::write` (not
 /// `tokio::fs::write`) is correct here because we're already on a blocking
-/// thread.  The extension from `extensions[0]` is appended to the path if the
-/// platform didn't include it (e.g. Linux GTK dialogs).
+/// thread. The extension from `extensions[0]` is appended if the platform
+/// omitted it (e.g. Linux GTK dialogs).
 ///
-/// Returns `Ok(())` whether the user cancels or the write succeeds.
+/// Returns `None` if the user cancelled or the write failed.
 pub async fn save_bytes(
     cx: &mut AsyncApp,
     filename: &str,
     filter_name: &str,
     extensions: &[&str],
     bytes: Vec<u8>,
-) -> anyhow::Result<()> {
+) -> Option<std::path::PathBuf> {
     let fname = filename.to_string();
     let filter = filter_name.to_string();
     let exts: Vec<String> = extensions.iter().map(|s| s.to_string()).collect();
 
     crate::db::run_infallible(cx, async move {
-        tokio::task::spawn_blocking(move || {
+        tokio::task::spawn_blocking(move || -> Option<std::path::PathBuf> {
             let exts_ref: Vec<&str> = exts.iter().map(String::as_str).collect();
             let Some(mut path) = rfd::FileDialog::new()
                 .set_file_name(&fname)
                 .add_filter(&filter, &exts_ref)
                 .save_file()
             else {
-                return; // user cancelled
+                return None; // user cancelled
             };
 
-            // Ensure the chosen path carries the right extension.
+            // Enforce the extension if the platform omitted it.
             if let Some(expected) = exts_ref.first()
                 && path.extension().and_then(|e| e.to_str()) != Some(expected) {
                     path.set_extension(expected);
                 }
 
-            let _ = std::fs::write(&path, &bytes);
+            if std::fs::write(&path, &bytes).is_ok() {
+                Some(path)
+            } else {
+                None
+            }
         })
         .await
         .ok()
+        .flatten()
     })
     .await
-    .ok();
-
-    Ok(())
+    .ok()
+    .flatten()
 }

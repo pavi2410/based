@@ -258,14 +258,21 @@ impl Render for DocumentViewerPanel {
                             .on_click(move |_, _, cx| {
                                 let json = export::to_json(&export_headers, &export_rows);
                                 cx.spawn(async move |cx| {
-                                    let _ = export::save_bytes(
+                                    if let Some(path) = export::save_bytes(
                                         cx,
                                         "export.json",
                                         "JSON",
                                         &["json"],
                                         json.into_bytes(),
                                     )
-                                    .await;
+                                    .await
+                                    {
+                                        cx.update(|app| {
+                                            crate::workspace::notify::push_export_success(
+                                                app, &path,
+                                            )
+                                        });
+                                    }
                                 })
                                 .detach();
                             }),

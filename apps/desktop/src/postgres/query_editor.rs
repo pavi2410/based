@@ -585,16 +585,22 @@ impl Render for QueryEditorPanel {
                                 .on_click(move |_, _, cx| {
                                     let (hc, rc) = (hc.clone(), rc.clone());
                                     cx.spawn(async move |cx| {
-                                        if let Ok(bytes) = export::to_csv(&hc, &rc) {
-                                            let _ = export::save_bytes(
+                                        if let Ok(bytes) = export::to_csv(&hc, &rc)
+                                            && let Some(path) = export::save_bytes(
                                                 cx,
                                                 "export.csv",
                                                 "CSV",
                                                 &["csv"],
                                                 bytes,
                                             )
-                                            .await;
-                                        }
+                                            .await
+                                            {
+                                                cx.update(|app| {
+                                                    crate::workspace::notify::push_export_success(
+                                                        app, &path,
+                                                    )
+                                                });
+                                            }
                                     })
                                     .detach();
                                 }),
@@ -607,16 +613,22 @@ impl Render for QueryEditorPanel {
                                 .on_click(move |_, _, cx| {
                                     let (hx, rx) = (hx.clone(), rx.clone());
                                     cx.spawn(async move |cx| {
-                                        if let Ok(bytes) = export::to_xlsx(&hx, &rx) {
-                                            let _ = export::save_bytes(
+                                        if let Ok(bytes) = export::to_xlsx(&hx, &rx)
+                                            && let Some(path) = export::save_bytes(
                                                 cx,
                                                 "export.xlsx",
                                                 "Excel",
                                                 &["xlsx"],
                                                 bytes,
                                             )
-                                            .await;
-                                        }
+                                            .await
+                                            {
+                                                cx.update(|app| {
+                                                    crate::workspace::notify::push_export_success(
+                                                        app, &path,
+                                                    )
+                                                });
+                                            }
                                     })
                                     .detach();
                                 }),

@@ -284,7 +284,6 @@ fn trigger_check(cx: &mut App, manual: bool) {
         "trigger_check: manual={manual} current={}",
         config::current_version_string()
     ));
-    let manual = manual;
     cx.spawn(async move |cx| {
         run_check(cx, manual).await;
     })

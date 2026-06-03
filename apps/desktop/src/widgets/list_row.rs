@@ -27,9 +27,7 @@ pub fn palette_result_row(
     muted: Hsla,
     fg: Hsla,
 ) -> ListItem {
-    let meta: SharedString = if conn_label.is_empty() {
-        sublabel
-    } else if sublabel.contains(conn_label.as_ref()) {
+    let meta: SharedString = if conn_label.is_empty() || sublabel.contains(conn_label.as_ref()) {
         sublabel
     } else {
         format!("{conn_label} · {sublabel}").into()

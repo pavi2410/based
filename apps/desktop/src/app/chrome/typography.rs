@@ -118,6 +118,7 @@ impl UiFontFamilyId {
 /// Code / editor font family.
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[allow(clippy::enum_variant_names)]
 pub enum CodeFontFamilyId {
     #[default]
     JetBrainsMono,

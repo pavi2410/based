@@ -16,7 +16,6 @@ pub fn updater_config() -> Result<Config> {
             install_mode: Some(WindowsUpdateInstallMode::Passive),
             ..Default::default()
         }),
-        ..Default::default()
     })
 }
 

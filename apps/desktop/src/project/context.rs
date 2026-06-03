@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use based_project::ProjectSnapshot;
@@ -34,7 +34,7 @@ impl ProjectContext {
 
 impl Global for ProjectContext {}
 
-pub fn read_git_branch(root: &PathBuf) -> Option<String> {
+pub fn read_git_branch(root: &Path) -> Option<String> {
     Command::new("git")
         .args(["-C", root.to_str()?, "branch", "--show-current"])
         .output()

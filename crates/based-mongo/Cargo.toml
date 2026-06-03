@@ -11,3 +11,6 @@ anyhow = { workspace = true }
 mongodb = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+[lints]
+workspace = true

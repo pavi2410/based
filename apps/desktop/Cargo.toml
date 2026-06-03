@@ -94,10 +94,8 @@ mongodb.workspace = true
 [target.'cfg(target_os = "linux")'.dependencies]
 gpui_platform = { workspace = true, features = ["x11", "wayland"] }
 
-[lints.clippy]
-# Match gpui-component's lint profile
-arc_with_non_send_sync = "allow"
-type_complexity = "allow"
+[lints]
+workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

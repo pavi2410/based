@@ -146,7 +146,7 @@ fn show_switch_project_dialog(
     let live = live_connection_count(&registry, cx);
     let description: SharedString = match (live, dirty) {
         (0, false) => "Switch to another project?".into(),
-        (n, false) if n == 1 => {
+        (1, false) => {
             "You have 1 live connection. Switching will disconnect it.".into()
         }
         (n, false) => format!(
@@ -154,7 +154,7 @@ fn show_switch_project_dialog(
         )
         .into(),
         (0, true) => "You have unsaved query tabs. Switching will close them.".into(),
-        (n, true) if n == 1 => {
+        (1, true) => {
             "You have 1 live connection and unsaved query tabs. Switching will disconnect and close them."
                 .into()
         }

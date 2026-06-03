@@ -230,6 +230,7 @@ pub fn theme_onboarding_picker(id_prefix: &'static str, cx: &App) -> impl IntoEl
         )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn onboarding_preset_card(
     id: impl Into<gpui::ElementId>,
     preset: &ThemePreset,

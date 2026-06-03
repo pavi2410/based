@@ -50,6 +50,18 @@ tempfile = "3"
 rfd = "0.15"
 mongodb = { version = "2", features = ["tokio-runtime"] }
 
+[workspace.lints.clippy]
+# Upgrade all default-warn groups to errors.
+# priority = -1 so individual allow-overrides below take precedence.
+correctness = { level = "deny", priority = -1 }
+suspicious  = { level = "deny", priority = -1 }
+style       = { level = "deny", priority = -1 }
+complexity  = { level = "deny", priority = -1 }
+perf        = { level = "deny", priority = -1 }
+# gpui-component conventions require these overrides
+arc_with_non_send_sync = "allow"
+type_complexity        = "allow"
+
 # Required patch for stacker compatibility (used transitively by gpui)
 [patch.crates-io]
 psm = { git = "https://github.com/rust-lang/stacker", rev = "1d45da4653e1d6e5d273cf20e215b372d84ade5e" }

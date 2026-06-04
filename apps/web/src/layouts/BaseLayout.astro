@@ -18,9 +18,11 @@ const {
     "Based — local-first database client for Postgres, SQLite, and MongoDB",
 } = Astro.props;
 
-const site = Astro.site ?? Astro.url;
-const canonicalURL = new URL(Astro.url.pathname, site);
-const ogImageURL = new URL(image, site);
+if (!Astro.site) {
+  throw new Error("astro.config site must be set for canonical and Open Graph URLs");
+}
+const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+const ogImageURL = new URL(image, Astro.site);
 ---
 
 <!doctype html>

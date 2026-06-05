@@ -556,6 +556,7 @@ fn connection_row_element(
         )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn object_row_element(
     conn_idx: usize,
     object: SchemaObject,

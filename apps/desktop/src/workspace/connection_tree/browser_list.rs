@@ -13,7 +13,7 @@ use gpui_component::{
     h_flex,
     list::ListItem,
     list::{ListDelegate, ListState},
-    menu::{ContextMenuExt, PopupMenuItem},
+    menu::ContextMenuExt,
 };
 
 use crate::app::prefs;
@@ -28,6 +28,9 @@ use crate::widgets::{
 use super::ConnectionTree;
 use super::connection_list::{
     ConnectionRow, build_connection_rows, connection_row_status_indicator,
+};
+use super::context_menu::{
+    connection_context_menu, connection_is_connected, object_context_menu, schema_context_menu,
 };
 use super::object_list::{group_by_kind, group_postgres_objects, object_matches_query};
 use super::types::{ConnCache, ConnState, SchemaObject};
@@ -293,12 +296,47 @@ impl RenderOnce for BrowserRowItem {
                 section_row(title, depth, &indent, cx).into_any_element()
             }
             BrowserRow::Object {
+                conn_idx,
                 object,
                 depth,
                 bare_label,
                 ..
-            } => object_row_element(object, bare_label, depth, self.selected, &indent, cx)
-                .into_any_element(),
+            } => {
+                let (engine, is_connected) = self
+                    .tree
+                    .upgrade()
+                    .and_then(|tree| {
+                        tree.read(cx)
+                            .registry
+                            .read(cx)
+                            .connections()
+                            .get(conn_idx)
+                            .map(|e| {
+                                let entry = e.read(cx);
+                                (
+                                    entry.config.engine(),
+                                    matches!(
+                                        entry.state,
+                                        crate::connection::ConnectionState::Connected(_)
+                                    ),
+                                )
+                            })
+                    })
+                    .unwrap_or((EngineKind::Postgres, false));
+                object_row_element(
+                    conn_idx,
+                    object,
+                    bare_label,
+                    depth,
+                    self.selected,
+                    engine,
+                    is_connected,
+                    self.tree.clone(),
+                    &indent,
+                    cx,
+                )
+                .into_any_element()
+            }
         }
     }
 }
@@ -351,6 +389,7 @@ fn schema_row_element(
 ) -> impl IntoElement {
     let tree_chevron = tree.clone();
     let schema_name = name.to_string();
+    let schema_menu_name = schema_name.clone();
     let schema_key = {
         let mut hasher = DefaultHasher::new();
         conn_idx.hash(&mut hasher);
@@ -384,8 +423,25 @@ fn schema_row_element(
             }
         });
 
+    let tree_menu = tree.clone();
+    let is_connected = tree
+        .upgrade()
+        .map(|t| connection_is_connected(t.read(cx), conn_idx, cx))
+        .unwrap_or(false);
+
     h_flex()
         .w_full()
+        .context_menu(move |menu, _window, cx| {
+            schema_context_menu(
+                conn_idx,
+                schema_menu_name.clone(),
+                expanded,
+                is_connected,
+                tree_menu.clone(),
+                menu,
+                cx,
+            )
+        })
         .pl(px(indent.pl(DEPTH_SCHEMA)))
         .pr(px(SIDEBAR_INSET))
         .py(px(sidebar_row_padding_y(cx)))
@@ -458,35 +514,7 @@ fn connection_row_element(
     div()
         .w_full()
         .context_menu(move |menu, _window, cx| {
-            if let Some(tree_ent) = tree_menu.upgrade() {
-                tree_ent.update(cx, |tree, cx| {
-                    tree.selected_connection = Some(idx);
-                    cx.notify();
-                });
-            }
-            let mut menu = menu.item(PopupMenuItem::new("New Query").on_click({
-                let tree = tree_menu.clone();
-                move |_, _window, cx| {
-                    if let Some(tree_ent) = tree.upgrade() {
-                        tree_ent.update(cx, |tree, cx| {
-                            tree.open_new_query(idx, cx);
-                        });
-                    }
-                }
-            }));
-            if is_connected {
-                menu = menu.item(PopupMenuItem::new("Disconnect").on_click({
-                    let tree = tree_menu.clone();
-                    move |_, _window, cx| {
-                        if let Some(tree_ent) = tree.upgrade() {
-                            tree_ent.update(cx, |tree, cx| {
-                                tree.disconnect_at(idx, cx);
-                            });
-                        }
-                    }
-                }));
-            }
-            menu
+            connection_context_menu(idx, engine, is_connected, tree_menu.clone(), menu, cx)
         })
         .child(
             ListItem::new(("browser-conn", idx))
@@ -529,10 +557,14 @@ fn connection_row_element(
 }
 
 fn object_row_element(
+    conn_idx: usize,
     object: SchemaObject,
     bare_label: bool,
     depth: u32,
     selected: bool,
+    engine: EngineKind,
+    is_connected: bool,
+    tree: WeakEntity<ConnectionTree>,
     indent: &BrowserTreeIndent,
     cx: &App,
 ) -> impl IntoElement {
@@ -550,15 +582,32 @@ fn object_row_element(
     } else {
         object.display_name().into()
     };
-    schema_object_row(
-        ("browser-obj", object_row_key(&object)),
-        selected,
-        object.kind.list_icon(),
-        label,
-        style,
-    )
-    .pl(px(indent.pl(depth)))
-    .pr(px(SIDEBAR_INSET))
+    let tree_menu = tree.clone();
+    let object_menu = object.clone();
+    div()
+        .w_full()
+        .context_menu(move |menu, _window, cx| {
+            object_context_menu(
+                conn_idx,
+                object_menu.clone(),
+                engine,
+                is_connected,
+                tree_menu.clone(),
+                menu,
+                cx,
+            )
+        })
+        .child(
+            schema_object_row(
+                ("browser-obj", object_row_key(&object)),
+                selected,
+                object.kind.list_icon(),
+                label,
+                style,
+            )
+            .pl(px(indent.pl(depth)))
+            .pr(px(SIDEBAR_INSET)),
+        )
 }
 
 impl ListDelegate for BrowserListDelegate {

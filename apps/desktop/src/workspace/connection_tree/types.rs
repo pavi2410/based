@@ -137,6 +137,10 @@ impl ConnCache {
     pub(crate) fn set_error(&mut self, message: String) {
         *self = Self::Error(message);
     }
+
+    pub(crate) fn invalidate(&mut self) {
+        *self = Self::Idle;
+    }
 }
 
 /// Per-connection explorer expansion and cached schema objects.

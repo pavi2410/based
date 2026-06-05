@@ -2,7 +2,9 @@
 
 use std::collections::HashMap;
 
-use gpui::{Context, Entity, EventEmitter, IntoElement, Render, Window, prelude::*};
+use gpui::{
+    App, ClipboardItem, Context, Entity, EventEmitter, IntoElement, Render, Window, prelude::*,
+};
 use gpui_component::{dock::DockArea, list::ListState, v_flex};
 
 use crate::connection::registry::{ConnectionRegistry, RegistryEvent};
@@ -17,6 +19,7 @@ mod browser_list;
 mod connect;
 mod connection_browser;
 mod connection_list;
+mod context_menu;
 mod object_list;
 mod open_workspace;
 mod schema_load;
@@ -196,6 +199,23 @@ impl ConnectionTree {
         cx.emit(TreeEvent::OpenTab(TabSpec::blank_query_editor(conn_id)));
     }
 
+    /// Clears cached schema objects and refetches when the connection is open.
+    pub(crate) fn refresh_connection(&mut self, idx: usize, cx: &mut Context<Self>) {
+        let Some(ent) = self.registry.read(cx).connections().get(idx).cloned() else {
+            return;
+        };
+        let entry = ent.read(cx);
+        let conn_id = entry.id.clone();
+        if let Some(st) = self.conn_states.get_mut(&conn_id) {
+            st.cache_mut().invalidate();
+        }
+        if let ConnectionState::Connected(ac) = &entry.state {
+            self.load_objects_for_connection(idx, ac.clone(), cx);
+        } else {
+            self.bump_object_list_epoch(cx);
+        }
+    }
+
     pub(crate) fn disconnect_at(&mut self, idx: usize, cx: &mut Context<Self>) {
         let ent = self.registry.read(cx).connections().get(idx).cloned();
         let Some(ent) = ent else {
@@ -249,7 +269,19 @@ impl ConnectionTree {
         let Some(idx) = self.selected_connection else {
             return;
         };
-        let Some(ent) = self.registry.read(cx).connections().get(idx).cloned() else {
+        self.open_data_tab(object, idx, cx);
+        cx.notify();
+    }
+
+    pub(crate) fn open_data_tab(
+        &mut self,
+        object: SchemaObject,
+        conn_idx: usize,
+        cx: &mut Context<Self>,
+    ) {
+        self.selected_connection = Some(conn_idx);
+        self.selected_object = Some(object.display_name());
+        let Some(ent) = self.registry.read(cx).connections().get(conn_idx).cloned() else {
             return;
         };
         let ac = match &ent.read(cx).state {
@@ -264,7 +296,7 @@ impl ConnectionTree {
                         object: object.display_name(),
                     }));
                 }
-                _ => self.emit_object_info_tab(object, cx),
+                _ => self.emit_object_info_tab(object, conn_idx, cx),
             },
             Some(AnyConnection::Postgres(_)) => match object.kind {
                 ObjectKind::Table | ObjectKind::View | ObjectKind::MaterializedView => {
@@ -273,7 +305,7 @@ impl ConnectionTree {
                         object: object.display_name(),
                     }));
                 }
-                _ => self.emit_object_info_tab(object, cx),
+                _ => self.emit_object_info_tab(object, conn_idx, cx),
             },
             Some(AnyConnection::MongoDB(_)) => {
                 if matches!(object.kind, ObjectKind::Collection) {
@@ -282,19 +314,55 @@ impl ConnectionTree {
                         object: object.display_name(),
                     }));
                 } else {
-                    self.emit_object_info_tab(object, cx);
+                    self.emit_object_info_tab(object, conn_idx, cx);
                 }
             }
             _ => {}
         }
-        cx.notify();
     }
 
-    fn emit_object_info_tab(&mut self, object: SchemaObject, cx: &mut Context<Self>) {
-        let Some(idx) = self.selected_connection else {
+    pub(crate) fn open_structure_tab(
+        &mut self,
+        object: SchemaObject,
+        conn_idx: usize,
+        cx: &mut Context<Self>,
+    ) {
+        self.selected_connection = Some(conn_idx);
+        self.selected_object = Some(object.display_name());
+        let Some(ent) = self.registry.read(cx).connections().get(conn_idx).cloned() else {
             return;
         };
-        let Some(ent) = self.registry.read(cx).connections().get(idx).cloned() else {
+        if !matches!(ent.read(cx).state, ConnectionState::Connected(_)) {
+            return;
+        }
+        let engine = ent.read(cx).config.engine();
+        let supported = match engine {
+            EngineKind::Postgres => matches!(
+                object.kind,
+                ObjectKind::Table | ObjectKind::View | ObjectKind::MaterializedView
+            ),
+            EngineKind::SQLite => matches!(object.kind, ObjectKind::Table | ObjectKind::View),
+            EngineKind::MongoDB => false,
+        };
+        if !supported {
+            notify::push_info(cx, "Structure view is not available for this object yet.");
+            return;
+        }
+        let conn_id = ent.read(cx).id.clone();
+        self.open_inspector_tab(object, conn_id, cx);
+    }
+
+    pub(crate) fn copy_object_name(&self, object: &SchemaObject, cx: &mut App) {
+        cx.write_to_clipboard(ClipboardItem::new_string(object.display_name()));
+    }
+
+    fn emit_object_info_tab(
+        &mut self,
+        object: SchemaObject,
+        conn_idx: usize,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(ent) = self.registry.read(cx).connections().get(conn_idx).cloned() else {
             return;
         };
         let conn_id = ent.read(cx).id.clone();

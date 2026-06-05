@@ -192,11 +192,11 @@ pub fn render_grid_cell(
             let label = display.to_string();
             if let Some(value) = parse_bool_display(&label) {
                 let icon = if value {
-                    Icon::new(IconName::CircleCheck)
+                    Icon::new(IconName::Check)
                         .xsmall()
                         .text_color(theme.green_light)
                 } else {
-                    Icon::new(IconName::CircleX)
+                    Icon::new(IconName::Close)
                         .xsmall()
                         .text_color(theme.muted_foreground)
                 };

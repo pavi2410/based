@@ -5,14 +5,13 @@ use gpui::{
 use gpui_component::{
     ActiveTheme,
     dock::{Panel, PanelEvent},
-    h_flex,
     menu::PopupMenu,
     v_flex,
 };
 
 use crate::connection::{AnyConnection, ConnectionEntry, ConnectionState};
 use crate::query_store::QueryStore;
-use crate::widgets::{compact_description_list_vertical, engine_chip, metadata_pill, panel_header};
+use crate::widgets::{compact_description_list_vertical, engine_name, metadata_pill, panel_header};
 
 pub struct ConnectionDashboardPanel {
     focus_handle: FocusHandle,
@@ -97,14 +96,9 @@ impl Render for ConnectionDashboardPanel {
             AnyConnection::MongoDB(e) => e.read(cx).server_version.clone(),
         });
 
-        let (label, engine, state_label, conn_id) = {
+        let (engine, state_label, conn_id) = {
             let entry = self.conn.read(cx);
-            (
-                entry.config.label().to_string(),
-                entry.config.engine(),
-                entry.state.label(),
-                entry.id.clone(),
-            )
+            (entry.config.engine(), entry.state.label(), entry.id.clone())
         };
 
         let store = cx.global::<QueryStore>();
@@ -122,37 +116,29 @@ impl Render for ConnectionDashboardPanel {
             })
             .count();
 
-        let stats_rows = [
-            ("Session history", history_len.to_string()),
-            ("Saved queries", saved_len.to_string()),
+        let query_rows: Vec<(SharedString, SharedString)> = vec![
+            ("Session history".into(), history_len.to_string().into()),
+            ("Saved queries".into(), saved_len.to_string().into()),
         ];
 
-        let mut header_row = h_flex()
-            .gap_2()
-            .items_center()
-            .flex_wrap()
-            .child(engine_chip(engine, cx))
-            .child(metadata_pill("state", state_label, cx))
-            .child(metadata_pill("scope", "local workspace", cx));
-
+        let mut info_rows: Vec<(SharedString, SharedString)> = vec![
+            ("Engine".into(), engine_name(engine).into()),
+            ("State".into(), state_label.into()),
+            ("Scope".into(), "local workspace".into()),
+        ];
         if let Some(ref ver) = server_version {
-            header_row = header_row.child(metadata_pill("server", ver.as_str(), cx));
+            info_rows.push(("Server".into(), ver.clone().into()));
         }
 
         v_flex()
             .size_full()
             .bg(cx.theme().background)
-            .child(panel_header(
-                label.clone(),
-                "Connection dashboard",
-                cx,
-            ))
             .child(
                 v_flex()
                     .p_4()
                     .gap_4()
-                    .child(header_row)
-                    .child(dashboard_card_with_list("Queries", stats_rows, cx))
+                    .child(compact_description_list_vertical(info_rows, true))
+                    .child(dashboard_description_section("Queries", query_rows, cx))
                     .child(dashboard_card(
                         "Start",
                         "Use the Objects pane to open tables, views, or collections. Use the query tab for ad-hoc work.",
@@ -242,20 +228,14 @@ impl Render for ObjectInfoPanel {
     }
 }
 
-fn dashboard_card_with_list(
+fn dashboard_description_section(
     title: impl Into<SharedString>,
     rows: impl IntoIterator<Item = (impl Into<SharedString>, impl Into<SharedString>)>,
     cx: &mut App,
 ) -> impl IntoElement {
     let title = title.into();
     v_flex()
-        .gap_1()
-        .p_3()
-        .w_full()
-        .rounded(gpui::px(crate::widgets::PANEL_RADIUS))
-        .border_1()
-        .border_color(cx.theme().border.opacity(0.85))
-        .bg(cx.theme().muted.opacity(0.22))
+        .gap_2()
         .child(
             div()
                 .text_sm()
@@ -263,7 +243,7 @@ fn dashboard_card_with_list(
                 .text_color(cx.theme().foreground)
                 .child(title),
         )
-        .child(compact_description_list_vertical(rows, false))
+        .child(compact_description_list_vertical(rows, true))
 }
 
 fn dashboard_card(

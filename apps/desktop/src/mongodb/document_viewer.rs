@@ -18,7 +18,7 @@ use mongodb::options::FindOptions;
 
 use gpui_component::table::TableEvent;
 
-use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_display};
+use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_with_meta};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export;
 use crate::widgets::filter_bar::{FilterBar, FilterExpr};
@@ -90,7 +90,8 @@ impl DocumentViewerPanel {
         let del = st.delegate();
         let col_name = del.columns.get(col)?.key.to_string();
         let txt = del.rows.get(row)?.get(col)?.to_string();
-        Some((col_name, interpret_cell_display(&txt)))
+        let meta = del.column_meta.get(col).cloned().unwrap_or_default();
+        Some((col_name, interpret_cell_with_meta(&txt, &meta)))
     }
 
     fn reload(&mut self, cx: &mut Context<Self>) {

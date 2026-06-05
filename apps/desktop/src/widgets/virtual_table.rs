@@ -3,12 +3,10 @@
 // so this is a thin wrapper / type alias for the RowDelegate-based table.
 
 use gpui::{prelude::*, *};
-use gpui_component::{
-    ActiveTheme, StyleSized,
-    table::{Column, ColumnSort, TableState},
-};
+use gpui_component::table::{Column, ColumnSort, TableState};
 
 use crate::app::prefs;
+use crate::widgets::cell_render::{column_value_kind, render_grid_cell};
 use crate::widgets::column_header::{GridColumnMeta, render_column_header, reorder_column_meta};
 
 pub use crate::widgets::column_header::{align_meta_to_columns, meta_from_query_type};
@@ -58,7 +56,7 @@ impl gpui_component::table::TableDelegate for RowDelegate {
         &mut self,
         row_ix: usize,
         col_ix: usize,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<TableState<Self>>,
     ) -> impl IntoElement {
         let cell = self
@@ -73,16 +71,9 @@ impl gpui_component::table::TableDelegate for RowDelegate {
         } else {
             cell
         };
-        div()
-            .truncate()
-            .table_cell_size(prefs::table_cell_size(cx))
-            .font_family(crate::app::prefs::code_font_family(cx))
-            .text_color(if is_null {
-                cx.theme().muted_foreground
-            } else {
-                cx.theme().foreground
-            })
-            .child(display)
+        let meta = self.column_meta.get(col_ix).cloned().unwrap_or_default();
+        let kind = column_value_kind(meta.data_type.as_deref());
+        render_grid_cell(kind, display, is_null, row_ix, col_ix, window, cx)
     }
 
     fn cell_text(&self, row_ix: usize, col_ix: usize, _: &App) -> String {

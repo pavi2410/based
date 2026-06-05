@@ -3,6 +3,9 @@
 use gpui::{Context, IntoElement, MouseButton, Render, Window, div, prelude::*};
 use gpui_component::{ActiveTheme, h_flex, scroll::ScrollableElement, v_flex};
 
+use crate::widgets::cell_render::{ColumnValueKind, column_value_kind, parse_bool_display};
+use crate::widgets::column_header::GridColumnMeta;
+
 pub enum CellValue {
     Text(String),
     Integer(i64),
@@ -46,14 +49,44 @@ fn pretty_json(s: &str) -> String {
         .unwrap_or_else(|| s.to_string())
 }
 
-pub fn interpret_cell_display(s: &str) -> CellValue {
+fn null_or_trimmed(s: &str) -> Option<&str> {
     let t = s.trim();
-    if t.is_empty() {
-        return CellValue::Null;
+    if t.is_empty() || t.eq_ignore_ascii_case("null") {
+        None
+    } else {
+        Some(t)
     }
-    if t.eq_ignore_ascii_case("null") {
-        return CellValue::Null;
+}
+
+fn parse_numeric_display(s: &str) -> CellValue {
+    if let Ok(n) = s.parse::<i64>() {
+        return CellValue::Integer(n);
     }
+    if let Ok(n) = s.parse::<f64>() {
+        return CellValue::Float(n);
+    }
+    CellValue::Text(s.to_string())
+}
+
+/// Infer cell value using column schema type (not string heuristics).
+pub fn interpret_cell_with_meta(s: &str, meta: &GridColumnMeta) -> CellValue {
+    let Some(t) = null_or_trimmed(s) else {
+        return CellValue::Null;
+    };
+
+    match column_value_kind(meta.data_type.as_deref()) {
+        ColumnValueKind::Numeric => parse_numeric_display(t),
+        ColumnValueKind::Boolean => parse_bool_display(t)
+            .map(CellValue::Boolean)
+            .unwrap_or_else(|| CellValue::Text(t.to_string())),
+        ColumnValueKind::Text | ColumnValueKind::Unknown => CellValue::Text(t.to_string()),
+    }
+}
+
+pub fn interpret_cell_display(s: &str) -> CellValue {
+    let Some(t) = null_or_trimmed(s) else {
+        return CellValue::Null;
+    };
     if let Ok(n) = t.parse::<i64>() {
         return CellValue::Integer(n);
     }
@@ -198,5 +231,42 @@ mod tests {
     fn blob_shows_byte_count() {
         let d = CellValue::Blob(1024).display();
         assert_eq!(d, "<1024 bytes>");
+    }
+
+    #[test]
+    fn meta_text_column_keeps_string_numbers() {
+        let meta = GridColumnMeta {
+            data_type: Some("text".into()),
+            ..Default::default()
+        };
+        assert!(matches!(
+            interpret_cell_with_meta("3.14", &meta),
+            CellValue::Text(s) if s == "3.14"
+        ));
+    }
+
+    #[test]
+    fn meta_numeric_column_parses_float() {
+        let meta = GridColumnMeta {
+            data_type: Some("numeric".into()),
+            ..Default::default()
+        };
+        let expected: f64 = "3.14".parse().unwrap();
+        assert!(matches!(
+            interpret_cell_with_meta("3.14", &meta),
+            CellValue::Float(f) if (f - expected).abs() < 1e-6
+        ));
+    }
+
+    #[test]
+    fn meta_bool_column_parses_boolean() {
+        let meta = GridColumnMeta {
+            data_type: Some("bool".into()),
+            ..Default::default()
+        };
+        assert!(matches!(
+            interpret_cell_with_meta("true", &meta),
+            CellValue::Boolean(true)
+        ));
     }
 }

@@ -132,17 +132,38 @@ pub enum ConnectionEntryEvent {}
 
 impl gpui::EventEmitter<ConnectionEntryEvent> for ConnectionEntry {}
 
+/// A connected entry in the registry (for quit / switch-project prompts).
+#[derive(Clone)]
+pub struct LiveConnection {
+    pub label: gpui::SharedString,
+    pub engine: EngineKind,
+}
+
+/// List connections in [`ConnectionState::Connected`].
+pub fn live_connections(
+    registry: &gpui::Entity<registry::ConnectionRegistry>,
+    cx: &gpui::App,
+) -> Vec<LiveConnection> {
+    registry
+        .read(cx)
+        .connections()
+        .iter()
+        .filter_map(|ent| {
+            let entry = ent.read(cx);
+            matches!(entry.state, ConnectionState::Connected(_)).then(|| LiveConnection {
+                label: entry.config.label().into(),
+                engine: entry.config.engine(),
+            })
+        })
+        .collect()
+}
+
 /// Count connections in [`ConnectionState::Connected`].
 pub fn live_connection_count(
     registry: &gpui::Entity<registry::ConnectionRegistry>,
     cx: &gpui::App,
 ) -> usize {
-    registry
-        .read(cx)
-        .connections()
-        .iter()
-        .filter(|e| matches!(e.read(cx).state, ConnectionState::Connected(_)))
-        .count()
+    live_connections(registry, cx).len()
 }
 
 /// Close pools / clients held by a live connection handle.

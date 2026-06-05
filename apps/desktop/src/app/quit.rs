@@ -1,14 +1,20 @@
 //! Quit / window-close confirmation when live database connections are open.
 
-use gpui::{App, Context, Entity, SharedString, Window, prelude::*};
+use gpui::{App, Context, Entity, Window, div, prelude::*, px};
 use gpui_component::{
     ActiveTheme, WindowExt,
     button::{Button, ButtonVariants},
     dialog::{DialogAction, DialogClose, DialogFooter},
+    h_flex,
+    scroll::ScrollableElement,
+    v_flex,
 };
 
 use crate::connection::registry::ConnectionRegistry;
-use crate::connection::{ConnectionState, close_any_connection, live_connection_count};
+use crate::connection::{
+    ConnectionState, LiveConnection, close_any_connection, live_connection_count, live_connections,
+};
+use crate::widgets::{engine_icon, engine_label_inline};
 use crate::workspace::Workspace;
 use crate::workspace::WorkspaceRef;
 
@@ -157,18 +163,13 @@ fn show_quit_dialog(
     cx: &mut App,
     mode: QuitMode,
 ) {
-    let count = live_connection_count(&registry, cx);
+    let live = live_connections(&registry, cx);
     trace(&format!(
-        "show_quit_dialog: mode={:?} live={count} has_active_dialog={}",
+        "show_quit_dialog: mode={:?} live={} has_active_dialog={}",
         mode,
+        live.len(),
         window.has_active_dialog(cx)
     ));
-
-    let description: SharedString = if count == 1 {
-        "You have 1 live connection. Quitting will disconnect it.".into()
-    } else {
-        format!("You have {count} live connections. Quitting will disconnect them all.").into()
-    };
     let registry_for_ok = registry.clone();
 
     window.open_alert_dialog(cx, move |alert, _window, cx| {
@@ -181,9 +182,11 @@ fn show_quit_dialog(
             .bg(theme.red)
             .border_color(theme.red)
             .text_color(theme.primary_foreground);
+        let connection_list = render_live_connection_list(&live, cx);
         alert
             .title("Quit with active connections?")
-            .description(description.clone())
+            .description("Quitting will disconnect these connections:")
+            .child(connection_list)
             .footer(
                 DialogFooter::new()
                     .child(
@@ -210,6 +213,28 @@ fn show_quit_dialog(
         "show_quit_dialog: after open_alert_dialog has_active_dialog={}",
         window.has_active_dialog(cx)
     ));
+}
+
+fn render_live_connection_list(live: &[LiveConnection], cx: &mut App) -> impl IntoElement {
+    let foreground = cx.theme().foreground;
+    v_flex()
+        .mt_2()
+        .gap_1()
+        .max_h(px(160.0))
+        .overflow_y_scrollbar()
+        .children(live.iter().map(|conn| {
+            h_flex()
+                .gap_2()
+                .items_center()
+                .child(engine_icon(conn.engine))
+                .child(
+                    div()
+                        .text_sm()
+                        .text_color(foreground)
+                        .child(conn.label.clone()),
+                )
+                .child(engine_label_inline(conn.engine, cx))
+        }))
 }
 
 pub fn disconnect_all(registry: &Entity<ConnectionRegistry>, cx: &mut App) {

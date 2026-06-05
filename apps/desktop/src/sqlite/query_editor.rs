@@ -29,7 +29,9 @@ use crate::widgets::panel::{
     panel_tab_content, tab_breadcrumb_footer, tab_breadcrumb_for_connection,
 };
 use crate::widgets::query_panel_extras;
-use crate::widgets::query_status::{QueryStatusDisplay, query_error_card, query_status_indicator};
+use crate::widgets::query_status::{
+    QueryStatusDisplay, query_error_card, query_status_indicator, tab_breadcrumb_query_trailing,
+};
 use crate::widgets::result_tabs::{BottomTab, result_tab_strip};
 use crate::widgets::row_cell::sqlite_cell_display;
 use crate::widgets::shortcut_run_kbd_in_primary_button;
@@ -395,9 +397,8 @@ impl QueryEditorPanel {
     }
 }
 
-/// Right-aligned status cluster shown at the end of the toolbar.
-fn render_status_cluster(status: &QueryStatus, cx: &mut App) -> AnyElement {
-    let display = match status {
+fn query_status_display(status: &QueryStatus) -> QueryStatusDisplay {
+    match status {
         QueryStatus::Idle => QueryStatusDisplay::Idle,
         QueryStatus::Running => QueryStatusDisplay::Running,
         QueryStatus::Done { rows, elapsed_ms } => QueryStatusDisplay::Done {
@@ -406,8 +407,12 @@ fn render_status_cluster(status: &QueryStatus, cx: &mut App) -> AnyElement {
             elapsed_ms: *elapsed_ms,
         },
         QueryStatus::Error(e) => QueryStatusDisplay::Error(e.clone().into()),
-    };
-    query_status_indicator(&display, cx)
+    }
+}
+
+/// Right-aligned status cluster shown at the end of the toolbar.
+fn render_status_cluster(status: &QueryStatus, cx: &mut App) -> AnyElement {
+    query_status_indicator(&query_status_display(status), cx)
 }
 
 impl Render for QueryEditorPanel {
@@ -497,8 +502,14 @@ impl Render for QueryEditorPanel {
         let bottom_body = self.render_bottom_body(cx);
         let bottom_pane = v_flex().size_full().child(strip).child(bottom_body);
 
+        let status_display = query_status_display(&self.status);
         let crumbs = tab_breadcrumb_for_connection(&self.conn_id, ["Query"], cx);
-        let footer = tab_breadcrumb_footer("sqlite-qe-breadcrumb", crumbs, None, cx);
+        let footer = tab_breadcrumb_footer(
+            "sqlite-qe-breadcrumb",
+            crumbs,
+            tab_breadcrumb_query_trailing(&status_display, cx),
+            cx,
+        );
 
         panel_tab_content(
             v_flex()

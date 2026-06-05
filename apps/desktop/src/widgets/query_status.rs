@@ -49,13 +49,9 @@ pub fn query_status_indicator(status: &QueryStatusDisplay, cx: &mut App) -> AnyE
             .child(Spinner::new().xsmall().color(cx.theme().primary))
             .child(div().text_xs().text_color(muted).child("Running"))
             .into_any_element(),
-        QueryStatusDisplay::Done {
-            rows,
-            affected,
-            elapsed_ms,
-        } => {
+        QueryStatusDisplay::Done { .. } => {
             let success = cx.theme().success_foreground;
-            let mut row = h_flex()
+            h_flex()
                 .gap(px(6.0))
                 .items_center()
                 .child(
@@ -63,11 +59,6 @@ pub fn query_status_indicator(status: &QueryStatusDisplay, cx: &mut App) -> AnyE
                         .text_color(success)
                         .xsmall(),
                 )
-                .child(metadata_pill("rows", rows.to_string(), cx));
-            if let Some(n) = affected {
-                row = row.child(metadata_pill("affected", n.to_string(), cx));
-            }
-            row.child(metadata_pill("time", format!("{elapsed_ms} ms"), cx))
                 .into_any_element()
         }
         QueryStatusDisplay::Error(_) => {
@@ -89,6 +80,34 @@ pub fn query_status_indicator(status: &QueryStatusDisplay, cx: &mut App) -> AnyE
                 )
                 .into_any_element()
         }
+    }
+}
+
+/// Trailing cluster for query-editor breadcrumbs: rows, affected, and elapsed time.
+pub fn tab_breadcrumb_query_trailing(
+    status: &QueryStatusDisplay,
+    cx: &mut App,
+) -> Option<AnyElement> {
+    match status {
+        QueryStatusDisplay::Done {
+            rows,
+            affected,
+            elapsed_ms,
+        } => {
+            let mut row = h_flex()
+                .flex_shrink_0()
+                .items_center()
+                .gap(px(6.0))
+                .child(metadata_pill("rows", rows.to_string(), cx));
+            if let Some(n) = affected {
+                row = row.child(metadata_pill("affected", n.to_string(), cx));
+            }
+            Some(
+                row.child(metadata_pill("time", format!("{elapsed_ms} ms"), cx))
+                    .into_any_element(),
+            )
+        }
+        _ => None,
     }
 }
 

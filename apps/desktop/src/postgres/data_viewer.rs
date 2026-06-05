@@ -47,6 +47,7 @@ pub struct DataViewerPanel {
     page_size: u64,
     total_rows: u64,
     loading: bool,
+    last_load_ms: Option<u64>,
     column_catalog: HashMap<String, GridColumnMeta>,
     pub(crate) tab_label: SharedString,
 }
@@ -98,6 +99,7 @@ impl DataViewerPanel {
             page_size: prefs::page_size(cx),
             total_rows: 0,
             loading: false,
+            last_load_ms: None,
             column_catalog: HashMap::new(),
             tab_label,
         };
@@ -168,6 +170,7 @@ impl DataViewerPanel {
 
             let catalog_for_rows = catalog.clone();
             let res = crate::db::run(cx, async move {
+                let start = std::time::Instant::now();
                 let where_clause = where_sql
                     .as_ref()
                     .map(|w| format!(" WHERE {w}"))
@@ -197,14 +200,16 @@ impl DataViewerPanel {
                     })
                     .collect();
 
-                Ok((total, columns, data_rows))
+                let elapsed_ms = start.elapsed().as_millis() as u64;
+                Ok((total, columns, data_rows, elapsed_ms))
             })
             .await;
 
             let _ = this.update(cx, |panel, cx| match res {
-                Ok((total, columns, data_rows)) => {
+                Ok((total, columns, data_rows, elapsed_ms)) => {
                     panel.total_rows = total as u64;
                     panel.loading = false;
+                    panel.last_load_ms = Some(elapsed_ms);
                     panel.column_catalog = catalog.clone();
                     let names: Vec<String> = columns.iter().map(|c| c.key.to_string()).collect();
                     panel.filter_bar.update(cx, |fb, cx| {
@@ -353,6 +358,7 @@ impl Render for DataViewerPanel {
             crumbs,
             Some(tab_breadcrumb_data_viewer_trailing(
                 row_info,
+                self.last_load_ms,
                 "pg-dv-read-only",
                 cx,
             )),

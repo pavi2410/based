@@ -173,18 +173,22 @@ pub fn tab_breadcrumb_for_connection(
     TabBreadcrumb { engine, segments }
 }
 
-/// Trailing cluster for data-viewer breadcrumbs: row range + read-only indicator.
+/// Trailing cluster for data-viewer breadcrumbs: row range, load time, read-only indicator.
 pub fn tab_breadcrumb_data_viewer_trailing(
     rows_value: impl Into<SharedString>,
+    load_ms: Option<u64>,
     read_only_id: &'static str,
     cx: &mut App,
 ) -> AnyElement {
-    h_flex()
+    let mut row = h_flex()
         .flex_shrink_0()
         .items_center()
         .gap(px(6.0))
-        .child(metadata_pill("rows", rows_value, cx))
-        .child(tab_breadcrumb_read_only_indicator(read_only_id, cx))
+        .child(metadata_pill("rows", rows_value, cx));
+    if let Some(ms) = load_ms {
+        row = row.child(metadata_pill("time", format!("{ms} ms"), cx));
+    }
+    row.child(tab_breadcrumb_read_only_indicator(read_only_id, cx))
         .into_any_element()
 }
 

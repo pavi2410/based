@@ -268,6 +268,8 @@ impl Render for TableInspectorPanel {
             .gap(px(8.0))
             .child(
                 h_flex()
+                    .w_full()
+                    .justify_center()
                     .gap_2()
                     .py_2()
                     .child(self.tab_button(

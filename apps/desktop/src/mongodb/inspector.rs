@@ -231,6 +231,8 @@ impl Render for CollectionInspectorPanel {
             .gap_2()
             .child(
                 h_flex()
+                    .w_full()
+                    .justify_center()
                     .gap_2()
                     .py_2()
                     .px_2()

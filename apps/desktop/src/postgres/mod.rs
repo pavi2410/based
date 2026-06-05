@@ -4,7 +4,6 @@ pub mod data_viewer;
 pub mod explain_plan;
 pub mod grammar;
 pub mod inspector;
-pub mod live_monitor;
 pub mod query_editor;
 pub mod tab_dispatch;
 pub mod tree;

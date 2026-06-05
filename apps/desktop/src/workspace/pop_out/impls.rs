@@ -9,7 +9,6 @@ use crate::mongodb::pipeline_builder::PipelineBuilderPanel;
 use crate::mongodb::tree::CollectionsTreePanel;
 use crate::mongodb::wizard::ConnectionWizardPanel as MongoWizardPanel;
 use crate::postgres::inspector::TableInspectorPanel as PgInspectorPanel;
-use crate::postgres::live_monitor::LiveMonitorPanel;
 use crate::postgres::tree::SchemaTreePanel as PgSchemaTreePanel;
 use crate::postgres::wizard::ConnectionWizardPanel as PgWizardPanel;
 use crate::sqlite::fts_console::FtsConsolePanel;
@@ -32,7 +31,6 @@ impl PopOutWindowTitle for PipelineBuilderPanel {}
 impl PopOutWindowTitle for CollectionsTreePanel {}
 impl PopOutWindowTitle for MongoWizardPanel {}
 impl PopOutWindowTitle for PgInspectorPanel {}
-impl PopOutWindowTitle for LiveMonitorPanel {}
 impl PopOutWindowTitle for PgSchemaTreePanel {}
 impl PopOutWindowTitle for PgWizardPanel {}
 impl PopOutWindowTitle for FtsConsolePanel {}

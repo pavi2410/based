@@ -85,14 +85,7 @@ impl ConnectionTree {
                         cx,
                     )
                 });
-                let monitor = cx.new(|cx| {
-                    postgres::live_monitor::LiveMonitorPanel::new(pool.clone(), window, cx)
-                });
-                let panels = vec![
-                    Arc::new(dashboard) as Arc<dyn PanelView>,
-                    Arc::new(query),
-                    Arc::new(monitor),
-                ];
+                let panels = vec![Arc::new(dashboard) as Arc<dyn PanelView>, Arc::new(query)];
                 (
                     wrap_center_root(
                         DockItem::tabs(panels.clone(), &weak, window, cx),

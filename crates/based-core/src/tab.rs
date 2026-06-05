@@ -21,5 +21,4 @@ pub enum TabKind {
     FtsConsole,
     PipelineBuilder,
     ChangeStream,
-    LiveMonitor,
 }

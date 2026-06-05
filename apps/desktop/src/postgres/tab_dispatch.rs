@@ -32,8 +32,16 @@ pub fn build_panel(
                 _ => ("public".to_string(), object.clone()),
             };
             let label = tab_label_for_spec(spec, false);
-            let panel = cx
-                .new(|cx| super::data_viewer::DataViewerPanel::new(pool, schema, name, window, cx));
+            let panel = cx.new(|cx| {
+                super::data_viewer::DataViewerPanel::new(
+                    pool,
+                    conn_id.clone(),
+                    schema,
+                    name,
+                    window,
+                    cx,
+                )
+            });
             panel.update(cx, |p, _| p.tab_label = label);
             Some(Arc::new(panel))
         }

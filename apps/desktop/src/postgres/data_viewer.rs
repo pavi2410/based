@@ -17,22 +17,27 @@ use sqlx::{AssertSqlSafe, Column as SqlxColumn, PgPool, Row};
 use gpui_component::table::TableEvent;
 
 use crate::app::prefs;
+use crate::connection::ConnectionId;
 use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_with_meta};
 use crate::widgets::column_header::GridColumnMeta;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export_popover::export_popover;
 use crate::widgets::filter_bar::FilterBar;
 use crate::widgets::pagination::{offset_for_page, sql_pagination_controls, sql_row_range_label};
+use crate::widgets::panel::{
+    panel_tab_content, tab_breadcrumb_data_viewer_trailing, tab_breadcrumb_footer,
+    tab_breadcrumb_for_connection,
+};
 use crate::widgets::row_cell::pg_cell_display;
 use crate::widgets::virtual_table::{
     RowDelegate, align_meta_to_columns, data_column, replace_table_data,
 };
-use crate::widgets::{metadata_pill, panel_shell};
-use crate::workspace::pop_out::{PopOutManager, PopOutWindowTitle};
+use crate::workspace::pop_out::PopOutWindowTitle;
 
 pub struct DataViewerPanel {
     focus_handle: FocusHandle,
     pool: PgPool,
+    conn_id: ConnectionId,
     schema: String,
     table_name: String,
     table: Entity<TableState<RowDelegate>>,
@@ -68,6 +73,7 @@ fn columns_from_rows_or_catalog(
 impl DataViewerPanel {
     pub fn new(
         pool: PgPool,
+        conn_id: ConnectionId,
         schema: String,
         table_name: String,
         window: &mut Window,
@@ -82,6 +88,7 @@ impl DataViewerPanel {
         let mut panel = Self {
             focus_handle: cx.focus_handle(),
             pool,
+            conn_id,
             schema,
             table_name,
             table,
@@ -263,7 +270,6 @@ impl Render for DataViewerPanel {
         let offset = self.offset;
         let page_size = self.page_size;
         let loading = self.loading;
-        let _title: SharedString = format!("{}.{}", self.schema, self.table_name).into();
         let row_info: SharedString = sql_row_range_label(total, offset, page_size).into();
         let panel = cx.entity().downgrade();
         let muted = cx.theme().muted_foreground;
@@ -295,9 +301,6 @@ impl Render for DataViewerPanel {
             .border_b_1()
             .border_color(border.opacity(0.72))
             .bg(cx.theme().muted.opacity(0.18))
-            .child(metadata_pill("rows", row_info, cx))
-            .child(metadata_pill("schema", self.schema.clone(), cx))
-            .child(metadata_pill("mode", "read-only", cx))
             .child(self.filter_bar.clone())
             .child(
                 Button::new("pg-filter-apply")
@@ -340,10 +343,22 @@ impl Render for DataViewerPanel {
             )
             .child(self.cell_detail.clone());
 
-        if PopOutManager::is_pop_out_panel(cx.entity().entity_id(), cx) {
-            body.into_any_element()
-        } else {
-            panel_shell(cx, "", "Browse Postgres relation data", body).into_any_element()
-        }
+        let crumbs = tab_breadcrumb_for_connection(
+            &self.conn_id,
+            [self.schema.clone(), self.table_name.clone()],
+            cx,
+        );
+        let footer = tab_breadcrumb_footer(
+            "pg-dv-breadcrumb",
+            crumbs,
+            Some(tab_breadcrumb_data_viewer_trailing(
+                row_info,
+                "pg-dv-read-only",
+                cx,
+            )),
+            cx,
+        );
+
+        panel_tab_content(body, footer).into_any_element()
     }
 }

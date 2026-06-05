@@ -29,7 +29,13 @@ pub fn build_panel(
         TabSpec::DataViewer { object, .. } => {
             let label = tab_label_for_spec(spec, false);
             let panel = cx.new(|cx| {
-                super::data_viewer::DataViewerPanel::new(pool, object.clone(), window, cx)
+                super::data_viewer::DataViewerPanel::new(
+                    pool,
+                    conn_id.clone(),
+                    object.clone(),
+                    window,
+                    cx,
+                )
             });
             panel.update(cx, |p, _| p.tab_label = label);
             Some(Arc::new(panel))

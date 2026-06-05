@@ -23,6 +23,9 @@ use crate::postgres::explain_plan::{PlanNode, parse_pg_explain_json, render_plan
 use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export_popover::export_popover;
+use crate::widgets::panel::{
+    panel_tab_content, tab_breadcrumb_footer, tab_breadcrumb_for_connection,
+};
 use crate::widgets::query_panel_extras;
 use crate::widgets::query_status::{QueryStatusDisplay, query_error_card, query_status_indicator};
 use crate::widgets::result_tabs::{BottomTab, result_tab_strip};
@@ -538,19 +541,24 @@ impl Render for QueryEditorPanel {
         let bottom_body = self.render_bottom_body(cx);
         let bottom_pane = v_flex().size_full().child(strip).child(bottom_body);
 
-        v_flex()
-            .w_full()
-            .h_full()
-            .min_h(px(0.0))
-            .bg(cx.theme().background)
-            .child(toolbar)
-            .child(
-                div().flex_1().min_h(px(0.0)).child(
-                    v_resizable("pg-query-split")
-                        .with_state(&self.split_state)
-                        .child(resizable_panel().size(px(220.0)).child(editor_pane))
-                        .child(resizable_panel().child(bottom_pane)),
+        let crumbs = tab_breadcrumb_for_connection(&self.conn_id, ["Query"], cx);
+        let footer = tab_breadcrumb_footer("pg-qe-breadcrumb", crumbs, None, cx);
+
+        panel_tab_content(
+            v_flex()
+                .w_full()
+                .h_full()
+                .min_h(px(0.0))
+                .child(toolbar)
+                .child(
+                    div().flex_1().min_h(px(0.0)).child(
+                        v_resizable("pg-query-split")
+                            .with_state(&self.split_state)
+                            .child(resizable_panel().size(px(220.0)).child(editor_pane))
+                            .child(resizable_panel().child(bottom_pane)),
+                    ),
                 ),
-            )
+            footer,
+        )
     }
 }

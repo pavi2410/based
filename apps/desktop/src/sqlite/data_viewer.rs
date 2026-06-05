@@ -17,6 +17,7 @@ use sqlx::{AssertSqlSafe, Column as SqlxColumn, Row, SqlitePool};
 use gpui_component::table::TableEvent;
 
 use crate::app::prefs;
+use crate::connection::ConnectionId;
 use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_with_meta};
 use crate::widgets::column_header::GridColumnMeta;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
@@ -28,12 +29,19 @@ use crate::widgets::row_cell::sqlite_cell_display;
 use crate::widgets::virtual_table::{
     RowDelegate, align_meta_to_columns, data_column, replace_table_data,
 };
-use crate::widgets::{metadata_pill, panel_shell};
-use crate::workspace::pop_out::{PopOutManager, PopOutWindowTitle};
+use crate::widgets::{
+    metadata_pill,
+    panel::{
+        panel_tab_content, tab_breadcrumb_data_viewer_trailing, tab_breadcrumb_footer,
+        tab_breadcrumb_for_connection,
+    },
+};
+use crate::workspace::pop_out::PopOutWindowTitle;
 
 pub struct DataViewerPanel {
     focus_handle: FocusHandle,
     pool: SqlitePool,
+    conn_id: ConnectionId,
     table_name: String,
     table: Entity<TableState<RowDelegate>>,
     cell_detail: Entity<CellDetail>,
@@ -68,6 +76,7 @@ fn columns_from_rows_or_catalog(
 impl DataViewerPanel {
     pub fn new(
         pool: SqlitePool,
+        conn_id: ConnectionId,
         table_name: String,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -81,6 +90,7 @@ impl DataViewerPanel {
         let mut panel = Self {
             focus_handle: cx.focus_handle(),
             pool,
+            conn_id,
             table_name,
             table,
             cell_detail,
@@ -262,7 +272,6 @@ impl Render for DataViewerPanel {
         let page_size = self.page_size;
         let loading = self.loading;
 
-        let _table_name: SharedString = self.table_name.clone().into();
         let row_info: SharedString = sql_row_range_label(total, offset, page_size).into();
         let (current_page, total_pages) = sql_page_state(total, offset, page_size);
         let page_info: SharedString = format!("{current_page} / {total_pages}").into();
@@ -297,9 +306,7 @@ impl Render for DataViewerPanel {
             .border_b_1()
             .border_color(border.opacity(0.72))
             .bg(cx.theme().muted.opacity(0.18))
-            .child(metadata_pill("rows", row_info, cx))
             .child(metadata_pill("page", page_info, cx))
-            .child(metadata_pill("mode", "read-only", cx))
             .child(self.filter_bar.clone())
             .child(
                 Button::new("sqlite-filter-apply")
@@ -341,10 +348,18 @@ impl Render for DataViewerPanel {
             )
             .child(self.cell_detail.clone());
 
-        if PopOutManager::is_pop_out_panel(cx.entity().entity_id(), cx) {
-            body.into_any_element()
-        } else {
-            panel_shell(cx, "", "Browse data, filter rows, inspect cells", body).into_any_element()
-        }
+        let crumbs = tab_breadcrumb_for_connection(&self.conn_id, [self.table_name.clone()], cx);
+        let footer = tab_breadcrumb_footer(
+            "sqlite-dv-breadcrumb",
+            crumbs,
+            Some(tab_breadcrumb_data_viewer_trailing(
+                row_info,
+                "sqlite-dv-read-only",
+                cx,
+            )),
+            cx,
+        );
+
+        panel_tab_content(body, footer).into_any_element()
     }
 }

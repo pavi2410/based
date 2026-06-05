@@ -13,6 +13,8 @@ pub const SIDEBAR_INSET: f32 = 8.0;
 pub const CONNECTION_CHEVRON_SLOT_W: f32 = 18.0;
 /// Schema object row kind icon size.
 pub const SCHEMA_ROW_ICON_SIZE: f32 = 14.0;
+/// Horizontal step between browser-tree nesting levels (schema → kind → leaf).
+pub const BROWSER_TREE_INDENT_STEP: f32 = 10.0;
 
 pub fn panel_header_height(cx: &App) -> f32 {
     panel_header_h(prefs::ui_size_token(cx))
@@ -31,12 +33,20 @@ pub fn browser_tree_engine_col(cx: &App) -> f32 {
     SIDEBAR_INSET + CONNECTION_CHEVRON_SLOT_W + sidebar_row_inner_gap(cx)
 }
 
-/// Browser tree: section headers (Views / Tables).
-pub fn browser_tree_section_pl(cx: &App) -> f32 {
-    browser_tree_engine_col(cx)
+pub struct BrowserTreeIndent {
+    base: f32,
 }
 
-/// Browser tree: schema object rows (one step under sections).
-pub fn browser_tree_object_pl(cx: &App) -> f32 {
-    browser_tree_engine_col(cx) + 10.0
+impl BrowserTreeIndent {
+    pub fn from_app(cx: &App) -> Self {
+        Self {
+            base: browser_tree_engine_col(cx),
+        }
+    }
+
+    /// 1-indexed depth under a connection row (1 = first child, 2 = second, …).
+    pub fn pl(&self, level: u32) -> f32 {
+        debug_assert!(level >= 1);
+        self.base + BROWSER_TREE_INDENT_STEP * (level - 1) as f32
+    }
 }

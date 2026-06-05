@@ -1,4 +1,4 @@
-//! Flat browser tree: connections with nested schema rows when expanded.
+//! Flat browser tree: connections with nested object rows when expanded.
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -17,19 +17,24 @@ use gpui_component::{
 };
 
 use crate::app::prefs;
+use crate::connection::EngineKind;
 use crate::widgets::empty_state::empty_state;
 use crate::widgets::list_row::{SchemaRowStyle, schema_object_row};
 use crate::widgets::{
-    CONNECTION_CHEVRON_SLOT_W, SIDEBAR_INSET, browser_tree_object_pl, browser_tree_section_pl,
-    engine_icon, sidebar_row_inner_gap, sidebar_row_padding_y,
+    BrowserTreeIndent, CONNECTION_CHEVRON_SLOT_W, SIDEBAR_INSET, engine_icon,
+    sidebar_row_inner_gap, sidebar_row_padding_y,
 };
 
 use super::ConnectionTree;
 use super::connection_list::{
     ConnectionRow, build_connection_rows, connection_row_status_indicator,
 };
-use super::object_list::group_objects;
-use super::types::SchemaObject;
+use super::object_list::{group_by_kind, group_postgres_objects, object_matches_query};
+use super::types::{ConnCache, ConnState, SchemaObject};
+
+const DEPTH_SCHEMA: u32 = 1;
+const DEPTH_KIND: u32 = 2;
+const DEPTH_LEAF: u32 = 3;
 
 #[derive(Clone)]
 pub(crate) enum BrowserRow {
@@ -37,14 +42,23 @@ pub(crate) enum BrowserRow {
     Status {
         conn_idx: usize,
         message: SharedString,
+        depth: u32,
+    },
+    Schema {
+        conn_idx: usize,
+        name: SharedString,
+        expanded: bool,
     },
     Section {
         conn_idx: usize,
         title: SharedString,
+        depth: u32,
     },
     Object {
         conn_idx: usize,
         object: SchemaObject,
+        depth: u32,
+        bare_label: bool,
     },
 }
 
@@ -84,44 +98,37 @@ impl BrowserListDelegate {
                 || conn.engine.short_label().contains(&q);
 
             let state = tree.conn_states.get(&conn_id);
-            let expanded = state.is_some_and(|s| s.expanded);
+            let expanded = state.is_some_and(|s| s.expanded());
 
             let mut child_matches = false;
             let mut child_rows = Vec::new();
             if expanded && let Some(st) = state {
-                if st.loading {
-                    child_rows.push(BrowserRow::Status {
-                        conn_idx: conn.idx,
-                        message: "Loading objects…".into(),
-                    });
-                    child_matches = true;
-                } else if let Some(err) = &st.error {
-                    child_rows.push(BrowserRow::Status {
-                        conn_idx: conn.idx,
-                        message: super::notify::error_one_liner(err),
-                    });
-                    child_matches = true;
-                } else if let Some(objects) = &st.objects {
-                    for section in group_objects(objects.clone()) {
-                        let section_hit = q.is_empty() || section.name.to_lowercase().contains(&q);
-                        let mut section_rows = Vec::new();
-                        for object in section.items {
-                            if q.is_empty() || object.display_name().to_lowercase().contains(&q) {
-                                section_rows.push(BrowserRow::Object {
-                                    conn_idx: conn.idx,
-                                    object,
-                                });
-                            }
-                        }
-                        if section_hit || !section_rows.is_empty() {
-                            child_matches = true;
-                            child_rows.push(BrowserRow::Section {
-                                conn_idx: conn.idx,
-                                title: section.name,
-                            });
-                            child_rows.extend(section_rows);
-                        }
+                match st.cache() {
+                    ConnCache::Loading => {
+                        child_rows.push(BrowserRow::Status {
+                            conn_idx: conn.idx,
+                            message: "Loading objects…".into(),
+                            depth: DEPTH_SCHEMA,
+                        });
+                        child_matches = true;
                     }
+                    ConnCache::Error(err) => {
+                        child_rows.push(BrowserRow::Status {
+                            conn_idx: conn.idx,
+                            message: super::notify::error_one_liner(err),
+                            depth: DEPTH_SCHEMA,
+                        });
+                        child_matches = true;
+                    }
+                    ConnCache::Ready(objects) => {
+                        child_matches = match conn.engine {
+                            EngineKind::Postgres => {
+                                push_postgres_rows(conn.idx, objects, st, &q, &mut child_rows)
+                            }
+                            _ => push_kind_rows(conn.idx, objects, &q, &mut child_rows, false),
+                        };
+                    }
+                    ConnCache::Idle => {}
                 }
             }
 
@@ -146,12 +153,111 @@ impl BrowserListDelegate {
     }
 }
 
+fn push_postgres_rows(
+    conn_idx: usize,
+    objects: &[SchemaObject],
+    state: &ConnState,
+    q: &str,
+    child_rows: &mut Vec<BrowserRow>,
+) -> bool {
+    let ConnState::Postgres {
+        expanded_schemas, ..
+    } = state
+    else {
+        return push_kind_rows(conn_idx, objects, q, child_rows, false);
+    };
+
+    let mut child_matches = false;
+    for schema_section in group_postgres_objects(objects.to_vec()) {
+        let schema_name = schema_section.name.to_string();
+        let schema_hit = q.is_empty() || schema_name.to_lowercase().contains(q);
+        let object_hit = schema_section.kinds.iter().any(|kind| {
+            kind.items
+                .iter()
+                .any(|object| object_matches_query(object, q))
+        });
+        if !q.is_empty() && !schema_hit && !object_hit {
+            continue;
+        }
+
+        child_matches = true;
+        let schema_expanded = (!q.is_empty() && (schema_hit || object_hit))
+            || expanded_schemas.contains(&schema_name);
+
+        child_rows.push(BrowserRow::Schema {
+            conn_idx,
+            name: schema_section.name.clone(),
+            expanded: schema_expanded,
+        });
+
+        if schema_expanded {
+            for kind in schema_section.kinds {
+                let kind_hit = q.is_empty() || kind.name.to_lowercase().contains(q);
+                let mut kind_rows = Vec::new();
+                for object in kind.items {
+                    if object_matches_query(&object, q) {
+                        kind_rows.push(BrowserRow::Object {
+                            conn_idx,
+                            object,
+                            depth: DEPTH_LEAF,
+                            bare_label: true,
+                        });
+                    }
+                }
+                if kind_hit || !kind_rows.is_empty() {
+                    child_rows.push(BrowserRow::Section {
+                        conn_idx,
+                        title: kind.name,
+                        depth: DEPTH_KIND,
+                    });
+                    child_rows.extend(kind_rows);
+                }
+            }
+        }
+    }
+    child_matches
+}
+
+fn push_kind_rows(
+    conn_idx: usize,
+    objects: &[SchemaObject],
+    q: &str,
+    child_rows: &mut Vec<BrowserRow>,
+    bare_label: bool,
+) -> bool {
+    let mut child_matches = false;
+    for section in group_by_kind(objects.to_vec()) {
+        let section_hit = q.is_empty() || section.name.to_lowercase().contains(q);
+        let mut section_rows = Vec::new();
+        for object in section.items {
+            if object_matches_query(&object, q) {
+                section_rows.push(BrowserRow::Object {
+                    conn_idx,
+                    object,
+                    depth: DEPTH_KIND,
+                    bare_label,
+                });
+            }
+        }
+        if section_hit || !section_rows.is_empty() {
+            child_matches = true;
+            child_rows.push(BrowserRow::Section {
+                conn_idx,
+                title: section.name,
+                depth: DEPTH_SCHEMA,
+            });
+            child_rows.extend(section_rows);
+        }
+    }
+    child_matches
+}
+
 #[derive(IntoElement)]
 pub(crate) struct BrowserRowItem {
     id: ElementId,
     row: BrowserRow,
     selected: bool,
-    expanded: bool,
+    conn_expanded: bool,
     tree: WeakEntity<ConnectionTree>,
 }
 
@@ -168,24 +274,43 @@ impl Selectable for BrowserRowItem {
 
 impl RenderOnce for BrowserRowItem {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let indent = BrowserTreeIndent::from_app(cx);
         match self.row {
             BrowserRow::Connection(row) => {
-                connection_row_element(row, self.selected, self.expanded, self.tree, cx)
+                connection_row_element(row, self.selected, self.conn_expanded, self.tree, cx)
                     .into_any_element()
             }
-            BrowserRow::Status { message, .. } => status_row(message, cx).into_any_element(),
-            BrowserRow::Section { title, .. } => section_row(title, cx).into_any_element(),
-            BrowserRow::Object { conn_idx, object } => {
-                object_row_element(conn_idx, object, self.selected, self.tree, cx)
-                    .into_any_element()
+            BrowserRow::Status { message, depth, .. } => {
+                status_row(message, depth, &indent, cx).into_any_element()
             }
+            BrowserRow::Schema {
+                conn_idx,
+                name,
+                expanded,
+            } => schema_row_element(conn_idx, name, expanded, self.tree, &indent, cx)
+                .into_any_element(),
+            BrowserRow::Section { title, depth, .. } => {
+                section_row(title, depth, &indent, cx).into_any_element()
+            }
+            BrowserRow::Object {
+                object,
+                depth,
+                bare_label,
+                ..
+            } => object_row_element(object, bare_label, depth, self.selected, &indent, cx)
+                .into_any_element(),
         }
     }
 }
 
-fn status_row(message: SharedString, cx: &App) -> impl IntoElement {
+fn status_row(
+    message: SharedString,
+    depth: u32,
+    indent: &BrowserTreeIndent,
+    cx: &App,
+) -> impl IntoElement {
     div()
-        .pl(px(browser_tree_object_pl(cx)))
+        .pl(px(indent.pl(depth)))
         .pr(px(SIDEBAR_INSET))
         .py(px(sidebar_row_padding_y(cx)))
         .text_xs()
@@ -193,10 +318,15 @@ fn status_row(message: SharedString, cx: &App) -> impl IntoElement {
         .child(message)
 }
 
-fn section_row(title: SharedString, cx: &App) -> impl IntoElement {
+fn section_row(
+    title: SharedString,
+    depth: u32,
+    indent: &BrowserTreeIndent,
+    cx: &App,
+) -> impl IntoElement {
     let muted = cx.theme().muted_foreground;
     h_flex()
-        .pl(px(browser_tree_section_pl(cx)))
+        .pl(px(indent.pl(depth)))
         .pr(px(SIDEBAR_INSET))
         .py(px(sidebar_row_padding_y(cx)))
         .items_center()
@@ -209,6 +339,67 @@ fn section_row(title: SharedString, cx: &App) -> impl IntoElement {
                 .text_color(muted.opacity(0.86))
                 .child(title),
         )
+}
+
+fn schema_row_element(
+    conn_idx: usize,
+    name: SharedString,
+    expanded: bool,
+    tree: WeakEntity<ConnectionTree>,
+    indent: &BrowserTreeIndent,
+    cx: &mut App,
+) -> impl IntoElement {
+    let tree_chevron = tree.clone();
+    let schema_name = name.to_string();
+    let schema_key = {
+        let mut hasher = DefaultHasher::new();
+        conn_idx.hash(&mut hasher);
+        name.hash(&mut hasher);
+        hasher.finish()
+    };
+
+    let chevron = Button::new(("browser-schema-chevron", schema_key))
+        .ghost()
+        .xsmall()
+        .icon(if expanded {
+            IconName::ChevronDown
+        } else {
+            IconName::ChevronRight
+        })
+        .on_mouse_down(MouseButton::Left, move |_, _, cx| {
+            cx.stop_propagation();
+            if let Some(ent) = tree_chevron.upgrade() {
+                ent.update(cx, |t, cx| {
+                    let Some(conn_id) = t
+                        .registry
+                        .read(cx)
+                        .connections()
+                        .get(conn_idx)
+                        .map(|e| e.read(cx).id.clone())
+                    else {
+                        return;
+                    };
+                    t.toggle_schema_expanded(conn_id, schema_name.clone(), cx);
+                });
+            }
+        });
+
+    h_flex()
+        .w_full()
+        .pl(px(indent.pl(DEPTH_SCHEMA)))
+        .pr(px(SIDEBAR_INSET))
+        .py(px(sidebar_row_padding_y(cx)))
+        .gap(px(sidebar_row_inner_gap(cx)))
+        .items_center()
+        .child(
+            h_flex()
+                .w(px(CONNECTION_CHEVRON_SLOT_W))
+                .flex_shrink_0()
+                .items_center()
+                .justify_center()
+                .child(chevron),
+        )
+        .child(div().flex_1().min_w_0().text_sm().truncate().child(name))
 }
 
 fn object_row_key(object: &SchemaObject) -> u64 {
@@ -338,10 +529,11 @@ fn connection_row_element(
 }
 
 fn object_row_element(
-    _conn_idx: usize,
     object: SchemaObject,
+    bare_label: bool,
+    depth: u32,
     selected: bool,
-    _tree: WeakEntity<ConnectionTree>,
+    indent: &BrowserTreeIndent,
     cx: &App,
 ) -> impl IntoElement {
     let muted = cx.theme().muted_foreground;
@@ -353,7 +545,11 @@ fn object_row_element(
         row_py: sidebar_row_padding_y(cx),
         row_gap: sidebar_row_inner_gap(cx),
     };
-    let label: SharedString = object.display_name().into();
+    let label: SharedString = if bare_label {
+        object.name.clone().into()
+    } else {
+        object.display_name().into()
+    };
     schema_object_row(
         ("browser-obj", object_row_key(&object)),
         selected,
@@ -361,7 +557,7 @@ fn object_row_element(
         label,
         style,
     )
-    .pl(px(browser_tree_object_pl(cx)))
+    .pl(px(indent.pl(depth)))
     .pr(px(SIDEBAR_INSET))
 }
 
@@ -392,7 +588,7 @@ impl ListDelegate for BrowserListDelegate {
     ) -> Option<Self::Item> {
         let row = self.row_at(ix)?.clone();
         let selected = self.selected_index == Some(ix);
-        let expanded = match &row {
+        let conn_expanded = match &row {
             BrowserRow::Connection(c) => self
                 .tree
                 .read(cx)
@@ -408,7 +604,7 @@ impl ListDelegate for BrowserListDelegate {
                         .read(cx)
                         .id,
                 )
-                .is_some_and(|s| s.expanded),
+                .is_some_and(|s| s.expanded()),
             _ => false,
         };
         let id: ElementId = ("browser-row", ix.row).into();
@@ -416,7 +612,7 @@ impl ListDelegate for BrowserListDelegate {
             id,
             row,
             selected,
-            expanded,
+            conn_expanded,
             tree: self.tree.downgrade(),
         })
     }

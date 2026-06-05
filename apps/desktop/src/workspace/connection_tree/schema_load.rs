@@ -27,8 +27,7 @@ impl ConnectionTree {
         };
 
         if let Some(st) = self.conn_states.get_mut(&conn_id) {
-            st.loading = true;
-            st.error = None;
+            st.cache_mut().start_loading();
         }
         if self.selected_connection == Some(idx) {
             self.active_objects = ActiveObjects::Loading {
@@ -191,16 +190,14 @@ impl ConnectionTree {
         cx: &mut Context<Self>,
     ) {
         if let Some(st) = self.conn_states.get_mut(conn_id) {
-            st.loading = false;
             match &result {
                 Ok(objects) => {
-                    st.error = None;
-                    st.objects = Some(objects.clone());
+                    st.cache_mut().set_ready(objects.clone());
+                    if engine == EngineKind::Postgres {
+                        st.seed_postgres_public_schema(objects);
+                    }
                 }
-                Err(err) => {
-                    st.error = Some(err.to_string());
-                    st.objects = None;
-                }
+                Err(err) => st.cache_mut().set_error(err.to_string()),
             }
         }
 

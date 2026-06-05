@@ -56,12 +56,15 @@ impl ConnectionTree {
     ) -> Self {
         cx.subscribe(&registry, |this, _, event, cx| match event {
             RegistryEvent::Added(id) => {
-                this.conn_states.entry(id.clone()).or_insert(ConnState {
-                    expanded: false,
-                    objects: None,
-                    loading: false,
-                    error: None,
-                });
+                let engine = this
+                    .registry
+                    .read(cx)
+                    .get(id, cx)
+                    .map(|e| e.read(cx).config.engine())
+                    .unwrap_or(EngineKind::Postgres);
+                this.conn_states
+                    .entry(id.clone())
+                    .or_insert_with(|| ConnState::new(engine));
                 cx.notify();
             }
             RegistryEvent::Removed(id) => {
@@ -79,15 +82,8 @@ impl ConnectionTree {
 
         let mut conn_states = HashMap::new();
         for ent in registry.read(cx).connections().iter() {
-            conn_states.insert(
-                ent.read(cx).id.clone(),
-                ConnState {
-                    expanded: false,
-                    objects: None,
-                    loading: false,
-                    error: None,
-                },
-            );
+            let entry = ent.read(cx);
+            conn_states.insert(entry.id.clone(), ConnState::new(entry.config.engine()));
         }
 
         Self {
@@ -123,8 +119,8 @@ impl ConnectionTree {
             return;
         };
         if let Some(st) = self.conn_states.get_mut(&conn_id) {
-            st.expanded = !st.expanded;
-            if st.expanded {
+            st.set_expanded(!st.expanded());
+            if st.expanded() {
                 self.maybe_load_schema_for_connection(idx, cx);
             }
         }
@@ -147,7 +143,7 @@ impl ConnectionTree {
             return;
         };
         if let Some(st) = self.conn_states.get_mut(&conn_id) {
-            st.expanded = expanded;
+            st.set_expanded(expanded);
             if expanded {
                 self.maybe_load_schema_for_connection(idx, cx);
             }
@@ -163,13 +159,33 @@ impl ConnectionTree {
         if self
             .conn_states
             .get(&conn_id)
-            .is_some_and(|s| s.loading || s.objects.is_some())
+            .is_some_and(|s| s.cache().should_skip_load())
         {
             return;
         }
         if let ConnectionState::Connected(ac) = &entry.state {
             self.load_objects_for_connection(idx, ac.clone(), cx);
         }
+    }
+
+    pub(crate) fn toggle_schema_expanded(
+        &mut self,
+        conn_id: ConnectionId,
+        schema: String,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(st) = self.conn_states.get_mut(&conn_id) else {
+            return;
+        };
+        let Some(schemas) = st.postgres_schemas() else {
+            return;
+        };
+        if schemas.contains(&schema) {
+            schemas.remove(&schema);
+        } else {
+            schemas.insert(schema);
+        }
+        self.bump_object_list_epoch(cx);
     }
 
     pub(crate) fn open_new_query(&mut self, idx: usize, cx: &mut Context<Self>) {
@@ -363,13 +379,17 @@ impl ConnectionTree {
                 continue;
             }
             let engine = entry.config.engine();
-            let Some(objects) = state.objects.as_ref() else {
+            let Some(objects) = state.cache().objects() else {
                 continue;
             };
             for obj in objects {
                 let name = obj.display_name();
+                let bare = obj.name.to_lowercase();
+                let schema = obj.schema.as_ref().map(|s| s.to_lowercase());
                 if q.is_empty()
                     || name.to_lowercase().contains(&q)
+                    || bare.contains(&q)
+                    || schema.is_some_and(|s| s.contains(&q))
                     || conn_id.0.to_lowercase().contains(&q)
                 {
                     out.push((conn_id.clone(), obj.clone(), engine));

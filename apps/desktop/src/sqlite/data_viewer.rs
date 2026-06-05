@@ -4,10 +4,9 @@ use std::collections::HashMap;
 
 use gpui::{prelude::*, *};
 use gpui_component::{
-    ActiveTheme,
+    ActiveTheme, Sizable as _,
     button::Button,
     dock::{Panel, PanelEvent},
-    h_flex,
     menu::PopupMenu,
     table::{Column, TableState},
     v_flex,
@@ -32,8 +31,8 @@ use crate::widgets::virtual_table::{
 use crate::widgets::{
     metadata_pill,
     panel::{
-        panel_tab_content, tab_breadcrumb_data_viewer_trailing, tab_breadcrumb_footer,
-        tab_breadcrumb_for_connection,
+        data_viewer_toolbar, panel_tab_content, tab_breadcrumb_data_viewer_trailing,
+        tab_breadcrumb_footer, tab_breadcrumb_for_connection,
     },
 };
 use crate::workspace::pop_out::PopOutWindowTitle;
@@ -283,7 +282,6 @@ impl Render for DataViewerPanel {
         let panel = cx.entity().downgrade();
 
         let muted = cx.theme().muted_foreground;
-        let border = cx.theme().border;
 
         let (export_headers, export_rows) = {
             let st = self.table.read(cx);
@@ -302,24 +300,20 @@ impl Render for DataViewerPanel {
         };
         let export_popover = export_popover("sqlite-dv", export_headers, export_rows);
 
-        let toolbar = h_flex()
-            .w_full()
-            .px(px(8.0))
-            .py(px(6.0))
-            .gap(px(8.0))
-            .flex_wrap()
-            .border_b_1()
-            .border_color(border.opacity(0.72))
-            .bg(cx.theme().muted.opacity(0.18))
+        let toolbar = data_viewer_toolbar(cx)
             .child(metadata_pill("page", page_info, cx))
             .child(self.filter_bar.clone())
             .child(
                 Button::new("sqlite-filter-apply")
+                    .small()
+                    .outline()
                     .label("Apply filter")
                     .on_click(cx.listener(|panel, _, _, cx| panel.load_page(0, cx))),
             )
             .child(
                 Button::new("sqlite-filter-clear")
+                    .small()
+                    .outline()
                     .label("Clear filter")
                     .on_click(cx.listener(|panel, _, window, cx| {
                         panel.filter_bar.update(cx, |fb, cx| {
@@ -328,11 +322,11 @@ impl Render for DataViewerPanel {
                         panel.load_page(0, cx);
                     })),
             )
-            .child(export_popover)
             .child(div().flex_1())
             .when(loading, |d| {
                 d.child(div().text_sm().text_color(muted).child("Loading…"))
             })
+            .child(export_popover)
             .child(
                 sql_pagination_controls("sqlite-pager", total, offset, page_size, loading)
                     .on_click(move |page, _, cx| {

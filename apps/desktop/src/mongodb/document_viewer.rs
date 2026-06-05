@@ -5,9 +5,8 @@ use std::collections::HashMap;
 use gpui::{prelude::*, *};
 use gpui_component::{
     ActiveTheme, Sizable as _,
-    button::{Button, ButtonVariants},
+    button::Button,
     dock::{Panel, PanelEvent},
-    h_flex,
     menu::PopupMenu,
     table::{Column, TableState},
     v_flex,
@@ -22,6 +21,7 @@ use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_with_met
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export;
 use crate::widgets::filter_bar::{FilterBar, FilterExpr};
+use crate::widgets::panel::data_viewer_toolbar;
 use crate::widgets::virtual_table::{
     RowDelegate, align_meta_to_columns, data_column, replace_table_data,
 };
@@ -206,7 +206,6 @@ impl Panel for DocumentViewerPanel {
 
 impl Render for DocumentViewerPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let border = cx.theme().border;
         let muted = cx.theme().muted_foreground;
 
         let (export_headers, export_rows) = {
@@ -229,26 +228,25 @@ impl Render for DocumentViewerPanel {
             .relative()
             .size_full()
             .child(
-                h_flex()
-                    .p_2()
-                    .gap_2()
-                    .flex_wrap()
-                    .items_center()
-                    .border_b_1()
-                    .border_color(border)
+                data_viewer_toolbar(cx)
                     .child(
                         Button::new("mongo-refresh-docs")
+                            .small()
                             .label("Refresh")
                             .on_click(cx.listener(|p, _, _, cx| p.reload(cx))),
                     )
                     .child(self.filter_bar.clone())
                     .child(
                         Button::new("mongo-filter-apply")
+                            .small()
+                            .outline()
                             .label("Apply filter")
                             .on_click(cx.listener(|p, _, _, cx| p.reload(cx))),
                     )
                     .child(
                         Button::new("mongo-filter-clear")
+                            .small()
+                            .outline()
                             .label("Clear filter")
                             .on_click(cx.listener(|p, _, window, cx| {
                                 p.filter_bar.update(cx, |fb, cx| {
@@ -257,9 +255,13 @@ impl Render for DocumentViewerPanel {
                                 p.reload(cx);
                             })),
                     )
+                    .child(div().flex_1())
+                    .when(self.loading, |h| {
+                        h.child(div().text_sm().text_color(muted).child("Loading…"))
+                    })
                     .child(
                         Button::new("mongo-export-json")
-                            .ghost()
+                            .outline()
                             .small()
                             .label("Export JSON")
                             .on_click(move |_, _, cx| {
@@ -283,10 +285,7 @@ impl Render for DocumentViewerPanel {
                                 })
                                 .detach();
                             }),
-                    )
-                    .when(self.loading, |h| {
-                        h.child(div().text_sm().text_color(muted).child("Loading…"))
-                    }),
+                    ),
             )
             .child(render_row_table(&self.table, cx))
             .child(self.cell_detail.clone())

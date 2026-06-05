@@ -1,6 +1,6 @@
 //! Filter bar: pick column, op, and value; build SQL or Mongo filter strings.
 
-use gpui::{App, Context, Entity, IntoElement, Render, Window, div, prelude::*, px};
+use gpui::{App, Context, Entity, IntoElement, Render, Styled, Window, div, prelude::*, px};
 use gpui_component::{
     ActiveTheme, Sizable,
     button::{Button, ButtonVariants},
@@ -225,10 +225,17 @@ impl Render for FilterBar {
             )
             .when(self.op.has_value(), |row| {
                 row.child(
-                    div()
+                    h_flex()
+                        .items_center()
+                        .h(px(24.0))
                         .min_w(px(140.0))
                         .max_w(px(220.0))
-                        .child(Input::new(&self.value_input).small().cleanable(true)),
+                        .child(
+                            Input::new(&self.value_input)
+                                .small()
+                                .cleanable(true)
+                                .shadow_none(),
+                        ),
                 )
             })
     }

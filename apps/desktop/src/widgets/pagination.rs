@@ -1,7 +1,7 @@
 //! SQL offset/limit paging helpers and gpui-component `Pagination` builder.
 
-use gpui::ElementId;
-use gpui_component::{Disableable, pagination::Pagination};
+use gpui::{ElementId, Styled, px};
+use gpui_component::{Disableable, Sizable, pagination::Pagination};
 
 /// 1-based current page and total page count for offset/limit SQL paging.
 pub fn sql_page_state(total: u64, offset: u64, page_size: u64) -> (usize, usize) {
@@ -41,6 +41,9 @@ pub fn sql_pagination_controls(
     let (current_page, total_pages) = sql_page_state(total, offset, page_size);
     Pagination::new(id)
         .compact()
+        .small()
+        .py(px(0.0))
+        .px(px(0.0))
         .current_page(current_page)
         .total_pages(total_pages)
         .disabled(disabled)

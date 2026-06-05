@@ -24,7 +24,7 @@ pub fn export_popover(
     Popover::new(SharedString::from(format!("{id_prefix}-export-popover")))
         .trigger(
             Button::new(SharedString::from(format!("{id_prefix}-export-trigger")))
-                .ghost()
+                .outline()
                 .small()
                 .label("Export"),
         )

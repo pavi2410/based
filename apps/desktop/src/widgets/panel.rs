@@ -85,6 +85,24 @@ pub fn panel_context_header(subtitle: impl Into<SharedString>, cx: &mut App) -> 
         )
 }
 
+/// Height of the data-viewer filter/export toolbar (centers compact controls).
+pub const DATA_VIEWER_TOOLBAR_H: f32 = 28.0;
+
+/// Compact filter/export toolbar with symmetric vertical centering.
+pub fn data_viewer_toolbar(cx: &mut App) -> Div {
+    h_flex()
+        .w_full()
+        .flex_shrink_0()
+        .h(px(DATA_VIEWER_TOOLBAR_H))
+        .items_center()
+        .px(px(8.0))
+        .gap(px(6.0))
+        .flex_wrap()
+        .border_b_1()
+        .border_color(cx.theme().border.opacity(0.72))
+        .bg(cx.theme().muted.opacity(0.18))
+}
+
 /// Secondary toolbar row inside a panel shell.
 pub fn toolbar_strip(
     cx: &mut App,

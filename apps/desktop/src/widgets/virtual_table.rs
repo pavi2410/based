@@ -6,7 +6,7 @@ use gpui::{prelude::*, *};
 use gpui_component::table::{Column, ColumnSort, TableState};
 
 use crate::app::prefs;
-use crate::widgets::cell_render::{column_value_kind, render_grid_cell};
+use crate::widgets::cell_render::{column_value_kind, compare_cells, render_grid_cell};
 use crate::widgets::column_header::{GridColumnMeta, render_column_header, reorder_column_meta};
 
 pub use crate::widgets::column_header::{align_meta_to_columns, meta_from_query_type};
@@ -126,11 +126,13 @@ impl gpui_component::table::TableDelegate for RowDelegate {
         }
         self.sort_col = Some(col_ix);
         self.sort_asc = matches!(sort, ColumnSort::Ascending);
-        if self.sort_asc {
-            self.rows.sort_by(|a, b| a[col_ix].cmp(&b[col_ix]));
-        } else {
-            self.rows.sort_by(|a, b| b[col_ix].cmp(&a[col_ix]));
-        }
+        let asc = self.sort_asc;
+        let meta = self.column_meta.get(col_ix).cloned().unwrap_or_default();
+        let kind = column_value_kind(meta.data_type.as_deref());
+        self.rows.sort_by(|a, b| {
+            let ord = compare_cells(kind, a[col_ix].as_ref(), b[col_ix].as_ref());
+            if asc { ord } else { ord.reverse() }
+        });
     }
 }
 

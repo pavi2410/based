@@ -1,4 +1,6 @@
-//! Schema-driven grid cell styling (numeric color, boolean icons).
+//! Schema-driven grid cell styling (numeric color, boolean icons) and sorting.
+
+use std::cmp::Ordering;
 
 use gpui::{App, IntoElement, SharedString, Window, div, prelude::*};
 use gpui_component::{
@@ -95,6 +97,52 @@ fn is_text_type(base: &str) -> bool {
             | "time without time zone"
             | "time with time zone"
     )
+}
+
+pub fn is_null_cell(s: &str) -> bool {
+    let t = s.trim();
+    t.is_empty() || t.eq_ignore_ascii_case("null")
+}
+
+fn compare_nulls(a: &str, b: &str) -> Option<Ordering> {
+    let a_null = is_null_cell(a);
+    let b_null = is_null_cell(b);
+    match (a_null, b_null) {
+        (true, true) => Some(Ordering::Equal),
+        (true, false) => Some(Ordering::Greater),
+        (false, true) => Some(Ordering::Less),
+        (false, false) => None,
+    }
+}
+
+fn parse_numeric_sort_key(s: &str) -> Option<f64> {
+    let t = s.trim();
+    if is_null_cell(t) {
+        return None;
+    }
+    if let Ok(n) = t.parse::<i64>() {
+        return Some(n as f64);
+    }
+    t.parse::<f64>().ok()
+}
+
+/// Compare two cell strings using column schema type (page-local sort).
+pub fn compare_cells(kind: ColumnValueKind, a: &str, b: &str) -> Ordering {
+    if let Some(ord) = compare_nulls(a, b) {
+        return ord;
+    }
+
+    match kind {
+        ColumnValueKind::Numeric => match (parse_numeric_sort_key(a), parse_numeric_sort_key(b)) {
+            (Some(av), Some(bv)) => av.partial_cmp(&bv).unwrap_or(Ordering::Equal),
+            _ => a.cmp(b),
+        },
+        ColumnValueKind::Boolean => match (parse_bool_display(a), parse_bool_display(b)) {
+            (Some(av), Some(bv)) => av.cmp(&bv),
+            _ => a.cmp(b),
+        },
+        ColumnValueKind::Text | ColumnValueKind::Unknown => a.cmp(b),
+    }
 }
 
 /// Parse display strings for boolean columns (`true`/`false`/`t`/`f`).
@@ -249,5 +297,52 @@ mod tests {
         assert_eq!(parse_bool_display("t"), Some(true));
         assert_eq!(parse_bool_display("f"), Some(false));
         assert_eq!(parse_bool_display("maybe"), None);
+    }
+
+    #[test]
+    fn numeric_sort_is_numerical_not_lexical() {
+        assert_eq!(
+            compare_cells(ColumnValueKind::Numeric, "2", "10"),
+            Ordering::Less
+        );
+        assert_eq!(
+            compare_cells(ColumnValueKind::Numeric, "10", "2"),
+            Ordering::Greater
+        );
+        let expected: f64 = "3.14".parse().unwrap();
+        let pi = parse_numeric_sort_key("3.14").unwrap();
+        assert!((pi - expected).abs() < 1e-6);
+        assert_eq!(
+            compare_cells(ColumnValueKind::Numeric, "3.14", "10"),
+            Ordering::Less
+        );
+    }
+
+    #[test]
+    fn text_sort_stays_lexical() {
+        assert_eq!(
+            compare_cells(ColumnValueKind::Text, "10", "2"),
+            Ordering::Less
+        );
+    }
+
+    #[test]
+    fn boolean_sort_false_before_true() {
+        assert_eq!(
+            compare_cells(ColumnValueKind::Boolean, "false", "true"),
+            Ordering::Less
+        );
+    }
+
+    #[test]
+    fn nulls_sort_last_ascending() {
+        assert_eq!(
+            compare_cells(ColumnValueKind::Numeric, "NULL", "1"),
+            Ordering::Greater
+        );
+        assert_eq!(
+            compare_cells(ColumnValueKind::Numeric, "", "1"),
+            Ordering::Greater
+        );
     }
 }

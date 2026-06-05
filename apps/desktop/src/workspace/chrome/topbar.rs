@@ -1,10 +1,12 @@
 use gpui::{App, Entity, IntoElement, ParentElement, RenderOnce, SharedString, Styled, div, px};
 use gpui_component::{
-    ActiveTheme as _, IconName, Sizable as _, TitleBar,
+    ActiveTheme as _, Icon, IconName, Sizable as _, TitleBar,
     button::{Button, ButtonVariants},
     h_flex,
     menu::{DropdownMenu, PopupMenuItem},
 };
+
+const GIT_BRANCH_ICON_PATH: &str = "icons/git-branch.svg";
 
 use crate::app::{prefs, shell};
 use crate::bindings::CycleAppearance;
@@ -117,6 +119,7 @@ impl RenderOnce for ContextRail {
                 Button::new("ctx-branch")
                     .ghost()
                     .small()
+                    .icon(Icon::empty().path(GIT_BRANCH_ICON_PATH))
                     .label(branch.clone())
                     .tooltip(SharedString::from("Git branch (read-only)"))
                     .dropdown_menu({

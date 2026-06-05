@@ -65,7 +65,13 @@ pub fn build_panel(
         TabSpec::Inspector { object, .. } => {
             let label = tab_label_for_spec(spec, false);
             let panel = cx.new(|cx| {
-                super::inspector::TableInspectorPanel::new(pool, object.clone(), window, cx)
+                super::inspector::TableInspectorPanel::new(
+                    pool,
+                    conn_id.clone(),
+                    object.clone(),
+                    window,
+                    cx,
+                )
             });
             panel.update(cx, |p, _| p.tab_label = label);
             Some(Arc::new(panel))

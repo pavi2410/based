@@ -13,9 +13,12 @@ use gpui_component::{
 use mongodb::Collection;
 use mongodb::bson::{Document, doc};
 
+use crate::connection::ConnectionId;
 use crate::widgets::compact_description_list_vertical;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
-use crate::widgets::panel::tab_button_styled;
+use crate::widgets::panel::{
+    panel_tab_content, tab_breadcrumb_footer, tab_breadcrumb_for_connection, tab_button_styled,
+};
 use crate::widgets::virtual_table::{
     RowDelegate, data_column, empty_column_meta, replace_table_data,
 };
@@ -29,6 +32,7 @@ enum MongoInspectorTab {
 
 pub struct CollectionInspectorPanel {
     focus_handle: FocusHandle,
+    conn_id: ConnectionId,
     collection: Collection<Document>,
     stats_rows: Vec<(SharedString, SharedString)>,
     indexes_tbl: Entity<TableState<RowDelegate>>,
@@ -39,6 +43,7 @@ pub struct CollectionInspectorPanel {
 impl CollectionInspectorPanel {
     pub fn new(
         collection: Collection<Document>,
+        conn_id: ConnectionId,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -47,6 +52,7 @@ impl CollectionInspectorPanel {
         let tab_label = format!("{} (schema)", collection.name()).into();
         let mut p = Self {
             focus_handle: cx.focus_handle(),
+            conn_id,
             collection,
             stats_rows: vec![],
             indexes_tbl,
@@ -226,7 +232,7 @@ impl Render for CollectionInspectorPanel {
             }
         };
 
-        v_flex()
+        let body = v_flex()
             .size_full()
             .gap_2()
             .child(
@@ -258,6 +264,12 @@ impl Render for CollectionInspectorPanel {
                     .border_1()
                     .border_color(border)
                     .child(body),
-            )
+            );
+
+        let collection_name = self.collection.name().to_string();
+        let crumbs = tab_breadcrumb_for_connection(&self.conn_id, [collection_name], cx);
+        let footer = tab_breadcrumb_footer("mongo-insp-breadcrumb", crumbs, None, cx);
+
+        panel_tab_content(body, footer).into_any_element()
     }
 }

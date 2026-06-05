@@ -83,8 +83,9 @@ pub fn build_panel(
         TabSpec::Inspector { object, .. } => {
             let label = tab_label_for_spec(spec, false);
             let coll: Collection<Document> = db.collection(object);
-            let panel =
-                cx.new(|cx| super::inspector::CollectionInspectorPanel::new(coll, window, cx));
+            let panel = cx.new(|cx| {
+                super::inspector::CollectionInspectorPanel::new(coll, conn_id.clone(), window, cx)
+            });
             panel.update(cx, |p, _| p.tab_label = label);
             Some(Arc::new(panel))
         }

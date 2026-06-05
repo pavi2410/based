@@ -12,8 +12,11 @@ use gpui_component::{
 };
 use sqlx::{AssertSqlSafe, Row, SqlitePool};
 
+use crate::connection::ConnectionId;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
-use crate::widgets::panel::tab_button_styled;
+use crate::widgets::panel::{
+    panel_tab_content, tab_breadcrumb_footer, tab_breadcrumb_for_connection, tab_button_styled,
+};
 use crate::widgets::sql_editor::{self, new_sql_input, set_input_text};
 use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_rows};
 
@@ -41,6 +44,7 @@ pub struct IndexInfo {
 pub struct TableInspectorPanel {
     focus_handle: FocusHandle,
     pool: SqlitePool,
+    conn_id: ConnectionId,
     table_name: String,
     columns: Vec<ColumnInfo>,
     indexes: Vec<IndexInfo>,
@@ -55,6 +59,7 @@ pub struct TableInspectorPanel {
 impl TableInspectorPanel {
     pub fn new(
         pool: SqlitePool,
+        conn_id: ConnectionId,
         table_name: String,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -82,6 +87,7 @@ impl TableInspectorPanel {
         let mut panel = Self {
             focus_handle: cx.focus_handle(),
             pool,
+            conn_id,
             table_name,
             columns: vec![],
             indexes: vec![],
@@ -262,9 +268,8 @@ impl Render for TableInspectorPanel {
                 .into_any_element(),
         };
 
-        v_flex()
-            .w_full()
-            .h_full()
+        let body = v_flex()
+            .size_full()
             .gap(px(8.0))
             .child(
                 h_flex()
@@ -286,6 +291,11 @@ impl Render for TableInspectorPanel {
                     ))
                     .child(self.tab_button("sql-insp-ddl", "DDL", SqliteInspectorTab::Ddl, cx)),
             )
-            .child(tables_block)
+            .child(tables_block);
+
+        let crumbs = tab_breadcrumb_for_connection(&self.conn_id, [self.table_name.clone()], cx);
+        let footer = tab_breadcrumb_footer("sqlite-insp-breadcrumb", crumbs, None, cx);
+
+        panel_tab_content(body, footer).into_any_element()
     }
 }

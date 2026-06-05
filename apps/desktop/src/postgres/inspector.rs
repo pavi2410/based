@@ -12,9 +12,12 @@ use gpui_component::{
 };
 use sqlx::{PgPool, Row};
 
+use crate::connection::ConnectionId;
 use crate::widgets::compact_description_list_vertical;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
-use crate::widgets::panel::tab_button_styled;
+use crate::widgets::panel::{
+    panel_tab_content, tab_breadcrumb_footer, tab_breadcrumb_for_connection, tab_button_styled,
+};
 use crate::widgets::virtual_table::{
     RowDelegate, data_column, empty_column_meta, replace_table_data,
 };
@@ -31,6 +34,7 @@ enum PgInspectorTab {
 pub struct TableInspectorPanel {
     focus_handle: FocusHandle,
     pool: PgPool,
+    conn_id: ConnectionId,
     schema: String,
     table_name: String,
     columns_tbl: Entity<TableState<RowDelegate>>,
@@ -44,6 +48,7 @@ pub struct TableInspectorPanel {
 impl TableInspectorPanel {
     pub fn new(
         pool: PgPool,
+        conn_id: ConnectionId,
         schema: String,
         table_name: String,
         window: &mut Window,
@@ -59,6 +64,7 @@ impl TableInspectorPanel {
         let mut p = Self {
             focus_handle: cx.focus_handle(),
             pool,
+            conn_id,
             schema,
             table_name,
             columns_tbl,
@@ -343,7 +349,7 @@ impl Render for TableInspectorPanel {
             }
         };
 
-        v_flex()
+        let body = v_flex()
             .size_full()
             .gap_2()
             .child(
@@ -382,6 +388,15 @@ impl Render for TableInspectorPanel {
                     .border_1()
                     .border_color(border)
                     .child(body),
-            )
+            );
+
+        let crumbs = tab_breadcrumb_for_connection(
+            &self.conn_id,
+            [self.schema.clone(), self.table_name.clone()],
+            cx,
+        );
+        let footer = tab_breadcrumb_footer("pg-insp-breadcrumb", crumbs, None, cx);
+
+        panel_tab_content(body, footer).into_any_element()
     }
 }

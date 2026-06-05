@@ -28,7 +28,9 @@ use crate::widgets::query_status::{QueryStatusDisplay, query_error_card, query_s
 use crate::widgets::result_tabs::{BottomTab, result_tab_strip};
 use crate::widgets::shortcut_run_kbd_in_primary_button;
 use crate::widgets::sql_editor::{self, new_sql_input, set_input_text, text_from_input};
-use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
+use crate::widgets::virtual_table::{
+    RowDelegate, data_column, meta_from_query_type, replace_table_data,
+};
 use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::{mark_query_tab_dirty, tabs::take_sql_inject};
 
@@ -245,8 +247,12 @@ impl QueryEditorPanel {
                 panel.status = match outcome {
                     Ok((cols, rows, aff)) => {
                         let col_models: Vec<gpui_component::table::Column> = cols
-                            .into_iter()
-                            .map(|c| data_column(c.clone(), c))
+                            .iter()
+                            .map(|c| data_column(c.name.clone(), c.name.clone()))
+                            .collect();
+                        let column_meta: Vec<_> = cols
+                            .iter()
+                            .map(|c| meta_from_query_type(&c.type_name))
                             .collect();
                         let data: Vec<Vec<SharedString>> = rows
                             .into_iter()
@@ -254,7 +260,7 @@ impl QueryEditorPanel {
                             .collect();
                         let row_count = data.len();
                         panel.result.update(cx, |state, cx| {
-                            replace_table_data(state, col_models, data, cx);
+                            replace_table_data(state, col_models, data, column_meta, cx);
                         });
                         cx.update_global(|store: &mut QueryStore, _| {
                             store.push_history(HistoryEntry::new(

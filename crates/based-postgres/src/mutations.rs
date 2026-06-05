@@ -1,5 +1,11 @@
 use anyhow::Result;
-use sqlx::{AssertSqlSafe, Column as SqlxColumn, PgPool, Row};
+use sqlx::{AssertSqlSafe, Column as SqlxColumn, PgPool, Row, TypeInfo};
+
+#[derive(Debug, Clone)]
+pub struct QueryColumn {
+    pub name: String,
+    pub type_name: String,
+}
 
 pub async fn insert_row(
     pool: &PgPool,
@@ -43,7 +49,10 @@ pub async fn delete_row(
     Ok(r.rows_affected())
 }
 
-pub async fn execute_sql(pool: &PgPool, sql: &str) -> Result<(Vec<String>, Vec<Vec<String>>, u64)> {
+pub async fn execute_sql(
+    pool: &PgPool,
+    sql: &str,
+) -> Result<(Vec<QueryColumn>, Vec<Vec<String>>, u64)> {
     let t = sql.trim_start();
     let lower = t.to_ascii_lowercase();
     if lower.starts_with("select")
@@ -52,9 +61,17 @@ pub async fn execute_sql(pool: &PgPool, sql: &str) -> Result<(Vec<String>, Vec<V
         || lower.starts_with("show")
     {
         let rows = sqlx::query(AssertSqlSafe(sql)).fetch_all(pool).await?;
-        let columns: Vec<String> = rows
+        let columns: Vec<QueryColumn> = rows
             .first()
-            .map(|r| r.columns().iter().map(|c| c.name().to_string()).collect())
+            .map(|r| {
+                r.columns()
+                    .iter()
+                    .map(|c| QueryColumn {
+                        name: c.name().to_string(),
+                        type_name: c.type_info().name().to_string(),
+                    })
+                    .collect()
+            })
             .unwrap_or_default();
         let data: Vec<Vec<String>> = rows
             .iter()

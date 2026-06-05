@@ -1,5 +1,7 @@
 // mongodb::document_viewer — paginated find() as a virtual table.
 
+use std::collections::HashMap;
+
 use gpui::{prelude::*, *};
 use gpui_component::{
     ActiveTheme, Sizable as _,
@@ -20,7 +22,9 @@ use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_display}
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export;
 use crate::widgets::filter_bar::{FilterBar, FilterExpr};
-use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
+use crate::widgets::virtual_table::{
+    RowDelegate, align_meta_to_columns, data_column, replace_table_data,
+};
 
 fn mongo_filter_doc(expr: &FilterExpr) -> Document {
     let s = expr.to_mongo_filter();
@@ -161,8 +165,10 @@ impl DocumentViewerPanel {
                     panel.filter_bar.update(cx, |fb, cx| {
                         fb.set_columns_if_empty(keys.clone(), cx);
                     });
+                    let column_meta =
+                        align_meta_to_columns(keys.iter().map(String::as_str), &HashMap::new());
                     panel.table.update(cx, |state, cx| {
-                        replace_table_data(state, columns, rows, cx);
+                        replace_table_data(state, columns, rows, column_meta, cx);
                     });
                     cx.notify();
                 })

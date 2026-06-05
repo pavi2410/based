@@ -3,6 +3,8 @@
 //! `gpui_tokio::init` + `Tokio::spawn` / `spawn_result` bridge Tokio futures to GPUI tasks
 //! without blocking the UI thread the way `Runtime::block_on` from a GPUI task does.
 
+pub mod column_catalog;
+
 use std::sync::OnceLock;
 
 use anyhow::Result;

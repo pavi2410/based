@@ -14,7 +14,9 @@ use sqlx::{Column, PgPool, Row};
 
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::row_cell::pg_cell_display;
-use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
+use crate::widgets::virtual_table::{
+    RowDelegate, data_column, empty_column_meta, replace_table_data,
+};
 
 pub struct LiveMonitorPanel {
     focus_handle: FocusHandle,
@@ -74,8 +76,9 @@ impl LiveMonitorPanel {
                 Err(_) => return,
             };
             let _ = this.update(cx, |panel, cx| {
+                let column_meta = empty_column_meta(columns.len());
                 panel.table.update(cx, |state, cx| {
-                    replace_table_data(state, columns, data, cx);
+                    replace_table_data(state, columns, data, column_meta, cx);
                 });
                 cx.notify();
             });

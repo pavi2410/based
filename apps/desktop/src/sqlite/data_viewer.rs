@@ -1,5 +1,7 @@
 // sqlite::data_viewer — DataViewerPanel: paginated table data viewer.
 
+use std::collections::HashMap;
+
 use gpui::{prelude::*, *};
 use gpui_component::{
     ActiveTheme,
@@ -16,13 +18,16 @@ use gpui_component::table::TableEvent;
 
 use crate::app::prefs;
 use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_display};
+use crate::widgets::column_header::GridColumnMeta;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export_popover::export_popover;
 use crate::widgets::filter_bar::FilterBar;
 use crate::widgets::pagination::sql_page_state;
 use crate::widgets::pagination::{offset_for_page, sql_pagination_controls, sql_row_range_label};
 use crate::widgets::row_cell::sqlite_cell_display;
-use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
+use crate::widgets::virtual_table::{
+    RowDelegate, align_meta_to_columns, data_column, replace_table_data,
+};
 use crate::widgets::{metadata_pill, panel_shell};
 use crate::workspace::pop_out::{PopOutManager, PopOutWindowTitle};
 
@@ -37,7 +42,27 @@ pub struct DataViewerPanel {
     page_size: u64,
     total_rows: u64,
     loading: bool,
+    column_catalog: HashMap<String, GridColumnMeta>,
     pub(crate) tab_label: SharedString,
+}
+
+fn columns_from_rows_or_catalog(
+    rows: &[sqlx::sqlite::SqliteRow],
+    catalog: &HashMap<String, GridColumnMeta>,
+) -> Vec<Column> {
+    if let Some(first) = rows.first() {
+        return first
+            .columns()
+            .iter()
+            .map(|c| data_column(c.name().to_string(), c.name().to_string()))
+            .collect();
+    }
+    let mut names: Vec<_> = catalog.keys().cloned().collect();
+    names.sort();
+    names
+        .into_iter()
+        .map(|n| data_column(n.clone(), n))
+        .collect()
 }
 
 impl DataViewerPanel {
@@ -64,6 +89,7 @@ impl DataViewerPanel {
             page_size: prefs::page_size(cx),
             total_rows: 0,
             loading: false,
+            column_catalog: HashMap::new(),
             tab_label,
         };
         cx.subscribe(&panel.table, |panel, _, event, cx| {
@@ -102,15 +128,33 @@ impl DataViewerPanel {
         self.offset = offset;
 
         let pool = self.pool.clone();
-        let table_name = Self::sql_escape_ident(&self.table_name);
+        let table_raw = self.table_name.clone();
+        let table_name = Self::sql_escape_ident(&table_raw);
         let page_size = self.page_size;
         let where_sql = self
             .filter_bar
             .read(cx)
             .current_expr(cx)
             .map(|e| e.to_sql_sqlite());
+        let cached_catalog = self.column_catalog.clone();
 
         cx.spawn(async move |this, cx| {
+            let catalog = if cached_catalog.is_empty() {
+                let pool_for_catalog = pool.clone();
+                crate::db::run(cx, async move {
+                    crate::db::column_catalog::load_sqlite_column_catalog(
+                        &pool_for_catalog,
+                        &table_raw,
+                    )
+                    .await
+                })
+                .await
+                .unwrap_or_default()
+            } else {
+                cached_catalog
+            };
+
+            let catalog_for_rows = catalog.clone();
             let res = crate::db::run(cx, async move {
                 let where_clause = where_sql
                     .as_ref()
@@ -130,15 +174,7 @@ impl DataViewerPanel {
                     .fetch_all(&pool)
                     .await?;
 
-                let columns: Vec<Column> = if let Some(first) = rows.first() {
-                    first
-                        .columns()
-                        .iter()
-                        .map(|c| data_column(c.name().to_string(), c.name().to_string()))
-                        .collect()
-                } else {
-                    vec![]
-                };
+                let columns: Vec<Column> = columns_from_rows_or_catalog(&rows, &catalog_for_rows);
 
                 let data_rows: Vec<Vec<SharedString>> = rows
                     .iter()
@@ -157,13 +193,18 @@ impl DataViewerPanel {
                     Ok((total, columns, data_rows)) => {
                         panel.total_rows = total as u64;
                         panel.loading = false;
+                        panel.column_catalog = catalog.clone();
                         let names: Vec<String> =
                             columns.iter().map(|c| c.key.to_string()).collect();
                         panel.filter_bar.update(cx, |fb, cx| {
                             fb.set_columns_if_empty(names, cx);
                         });
+                        let column_meta = align_meta_to_columns(
+                            columns.iter().map(|c| c.key.to_string()),
+                            &catalog,
+                        );
                         panel.table.update(cx, |state, cx| {
-                            replace_table_data(state, columns, data_rows, cx);
+                            replace_table_data(state, columns, data_rows, column_meta, cx);
                         });
                         cx.notify();
                     }

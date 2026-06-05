@@ -2,6 +2,7 @@
 // None of these know what a database is; they operate on plain data types.
 
 pub mod cell_detail;
+pub mod column_header;
 pub mod command_shell;
 pub mod data_table;
 pub mod description_list;

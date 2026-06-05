@@ -1,5 +1,7 @@
 // mongodb::pipeline_builder — run aggregation from a JSON pipeline array.
 
+use std::collections::HashMap;
+
 use gpui::{prelude::*, *};
 use gpui_component::{
     Sizable as _,
@@ -19,7 +21,9 @@ use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export;
 use crate::widgets::sql_editor::{self, new_json_input, text_from_input};
-use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
+use crate::widgets::virtual_table::{
+    RowDelegate, align_meta_to_columns, data_column, replace_table_data,
+};
 
 pub struct PipelineBuilderPanel {
     focus_handle: FocusHandle,
@@ -175,8 +179,10 @@ impl PipelineBuilderPanel {
                             based_query::RunStatus::Ok,
                         ));
                     });
+                    let column_meta =
+                        align_meta_to_columns(keys.iter().map(String::as_str), &HashMap::new());
                     panel.result.update(cx, |state, cx| {
-                        replace_table_data(state, columns, rows, cx);
+                        replace_table_data(state, columns, rows, column_meta, cx);
                     });
                     cx.notify();
                 })

@@ -15,7 +15,9 @@ use sqlx::{PgPool, Row};
 use crate::widgets::compact_description_list_vertical;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::panel::tab_button_styled;
-use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
+use crate::widgets::virtual_table::{
+    RowDelegate, data_column, empty_column_meta, replace_table_data,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 enum PgInspectorTab {
@@ -263,14 +265,17 @@ impl TableInspectorPanel {
 
             let _ = cx.update(|cx| {
                 this.update(cx, |panel, cx| {
+                    let col_meta = empty_column_meta(col_columns.len());
+                    let ix_meta = empty_column_meta(ix_columns.len());
+                    let co_meta = empty_column_meta(co_columns.len());
                     panel.columns_tbl.update(cx, |state, cx| {
-                        replace_table_data(state, col_columns, col_data, cx);
+                        replace_table_data(state, col_columns, col_data, col_meta, cx);
                     });
                     panel.indexes_tbl.update(cx, |state, cx| {
-                        replace_table_data(state, ix_columns, ix_data, cx);
+                        replace_table_data(state, ix_columns, ix_data, ix_meta, cx);
                     });
                     panel.constraints_tbl.update(cx, |state, cx| {
-                        replace_table_data(state, co_columns, co_data, cx);
+                        replace_table_data(state, co_columns, co_data, co_meta, cx);
                     });
                     panel.stats_rows = stats_rows;
                     cx.notify();

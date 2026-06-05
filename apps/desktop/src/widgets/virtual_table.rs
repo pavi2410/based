@@ -9,6 +9,9 @@ use gpui_component::{
 };
 
 use crate::app::prefs;
+use crate::widgets::column_header::{GridColumnMeta, render_column_header, reorder_column_meta};
+
+pub use crate::widgets::column_header::{align_meta_to_columns, meta_from_query_type};
 
 pub const NULL_CELL_DISPLAY: &str = "NULL";
 
@@ -21,6 +24,7 @@ pub fn data_column(key: impl Into<SharedString>, label: impl Into<SharedString>)
 #[derive(Default)]
 pub struct RowDelegate {
     pub columns: Vec<Column>,
+    pub column_meta: Vec<GridColumnMeta>,
     pub rows: Vec<Vec<SharedString>>,
     pub sort_col: Option<usize>,
     pub sort_asc: bool,
@@ -37,6 +41,17 @@ impl gpui_component::table::TableDelegate for RowDelegate {
 
     fn column(&self, col_ix: usize, _: &App) -> Column {
         self.columns[col_ix].clone()
+    }
+
+    fn render_th(
+        &mut self,
+        col_ix: usize,
+        window: &mut Window,
+        cx: &mut Context<TableState<Self>>,
+    ) -> impl IntoElement {
+        let col = self.column(col_ix, cx);
+        let meta = self.column_meta.get(col_ix).cloned().unwrap_or_default();
+        render_column_header(col_ix, col.name.clone(), meta, window, cx)
     }
 
     fn render_td(
@@ -87,6 +102,7 @@ impl gpui_component::table::TableDelegate for RowDelegate {
         let col = self.columns.remove(col_ix);
         let insert_at = if to_ix > col_ix { to_ix - 1 } else { to_ix };
         self.columns.insert(insert_at, col);
+        reorder_column_meta(&mut self.column_meta, col_ix, to_ix);
 
         for row in &mut self.rows {
             if col_ix >= row.len() {
@@ -133,14 +149,24 @@ pub type VirtualTable = Entity<TableState<RowDelegate>>;
 ///
 /// [`TableState::refresh`] must run after columns change; otherwise `col_groups` stays
 /// empty from the initial delegate and body cells never render.
+pub fn empty_column_meta(count: usize) -> Vec<GridColumnMeta> {
+    vec![GridColumnMeta::default(); count]
+}
+
 pub fn replace_table_data(
     state: &mut TableState<RowDelegate>,
     columns: Vec<Column>,
     rows: Vec<Vec<SharedString>>,
+    column_meta: Vec<GridColumnMeta>,
     cx: &mut Context<TableState<RowDelegate>>,
 ) {
     let delegate = state.delegate_mut();
     delegate.columns = columns;
+    delegate.column_meta = if column_meta.len() == delegate.columns.len() {
+        column_meta
+    } else {
+        empty_column_meta(delegate.columns.len())
+    };
     delegate.rows = rows;
     delegate.sort_col = None;
     state.refresh(cx);

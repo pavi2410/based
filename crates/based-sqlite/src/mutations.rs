@@ -1,5 +1,11 @@
 use anyhow::Result;
-use sqlx::{AssertSqlSafe, Column as SqlxColumn, Row, SqlitePool};
+use sqlx::{AssertSqlSafe, Column as SqlxColumn, Row, SqlitePool, TypeInfo};
+
+#[derive(Debug, Clone)]
+pub struct QueryColumn {
+    pub name: String,
+    pub type_name: String,
+}
 
 pub async fn insert_row(
     pool: &SqlitePool,
@@ -65,18 +71,21 @@ pub async fn delete_row(pool: &SqlitePool, table: &str, pk_col: &str, pk_val: &s
 pub async fn execute_sql(
     pool: &SqlitePool,
     sql: &str,
-) -> Result<(Vec<String>, Vec<Vec<String>>, u64)> {
+) -> Result<(Vec<QueryColumn>, Vec<Vec<String>>, u64)> {
     let trimmed = sql.trim_start().to_ascii_uppercase();
     if trimmed.starts_with("SELECT")
         || trimmed.starts_with("WITH")
         || trimmed.starts_with("EXPLAIN")
     {
         let rows = sqlx::query(AssertSqlSafe(sql)).fetch_all(pool).await?;
-        let columns: Vec<String> = if let Some(first) = rows.first() {
+        let columns: Vec<QueryColumn> = if let Some(first) = rows.first() {
             first
                 .columns()
                 .iter()
-                .map(|c| c.name().to_string())
+                .map(|c| QueryColumn {
+                    name: c.name().to_string(),
+                    type_name: c.type_info().name().to_string(),
+                })
                 .collect()
         } else {
             vec![]

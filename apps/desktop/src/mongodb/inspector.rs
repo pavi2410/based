@@ -16,7 +16,9 @@ use mongodb::bson::{Document, doc};
 use crate::widgets::compact_description_list_vertical;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::panel::tab_button_styled;
-use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
+use crate::widgets::virtual_table::{
+    RowDelegate, data_column, empty_column_meta, replace_table_data,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 enum MongoInspectorTab {
@@ -124,6 +126,7 @@ impl CollectionInspectorPanel {
                                     state,
                                     vec![data_column("error", "Error")],
                                     vec![vec![SharedString::from(msg)]],
+                                    empty_column_meta(1),
                                     cx,
                                 );
                             });
@@ -154,8 +157,9 @@ impl CollectionInspectorPanel {
                     let _ = cx.update(|cx| {
                         this.update(cx, |panel, cx| {
                             panel.stats_rows = stats_rows;
+                            let ix_meta = empty_column_meta(ix_columns.len());
                             panel.indexes_tbl.update(cx, |state, cx| {
-                                replace_table_data(state, ix_columns, ix_data, cx);
+                                replace_table_data(state, ix_columns, ix_data, ix_meta, cx);
                             });
                             cx.notify();
                         })

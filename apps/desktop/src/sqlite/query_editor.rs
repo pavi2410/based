@@ -14,7 +14,7 @@ use gpui_component::{
     table::{Column, TableState},
     v_flex,
 };
-use sqlx::{AssertSqlSafe, Column as SqlxColumn, Row, SqlitePool};
+use sqlx::{AssertSqlSafe, Column as SqlxColumn, Row, SqlitePool, TypeInfo};
 
 use super::eqp_parse::{EqpNode, parse_eqp};
 use super::eqp_viewer::render_eqp_body;
@@ -22,6 +22,7 @@ use super::eqp_viewer::render_eqp_body;
 use crate::connection::ConnectionId;
 use crate::db;
 use crate::query_store::{HistoryEntry, QueryStore};
+use crate::widgets::column_header::GridColumnMeta;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export_popover::export_popover;
 use crate::widgets::query_panel_extras;
@@ -30,7 +31,9 @@ use crate::widgets::result_tabs::{BottomTab, result_tab_strip};
 use crate::widgets::row_cell::sqlite_cell_display;
 use crate::widgets::shortcut_run_kbd_in_primary_button;
 use crate::widgets::sql_editor::{self, new_sql_input, set_input_text, text_from_input};
-use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_data};
+use crate::widgets::virtual_table::{
+    RowDelegate, data_column, meta_from_query_type, replace_table_data,
+};
 use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::tabs::take_sql_inject;
 
@@ -202,17 +205,22 @@ impl QueryEditorPanel {
         cx.spawn(async move |this, cx| {
             let start = std::time::Instant::now();
 
-            let result: anyhow::Result<(Vec<Column>, Vec<Vec<SharedString>>)> =
+            let result: anyhow::Result<(Vec<Column>, Vec<GridColumnMeta>, Vec<Vec<SharedString>>)> =
                 db::run(cx, async move {
                     let rows = sqlx::query(AssertSqlSafe(sql)).fetch_all(&pool).await?;
-                    let columns: Vec<Column> = if let Some(first) = rows.first() {
-                        first
-                            .columns()
+                    let (columns, column_meta) = if let Some(first) = rows.first() {
+                        let cols = first.columns();
+                        let columns: Vec<Column> = cols
                             .iter()
                             .map(|c| data_column(c.name().to_string(), c.name().to_string()))
-                            .collect()
+                            .collect();
+                        let column_meta = cols
+                            .iter()
+                            .map(|c| meta_from_query_type(c.type_info().name()))
+                            .collect();
+                        (columns, column_meta)
                     } else {
-                        vec![]
+                        (vec![], vec![])
                     };
                     let data_rows: Vec<Vec<SharedString>> = rows
                         .iter()
@@ -222,17 +230,17 @@ impl QueryEditorPanel {
                                 .collect()
                         })
                         .collect();
-                    Ok((columns, data_rows))
+                    Ok((columns, column_meta, data_rows))
                 })
                 .await;
 
             let elapsed_ms = start.elapsed().as_millis() as u64;
 
             let _ = this.update(cx, |panel, cx| match result {
-                Ok((columns, data_rows)) => {
+                Ok((columns, column_meta, data_rows)) => {
                     let row_count = data_rows.len();
                     panel.result.update(cx, |state, cx| {
-                        replace_table_data(state, columns, data_rows, cx);
+                        replace_table_data(state, columns, data_rows, column_meta, cx);
                     });
                     cx.update_global(|store: &mut QueryStore, _| {
                         store.push_history(HistoryEntry::new(

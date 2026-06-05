@@ -115,6 +115,94 @@ fn compare_nulls(a: &str, b: &str) -> Option<Ordering> {
     }
 }
 
+/// Format a numeric cell for display with thousands separators (display-only).
+pub fn format_numeric_display(s: &str) -> String {
+    let t = s.trim();
+    if is_null_cell(t) {
+        return t.to_string();
+    }
+    if let Ok(n) = t.parse::<i64>() {
+        return format_signed_integer(n);
+    }
+    if let Some(formatted) = format_decimal_string(t) {
+        return formatted;
+    }
+    t.to_string()
+}
+
+fn format_signed_integer(n: i64) -> String {
+    let negative = n < 0;
+    let digits = n.unsigned_abs().to_string();
+    let formatted = add_thousand_separators(&digits);
+    if negative {
+        format!("-{formatted}")
+    } else {
+        formatted
+    }
+}
+
+fn format_decimal_string(s: &str) -> Option<String> {
+    let (negative, rest) = strip_leading_sign(s.trim());
+    let (int_part, frac_part) = rest
+        .split_once('.')
+        .map_or((rest, None), |(i, f)| (i, Some(f)));
+    if int_part.is_empty() && frac_part.is_none() {
+        return None;
+    }
+    if !int_part.is_empty() && !int_part.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    if let Some(frac) = frac_part
+        && !frac.is_empty()
+        && !frac.chars().all(|c| c.is_ascii_digit())
+    {
+        return None;
+    }
+
+    let formatted_int = if int_part.is_empty() {
+        "0".to_string()
+    } else {
+        add_thousand_separators(int_part)
+    };
+
+    let mut out = String::new();
+    if negative {
+        out.push('-');
+    }
+    out.push_str(&formatted_int);
+    if let Some(frac) = frac_part {
+        out.push('.');
+        out.push_str(frac);
+    }
+    Some(out)
+}
+
+fn strip_leading_sign(s: &str) -> (bool, &str) {
+    if let Some(rest) = s.strip_prefix('-') {
+        (true, rest)
+    } else if let Some(rest) = s.strip_prefix('+') {
+        (false, rest)
+    } else {
+        (false, s)
+    }
+}
+
+fn add_thousand_separators(digits: &str) -> String {
+    if digits.is_empty() {
+        return String::new();
+    }
+    let len = digits.len();
+    let sep_count = (len - 1) / 3;
+    let mut out = String::with_capacity(len + sep_count);
+    for (i, ch) in digits.chars().enumerate() {
+        if i > 0 && (len - i).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(ch);
+    }
+    out
+}
+
 fn parse_numeric_sort_key(s: &str) -> Option<f64> {
     let t = s.trim();
     if is_null_cell(t) {
@@ -182,12 +270,25 @@ pub fn render_grid_cell(
     }
 
     match kind {
-        ColumnValueKind::Numeric => cell_chrome(cx)
-            .w_full()
-            .text_right()
-            .text_color(theme.blue_light)
-            .child(display)
-            .into_any_element(),
+        ColumnValueKind::Numeric => {
+            let raw = display.to_string();
+            let formatted = format_numeric_display(&raw);
+            let show_raw_tooltip = formatted != raw;
+            let cell_id = row_ix.saturating_mul(10_000).saturating_add(col_ix);
+            let mut cell = cell_chrome(cx)
+                .id(("grid-cell-num", cell_id))
+                .w_full()
+                .text_right()
+                .text_color(theme.blue_light)
+                .child(formatted);
+            if show_raw_tooltip {
+                let tooltip_raw = raw;
+                cell = cell.hoverable_tooltip(move |w, app| {
+                    Tooltip::new(tooltip_raw.clone()).build(w, app)
+                });
+            }
+            cell.into_any_element()
+        }
         ColumnValueKind::Boolean => {
             let label = display.to_string();
             if let Some(value) = parse_bool_display(&label) {
@@ -332,6 +433,16 @@ mod tests {
             compare_cells(ColumnValueKind::Boolean, "false", "true"),
             Ordering::Less
         );
+    }
+
+    #[test]
+    fn format_numeric_display_adds_separators() {
+        assert_eq!(format_numeric_display("1234567"), "1,234,567");
+        assert_eq!(format_numeric_display("-1234"), "-1,234");
+        assert_eq!(format_numeric_display("1234.56"), "1,234.56");
+        assert_eq!(format_numeric_display("3.14"), "3.14");
+        assert_eq!(format_numeric_display("NULL"), "NULL");
+        assert_eq!(format_numeric_display("not-a-number"), "not-a-number");
     }
 
     #[test]

@@ -6,6 +6,7 @@ use crate::connection::ConnectionId;
 use crate::workspace::chrome::{left_pane::LeftPane, side_pane::SidePane};
 
 use super::{TabManager, TabSpec};
+use crate::workspace::Workspace;
 use gpui_component::dock::DockArea;
 
 #[derive(Clone)]
@@ -21,7 +22,7 @@ impl Global for DockAreaRef {}
 
 /// Main workspace entity (tab close menu, ⌘W).
 #[derive(Clone)]
-pub struct WorkspaceRef(pub Entity<crate::workspace::Workspace>);
+pub struct WorkspaceRef(pub Entity<Workspace>);
 
 impl Global for WorkspaceRef {}
 
@@ -54,25 +55,18 @@ impl Global for TabOpenQueue {}
 /// Inject SQL into the active query editor for `conn_id` (command palette history).
 #[derive(Default)]
 pub struct SqlInject {
-    pub target: Option<(crate::connection::ConnectionId, String)>,
+    pub target: Option<(ConnectionId, String)>,
 }
 
 impl Global for SqlInject {}
 
-pub fn enqueue_sql_inject(
-    conn_id: crate::connection::ConnectionId,
-    sql: String,
-    cx: &mut impl BorrowAppContext,
-) {
+pub fn enqueue_sql_inject(conn_id: ConnectionId, sql: String, cx: &mut impl BorrowAppContext) {
     cx.update_global(|inj: &mut SqlInject, _| {
         inj.target = Some((conn_id, sql));
     });
 }
 
-pub fn take_sql_inject(
-    conn_id: &crate::connection::ConnectionId,
-    cx: &mut impl BorrowAppContext,
-) -> Option<String> {
+pub fn take_sql_inject(conn_id: &ConnectionId, cx: &mut impl BorrowAppContext) -> Option<String> {
     cx.update_global(|inj: &mut SqlInject, _| {
         if inj.target.as_ref().is_some_and(|(c, _)| c == conn_id) {
             inj.target.take().map(|(_, sql)| sql)

@@ -5,6 +5,8 @@ use gpui::App;
 use super::config::{current_version_string, supports_in_app_install};
 use super::log::info as uinfo;
 use super::persist::UpdaterStateFile;
+use std::env;
+use std::process;
 
 /// Download and install a signed update bundle, then relaunch the app.
 pub fn download_install_and_relaunch(update: Update, pending_notes_version: &str) -> Result<()> {
@@ -25,14 +27,14 @@ pub fn download_install_and_relaunch(update: Update, pending_notes_version: &str
 
     relaunch_app()?;
     uinfo("install: exiting for relaunch");
-    std::process::exit(0);
+    process::exit(0);
 }
 
 pub fn relaunch_app() -> Result<()> {
-    let exe = std::env::current_exe().context("current_exe")?;
+    let exe = env::current_exe().context("current_exe")?;
     uinfo(format!("relaunch: spawning {}", exe.display()));
-    std::process::Command::new(exe)
-        .args(std::env::args().skip(1))
+    process::Command::new(exe)
+        .args(env::args().skip(1))
         .spawn()
         .context("relaunch spawn")?;
     Ok(())

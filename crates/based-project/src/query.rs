@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
@@ -73,7 +74,7 @@ fn parse_query_file(queries_dir: &Path, path: &Path) -> Result<ProjectQuery> {
         .strip_prefix(queries_dir)
         .with_context(|| format!("query path not under {}", queries_dir.display()))?;
     let rel_path = rel.to_string_lossy().replace('\\', "/");
-    let raw = std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+    let raw = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
     let file: QueryFileRaw =
         toml::from_str(&raw).with_context(|| format!("parse {}", path.display()))?;
     if file.schema_version != QUERY_SCHEMA_VERSION {

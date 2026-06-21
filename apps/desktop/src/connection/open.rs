@@ -1,8 +1,8 @@
 use gpui::{App, AppContext, Task};
 use gpui_tokio::Tokio;
 
-use crate::connection::lifecycle::Connectable;
-use crate::connection::{AnyConnection, ConnectionConfig};
+use super::lifecycle::Connectable;
+use super::{AnyConnection, ConnectionConfig};
 use crate::mongodb::MongoConnection;
 use crate::postgres::PgConnection;
 use crate::sqlite::SqliteConnection;

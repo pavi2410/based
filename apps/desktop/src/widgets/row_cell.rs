@@ -3,10 +3,11 @@
 use sqlx::{Row, postgres::PgRow, sqlite::SqliteRow};
 
 use super::virtual_table::NULL_CELL_DISPLAY;
+use std::fmt::Display;
 
 const NULL_DISPLAY: &str = NULL_CELL_DISPLAY;
 
-fn format_optional<T: std::fmt::Display>(v: Option<T>) -> String {
+fn format_optional<T: Display>(v: Option<T>) -> String {
     v.map(|x| x.to_string())
         .unwrap_or_else(|| NULL_DISPLAY.into())
 }

@@ -1,3 +1,4 @@
+use std::env;
 pub const GITHUB_OWNER: &str = "pavi2410";
 pub const GITHUB_REPO: &str = "based";
 pub const RELEASES_PAGE: &str = "https://github.com/pavi2410/based/releases";
@@ -37,7 +38,7 @@ pub fn supports_in_app_install() -> bool {
 
 #[cfg(target_os = "linux")]
 fn is_deb_install() -> bool {
-    if let Ok(exe) = std::env::current_exe() {
+    if let Ok(exe) = env::current_exe() {
         let exe = exe.canonicalize().unwrap_or(exe);
         let path = exe.to_string_lossy();
         let is_deb_path = path.starts_with("/usr/")

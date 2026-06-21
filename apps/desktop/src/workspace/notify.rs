@@ -7,6 +7,8 @@ use gpui_component::{
     h_flex,
     notification::Notification,
 };
+use std::path::Path;
+use std::process;
 
 /// Push a notification on the **active** window’s `Root`. No-op if there is no active window.
 pub fn push_notification(app: &mut App, note: Notification) {
@@ -66,7 +68,7 @@ pub fn push_update_available(app: &mut App, version: &str) {
 /// - "Show in Finder" / "Show in Explorer" / "Open Folder" — reveals it in the file manager
 ///
 /// The notification body itself is not clickable; all actions are opt-in.
-pub fn push_export_success(app: &mut App, path: &std::path::Path) {
+pub fn push_export_success(app: &mut App, path: &Path) {
     let file_name: SharedString = path
         .file_name()
         .and_then(|n| n.to_str())
@@ -119,35 +121,35 @@ pub fn push_export_success(app: &mut App, path: &std::path::Path) {
 }
 
 /// Open a file with the system default handler.
-fn open_path(path: &std::path::Path) {
+fn open_path(path: &Path) {
     #[cfg(target_os = "macos")]
-    let _ = std::process::Command::new("open").arg(path).spawn();
+    let _ = process::Command::new("open").arg(path).spawn();
     #[cfg(target_os = "linux")]
-    let _ = std::process::Command::new("xdg-open").arg(path).spawn();
+    let _ = process::Command::new("xdg-open").arg(path).spawn();
     #[cfg(target_os = "windows")]
     {
         let path_str = path.display().to_string();
-        let _ = std::process::Command::new("cmd")
+        let _ = process::Command::new("cmd")
             .args(["/C", "start", "", &path_str])
             .spawn();
     }
 }
 
 /// Reveal a file in the platform file manager (Finder / Files / Explorer).
-fn reveal_path(path: &std::path::Path) {
+fn reveal_path(path: &Path) {
     #[cfg(target_os = "macos")]
-    let _ = std::process::Command::new("open")
+    let _ = process::Command::new("open")
         .args(["-R", &path.display().to_string()])
         .spawn();
     #[cfg(target_os = "linux")]
     {
         let dir = path.parent().unwrap_or(path);
-        let _ = std::process::Command::new("xdg-open").arg(dir).spawn();
+        let _ = process::Command::new("xdg-open").arg(dir).spawn();
     }
     #[cfg(target_os = "windows")]
     {
         let arg = format!("/select,{}", path.display());
-        let _ = std::process::Command::new("explorer.exe").arg(&arg).spawn();
+        let _ = process::Command::new("explorer.exe").arg(&arg).spawn();
     }
 }
 

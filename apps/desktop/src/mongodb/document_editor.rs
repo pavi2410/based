@@ -14,6 +14,8 @@ use mongodb::Collection;
 use mongodb::bson::Document;
 use mongodb::bson::doc;
 
+use crate::app::prefs;
+use crate::db;
 use crate::mongodb::document_from_json;
 use crate::widgets::sql_editor::new_json_input;
 
@@ -117,7 +119,7 @@ impl DocumentEditorPanel {
         let original = self.original.clone();
 
         cx.spawn(async move |this, cx| {
-            let outcome = crate::db::run(cx, async move {
+            let outcome = db::run(cx, async move {
                 match mode {
                     EditorMode::Insert => {
                         coll.insert_one(doc, None)
@@ -242,7 +244,7 @@ impl Render for DocumentEditorPanel {
                     .p_2()
                     .border_1()
                     .border_color(border)
-                    .font_family(crate::app::prefs::code_font_family(cx))
+                    .font_family(prefs::code_font_family(cx))
                     .text_sm()
                     .child(Input::new(&self.json_input).h_full().cleanable(false)),
             )
@@ -251,7 +253,7 @@ impl Render for DocumentEditorPanel {
 
 #[cfg(test)]
 mod tests {
-    use crate::mongodb::document_from_json;
+    use super::document_from_json;
 
     #[test]
     fn valid_json_object_passes() {

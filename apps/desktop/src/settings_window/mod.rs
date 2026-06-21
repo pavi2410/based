@@ -18,6 +18,7 @@ use crate::app::prefs::{
     DensityPreset, FontWeightToken, NativePreferences, SizeToken, UiFontFamilyId,
     UpdateCheckInterval,
 };
+use crate::app::restart::restart_app;
 use crate::theme::{DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME, ThemeNameItem};
 
 #[cfg(target_os = "macos")]
@@ -61,7 +62,7 @@ fn appearance_mode_options() -> Vec<(SharedString, SharedString)> {
 }
 
 fn update_interval_options() -> Vec<(SharedString, SharedString)> {
-    crate::app::prefs::UpdateCheckInterval::ALL
+    UpdateCheckInterval::ALL
         .iter()
         .map(|i| (i.storage_key().into(), i.label().into()))
         .collect()
@@ -508,7 +509,7 @@ fn dev_settings_page() -> SettingPage {
                             .outline()
                             .label("Restart")
                             .with_size(options.size)
-                            .on_click(|_, _, _cx| crate::app::restart::restart_app())
+                            .on_click(|_, _, _cx| restart_app())
                     }),
                 )
                 .description("Relaunch Based with the same command-line arguments."),

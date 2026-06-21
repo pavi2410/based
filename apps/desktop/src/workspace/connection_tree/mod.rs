@@ -1,11 +1,16 @@
 // Sidebar connection list + object browser (extracted from workspace).
 
 use std::collections::HashMap;
+use std::mem;
 
 use gpui::{
     App, ClipboardItem, Context, Entity, EventEmitter, IntoElement, Render, Window, prelude::*,
 };
-use gpui_component::{dock::DockArea, list::ListState, v_flex};
+use gpui_component::{
+    dock::DockArea,
+    list::{List, ListState},
+    v_flex,
+};
 
 use crate::connection::registry::{ConnectionRegistry, RegistryEvent};
 use crate::connection::{
@@ -13,6 +18,7 @@ use crate::connection::{
 };
 
 use super::notify;
+use crate::connection::close_any_connection;
 use crate::workspace::TabSpec;
 
 mod browser_list;
@@ -35,7 +41,7 @@ use object_list::ObjectListDelegate;
 pub struct ConnectionTree {
     pub registry: Entity<ConnectionRegistry>,
     dock_area: Entity<DockArea>,
-    conn_states: HashMap<crate::connection::ConnectionId, ConnState>,
+    conn_states: HashMap<ConnectionId, ConnState>,
     #[allow(dead_code)]
     active_spec: Option<TabSpec>,
     pub(crate) selected_connection: Option<usize>,
@@ -223,9 +229,9 @@ impl ConnectionTree {
         };
         ent.update(cx, |e, cx| {
             if let ConnectionState::Connected(ac) =
-                std::mem::replace(&mut e.state, ConnectionState::Disconnected)
+                mem::replace(&mut e.state, ConnectionState::Disconnected)
             {
-                crate::connection::close_any_connection(ac, cx);
+                close_any_connection(ac, cx);
             }
             e.last_error = None;
             cx.notify();
@@ -418,7 +424,7 @@ impl Render for ConnectionTree {
         browser_list::refresh_browser_list(self, cx);
 
         v_flex().size_full().min_h_0().child(
-            gpui_component::list::List::new(&browser_list)
+            List::new(&browser_list)
                 .flex_1()
                 .min_h_0()
                 .w_full()

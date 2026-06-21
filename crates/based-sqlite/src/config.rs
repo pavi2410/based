@@ -1,3 +1,4 @@
+use std::env;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -48,13 +49,13 @@ pub fn resolve_sqlite_path(path: &Path, ctx: &SqlitePathContext) -> PathBuf {
     if path.is_absolute() {
         return path.to_path_buf();
     }
-    if let Ok(dir) = std::env::var("BASED_PROJECT_DIR") {
+    if let Ok(dir) = env::var("BASED_PROJECT_DIR") {
         return PathBuf::from(dir).join(path);
     }
     if let Some(root) = &ctx.project_dir {
         return root.join(path);
     }
-    std::env::current_dir()
+    env::current_dir()
         .unwrap_or_else(|_| PathBuf::from("."))
         .join(path)
 }

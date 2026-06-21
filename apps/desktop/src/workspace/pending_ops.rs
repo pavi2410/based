@@ -6,14 +6,18 @@ use gpui::{BorrowAppContext, Context};
 
 use super::Workspace;
 use super::tabs::{TabOpenQueue, TabSpec, WorkspaceNavQueue, enqueue_open_tab, enqueue_show_home};
+use crate::app::shell::open_onboarding;
+use crate::app::updater::check_now;
+use crate::command_palette::WorkspacePaletteAction;
+use crate::project::prompt_open_project_in_new_window;
+use crate::project::prompt_open_project_in_window;
 
 impl Workspace {
     pub(crate) fn handle_palette_workspace_action(
         &mut self,
-        action: crate::command_palette::WorkspacePaletteAction,
+        action: WorkspacePaletteAction,
         cx: &mut Context<Self>,
     ) {
-        use crate::command_palette::WorkspacePaletteAction;
         match action {
             WorkspacePaletteAction::NewLooseQuery => {
                 super::query_lane::create_loose_query_from_palette(cx);
@@ -23,13 +27,13 @@ impl Workspace {
             }
             WorkspacePaletteAction::SelectNoEnvironment => {}
             WorkspacePaletteAction::OpenHome => enqueue_show_home(cx),
-            WorkspacePaletteAction::OpenOnboarding => crate::app::shell::open_onboarding(cx),
-            WorkspacePaletteAction::CheckForUpdates => crate::app::updater::check_now(cx),
+            WorkspacePaletteAction::OpenOnboarding => open_onboarding(cx),
+            WorkspacePaletteAction::CheckForUpdates => check_now(cx),
             WorkspacePaletteAction::OpenProject => {
-                crate::project::prompt_open_project_in_window(cx);
+                prompt_open_project_in_window(cx);
             }
             WorkspacePaletteAction::OpenProjectInNewWindow => {
-                crate::project::prompt_open_project_in_new_window(cx);
+                prompt_open_project_in_new_window(cx);
             }
         }
     }

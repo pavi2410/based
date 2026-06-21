@@ -1,10 +1,11 @@
-pub mod history;
-
 use std::collections::HashSet;
+use std::fs;
 use std::path::{Path, PathBuf};
 
+pub mod history;
+
 use based_project::{ProjectQuery, ProjectSnapshot, persist_favorites};
-use gpui::Global;
+use gpui::{App, Global};
 
 pub use history::{HistoryEntry, QueryHistory};
 
@@ -20,7 +21,7 @@ impl QueryStore {
     pub fn new(project_root: Option<PathBuf>, snapshot: Option<&ProjectSnapshot>) -> Self {
         let base = project_root.clone().unwrap_or_else(|| PathBuf::from("."));
         let history_dir = base.join(".based").join("local");
-        let _ = std::fs::create_dir_all(&history_dir);
+        let _ = fs::create_dir_all(&history_dir);
 
         let (queries, favorites) = snapshot
             .map(|s| (s.queries.clone(), s.favorites.iter().cloned().collect()))
@@ -69,7 +70,7 @@ impl QueryStore {
 
 impl Global for QueryStore {}
 
-pub fn init(project_root: Option<PathBuf>, snapshot: Option<ProjectSnapshot>, cx: &mut gpui::App) {
+pub fn init(project_root: Option<PathBuf>, snapshot: Option<ProjectSnapshot>, cx: &mut App) {
     let snap_ref = snapshot.as_ref();
     cx.set_global(QueryStore::new(project_root, snap_ref));
 }

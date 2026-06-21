@@ -13,6 +13,7 @@ use gpui_component::{
 use sqlx::{PgPool, Row};
 
 use crate::connection::ConnectionId;
+use crate::db;
 use crate::widgets::compact_description_list_vertical;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::panel::{
@@ -83,7 +84,7 @@ impl TableInspectorPanel {
         let schema = self.schema.clone();
         let table = self.table_name.clone();
         cx.spawn(async move |this, cx| {
-            let loaded = crate::db::run_infallible(cx, async move {
+            let loaded = db::run_infallible(cx, async move {
                 let col_rows = sqlx::query(
                     r"SELECT ordinal_position, column_name, data_type, is_nullable, column_default
                    FROM information_schema.columns

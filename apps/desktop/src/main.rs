@@ -30,6 +30,14 @@ mod theme;
 mod widgets;
 mod workspace;
 
+use connection::EngineRegistry;
+use mongodb::MongoEngine;
+use postgres::PostgresEngine;
+use project::{
+    ProjectContext, ProjectVars, find_project_root, install_reload_watcher,
+    settings::apply_project_settings, variables::load_variables,
+};
+use sqlite::SqliteEngine;
 use workspace::{PopOutManager, SqlInject, TabOpenQueue, WorkspaceNavQueue};
 
 // ── Entry point ──────────────────────────────────────────────────────────────
@@ -58,10 +66,10 @@ fn main() {
 
             // Engine registry — register new engines here; no other files need to change.
             {
-                let mut registry = crate::connection::EngineRegistry::new();
-                registry.register(crate::postgres::PostgresEngine);
-                registry.register(crate::sqlite::SqliteEngine);
-                registry.register(crate::mongodb::MongoEngine);
+                let mut registry = EngineRegistry::new();
+                registry.register(PostgresEngine);
+                registry.register(SqliteEngine);
+                registry.register(MongoEngine);
                 cx.set_global(registry);
             }
 
@@ -76,13 +84,13 @@ fn main() {
             app::aux_windows::AuxWindows::init(cx);
             app::launch::AppLaunch::init(cx);
 
-            let project_root = crate::project::find_project_root();
+            let project_root = find_project_root();
             let project_context = project_root
                 .as_ref()
-                .and_then(|root| crate::project::ProjectContext::load(root.clone()).ok());
+                .and_then(|root| ProjectContext::load(root.clone()).ok());
             if let Some(ref ctx) = project_context {
                 cx.set_global(ctx.clone());
-                crate::project::settings::apply_project_settings(&ctx.snapshot.manifest, cx);
+                apply_project_settings(&ctx.snapshot.manifest, cx);
             }
             query_store::init(
                 project_root.clone(),
@@ -93,15 +101,15 @@ fn main() {
             let vars = project_root
                 .as_ref()
                 .map(|root| {
-                    crate::project::variables::load_variables(root).unwrap_or_else(|e| {
+                    load_variables(root).unwrap_or_else(|e| {
                         log::warn!("vars.toml load ({root:?}): {e:#}");
                         Default::default()
                     })
                 })
                 .unwrap_or_default();
-            cx.set_global(crate::project::ProjectVars { vars });
+            cx.set_global(ProjectVars { vars });
             if let Some(root) = project_root.clone() {
-                crate::project::install_reload_watcher(root, cx);
+                install_reload_watcher(root, cx);
             }
 
             cx.on_window_closed(|cx, id| {

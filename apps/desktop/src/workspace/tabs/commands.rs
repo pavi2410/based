@@ -3,9 +3,17 @@ use std::sync::Arc;
 
 use gpui::{App, AppContext, Context, Entity, EntityId, Window};
 use gpui_component::Placement;
-use gpui_component::dock::{DockPlacement, PanelView, TabPanel};
+use gpui_component::dock::{DockItem, DockPlacement, PanelView, TabPanel};
 
 use super::spec::TabSpec;
+use crate::connection::{
+    AnyConnection::{MongoDB, Postgres, SQLite},
+    ConnectionEntry, ConnectionId,
+    ConnectionState::Connected,
+};
+use crate::mongodb::pipeline_builder::PipelineBuilderPanel;
+use crate::postgres::query_editor::QueryEditorPanel as PgQueryEditorPanel;
+use crate::sqlite::query_editor::QueryEditorPanel as SqliteQueryEditorPanel;
 use crate::workspace::Workspace;
 use crate::workspace::dock_utils::{
     activate_center_panel, active_center_tab_panel, active_live_center_panel, center_panel_by_id,
@@ -13,12 +21,11 @@ use crate::workspace::dock_utils::{
 };
 
 pub(crate) fn panel_index_in_strip(
-    center: &gpui_component::dock::DockItem,
+    center: &DockItem,
     panel_id: EntityId,
     cx: &App,
 ) -> Option<(Entity<TabPanel>, usize, Arc<dyn PanelView>)> {
-    crate::workspace::dock_utils::center_panel_by_id(center, panel_id, cx)
-        .map(|(tab_panel, panel, ix)| (tab_panel, ix, panel))
+    center_panel_by_id(center, panel_id, cx).map(|(tab_panel, panel, ix)| (tab_panel, ix, panel))
 }
 
 impl Workspace {
@@ -62,9 +69,7 @@ impl Workspace {
         if let Some(panel) = self.find_center_panel(panel_id, cx) {
             activate_center_panel(&center, panel, window, cx);
             cx.notify();
-        } else if let Some((tab_panel, panel, _)) =
-            crate::workspace::dock_utils::center_panel_by_id(&center, panel_id, cx)
-        {
+        } else if let Some((tab_panel, panel, _)) = center_panel_by_id(&center, panel_id, cx) {
             if tab_panel
                 .read(cx)
                 .active_panel(cx)
@@ -197,45 +202,26 @@ impl Workspace {
         };
         let ent = self.find_connection_for_tab(conn_id, cx)?;
         let ac = match &ent.read(cx).state {
-            crate::connection::ConnectionState::Connected(ac) => ac.clone(),
+            Connected(ac) => ac.clone(),
             _ => return None,
         };
         match ac {
-            crate::connection::AnyConnection::SQLite(conn) => {
+            SQLite(conn) => {
                 let pool = conn.read(cx).pool.clone();
-                let panel = cx.new(|cx| {
-                    crate::sqlite::query_editor::QueryEditorPanel::new(
-                        pool,
-                        conn_id.clone(),
-                        window,
-                        cx,
-                    )
-                });
+                let panel =
+                    cx.new(|cx| SqliteQueryEditorPanel::new(pool, conn_id.clone(), window, cx));
                 Some(Arc::new(panel))
             }
-            crate::connection::AnyConnection::Postgres(conn) => {
+            Postgres(conn) => {
                 let pool = conn.read(cx).pool.clone();
-                let panel = cx.new(|cx| {
-                    crate::postgres::query_editor::QueryEditorPanel::new(
-                        pool,
-                        conn_id.clone(),
-                        window,
-                        cx,
-                    )
-                });
+                let panel = cx.new(|cx| PgQueryEditorPanel::new(pool, conn_id.clone(), window, cx));
                 Some(Arc::new(panel))
             }
-            crate::connection::AnyConnection::MongoDB(conn) => {
+            MongoDB(conn) => {
                 let db = conn.read(cx).database().clone();
                 let coll = db.collection("based_explorer");
                 let panel = cx.new(|cx| {
-                    crate::mongodb::pipeline_builder::PipelineBuilderPanel::new_with_pipeline(
-                        coll,
-                        conn_id.clone(),
-                        None,
-                        window,
-                        cx,
-                    )
+                    PipelineBuilderPanel::new_with_pipeline(coll, conn_id.clone(), None, window, cx)
                 });
                 Some(Arc::new(panel))
             }
@@ -244,9 +230,9 @@ impl Workspace {
 
     fn find_connection_for_tab(
         &self,
-        conn_id: &crate::connection::ConnectionId,
+        conn_id: &ConnectionId,
         cx: &App,
-    ) -> Option<gpui::Entity<crate::connection::ConnectionEntry>> {
+    ) -> Option<gpui::Entity<ConnectionEntry>> {
         self.registry
             .read(cx)
             .connections()

@@ -12,6 +12,9 @@ use gpui_component::{
 use mongodb::Collection;
 use mongodb::bson::Document;
 
+use crate::app::prefs;
+use crate::db;
+
 pub struct ChangeStreamPanel {
     focus_handle: FocusHandle,
     collection: Collection<Document>,
@@ -48,7 +51,7 @@ impl ChangeStreamPanel {
         self.lines = vec!["Opening change stream…".into()];
         let coll = self.collection.clone();
         cx.spawn(async move |this, cx| {
-            let result = crate::db::run(cx, async move {
+            let result = db::run(cx, async move {
                 use futures::StreamExt;
                 let mut stream = coll
                     .watch(None, None)
@@ -142,7 +145,7 @@ impl Render for ChangeStreamPanel {
                     .flex_1()
                     .overflow_y_scroll()
                     .p_2()
-                    .font_family(crate::app::prefs::code_font_family(cx))
+                    .font_family(prefs::code_font_family(cx))
                     .text_xs()
                     .child(text),
             )

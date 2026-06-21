@@ -28,12 +28,19 @@ use super::chrome::{
     topbar::Topbar,
 };
 use super::panels::inspector::render_inspector_body;
+use crate::app::prefs::cycle_theme;
+use crate::app::quit::maybe_show_pending_close_dialog;
+use crate::app::updater::coordinator_snapshot;
+use crate::project::drain_pending_reload;
+use crate::project::open::maybe_show_pending_project_switch_dialog;
+use crate::query_store::QueryStore;
+use crate::workspace::query_lane::render_query_lane;
 
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::app::quit::maybe_show_pending_close_dialog(self, window, cx);
-        crate::project::open::maybe_show_pending_project_switch_dialog(self, window, cx);
-        if crate::project::drain_pending_reload(cx)
+        maybe_show_pending_close_dialog(self, window, cx);
+        maybe_show_pending_project_switch_dialog(self, window, cx);
+        if drain_pending_reload(cx)
             && let Some(pctx) = cx.try_global::<ProjectContext>()
         {
             self.project_title = pctx.project_name().into();
@@ -89,7 +96,7 @@ impl Render for Workspace {
                 .size_full()
                 .min_h_0()
                 .overflow_hidden()
-                .child(crate::workspace::query_lane::render_query_lane(cx))
+                .child(render_query_lane(cx))
                 .into_any_element(),
         };
 
@@ -110,7 +117,7 @@ impl Render for Workspace {
                 }),
             )
             .on_action(window.listener_for(&this, |_, _: &CycleAppearance, _, cx| {
-                crate::app::prefs::cycle_theme(cx);
+                cycle_theme(cx);
             }))
             .on_action(
                 window.listener_for(&this, |ws, _: &ToggleCommandPalette, window, cx| {
@@ -227,12 +234,8 @@ impl Render for Workspace {
                     connection_count: conn_count,
                     connected_count,
                     scope_label: self.project_title.clone(),
-                    history_ready: !cx
-                        .global::<crate::query_store::QueryStore>()
-                        .history
-                        .recent(1)
-                        .is_empty(),
-                    update: crate::app::updater::coordinator_snapshot(cx),
+                    history_ready: !cx.global::<QueryStore>().history.recent(1).is_empty(),
+                    update: coordinator_snapshot(cx),
                 },
                 active_pane,
                 self.active_left_pane,

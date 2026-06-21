@@ -2,6 +2,8 @@ use std::path::Path;
 
 use anyhow::Result;
 
+use crate::connection::ProjectConnection;
+
 use crate::connection::load_connections;
 use crate::environment::load_active_environment;
 use crate::favorites::load_favorites;
@@ -11,7 +13,7 @@ use crate::query::{ProjectQuery, load_queries};
 #[derive(Debug, Clone)]
 pub struct ProjectSnapshot {
     pub manifest: ProjectManifest,
-    pub connections: Vec<crate::connection::ProjectConnection>,
+    pub connections: Vec<ProjectConnection>,
     pub queries: Vec<ProjectQuery>,
     pub favorites: Vec<String>,
     pub active_environment: String,

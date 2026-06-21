@@ -6,6 +6,7 @@ use crate::widgets::SIDEBAR_INSET;
 use super::connection_list::ConnectionListDelegate;
 use super::object_list::ObjectListDelegate;
 use super::types::ActiveObjects;
+use crate::widgets::engine_label_inline;
 
 pub(super) fn render_connections_pane(
     list: Entity<ListState<ConnectionListDelegate>>,
@@ -77,7 +78,7 @@ pub(super) fn render_objects_pane(
                 .py_2()
                 .gap_2()
                 .items_center()
-                .child(crate::widgets::engine_label_inline(*engine, cx))
+                .child(engine_label_inline(*engine, cx))
                 .child(
                     div()
                         .text_xs()

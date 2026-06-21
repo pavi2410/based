@@ -1,15 +1,15 @@
 //! Inline EXPLAIN QUERY PLAN renderer shared by the SQLite query editor.
 
-use gpui::{AnyElement, IntoElement, ParentElement, Styled, div, prelude::*, px};
-use gpui_component::{scroll::ScrollableElement, v_flex};
+use gpui::{AnyElement, ElementId, IntoElement, ParentElement, Styled, div, prelude::*, px};
+use gpui_component::{Theme, scroll::ScrollableElement, v_flex};
 
 use super::eqp_parse::EqpNode;
 
 /// Render a list of EQP roots as a scrollable indented tree.
 pub fn render_eqp_body(
-    id: impl Into<gpui::ElementId>,
+    id: impl Into<ElementId>,
     roots: &[EqpNode],
-    theme: &gpui_component::Theme,
+    theme: &Theme,
 ) -> impl IntoElement {
     let rows: Vec<AnyElement> = roots
         .iter()
@@ -25,7 +25,7 @@ pub fn render_eqp_body(
         .children(rows)
 }
 
-fn render_eqp_node(node: &EqpNode, depth: usize, theme: &gpui_component::Theme) -> AnyElement {
+fn render_eqp_node(node: &EqpNode, depth: usize, theme: &Theme) -> AnyElement {
     let warn = theme.warning;
     let fg = if node.is_table_scan {
         warn

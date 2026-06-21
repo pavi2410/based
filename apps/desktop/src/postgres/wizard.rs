@@ -10,9 +10,11 @@ use gpui_component::{
     v_flex,
 };
 
+use crate::app::prefs;
 use crate::connection::categorize_connect_error;
 use crate::connection::lifecycle::Connectable;
 use crate::postgres::{PgConnection, PostgresConfig, SslMode};
+use crate::workspace::WorkspaceRef;
 
 pub enum WizardStatus {
     Idle,
@@ -119,10 +121,7 @@ impl ConnectionWizardPanel {
             cx.update(|cx| {
                 this.update(cx, |panel, cx| match result {
                     Ok(conn) => {
-                        if let Some(ws) = cx
-                            .try_global::<crate::workspace::WorkspaceRef>()
-                            .map(|w| w.0.clone())
-                        {
+                        if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
                             ws.update(cx, |workspace, cx| {
                                 workspace.persist_postgres_template(&config, cx);
                             });
@@ -314,7 +313,7 @@ impl Render for ConnectionWizardPanel {
                             .p_2()
                             .border_1()
                             .border_color(border)
-                            .font_family(crate::app::prefs::code_font_family(cx))
+                            .font_family(prefs::code_font_family(cx))
                             .text_xs()
                             .child(self.uri.clone()),
                     )

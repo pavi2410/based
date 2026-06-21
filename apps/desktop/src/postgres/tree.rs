@@ -2,8 +2,10 @@
 
 use gpui::{InteractiveElement, prelude::*, *};
 
+use crate::app::prefs;
+use crate::db;
 use crate::widgets::list_row::{SchemaRowStyle, schema_object_row};
-use crate::widgets::{metadata_pill, panel_header};
+use crate::widgets::{metadata_pill, panel_header, sidebar_row_inner_gap, sidebar_row_padding_y};
 use gpui_component::{
     ActiveTheme, IconName,
     dock::{Panel, PanelEvent},
@@ -56,7 +58,7 @@ impl SchemaTreePanel {
     fn load_relations(&mut self, cx: &mut Context<Self>) {
         let pool = self.pool.clone();
         cx.spawn(async move |this, cx| {
-            let rows = match crate::db::run(cx, async move {
+            let rows = match db::run(cx, async move {
                 Ok(sqlx::query(
                     r"SELECT table_schema, table_name, table_type
                   FROM information_schema.tables
@@ -163,9 +165,9 @@ impl Render for SchemaTreePanel {
                     SchemaRowStyle {
                         muted,
                         fg,
-                        mono_family: crate::app::prefs::code_font_family(cx),
-                        row_py: crate::widgets::sidebar_row_padding_y(cx),
-                        row_gap: crate::widgets::sidebar_row_inner_gap(cx),
+                        mono_family: prefs::code_font_family(cx),
+                        row_py: sidebar_row_padding_y(cx),
+                        row_gap: sidebar_row_inner_gap(cx),
                     },
                 )
                 .on_click(cx.listener(move |panel, _, _, cx| {

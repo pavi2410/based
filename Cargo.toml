@@ -58,6 +58,8 @@ suspicious  = { level = "deny", priority = -1 }
 style       = { level = "deny", priority = -1 }
 complexity  = { level = "deny", priority = -1 }
 perf        = { level = "deny", priority = -1 }
+# Prefer `use` imports over long qualified paths (default max 2 segments).
+absolute_paths = "deny"
 # SQLx row tuples and other non-GPUI code legitimately produces complex types
 type_complexity = "allow"
 

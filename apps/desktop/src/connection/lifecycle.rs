@@ -3,6 +3,8 @@
 // Tab content reaches into engine-specific APIs directly.
 
 use gpui::{App, Task};
+use serde::de::DeserializeOwned;
+use std::future::Future;
 
 #[derive(Debug, Clone)]
 pub struct TestReport {
@@ -12,9 +14,9 @@ pub struct TestReport {
 }
 
 pub trait Connectable: 'static + Sized {
-    type Config: serde::de::DeserializeOwned + Clone + Send + 'static;
+    type Config: DeserializeOwned + Clone + Send + 'static;
 
     fn open(config: Self::Config, cx: &mut App) -> Task<anyhow::Result<Self>>;
     fn test(config: &Self::Config, cx: &mut App) -> Task<anyhow::Result<TestReport>>;
-    fn close(self) -> impl std::future::Future<Output = ()> + Send + 'static;
+    fn close(self) -> impl Future<Output = ()> + Send + 'static;
 }

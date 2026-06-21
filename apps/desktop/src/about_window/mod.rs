@@ -14,7 +14,13 @@ use gpui_component::{
     button::{Button, ButtonVariants},
     h_flex, v_flex,
 };
+use std::sync::LazyLock;
 use time::OffsetDateTime;
+
+use crate::app::prefs::{manual_update_checks_enabled, update_check_settings_locked};
+use crate::app::updater::{
+    UpdatePhase, check_now, coordinator_snapshot, open_release_notes_for_current,
+};
 
 const APP_NAME: &str = "Based";
 const TAGLINE: &str = "Git-Friendly Database Client";
@@ -22,7 +28,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 const COMMIT: &str = env!("BASED_GIT_SHA");
 const LICENSE: &str = env!("CARGO_PKG_LICENSE");
 
-static BUILD_DATE: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+static BUILD_DATE: LazyLock<String> = LazyLock::new(|| {
     let ts: i64 = env!("BASED_BUILD_TIMESTAMP").parse().unwrap_or(0);
     OffsetDateTime::from_unix_timestamp(ts)
         .map(|dt| format!("{:04}-{:02}-{:02}", dt.year(), dt.month() as u8, dt.day()))
@@ -142,22 +148,22 @@ fn version_row(muted: Hsla) -> impl IntoElement {
 }
 
 fn update_card(muted: Hsla, border: Hsla, accent: Hsla, cx: &gpui::App) -> impl IntoElement {
-    let checks_locked = crate::app::prefs::update_check_settings_locked();
-    let snapshot = crate::app::updater::coordinator_snapshot(cx);
+    let checks_locked = update_check_settings_locked();
+    let snapshot = coordinator_snapshot(cx);
     let status: SharedString = if checks_locked {
         "Dev build — update checks disabled".into()
     } else {
         match snapshot.phase {
-            crate::app::updater::UpdatePhase::Idle => "Check for updates to see status".into(),
-            crate::app::updater::UpdatePhase::Checking => "Checking for updates…".into(),
-            crate::app::updater::UpdatePhase::UpToDate => "You're up to date".into(),
-            crate::app::updater::UpdatePhase::Available => snapshot
+            UpdatePhase::Idle => "Check for updates to see status".into(),
+            UpdatePhase::Checking => "Checking for updates…".into(),
+            UpdatePhase::UpToDate => "You're up to date".into(),
+            UpdatePhase::Available => snapshot
                 .version
                 .map(|v| format!("{v} is available").into())
                 .unwrap_or_else(|| "Update available".into()),
-            crate::app::updater::UpdatePhase::Downloading => "Downloading update…".into(),
-            crate::app::updater::UpdatePhase::Ready => "Update ready — restart to apply".into(),
-            crate::app::updater::UpdatePhase::Failed => snapshot
+            UpdatePhase::Downloading => "Downloading update…".into(),
+            UpdatePhase::Ready => "Update ready — restart to apply".into(),
+            UpdatePhase::Failed => snapshot
                 .error
                 .unwrap_or_else(|| "Update check failed".into()),
         }
@@ -174,13 +180,13 @@ fn update_card(muted: Hsla, border: Hsla, accent: Hsla, cx: &gpui::App) -> impl 
         .child(
             h_flex()
                 .gap(px(8.0))
-                .when(crate::app::prefs::manual_update_checks_enabled(), |row| {
+                .when(manual_update_checks_enabled(), |row| {
                     row.child(
                         Button::new("about-check-updates")
                             .outline()
                             .small()
                             .label("Check for Updates")
-                            .on_click(|_, _, cx| crate::app::updater::check_now(cx)),
+                            .on_click(|_, _, cx| check_now(cx)),
                     )
                 })
                 .child(
@@ -190,7 +196,7 @@ fn update_card(muted: Hsla, border: Hsla, accent: Hsla, cx: &gpui::App) -> impl 
                         .label("Release Notes")
                         .text_color(accent)
                         .on_click(|_, _, cx| {
-                            crate::app::updater::open_release_notes_for_current(cx);
+                            open_release_notes_for_current(cx);
                         }),
                 ),
         )

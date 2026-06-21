@@ -1,6 +1,8 @@
 //! Default location for the metadata SQLite database.
 
-use std::path::PathBuf;
+use std::fs;
+use std::io;
+use std::path::{Path, PathBuf};
 
 pub fn default_db_path() -> PathBuf {
     dirs::data_dir()
@@ -9,9 +11,9 @@ pub fn default_db_path() -> PathBuf {
         .join("metadata.db")
 }
 
-pub fn ensure_parent(path: &std::path::Path) -> std::io::Result<()> {
+pub fn ensure_parent(path: &Path) -> io::Result<()> {
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
+        fs::create_dir_all(parent)?;
     }
     Ok(())
 }

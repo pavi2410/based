@@ -4,6 +4,7 @@
 //! rail. Each variant renders its own body; this module supplies the surrounding
 //! border, header strip, and width so every pane looks consistent.
 
+use crate::app::prefs::ui_font_family;
 use gpui::{App, FontWeight, IntoElement, ParentElement, Styled, div, px};
 use gpui_component::{ActiveTheme, IconName, h_flex, v_flex};
 
@@ -69,7 +70,7 @@ pub fn render_side_pane(active: SidePane, body: impl IntoElement, cx: &App) -> i
                     div()
                         .text_xs()
                         .font_weight(FontWeight::BOLD)
-                        .font_family(crate::app::prefs::ui_font_family(cx))
+                        .font_family(ui_font_family(cx))
                         .text_color(muted)
                         .child(active.label()),
                 ),

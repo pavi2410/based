@@ -6,8 +6,8 @@ use gpui::{
 };
 use gpui_component::Root;
 
-use crate::app::prefs;
-use crate::app::shell::{self, APP_NAME};
+use super::prefs;
+use super::shell::{self, APP_NAME};
 use crate::onboarding_window::{OnboardingMode, OnboardingWindow};
 use crate::workspace::{PopOutManager, Workspace, WorkspaceRef};
 

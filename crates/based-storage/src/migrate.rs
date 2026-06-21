@@ -2,8 +2,9 @@
 
 use anyhow::{Context, Result};
 use sqlx::SqlitePool;
+use sqlx::migrate::Migrator;
 
-static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
+static MIGRATOR: Migrator = sqlx::migrate!("./migrations");
 
 pub async fn run(pool: &SqlitePool) -> Result<()> {
     MIGRATOR

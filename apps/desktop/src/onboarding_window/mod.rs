@@ -22,6 +22,7 @@ use crate::app::shell::OpenSettingsMenu;
 use crate::bindings::{
     ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane, ToggleSidebarRail,
 };
+use crate::theme::theme_onboarding_picker;
 use crate::widgets::kbd_for_action;
 
 const ONBOARDING_COLUMN_W: f32 = 560.0;
@@ -77,7 +78,7 @@ impl Render for OnboardingWindow {
                             .w(px(ONBOARDING_COLUMN_W))
                             .gap(px(32.0))
                             .child(onboarding_header(show_finish, cx))
-                            .child(crate::theme::theme_onboarding_picker("onboarding", cx))
+                            .child(theme_onboarding_picker("onboarding", cx))
                             .child(onboarding_section(
                                 "Keyboard Shortcuts",
                                 "Common shortcuts to get around the workspace.",

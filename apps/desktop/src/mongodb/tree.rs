@@ -1,7 +1,9 @@
 // mongodb::tree — collection list for a database.
 
+use crate::app::prefs;
+use crate::db;
 use crate::widgets::list_row::{SchemaRowStyle, schema_object_row};
-use crate::widgets::{metadata_pill, panel_header};
+use crate::widgets::{metadata_pill, panel_header, sidebar_row_inner_gap, sidebar_row_padding_y};
 use gpui::{InteractiveElement, prelude::*, *};
 use gpui_component::{
     ActiveTheme, IconName,
@@ -40,7 +42,7 @@ impl CollectionsTreePanel {
     fn reload(&mut self, cx: &mut Context<Self>) {
         let db = self.database.clone();
         cx.spawn(async move |this, cx| {
-            let names = match crate::db::run_infallible(cx, async move {
+            let names = match db::run_infallible(cx, async move {
                 db.list_collection_names(None).await.unwrap_or_default()
             })
             .await
@@ -126,9 +128,9 @@ impl Render for CollectionsTreePanel {
                     SchemaRowStyle {
                         muted,
                         fg,
-                        mono_family: crate::app::prefs::code_font_family(cx),
-                        row_py: crate::widgets::sidebar_row_padding_y(cx),
-                        row_gap: crate::widgets::sidebar_row_inner_gap(cx),
+                        mono_family: prefs::code_font_family(cx),
+                        row_py: sidebar_row_padding_y(cx),
+                        row_gap: sidebar_row_inner_gap(cx),
                     },
                 )
                 .on_click(cx.listener(move |panel, _, _, cx| {

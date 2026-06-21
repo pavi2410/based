@@ -12,14 +12,19 @@ use gpui_component::{
     menu::PopupMenu,
     resizable::{ResizableState, resizable_panel, v_resizable},
     scroll::ScrollableElement as _,
+    table::Column,
     table::TableState,
     v_flex,
 };
 use sqlx::{AssertSqlSafe, PgPool, Row};
 
 use crate::connection::ConnectionId;
+use crate::db;
+use crate::editor::EditorContext;
+use crate::editor::VariableScope;
 use crate::postgres::execute_sql;
 use crate::postgres::explain_plan::{PlanNode, parse_pg_explain_json, render_plan_node};
+use crate::project::{ProjectRoot, ProjectVars, substitute};
 use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export_popover::export_popover;
@@ -38,6 +43,9 @@ use crate::widgets::virtual_table::{
 };
 use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::{mark_query_tab_dirty, tabs::take_sql_inject};
+use gpui::Entity;
+
+use std::time::Instant;
 
 pub enum QueryStatus {
     Idle,
@@ -74,7 +82,7 @@ pub struct QueryEditorPanel {
     explain: ExplainView,
     dirty: bool,
     pub(crate) tab_label: SharedString,
-    pub editor_ctx: gpui::Entity<crate::editor::EditorContext>,
+    pub editor_ctx: Entity<EditorContext>,
 }
 
 impl QueryEditorPanel {
@@ -101,15 +109,11 @@ impl QueryEditorPanel {
         let sql_input = new_sql_input(&sql_text, window, cx);
         let split_state = cx.new(|_| ResizableState::default());
         let variables = cx
-            .try_global::<crate::project::ProjectVars>()
-            .map(|pv| crate::editor::VariableScope::from_string_map(&pv.vars))
+            .try_global::<ProjectVars>()
+            .map(|pv| VariableScope::from_string_map(&pv.vars))
             .unwrap_or_default();
         let editor_ctx = cx.new(|_| {
-            crate::editor::EditorContext::new(
-                conn_id.clone(),
-                based_core::EngineKind::Postgres,
-                variables,
-            )
+            EditorContext::new(conn_id.clone(), based_core::EngineKind::Postgres, variables)
         });
         let panel = Self {
             focus_handle: cx.focus_handle(),
@@ -182,7 +186,7 @@ impl QueryEditorPanel {
             // `text`, so `try_get::<String, _>` would fail the sqlx type check.
             // `try_get_unchecked` skips that check and reads the wire bytes,
             // which for `json` in text format is the JSON literal as UTF-8.
-            let outcome = crate::db::run(cx, async move {
+            let outcome = db::run(cx, async move {
                 let q = format!("EXPLAIN (FORMAT JSON) {sql}");
                 let rows = sqlx::query(AssertSqlSafe(q)).fetch_all(&pool).await?;
                 let raw: String = match rows.first() {
@@ -220,8 +224,8 @@ impl QueryEditorPanel {
         if sql_raw.trim().is_empty() {
             return;
         }
-        let project_vars = cx.global::<crate::project::ProjectVars>().vars.clone();
-        let sql = crate::project::substitute(&sql_raw, &project_vars);
+        let project_vars = cx.global::<ProjectVars>().vars.clone();
+        let sql = substitute(&sql_raw, &project_vars);
         let var_ctx = based_query::VariableContext {
             session: Default::default(),
             query: Default::default(),
@@ -245,13 +249,13 @@ impl QueryEditorPanel {
         self.bottom_tab = BottomTab::Results;
         let pool = self.pool.clone();
         cx.spawn(async move |this, cx| {
-            let start = std::time::Instant::now();
-            let outcome = crate::db::run(cx, async move { execute_sql(&pool, &sql).await }).await;
+            let start = Instant::now();
+            let outcome = db::run(cx, async move { execute_sql(&pool, &sql).await }).await;
             let ms = start.elapsed().as_millis() as u64;
             let _ = this.update(cx, |panel, cx| {
                 panel.status = match outcome {
                     Ok((cols, rows, aff)) => {
-                        let col_models: Vec<gpui_component::table::Column> = cols
+                        let col_models: Vec<Column> = cols
                             .iter()
                             .map(|c| data_column(c.name.clone(), c.name.clone()))
                             .collect();
@@ -468,10 +472,8 @@ impl Render for QueryEditorPanel {
 
         let is_error = matches!(self.status, QueryStatus::Error(_));
 
-        let project_dir = cx
-            .try_global::<crate::project::ProjectRoot>()
-            .map(|p| p.0.clone());
-        let var_map = cx.global::<crate::project::ProjectVars>().vars.clone();
+        let project_dir = cx.try_global::<ProjectRoot>().map(|p| p.0.clone());
+        let var_map = cx.global::<ProjectVars>().vars.clone();
         let mono_font = cx.theme().mono_font_family.clone();
 
         let (export_headers, export_rows) = {

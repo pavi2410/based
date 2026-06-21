@@ -11,6 +11,9 @@ use crate::workspace::WorkspaceRef;
 
 use super::super::dock_utils::wrap_center_root;
 use super::ConnectionTree;
+use crate::mongodb::change_stream::ChangeStreamPanel;
+use crate::mongodb::pipeline_builder::PipelineBuilderPanel;
+use crate::workspace::panels::object_info::ConnectionDashboardPanel;
 
 impl ConnectionTree {
     pub(crate) fn open_connected_workspace(
@@ -38,13 +41,7 @@ impl ConnectionTree {
         self.load_objects_for_connection(idx, ac.clone(), cx);
 
         let weak = self.dock_area.downgrade();
-        let dashboard = cx.new(|cx| {
-            crate::workspace::panels::object_info::ConnectionDashboardPanel::new(
-                conn_ent.clone(),
-                window,
-                cx,
-            )
-        });
+        let dashboard = cx.new(|cx| ConnectionDashboardPanel::new(conn_ent.clone(), window, cx));
 
         let (center, panel_arcs): (DockItem, Vec<Arc<dyn PanelView>>) = match ac {
             AnyConnection::SQLite(ent) => {
@@ -99,17 +96,9 @@ impl ConnectionTree {
             AnyConnection::MongoDB(ent) => {
                 let db = ent.read(cx).database().clone();
                 let coll: ::mongodb::Collection<Document> = db.collection("based_explorer");
-                let builder = cx.new(|cx| {
-                    crate::mongodb::pipeline_builder::PipelineBuilderPanel::new(
-                        coll.clone(),
-                        conn_id.clone(),
-                        window,
-                        cx,
-                    )
-                });
-                let stream = cx.new(|cx| {
-                    crate::mongodb::change_stream::ChangeStreamPanel::new(coll, window, cx)
-                });
+                let builder = cx
+                    .new(|cx| PipelineBuilderPanel::new(coll.clone(), conn_id.clone(), window, cx));
+                let stream = cx.new(|cx| ChangeStreamPanel::new(coll, window, cx));
                 let panels = vec![
                     Arc::new(dashboard) as Arc<dyn PanelView>,
                     Arc::new(builder),

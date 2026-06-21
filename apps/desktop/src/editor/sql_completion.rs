@@ -9,10 +9,10 @@ use gpui_component::Rope;
 use gpui_component::input::{CompletionProvider, InputState, RopeExt};
 use lsp_types::{
     CompletionContext, CompletionItem, CompletionItemKind, CompletionResponse, CompletionTextEdit,
-    TextEdit,
+    Range, TextEdit,
 };
 
-use super::schema_cache::SchemaCache;
+use super::schema_cache::{ObjectKind, SchemaCache, SchemaObject};
 
 const SQL_KEYWORDS: &[&str] = &[
     "SELECT",
@@ -128,7 +128,7 @@ impl CompletionProvider for SqlCompletionProvider {
         }
 
         let start = offset.saturating_sub(query.len());
-        let replace_range = lsp_types::Range::new(
+        let replace_range = Range::new(
             rope.offset_to_position(start),
             rope.offset_to_position(offset),
         );
@@ -160,7 +160,7 @@ impl CompletionProvider for SqlCompletionProvider {
 fn schema_and_keyword_items(
     cache: &SchemaCache,
     query: &str,
-    replace_range: &lsp_types::Range,
+    replace_range: &Range,
 ) -> Vec<CompletionItem> {
     let lower = query.to_lowercase();
     let mut items = Vec::new();
@@ -210,7 +210,7 @@ fn column_items(
     table: &str,
     col_prefix: &str,
     full_query: &str,
-    replace_range: &lsp_types::Range,
+    replace_range: &Range,
 ) -> Vec<CompletionItem> {
     let table_prefix = table.trim();
     cache
@@ -237,7 +237,7 @@ fn completion_item(
     label: &str,
     kind: CompletionItemKind,
     detail: Option<&str>,
-    replace_range: &lsp_types::Range,
+    replace_range: &Range,
 ) -> CompletionItem {
     completion_item_with_text(label, kind, detail, replace_range, label.to_string())
 }
@@ -246,7 +246,7 @@ fn completion_item_with_text(
     label: &str,
     kind: CompletionItemKind,
     detail: Option<&str>,
-    replace_range: &lsp_types::Range,
+    replace_range: &Range,
     new_text: String,
 ) -> CompletionItem {
     CompletionItem {
@@ -265,10 +265,10 @@ trait SchemaObjectExt {
     fn kind_label(&self) -> &'static str;
 }
 
-impl SchemaObjectExt for super::schema_cache::SchemaObject {
+impl SchemaObjectExt for SchemaObject {
     fn kind_label(&self) -> &'static str {
         match self.kind {
-            super::schema_cache::ObjectKind::View => "view",
+            ObjectKind::View => "view",
             _ => "table",
         }
     }

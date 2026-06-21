@@ -9,6 +9,7 @@ use gpui_component::{
 };
 
 use crate::widgets::export;
+use crate::workspace::notify::push_export_success;
 
 /// Trigger button + popover menu for CSV and Excel export.
 ///
@@ -47,9 +48,7 @@ pub fn export_popover(
                                         export::save_bytes(cx, "export.csv", "CSV", &["csv"], bytes)
                                             .await
                                 {
-                                    cx.update(|app| {
-                                        crate::workspace::notify::push_export_success(app, &path)
-                                    });
+                                    cx.update(|app| push_export_success(app, &path));
                                 }
                             })
                             .detach();
@@ -73,9 +72,7 @@ pub fn export_popover(
                                     )
                                     .await
                                 {
-                                    cx.update(|app| {
-                                        crate::workspace::notify::push_export_success(app, &path)
-                                    });
+                                    cx.update(|app| push_export_success(app, &path));
                                 }
                             })
                             .detach();

@@ -3,7 +3,7 @@
 // so this is a thin wrapper / type alias for the RowDelegate-based table.
 
 use gpui::{prelude::*, *};
-use gpui_component::table::{Column, ColumnSort, TableState};
+use gpui_component::table::{Column, ColumnSort, TableDelegate, TableState};
 
 use crate::app::prefs;
 use crate::widgets::cell_render::{column_value_kind, compare_cells, render_grid_cell};
@@ -28,7 +28,7 @@ pub struct RowDelegate {
     pub sort_asc: bool,
 }
 
-impl gpui_component::table::TableDelegate for RowDelegate {
+impl TableDelegate for RowDelegate {
     fn columns_count(&self, _: &App) -> usize {
         self.columns.len()
     }

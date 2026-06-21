@@ -7,6 +7,7 @@ use crate::widgets::{
     metadata_pill,
 };
 
+use crate::widgets::PANEL_RADIUS;
 use crate::workspace::Workspace;
 use crate::workspace::notify;
 
@@ -91,7 +92,7 @@ fn inspector_note(
     v_flex()
         .gap_1()
         .p_2()
-        .rounded(gpui::px(crate::widgets::PANEL_RADIUS))
+        .rounded(gpui::px(PANEL_RADIUS))
         .border_1()
         .border_color(cx.theme().border.opacity(0.85))
         .bg(cx.theme().muted.opacity(0.28))

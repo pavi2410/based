@@ -4,14 +4,19 @@ use gpui::{
 };
 use gpui_component::{
     ActiveTheme,
-    dock::{Panel, PanelEvent},
+    dock::{Panel, PanelControl, PanelEvent},
     menu::PopupMenu,
     v_flex,
 };
 
+use crate::based_panel_dropdown;
+use crate::based_panel_tab_chrome;
+use crate::connection::ConnectionId;
 use crate::connection::{AnyConnection, ConnectionEntry, ConnectionState};
 use crate::query_store::QueryStore;
+use crate::widgets::PANEL_RADIUS;
 use crate::widgets::{compact_description_list_vertical, engine_name, metadata_pill, panel_header};
+use crate::workspace::tabs::render_strip_tab;
 
 pub struct ConnectionDashboardPanel {
     focus_handle: FocusHandle,
@@ -35,7 +40,7 @@ impl ConnectionDashboardPanel {
         }
     }
 
-    pub(crate) fn connection_id(&self, cx: &App) -> crate::connection::ConnectionId {
+    pub(crate) fn connection_id(&self, cx: &App) -> ConnectionId {
         self.conn.read(cx).id.clone()
     }
 }
@@ -59,7 +64,7 @@ impl Panel for ConnectionDashboardPanel {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> PopupMenu {
-        crate::based_panel_dropdown!(menu, self, cx)
+        based_panel_dropdown!(menu, self, cx)
     }
 
     fn tab_name(&self, _: &gpui::App) -> Option<gpui::SharedString> {
@@ -68,10 +73,10 @@ impl Panel for ConnectionDashboardPanel {
 
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let label: SharedString = self.conn.read(cx).config.label().to_string().into();
-        crate::workspace::tabs::render_strip_tab(label, false, cx.entity().entity_id(), cx)
+        render_strip_tab(label, false, cx.entity().entity_id(), cx)
     }
 
-    fn zoomable(&self, _: &gpui::App) -> Option<gpui_component::dock::PanelControl> {
+    fn zoomable(&self, _: &gpui::App) -> Option<PanelControl> {
         None
     }
 
@@ -205,10 +210,10 @@ impl Panel for ObjectInfoPanel {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> PopupMenu {
-        crate::based_panel_dropdown!(menu, self, cx)
+        based_panel_dropdown!(menu, self, cx)
     }
 
-    crate::based_panel_tab_chrome!();
+    based_panel_tab_chrome!();
 }
 
 impl Render for ObjectInfoPanel {
@@ -265,7 +270,7 @@ fn dashboard_card(
         .gap_1()
         .p_3()
         .w_full()
-        .rounded(gpui::px(crate::widgets::PANEL_RADIUS))
+        .rounded(gpui::px(PANEL_RADIUS))
         .border_1()
         .border_color(cx.theme().border.opacity(0.85))
         .bg(cx.theme().muted.opacity(0.22))

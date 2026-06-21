@@ -14,9 +14,10 @@ use gpui_component::{
     v_flex,
 };
 use mongodb::Collection;
-use mongodb::bson::Document;
+use mongodb::bson::{Document, to_document};
 
 use crate::connection::ConnectionId;
+use crate::db;
 use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export;
@@ -24,6 +25,8 @@ use crate::widgets::sql_editor::{self, new_json_input, text_from_input};
 use crate::widgets::virtual_table::{
     RowDelegate, align_meta_to_columns, data_column, replace_table_data,
 };
+use crate::workspace::notify::push_export_success;
+use std::time::Instant;
 
 pub struct PipelineBuilderPanel {
     focus_handle: FocusHandle,
@@ -97,7 +100,7 @@ impl PipelineBuilderPanel {
 
             let mut stages = Vec::<Document>::new();
             for v in vals {
-                match mongodb::bson::to_document(&v) {
+                match to_document(&v) {
                     Ok(d) => stages.push(d),
                     Err(e) => {
                         let _ = cx.update(|cx| {
@@ -112,8 +115,8 @@ impl PipelineBuilderPanel {
             }
 
             let pipeline_for_history = raw.clone();
-            let start = std::time::Instant::now();
-            let docs_result = crate::db::run(cx, async move {
+            let start = Instant::now();
+            let docs_result = db::run(cx, async move {
                 let mut cursor = coll.aggregate(stages, None).await?;
                 let mut docs = Vec::<Document>::new();
                 use futures::TryStreamExt;
@@ -276,11 +279,7 @@ impl Render for PipelineBuilderPanel {
                                     )
                                     .await
                                     {
-                                        cx.update(|app| {
-                                            crate::workspace::notify::push_export_success(
-                                                app, &path,
-                                            )
-                                        });
+                                        cx.update(|app| push_export_success(app, &path));
                                     }
                                 })
                                 .detach();

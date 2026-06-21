@@ -3,14 +3,16 @@
 use gpui::{
     AnyElement, App, FontWeight, MouseButton, ParentElement, SharedString, Styled, div, prelude::*,
 };
-use gpui_component::{ActiveTheme, menu::ContextMenuExt, v_flex};
+use gpui_component::{ActiveTheme, menu::ContextMenuExt, menu::PopupMenuItem, v_flex};
 use uuid::Uuid;
 
 use crate::connection::ConnectionId;
+use crate::connection::ConnectionState::Connected;
 use crate::storage;
 use crate::widgets::section_eyebrow::section_eyebrow;
 use crate::workspace::WorkspaceRef;
 use crate::workspace::context::WorkspaceContext;
+use crate::workspace::context::refresh_context;
 use crate::workspace::tabs::enqueue_open_tab;
 use crate::workspace::{QueryEditorInit, TabSpec};
 
@@ -79,12 +81,11 @@ pub fn render_query_lane(cx: &mut App) -> AnyElement {
                         for coll_name in &collection_names {
                             let coll_name = coll_name.clone();
                             menu = menu.item(
-                                gpui_component::menu::PopupMenuItem::new(format!(
-                                    "Move to {coll_name}"
-                                ))
-                                .on_click(move |_, _, cx| {
-                                    move_loose_to_collection(query_id, &coll_name, cx);
-                                }),
+                                PopupMenuItem::new(format!("Move to {coll_name}")).on_click(
+                                    move |_, _, cx| {
+                                        move_loose_to_collection(query_id, &coll_name, cx);
+                                    },
+                                ),
                             );
                         }
                         menu
@@ -145,12 +146,11 @@ pub fn render_query_lane(cx: &mut App) -> AnyElement {
                             open_loose_query(&sql, cx);
                         })
                         .context_menu(move |menu, _, _| {
-                            menu.item(
-                                gpui_component::menu::PopupMenuItem::new("Move to loose queries")
-                                    .on_click(move |_, _, cx| {
-                                        move_collection_to_loose(query_id, cx);
-                                    }),
-                            )
+                            menu.item(PopupMenuItem::new("Move to loose queries").on_click(
+                                move |_, _, cx| {
+                                    move_collection_to_loose(query_id, cx);
+                                },
+                            ))
                         }),
                 );
             }
@@ -218,10 +218,7 @@ fn first_connected_conn_id(cx: &App) -> Option<ConnectionId> {
     let registry = ws.0.read(cx).registry().clone();
     registry.read(cx).connections().iter().find_map(|e| {
         let entry = e.read(cx);
-        if matches!(
-            entry.state,
-            crate::connection::ConnectionState::Connected(_)
-        ) {
+        if matches!(entry.state, Connected(_)) {
             Some(entry.id.clone())
         } else {
             None
@@ -312,10 +309,7 @@ fn move_collection_to_loose(query_id: Uuid, cx: &mut App) {
 pub fn reload_workspace_context(workspace_id: Uuid, cx: &mut App) {
     let store = storage::store(cx);
     let handle = gpui_tokio::Tokio::handle(cx);
-    if let Ok(ctx) = handle.block_on(crate::workspace::context::refresh_context(
-        store,
-        workspace_id,
-    )) {
+    if let Ok(ctx) = handle.block_on(refresh_context(store, workspace_id)) {
         cx.set_global(ctx);
         if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
             ws.update(cx, |_, cx| cx.notify());

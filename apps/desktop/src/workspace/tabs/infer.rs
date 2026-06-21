@@ -11,6 +11,7 @@ use crate::sqlite;
 use crate::workspace::panels::object_info::ConnectionDashboardPanel;
 
 use super::spec::TabSpec;
+use crate::workspace::panels::release_notes::ReleaseNotesPanel;
 
 pub(crate) fn infer_tab_spec(panel: &Arc<dyn PanelView>, cx: &App) -> TabSpec {
     match panel.panel_name(cx) {
@@ -43,7 +44,7 @@ pub(crate) fn infer_tab_spec(panel: &Arc<dyn PanelView>, cx: &App) -> TabSpec {
             .unwrap_or_else(|_| builtin(panel, cx)),
         "ReleaseNotesPanel" => panel
             .view()
-            .downcast::<crate::workspace::panels::release_notes::ReleaseNotesPanel>()
+            .downcast::<ReleaseNotesPanel>()
             .map(|ent| TabSpec::ReleaseNotes {
                 version: ent.read(cx).version_label(cx),
             })

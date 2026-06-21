@@ -1,6 +1,6 @@
 //! Flat status bar segments — IDE-style label/value pairs without chip chrome.
 
-use gpui::{Hsla, IntoElement, ParentElement, SharedString, div, prelude::*, px};
+use gpui::{FontWeight, Hsla, IntoElement, ParentElement, SharedString, div, prelude::*, px};
 use gpui_component::h_flex;
 
 pub const STATUS_BAR_HEIGHT: f32 = 26.0;
@@ -40,7 +40,7 @@ pub fn status_segment(
         .child(
             div()
                 .text_xs()
-                .font_weight(gpui::FontWeight::MEDIUM)
+                .font_weight(FontWeight::MEDIUM)
                 .text_color(fg.opacity(0.92))
                 .child(value.into()),
         )

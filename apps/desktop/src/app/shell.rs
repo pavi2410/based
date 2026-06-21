@@ -15,7 +15,10 @@ use gpui_component::{
 };
 
 use super::aux_windows::{AuxKind, AuxWindows};
+use super::launch::open_onboarding_review;
+use super::prefs::manual_update_checks_enabled;
 use super::quit;
+use super::updater::{check_now, open_release_notes_for_current};
 use crate::about_window::AboutWindow;
 use crate::bindings::{
     CloseAllTabs, CloseCleanTabs, CloseOtherTabs, CloseTab, CycleAppearance, GoBackTab,
@@ -23,6 +26,7 @@ use crate::bindings::{
     SplitPaneRight, SplitPaneTop, ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane,
     ToggleSavedPane, ToggleSidebarRail,
 };
+use crate::project::{prompt_open_project_in_new_window, prompt_open_project_in_window};
 use crate::settings_window::SettingsWindow;
 use crate::workspace::{
     WorkspaceRef,
@@ -76,7 +80,7 @@ fn app_menu_items() -> Vec<MenuItem> {
         MenuItem::action("Settings...", OpenSettingsMenu),
         MenuItem::separator(),
     ];
-    if crate::app::prefs::manual_update_checks_enabled() {
+    if manual_update_checks_enabled() {
         items.push(MenuItem::action("Check for Updates…", CheckForUpdates));
         items.push(MenuItem::separator());
     }
@@ -149,14 +153,10 @@ pub fn init(cx: &mut App) {
     cx.on_action(|_: &OpenSettingsMenu, cx| open_settings(cx));
     cx.on_action(|_: &OpenHome, cx| open_home(cx));
     cx.on_action(|_: &OpenOnboarding, cx| open_onboarding(cx));
-    cx.on_action(|_: &CheckForUpdates, cx| crate::app::updater::check_now(cx));
-    cx.on_action(|_: &OpenReleaseNotes, cx| {
-        crate::app::updater::open_release_notes_for_current(cx)
-    });
-    cx.on_action(|_: &OpenProject, cx| crate::project::prompt_open_project_in_window(cx));
-    cx.on_action(|_: &OpenProjectInNewWindow, cx| {
-        crate::project::prompt_open_project_in_new_window(cx);
-    });
+    cx.on_action(|_: &CheckForUpdates, cx| check_now(cx));
+    cx.on_action(|_: &OpenReleaseNotes, cx| open_release_notes_for_current(cx));
+    cx.on_action(|_: &OpenProject, cx| prompt_open_project_in_window(cx));
+    cx.on_action(|_: &OpenProjectInNewWindow, cx| prompt_open_project_in_new_window(cx));
     #[cfg(target_os = "macos")]
     cx.on_action(|_: &HideApp, cx| cx.hide());
     cx.on_action(|_: &HideOthers, cx| cx.hide_other_apps());
@@ -200,7 +200,7 @@ pub fn open_onboarding(cx: &mut App) {
     if AuxWindows::focus_existing(AuxKind::Onboarding, cx) {
         return;
     }
-    match crate::app::launch::open_onboarding_review(cx) {
+    match open_onboarding_review(cx) {
         Ok(handle) => AuxWindows::insert(AuxKind::Onboarding, handle, cx),
         Err(err) => log::warn!("onboarding window: {err:#}"),
     }

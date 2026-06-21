@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::Path;
 
 use anyhow::{Context, Result};
@@ -29,7 +30,7 @@ pub struct ProjectSettings {
 
 pub fn load_manifest(project_root: &Path) -> Result<ProjectManifest> {
     let path = project_root.join(".based").join("project.toml");
-    let raw = std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
+    let raw = fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
     let manifest: ProjectManifest =
         toml::from_str(&raw).with_context(|| format!("parse {}", path.display()))?;
     if manifest.schema_version != PROJECT_SCHEMA_VERSION {

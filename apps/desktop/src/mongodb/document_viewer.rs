@@ -12,11 +12,12 @@ use gpui_component::{
     v_flex,
 };
 use mongodb::Collection;
-use mongodb::bson::{Document, doc};
+use mongodb::bson::{Document, doc, to_document};
 use mongodb::options::FindOptions;
 
 use gpui_component::table::TableEvent;
 
+use crate::db;
 use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_with_meta};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export;
@@ -25,12 +26,13 @@ use crate::widgets::panel::data_viewer_toolbar;
 use crate::widgets::virtual_table::{
     RowDelegate, align_meta_to_columns, data_column, replace_table_data,
 };
+use crate::workspace::notify::push_export_success;
 
 fn mongo_filter_doc(expr: &FilterExpr) -> Document {
     let s = expr.to_mongo_filter();
     serde_json::from_str::<serde_json::Value>(&s)
         .ok()
-        .and_then(|v| mongodb::bson::to_document(&v).ok())
+        .and_then(|v| to_document(&v).ok())
         .unwrap_or_else(|| doc! {})
 }
 
@@ -106,7 +108,7 @@ impl DocumentViewerPanel {
             .unwrap_or_else(|| doc! {});
 
         cx.spawn(async move |this, cx| {
-            let docs = match crate::db::run(cx, async move {
+            let docs = match db::run(cx, async move {
                 let opts = FindOptions::builder().limit(lim).build();
                 let mut cursor = coll.find(filter_doc, opts).await?;
                 let mut docs: Vec<Document> = Vec::new();
@@ -276,11 +278,7 @@ impl Render for DocumentViewerPanel {
                                     )
                                     .await
                                     {
-                                        cx.update(|app| {
-                                            crate::workspace::notify::push_export_success(
-                                                app, &path,
-                                            )
-                                        });
+                                        cx.update(|app| push_export_success(app, &path));
                                     }
                                 })
                                 .detach();

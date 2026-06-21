@@ -1,3 +1,6 @@
+use std::time::Instant;
+
+use gpui::{App, Task};
 // mongodb/ — GPUI panels + connection lifecycle; driver logic in `based-mongo`.
 
 pub mod change_stream;
@@ -11,9 +14,9 @@ pub mod wizard;
 
 pub use based_mongo::{MongoConfig, document_from_json};
 
-use mongodb::Database;
 use mongodb::bson::doc;
 use mongodb::options::ClientOptions;
+use mongodb::{Client, Database};
 
 use based_mongo::{apply_auth_source, resolve_database_name, test_database_name};
 
@@ -24,7 +27,7 @@ use gpui_tokio::Tokio;
 pub struct MongoConnection {
     pub config: MongoConfig,
     pub server_version: Option<String>,
-    client: mongodb::Client,
+    client: Client,
     database: Database,
 }
 
@@ -33,7 +36,7 @@ impl MongoConnection {
         &self.database
     }
 
-    pub fn client(&self) -> &mongodb::Client {
+    pub fn client(&self) -> &Client {
         &self.client
     }
 }
@@ -41,14 +44,14 @@ impl MongoConnection {
 impl Connectable for MongoConnection {
     type Config = MongoConfig;
 
-    fn open(config: Self::Config, cx: &mut gpui::App) -> gpui::Task<anyhow::Result<Self>> {
+    fn open(config: Self::Config, cx: &mut App) -> Task<anyhow::Result<Self>> {
         Tokio::spawn_result(cx, async move {
             let mut opts = ClientOptions::parse(&config.uri).await?;
             if let Some(ref src) = config.auth_source {
                 apply_auth_source(&mut opts, src);
             }
 
-            let client = mongodb::Client::with_options(opts.clone())?;
+            let client = Client::with_options(opts.clone())?;
             let db_name = resolve_database_name(&config, &opts);
             let database = client.database(&db_name);
 
@@ -67,20 +70,18 @@ impl Connectable for MongoConnection {
         })
     }
 
-    fn test(config: &Self::Config, cx: &mut gpui::App) -> gpui::Task<anyhow::Result<TestReport>> {
+    fn test(config: &Self::Config, cx: &mut App) -> Task<anyhow::Result<TestReport>> {
         let config = config.clone();
         Tokio::spawn_result(cx, async move {
-            let start = std::time::Instant::now();
+            let start = Instant::now();
             let mut opts = ClientOptions::parse(&config.uri).await?;
             if let Some(ref src) = config.auth_source {
                 apply_auth_source(&mut opts, src);
             }
-            let client = mongodb::Client::with_options(opts)?;
+            let client = Client::with_options(opts)?;
             let db = test_database_name(&config);
             let database = client.database(db);
-            database
-                .run_command(mongodb::bson::doc! { "ping": 1 }, None)
-                .await?;
+            database.run_command(doc! { "ping": 1 }, None).await?;
             let server_version = database
                 .run_command(doc! { "buildInfo": 1 }, None)
                 .await

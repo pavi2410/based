@@ -1,3 +1,9 @@
+use crate::app::prefs::manual_update_checks_enabled;
+use crate::app::quit::request_window_close;
+use crate::app::updater::check_now;
+use crate::app::updater::open_release_notes_for_current;
+use crate::project::prompt_open_project_in_new_window;
+use crate::project::prompt_open_project_in_window;
 use gpui::{App, Entity, IntoElement, ParentElement, RenderOnce, SharedString, Styled, div, px};
 use gpui_component::{
     ActiveTheme as _, Icon, IconName, Sizable as _, TitleBar,
@@ -34,7 +40,7 @@ impl RenderOnce for Topbar {
             .on_close_window({
                 let registry = registry.clone();
                 move |_, window, cx| {
-                    crate::app::quit::request_window_close(&registry, window, cx);
+                    request_window_close(&registry, window, cx);
                 }
             })
             .child(
@@ -101,15 +107,13 @@ impl RenderOnce for ContextRail {
                         menu.item(
                             PopupMenuItem::new("Open Folder…")
                                 .icon(IconName::FolderOpen)
-                                .on_click(|_, _, cx| {
-                                    crate::project::prompt_open_project_in_window(cx)
-                                }),
+                                .on_click(|_, _, cx| prompt_open_project_in_window(cx)),
                         )
                         .item(
                             PopupMenuItem::new("Open Folder in New Window…")
                                 .icon(IconName::FolderOpen)
                                 .on_click(|_, _, cx| {
-                                    crate::project::prompt_open_project_in_new_window(cx);
+                                    prompt_open_project_in_new_window(cx);
                                 }),
                         )
                     }),
@@ -211,11 +215,11 @@ impl RenderOnce for TopbarRight {
                                     .icon(IconName::Settings)
                                     .on_click(|_, _window, cx| shell::open_settings(cx)),
                             );
-                        if crate::app::prefs::manual_update_checks_enabled() {
+                        if manual_update_checks_enabled() {
                             menu = menu.item(
                                 PopupMenuItem::new("Check for Updates…")
                                     .icon(IconName::Inbox)
-                                    .on_click(|_, _window, cx| crate::app::updater::check_now(cx)),
+                                    .on_click(|_, _window, cx| check_now(cx)),
                             );
                         }
                         menu.item(PopupMenuItem::separator())
@@ -233,7 +237,7 @@ impl RenderOnce for TopbarRight {
                                 PopupMenuItem::new("Release Notes")
                                     .icon(IconName::BookOpen)
                                     .on_click(|_, _window, cx| {
-                                        crate::app::updater::open_release_notes_for_current(cx);
+                                        open_release_notes_for_current(cx);
                                     }),
                             )
                     }),

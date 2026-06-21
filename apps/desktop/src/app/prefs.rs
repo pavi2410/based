@@ -12,6 +12,11 @@ pub use super::chrome::{
 };
 
 use super::chrome::ChromePrefs as Chrome;
+use crate::theme::{
+    DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME, DEFAULT_PRESET_ID, apply_theme_names, preset_by_id,
+    preset_id_for_pair,
+};
+use std::fs;
 
 /// Default SQL data viewer page size (rows per fetch).
 pub const DEFAULT_PAGE_SIZE: u64 = 500;
@@ -122,11 +127,11 @@ impl Default for UpdatePreferences {
 }
 
 fn default_light_theme() -> String {
-    crate::theme::DEFAULT_LIGHT_THEME.to_string()
+    DEFAULT_LIGHT_THEME.to_string()
 }
 
 fn default_dark_theme() -> String {
-    crate::theme::DEFAULT_DARK_THEME.to_string()
+    DEFAULT_DARK_THEME.to_string()
 }
 
 impl Default for TablePreferences {
@@ -232,10 +237,10 @@ impl Global for NativePreferences {}
 
 fn migrate_legacy_theme_names(prefs: &mut NativePreferences) {
     if prefs.light_theme == "Default Light" {
-        prefs.light_theme = crate::theme::DEFAULT_LIGHT_THEME.to_string();
+        prefs.light_theme = DEFAULT_LIGHT_THEME.to_string();
     }
     if prefs.dark_theme == "Default Dark" {
-        prefs.dark_theme = crate::theme::DEFAULT_DARK_THEME.to_string();
+        prefs.dark_theme = DEFAULT_DARK_THEME.to_string();
     }
 }
 
@@ -248,13 +253,13 @@ impl NativePreferences {
         let base = dirs::preference_dir()
             .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".config"))
             .join("based");
-        let _ = std::fs::create_dir_all(&base);
+        let _ = fs::create_dir_all(&base);
         base.join("native_preferences.toml")
     }
 
     pub fn load() -> Self {
         let path = Self::prefs_path();
-        let raw = std::fs::read_to_string(&path).unwrap_or_default();
+        let raw = fs::read_to_string(&path).unwrap_or_default();
         let mut prefs: Self = match raw.is_empty() {
             true => Self::default(),
             false => match toml::from_str(&raw) {
@@ -283,7 +288,7 @@ impl NativePreferences {
                 "neutral" => "based",
                 _ => preset_id,
             };
-            if let Some(preset) = crate::theme::preset_by_id(preset_id) {
+            if let Some(preset) = preset_by_id(preset_id) {
                 prefs.light_theme = preset.light_name.to_string();
                 prefs.dark_theme = preset.dark_name.to_string();
             }
@@ -303,7 +308,7 @@ impl NativePreferences {
                 return;
             }
         };
-        if let Err(e) = std::fs::write(path, encoded) {
+        if let Err(e) = fs::write(path, encoded) {
             log::warn!("native prefs save: {e:#}");
         }
     }
@@ -335,13 +340,9 @@ pub fn install(cx: &mut App) {
     let dark = prefs.dark_theme.clone();
     let chrome = prefs.chrome.clone();
     cx.set_global(prefs);
-    if let Err(err) = crate::theme::apply_theme_names(&light, &dark, cx) {
+    if let Err(err) = apply_theme_names(&light, &dark, cx) {
         log::warn!("theme pair on startup: {err:#}");
-        let _ = crate::theme::apply_theme_names(
-            crate::theme::DEFAULT_LIGHT_THEME,
-            crate::theme::DEFAULT_DARK_THEME,
-            cx,
-        );
+        let _ = apply_theme_names(DEFAULT_LIGHT_THEME, DEFAULT_DARK_THEME, cx);
     }
     reapply_appearance(None, cx);
     apply_chrome(&chrome, cx);
@@ -688,8 +689,7 @@ pub fn dark_theme_name(cx: &App) -> &str {
 
 /// Preset id when light+dark match a known pair (onboarding selection state).
 pub fn theme_preset_id(cx: &App) -> &str {
-    crate::theme::preset_id_for_pair(light_theme_name(cx), dark_theme_name(cx))
-        .unwrap_or(crate::theme::DEFAULT_PRESET_ID)
+    preset_id_for_pair(light_theme_name(cx), dark_theme_name(cx)).unwrap_or(DEFAULT_PRESET_ID)
 }
 
 pub fn apply_appearance(mode: AppearanceMode, window: Option<&mut gpui::Window>, cx: &mut App) {
@@ -715,7 +715,7 @@ pub fn reapply_appearance(window: Option<&mut gpui::Window>, cx: &mut App) {
 /// Temporarily apply a light theme for dropdown preview (does not persist).
 pub fn preview_light_theme(name: &str, window: Option<&mut gpui::Window>, cx: &mut App) {
     let dark = dark_theme_name(cx).to_string();
-    if let Err(err) = crate::theme::apply_theme_names(name, &dark, cx) {
+    if let Err(err) = apply_theme_names(name, &dark, cx) {
         log::warn!("preview light theme {name:?}: {err:#}");
         return;
     }
@@ -725,7 +725,7 @@ pub fn preview_light_theme(name: &str, window: Option<&mut gpui::Window>, cx: &m
 /// Temporarily apply a dark theme for dropdown preview (does not persist).
 pub fn preview_dark_theme(name: &str, window: Option<&mut gpui::Window>, cx: &mut App) {
     let light = light_theme_name(cx).to_string();
-    if let Err(err) = crate::theme::apply_theme_names(&light, name, cx) {
+    if let Err(err) = apply_theme_names(&light, name, cx) {
         log::warn!("preview dark theme {name:?}: {err:#}");
         return;
     }
@@ -743,7 +743,7 @@ pub fn revert_dark_theme_preview(window: Option<&mut gpui::Window>, cx: &mut App
 }
 
 pub fn apply_theme_pair(light: &str, dark: &str, window: Option<&mut gpui::Window>, cx: &mut App) {
-    if let Err(err) = crate::theme::apply_theme_names(light, dark, cx) {
+    if let Err(err) = apply_theme_names(light, dark, cx) {
         log::warn!("apply theme pair ({light:?}, {dark:?}): {err:#}");
         return;
     }
@@ -776,7 +776,7 @@ pub fn apply_dark_theme(name: &str, window: Option<&mut gpui::Window>, cx: &mut 
 
 /// Apply a paired preset (onboarding): sets both light and dark registry themes.
 pub fn apply_theme_preset(preset_id: &str, window: Option<&mut gpui::Window>, cx: &mut App) {
-    let Some(preset) = crate::theme::preset_by_id(preset_id) else {
+    let Some(preset) = preset_by_id(preset_id) else {
         log::warn!("apply theme preset: unknown preset {preset_id:?}");
         return;
     };

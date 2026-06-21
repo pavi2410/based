@@ -11,6 +11,8 @@ use gpui_component::{
 };
 use sqlx::{AssertSqlSafe, Row, SqlitePool};
 
+use crate::db;
+
 pub struct FtsResult {
     pub table: String,
     pub snippet: String,
@@ -47,7 +49,7 @@ impl FtsConsolePanel {
     fn detect_fts_tables(&mut self, cx: &mut Context<Self>) {
         let pool = self.pool.clone();
         cx.spawn(async move |this, cx| {
-            let rows = match crate::db::run(cx, async move {
+            let rows = match db::run(cx, async move {
                 Ok(sqlx::query(
                     "SELECT name FROM sqlite_master WHERE type='table' AND sql LIKE '%fts5%'",
                 )
@@ -86,7 +88,7 @@ impl FtsConsolePanel {
                 "SELECT snippet(\"{table}\", -1, '<b>', '</b>', '…', 32) AS snip, rank \
                  FROM \"{table}\" WHERE \"{table}\" MATCH ?1 ORDER BY rank"
             );
-            let rows = match crate::db::run(cx, async move {
+            let rows = match db::run(cx, async move {
                 Ok(sqlx::query(AssertSqlSafe(sql))
                     .bind(&query)
                     .fetch_all(&pool)

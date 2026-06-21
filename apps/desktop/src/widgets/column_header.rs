@@ -1,5 +1,7 @@
 //! Column header chrome: constraint icons, type tooltips.
 
+use std::collections::HashMap;
+
 use gpui::{App, Hsla, IntoElement, SharedString, Window, div, prelude::*, px};
 use gpui_component::{ActiveTheme, Icon, Sizable as _, h_flex, tooltip::Tooltip, v_flex};
 
@@ -108,7 +110,7 @@ pub fn meta_for_column_name(name: &str) -> GridColumnMeta {
 
 pub fn align_meta_to_columns(
     column_keys: impl IntoIterator<Item = impl AsRef<str>>,
-    catalog: &std::collections::HashMap<String, GridColumnMeta>,
+    catalog: &HashMap<String, GridColumnMeta>,
 ) -> Vec<GridColumnMeta> {
     column_keys
         .into_iter()

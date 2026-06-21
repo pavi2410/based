@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::Path;
 
 use based_core::EngineKind;
@@ -100,13 +101,13 @@ query = "SELECT 1"
 "#;
     let dir = tempfile::tempdir().unwrap();
     let based = dir.path().join(".based");
-    std::fs::create_dir_all(based.join("queries")).unwrap();
-    std::fs::write(
+    fs::create_dir_all(based.join("queries")).unwrap();
+    fs::write(
         based.join("project.toml"),
         "schema_version = 1\nname = \"t\"\n",
     )
     .unwrap();
-    std::fs::write(based.join("queries/bad.query.toml"), raw).unwrap();
+    fs::write(based.join("queries/bad.query.toml"), raw).unwrap();
     let err = load_project(dir.path()).unwrap_err();
     assert!(err.to_string().contains("exclusive"));
 }

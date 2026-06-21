@@ -1,6 +1,8 @@
 //! Tab label: engine-colored prefix + title + optional dirty dot.
 
-use gpui::{FontWeight, IntoElement, ParentElement, SharedString, Styled, div, prelude::*, px};
+use gpui::{
+    App, FontWeight, IntoElement, ParentElement, SharedString, Styled, div, prelude::*, px,
+};
 use gpui_component::ActiveTheme;
 
 use crate::app::prefs;
@@ -12,7 +14,7 @@ pub fn tab_chip(
     title: impl Into<SharedString>,
     dirty: bool,
     disconnected: bool,
-    cx: &gpui::App,
+    cx: &App,
 ) -> impl IntoElement {
     let color = if disconnected {
         cx.theme().muted_foreground.opacity(0.55)

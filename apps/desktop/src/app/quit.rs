@@ -17,6 +17,7 @@ use crate::connection::{
 use crate::widgets::{engine_icon, engine_label_inline};
 use crate::workspace::Workspace;
 use crate::workspace::WorkspaceRef;
+use std::mem;
 
 const LOG_TARGET: &str = "based_quit";
 
@@ -243,7 +244,7 @@ pub fn disconnect_all(registry: &Entity<ConnectionRegistry>, cx: &mut App) {
     for ent in entries {
         ent.update(cx, |entry, cx| {
             if let ConnectionState::Connected(ac) =
-                std::mem::replace(&mut entry.state, ConnectionState::Disconnected)
+                mem::replace(&mut entry.state, ConnectionState::Disconnected)
             {
                 close_any_connection(ac, cx);
             }

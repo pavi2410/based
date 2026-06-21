@@ -36,12 +36,20 @@ use std::path::PathBuf;
 use gpui::{App, Context, Entity, FocusHandle, Focusable, SharedString, Window, prelude::*};
 use gpui_component::dock::{DockArea, DockEvent, DockItem, PanelStyle, PanelView};
 
-use crate::command_palette::CommandPalette;
+use crate::app::prefs::{collapsed_from, set_sidebar};
+use crate::app::quit::confirm_before_close_window;
+use crate::app::shell::open_settings;
+use crate::command_palette::{
+    CommandPalette,
+    PaletteEvent::{InjectSql, OpenProjectQuery, OpenTab, WorkspaceAction},
+};
 use crate::connection::ConnectionId;
 use crate::connection::registry::ConnectionRegistry;
 use based_project::ProjectQuery;
 
-use crate::project::{ProjectContext, find_project_root, loader::entry_from_project};
+use crate::project::{
+    ProjectContext, ProjectRoot, RegistryRef, find_project_root, loader::entry_from_project,
+};
 
 use crate::storage;
 use crate::widgets::query_panel_extras::HistoryFilter;
@@ -142,8 +150,8 @@ impl Workspace {
         cx.set_global(TabManagerRef(tab_manager.clone()));
         cx.set_global(DockAreaRef(dock_area.clone()));
         if let Some(root) = project_dir.clone() {
-            cx.set_global(crate::project::RegistryRef(registry.clone()));
-            cx.set_global(crate::project::ProjectRoot(root));
+            cx.set_global(RegistryRef(registry.clone()));
+            cx.set_global(ProjectRoot(root));
         }
         let command_palette =
             cx.new(|cx| CommandPalette::new(registry.clone(), connection_tree.clone(), window, cx));
@@ -165,7 +173,7 @@ impl Workspace {
             connection_tree,
             tab_manager,
             command_palette,
-            sidebar_collapsed: crate::app::prefs::collapsed_from(cx),
+            sidebar_collapsed: collapsed_from(cx),
             active_left_pane: LeftPane::Browser,
             active_side_pane: None,
             history_filter: HistoryFilter::default(),
@@ -191,10 +199,10 @@ impl Workspace {
 
         cx.subscribe(&palette_observe, |ws, _, event, ecx| {
             match event {
-                crate::command_palette::PaletteEvent::OpenTab(spec) => {
+                OpenTab(spec) => {
                     ws.pending_open_tab = Some(spec.clone());
                 }
-                crate::command_palette::PaletteEvent::InjectSql { conn_id, sql } => {
+                InjectSql { conn_id, sql } => {
                     let active_matches = ws.tab_manager.read(ecx).active_tab().is_some_and(|t| {
                         matches!(
                             &t.spec,
@@ -215,10 +223,10 @@ impl Workspace {
                         });
                     }
                 }
-                crate::command_palette::PaletteEvent::OpenProjectQuery(path) => {
+                OpenProjectQuery(path) => {
                     ws.open_project_query_by_path(path, ecx);
                 }
-                crate::command_palette::PaletteEvent::WorkspaceAction(action) => {
+                WorkspaceAction(action) => {
                     ws.handle_palette_workspace_action(action.clone(), ecx);
                 }
             }
@@ -253,12 +261,8 @@ impl Workspace {
         let registry_for_close = registry.clone();
         let workspace_for_close = cx.entity();
         window.on_window_should_close(cx, move |window, cx| {
-            let result = crate::app::quit::confirm_before_close_window(
-                &registry_for_close,
-                &workspace_for_close,
-                window,
-                cx,
-            );
+            let result =
+                confirm_before_close_window(&registry_for_close, &workspace_for_close, window, cx);
             log::warn!(
                 target: "based_quit",
                 "on_window_should_close handler returning allow_close={result}"
@@ -336,7 +340,7 @@ impl Workspace {
 
     pub fn toggle_sidebar_rail(&mut self, cx: &mut Context<Self>) {
         self.sidebar_collapsed = !self.sidebar_collapsed;
-        crate::app::prefs::set_sidebar(self.sidebar_collapsed, cx);
+        set_sidebar(self.sidebar_collapsed, cx);
         cx.notify();
     }
 
@@ -348,7 +352,7 @@ impl Workspace {
         self.active_left_pane = pane;
         if self.sidebar_collapsed {
             self.sidebar_collapsed = false;
-            crate::app::prefs::set_sidebar(false, cx);
+            set_sidebar(false, cx);
         }
         cx.notify();
     }
@@ -381,7 +385,7 @@ impl Workspace {
     /// callers keep compiling. The real work lives in
     /// [`crate::app::shell::open_settings`].
     pub fn open_settings(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
-        crate::app::shell::open_settings(&mut *cx);
+        open_settings(&mut *cx);
     }
 
     pub fn toggle_command_palette(&mut self, window: &mut Window, cx: &mut Context<Self>) {

@@ -1,3 +1,7 @@
+use std::time::Duration;
+
+use tokio::task::spawn_blocking;
+use tokio::time::sleep;
 mod check;
 mod config;
 mod install;
@@ -13,12 +17,14 @@ pub use state::{UpdateBarSnapshot, UpdatePhase};
 use gpui::{App, AsyncApp, BorrowAppContext, Global, ParentElement, SharedString, Styled, Window};
 use gpui_component::{ActiveTheme, WindowExt};
 
-use crate::app::prefs::{self, UpdatePreferences};
-use crate::app::quit;
 use crate::connection::live_connection_count;
 use crate::connection::registry::ConnectionRegistry;
+use crate::db::{run, run_infallible};
 use crate::workspace::notify;
 use crate::workspace::tabs::{WorkspaceRef, enqueue_open_release_notes};
+
+use super::prefs::{self, UpdatePreferences};
+use super::quit;
 
 use self::check::{check_packager_update, is_newer};
 use self::log::{debug as udebug, info as uinfo, warn as uwarn};
@@ -94,7 +100,7 @@ pub fn init(cx: &mut App) {
 
     cx.spawn(async move |cx| {
         udebug("startup check scheduled in 30s");
-        sleep_on_tokio(cx, std::time::Duration::from_secs(30)).await;
+        sleep_on_tokio(cx, Duration::from_secs(30)).await;
         cx.update(|app| {
             let prefs = UpdateCoordinator::prefs(app);
             let stale = startup_check_stale(&UpdaterStateFile::load());
@@ -116,7 +122,7 @@ pub fn init(cx: &mut App) {
             });
 
             udebug(format!("periodic loop: sleeping {sleep_secs}s"));
-            sleep_on_tokio(cx, std::time::Duration::from_secs(sleep_secs)).await;
+            sleep_on_tokio(cx, Duration::from_secs(sleep_secs)).await;
 
             let should = cx.update(|app| {
                 let prefs = UpdateCoordinator::prefs(app);
@@ -136,9 +142,9 @@ pub fn init(cx: &mut App) {
 }
 
 /// GPUI `cx.spawn` tasks are not on Tokio; delays must go through `db::run_infallible`.
-async fn sleep_on_tokio(cx: &mut AsyncApp, duration: std::time::Duration) {
-    let _ = crate::db::run_infallible(cx, async move {
-        tokio::time::sleep(duration).await;
+async fn sleep_on_tokio(cx: &mut AsyncApp, duration: Duration) {
+    let _ = run_infallible(cx, async move {
+        sleep(duration).await;
     })
     .await;
 }
@@ -314,7 +320,7 @@ fn trigger_install(cx: &mut App) {
 async fn run_check(cx: &mut AsyncApp, manual: bool) {
     let prefs = cx.update(|app| UpdateCoordinator::prefs(app));
 
-    let result = crate::db::run(cx, async move {
+    let result = run(cx, async move {
         let mut state = UpdaterStateFile::load();
         state.mark_checked_now();
 
@@ -349,7 +355,7 @@ async fn run_check(cx: &mut AsyncApp, manual: bool) {
             "run_check: packager manifest {}",
             config::UPDATE_MANIFEST_URL
         ));
-        let packager = tokio::task::spawn_blocking(check_packager_update)
+        let packager = spawn_blocking(check_packager_update)
             .await
             .context("join packager check")??;
 
@@ -442,8 +448,8 @@ fn apply_check_outcome(
 
 async fn run_download_install(cx: &mut AsyncApp, version: String) {
     uinfo(format!("download_install: starting version={version}"));
-    let result = crate::db::run(cx, async {
-        let update = tokio::task::spawn_blocking(check_packager_update)
+    let result = run(cx, async {
+        let update = spawn_blocking(check_packager_update)
             .await
             .context("join")??
             .context("no update available")?;
@@ -454,11 +460,9 @@ async fn run_download_install(cx: &mut AsyncApp, version: String) {
             "download_install: fetching url={}",
             update.download_url
         ));
-        tokio::task::spawn_blocking(move || {
-            install::download_install_and_relaunch(update, &version)
-        })
-        .await
-        .context("join install")?
+        spawn_blocking(move || install::download_install_and_relaunch(update, &version))
+            .await
+            .context("join install")?
     })
     .await;
 

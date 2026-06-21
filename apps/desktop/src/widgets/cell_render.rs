@@ -2,7 +2,7 @@
 
 use std::cmp::Ordering;
 
-use gpui::{App, IntoElement, SharedString, Window, div, prelude::*};
+use gpui::{App, Div, IntoElement, SharedString, Window, div, prelude::*};
 use gpui_component::{
     ActiveTheme, Icon, IconName, Sizable as _, StyleSized, h_flex, tooltip::Tooltip,
 };
@@ -245,7 +245,7 @@ pub fn parse_bool_display(s: &str) -> Option<bool> {
     }
 }
 
-fn cell_chrome(cx: &App) -> gpui::Div {
+fn cell_chrome(cx: &App) -> Div {
     div()
         .truncate()
         .table_cell_size(prefs::table_cell_size(cx))

@@ -1,8 +1,9 @@
 //! Floating cell inspector: column, inferred type label, monospace body.
 
-use gpui::{Context, IntoElement, MouseButton, Render, Window, div, prelude::*};
+use gpui::{Context, IntoElement, MouseButton, Render, Window, div, prelude::*, px};
 use gpui_component::{ActiveTheme, h_flex, scroll::ScrollableElement, v_flex};
 
+use crate::app::prefs;
 use crate::widgets::cell_render::{ColumnValueKind, column_value_kind, parse_bool_display};
 use crate::widgets::column_header::GridColumnMeta;
 
@@ -137,14 +138,14 @@ impl Render for CellDetail {
         let display = self.value.display();
         let type_label = self.value.type_label();
         let theme = cx.theme();
-        let mono = crate::app::prefs::code_font_family(cx);
+        let mono = prefs::code_font_family(cx);
 
         div()
             .absolute()
             .bottom_0()
             .right_0()
-            .w(gpui::px(320.0))
-            .max_h(gpui::px(300.0))
+            .w(px(320.0))
+            .max_h(px(300.0))
             .m_2()
             .bg(theme.popover)
             .border_1()
@@ -186,7 +187,7 @@ impl Render for CellDetail {
                         .font_family(mono)
                         .text_xs()
                         .text_color(theme.foreground)
-                        .max_h(gpui::px(220.0))
+                        .max_h(px(220.0))
                         .overflow_y_scrollbar()
                         .child(display),
                 ),

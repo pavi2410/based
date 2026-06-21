@@ -1,6 +1,8 @@
 //! Open a `.based/` project from the GUI — in-place switch or new process.
 
+use std::env;
 use std::path::{Path, PathBuf};
+use std::process;
 
 use gpui::{App, Entity, SharedString, Window, prelude::*};
 use gpui_component::{
@@ -15,12 +17,13 @@ use crate::connection::live_connection_count;
 use crate::connection::registry::ConnectionRegistry;
 use crate::project::ProjectContext;
 use crate::project::discovery::resolve_project_root;
-use crate::project::reload::{RegistryRef, install_reload_watcher, reload_from_disk};
+use crate::project::reload::{ProjectRoot, RegistryRef, install_reload_watcher, reload_from_disk};
 use crate::workspace::Workspace;
 use crate::workspace::WorkspaceRef;
 use crate::workspace::notify;
 
 use super::pick;
+use super::settings::apply_project_settings;
 
 /// After folder pick: open in the current window (may confirm when connections/tabs are dirty).
 pub fn prompt_open_project_in_window(cx: &mut App) {
@@ -88,7 +91,7 @@ pub fn request_open_project_in_window(root: PathBuf, cx: &mut App) {
 
 pub fn open_project_in_new_process(root: PathBuf, cx: &mut App) {
     prefs::record_opened_project(root.clone(), cx);
-    let exe = match std::env::current_exe() {
+    let exe = match env::current_exe() {
         Ok(p) => p,
         Err(e) => {
             notify::push_error(
@@ -99,7 +102,7 @@ pub fn open_project_in_new_process(root: PathBuf, cx: &mut App) {
             return;
         }
     };
-    match std::process::Command::new(exe)
+    match process::Command::new(exe)
         .env("BASED_PROJECT_DIR", &root)
         .spawn()
     {
@@ -232,7 +235,7 @@ fn bind_project(root: &Path, registry: &Entity<ConnectionRegistry>, cx: &mut App
     match ProjectContext::load(root.to_path_buf()) {
         Ok(ctx) => {
             cx.set_global(ctx.clone());
-            crate::project::settings::apply_project_settings(&ctx.snapshot.manifest, cx);
+            apply_project_settings(&ctx.snapshot.manifest, cx);
         }
         Err(e) => {
             notify::push_error(cx, "Open Project", format!("Failed to load project: {e:#}"));
@@ -246,7 +249,7 @@ fn bind_project(root: &Path, registry: &Entity<ConnectionRegistry>, cx: &mut App
 }
 
 fn is_same_project(root: &Path, cx: &App) -> bool {
-    cx.try_global::<crate::project::ProjectRoot>()
+    cx.try_global::<ProjectRoot>()
         .is_some_and(|current| current.0 == root)
 }
 

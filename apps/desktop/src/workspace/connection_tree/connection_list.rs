@@ -16,6 +16,8 @@ use crate::widgets::empty_state::pane_empty_hint;
 use crate::widgets::{SIDEBAR_INSET, engine_color, engine_label_inline};
 
 use super::ConnectionTree;
+use crate::app::prefs::ui_component_size;
+use crate::app::prefs::ui_font_family;
 
 #[derive(Clone)]
 pub(crate) struct ConnectionRow {
@@ -108,7 +110,7 @@ pub(crate) fn connection_row_status_indicator(
             r.child(
                 Icon::new(IconName::TriangleAlert)
                     .text_color(err_fg)
-                    .with_size(crate::app::prefs::ui_component_size(cx).smaller()),
+                    .with_size(ui_component_size(cx).smaller()),
             )
         })
         .when(is_connecting && !is_failed, |r| {
@@ -261,7 +263,7 @@ impl RenderOnce for ConnectionRowItem {
                                 div()
                                     .text_xs()
                                     .text_color(subtle)
-                                    .font_family(crate::app::prefs::ui_font_family(tip_cx))
+                                    .font_family(ui_font_family(tip_cx))
                                     .child(reason_tip.clone()),
                             )
                     }

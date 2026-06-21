@@ -1,7 +1,7 @@
 //! EXPLAIN plan parsing (`based-postgres`) and GPUI rendering.
 
 use gpui::{AnyElement, IntoElement, ParentElement, Styled, div, prelude::*, px};
-use gpui_component::v_flex;
+use gpui_component::{Theme, v_flex};
 
 pub use based_postgres::explain::{PlanNode, parse_pg_explain_json};
 
@@ -10,11 +10,7 @@ pub const SLOW_MS: f64 = 100.0;
 
 /// Render a [`PlanNode`] tree as an indented list. Slow rows get a warning
 /// border accent. The result is a single `v_flex`.
-pub fn render_plan_node(
-    node: &PlanNode,
-    depth: usize,
-    theme: &gpui_component::Theme,
-) -> AnyElement {
+pub fn render_plan_node(node: &PlanNode, depth: usize, theme: &Theme) -> AnyElement {
     let slow = node.is_slow(SLOW_MS);
     let relation = node
         .relation

@@ -11,12 +11,15 @@ use gpui_component::{
     table::{Column, TableState},
     v_flex,
 };
-use sqlx::{AssertSqlSafe, Column as SqlxColumn, Row, SqlitePool};
+use sqlx::{AssertSqlSafe, Column as SqlxColumn, Row, SqlitePool, sqlite::SqliteRow};
 
 use gpui_component::table::TableEvent;
 
 use crate::app::prefs;
 use crate::connection::ConnectionId;
+use crate::connection::is_connection_read_only;
+use crate::db;
+use crate::db::column_catalog;
 use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_with_meta};
 use crate::widgets::column_header::GridColumnMeta;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
@@ -35,7 +38,9 @@ use crate::widgets::{
         tab_breadcrumb_footer, tab_breadcrumb_for_connection,
     },
 };
+use crate::workspace::WorkspaceRef;
 use crate::workspace::pop_out::PopOutWindowTitle;
+use std::time::Instant;
 
 pub struct DataViewerPanel {
     focus_handle: FocusHandle,
@@ -55,7 +60,7 @@ pub struct DataViewerPanel {
 }
 
 fn columns_from_rows_or_catalog(
-    rows: &[sqlx::sqlite::SqliteRow],
+    rows: &[SqliteRow],
     catalog: &HashMap<String, GridColumnMeta>,
 ) -> Vec<Column> {
     if let Some(first) = rows.first() {
@@ -153,12 +158,8 @@ impl DataViewerPanel {
         cx.spawn(async move |this, cx| {
             let catalog = if cached_catalog.is_empty() {
                 let pool_for_catalog = pool.clone();
-                crate::db::run(cx, async move {
-                    crate::db::column_catalog::load_sqlite_column_catalog(
-                        &pool_for_catalog,
-                        &table_raw,
-                    )
-                    .await
+                db::run(cx, async move {
+                    column_catalog::load_sqlite_column_catalog(&pool_for_catalog, &table_raw).await
                 })
                 .await
                 .unwrap_or_default()
@@ -167,8 +168,8 @@ impl DataViewerPanel {
             };
 
             let catalog_for_rows = catalog.clone();
-            let res = crate::db::run(cx, async move {
-                let start = std::time::Instant::now();
+            let res = db::run(cx, async move {
+                let start = Instant::now();
                 let where_clause = where_sql
                     .as_ref()
                     .map(|w| format!(" WHERE {w}"))
@@ -348,14 +349,8 @@ impl Render for DataViewerPanel {
             .child(self.cell_detail.clone());
 
         let read_only = cx
-            .try_global::<crate::workspace::WorkspaceRef>()
-            .map(|ws| {
-                crate::connection::is_connection_read_only(
-                    &self.conn_id,
-                    ws.0.read(cx).registry().read(cx),
-                    cx,
-                )
-            })
+            .try_global::<WorkspaceRef>()
+            .map(|ws| is_connection_read_only(&self.conn_id, ws.0.read(cx).registry().read(cx), cx))
             .unwrap_or(false);
         let crumbs = tab_breadcrumb_for_connection(&self.conn_id, [self.table_name.clone()], cx);
         let footer = tab_breadcrumb_footer(

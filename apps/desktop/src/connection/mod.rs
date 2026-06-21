@@ -18,6 +18,11 @@ use std::time::Instant;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
+use crate::db::{close_pg_pool, close_sqlite_pool};
+use crate::mongodb::{MongoConfig, MongoConnection};
+use crate::postgres::{PgConnection, PostgresConfig};
+use crate::sqlite::{SqliteConfig, SqliteConnection};
+
 pub use based_core::categorize_connect_error;
 pub use based_core::{ConnectionId, EngineKind};
 
@@ -26,9 +31,9 @@ pub use based_core::{ConnectionId, EngineKind};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "engine", rename_all = "snake_case")]
 pub enum ConnectionConfig {
-    Postgres(crate::postgres::PostgresConfig),
-    MongoDB(crate::mongodb::MongoConfig),
-    SQLite(crate::sqlite::SqliteConfig),
+    Postgres(PostgresConfig),
+    MongoDB(MongoConfig),
+    SQLite(SqliteConfig),
 }
 
 impl ConnectionConfig {
@@ -60,9 +65,9 @@ impl ConnectionConfig {
 
 #[derive(Clone)]
 pub enum AnyConnection {
-    Postgres(gpui::Entity<crate::postgres::PgConnection>),
-    MongoDB(gpui::Entity<crate::mongodb::MongoConnection>),
-    SQLite(gpui::Entity<crate::sqlite::SqliteConnection>),
+    Postgres(gpui::Entity<PgConnection>),
+    MongoDB(gpui::Entity<MongoConnection>),
+    SQLite(gpui::Entity<SqliteConnection>),
 }
 
 // ── Connection state machine ──────────────────────────────────────────────────
@@ -189,11 +194,11 @@ pub fn close_any_connection(ac: AnyConnection, cx: &gpui::App) {
     match ac {
         AnyConnection::Postgres(ent) => {
             let pool = ent.read(cx).pool.clone();
-            crate::db::close_pg_pool(pool);
+            close_pg_pool(pool);
         }
         AnyConnection::SQLite(ent) => {
             let pool = ent.read(cx).pool.clone();
-            crate::db::close_sqlite_pool(pool);
+            close_sqlite_pool(pool);
         }
         AnyConnection::MongoDB(_) => {
             // Mongo client closes when the connection entity is dropped.

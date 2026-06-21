@@ -1,8 +1,12 @@
 //! Postman-style `{{$fn}}` and `{{name}}` variable resolution (sandboxed).
 
+use std::error::Error;
+use std::fmt::{Display, Formatter, Result as FmtResult};
+
 use anyhow::Result;
 use rand::Rng;
 use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 use uuid::Uuid;
 
 use crate::variables::Variables;
@@ -25,8 +29,8 @@ pub enum ResolveError {
     InvalidRandomInt(String),
 }
 
-impl std::fmt::Display for ResolveError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for ResolveError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Self::MissingVariable(name) => write!(f, "Missing variable: {{{{{name}}}}}"),
             Self::InvalidRandomInt(msg) => write!(f, "Invalid {{$randomInt}}: {msg}"),
@@ -34,7 +38,7 @@ impl std::fmt::Display for ResolveError {
     }
 }
 
-impl std::error::Error for ResolveError {}
+impl Error for ResolveError {}
 
 /// Resolve all `{{…}}` tokens in `query`. Does not mutate the source string.
 pub fn resolve_query(query: &str, ctx: &VariableContext) -> Result<String, ResolveError> {
@@ -90,7 +94,7 @@ fn eval_builtin(name: &str) -> Result<String, ResolveError> {
     }
     if name == "isoTimestamp" {
         return OffsetDateTime::now_utc()
-            .format(&time::format_description::well_known::Rfc3339)
+            .format(&Rfc3339)
             .map_err(|e| ResolveError::InvalidRandomInt(e.to_string()));
     }
     if let Some(args) = name

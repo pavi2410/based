@@ -1,9 +1,10 @@
 use anyhow::{Context, Result};
 use mongodb::Collection;
-use mongodb::bson::{Bson, Document, doc};
+use mongodb::bson::oid::ObjectId;
+use mongodb::bson::{Bson, Document, doc, to_document};
 
 pub async fn delete_by_id(coll: &Collection<Document>, id: &str) -> Result<u64> {
-    let oid = mongodb::bson::oid::ObjectId::parse_str(id)
+    let oid = ObjectId::parse_str(id)
         .map(Bson::ObjectId)
         .unwrap_or(Bson::String(id.to_string()));
     let r = coll.delete_one(doc! { "_id": oid }, None).await?;
@@ -15,7 +16,7 @@ pub async fn replace_by_id(
     id: &str,
     replacement: Document,
 ) -> Result<u64> {
-    let oid = mongodb::bson::oid::ObjectId::parse_str(id)
+    let oid = ObjectId::parse_str(id)
         .map(Bson::ObjectId)
         .unwrap_or(Bson::String(id.to_string()));
     let filter = doc! { "_id": oid };
@@ -28,7 +29,7 @@ pub async fn update_fields_by_id(
     id: &str,
     set: Document,
 ) -> Result<u64> {
-    let oid = mongodb::bson::oid::ObjectId::parse_str(id)
+    let oid = ObjectId::parse_str(id)
         .map(Bson::ObjectId)
         .unwrap_or(Bson::String(id.to_string()));
     let r = coll
@@ -39,5 +40,5 @@ pub async fn update_fields_by_id(
 
 pub fn document_from_json(s: &str) -> Result<Document> {
     let v: serde_json::Value = serde_json::from_str(s).context("invalid JSON for document")?;
-    Ok(mongodb::bson::to_document(&v)?)
+    Ok(to_document(&v)?)
 }

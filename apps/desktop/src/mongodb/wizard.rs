@@ -10,6 +10,7 @@ use gpui_component::{
     v_flex,
 };
 
+use crate::app::prefs;
 use crate::connection::lifecycle::Connectable;
 use crate::mongodb::{MongoConfig, MongoConnection};
 
@@ -238,7 +239,7 @@ fn field_line(title: &str, value: &str, theme: &Theme, cx: &App) -> impl IntoEle
                 .p_2()
                 .border_1()
                 .border_color(border)
-                .font_family(crate::app::prefs::code_font_family(cx))
+                .font_family(prefs::code_font_family(cx))
                 .text_sm()
                 .child(value.to_string()),
         )

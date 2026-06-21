@@ -8,11 +8,16 @@ use gpui_component::{
     ActiveTheme, Icon, IconName, Sizable as _,
     dock::{Panel, PanelEvent},
     h_flex,
+    kbd::Kbd,
     menu::PopupMenu,
     v_flex,
 };
 
+use crate::app::prefs::ui_component_size;
 use crate::app::shell::OpenSettingsMenu;
+use crate::app::shell::open_settings;
+use crate::based_panel_dropdown;
+use crate::based_panel_tab_chrome;
 use crate::bindings::{NewQuery, ToggleCommandPalette};
 use crate::project::prompt_open_project_in_window;
 use crate::widgets::kbd_for_action;
@@ -54,10 +59,10 @@ impl Panel for HomePanel {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> PopupMenu {
-        crate::based_panel_dropdown!(menu, self, cx)
+        based_panel_dropdown!(menu, self, cx)
     }
 
-    crate::based_panel_tab_chrome!();
+    based_panel_tab_chrome!();
 }
 
 impl Render for HomePanel {
@@ -133,7 +138,7 @@ impl Render for HomePanel {
                                 IconName::Settings,
                                 "Open Settings",
                                 settings_kbd,
-                                |_, _, cx| crate::app::shell::open_settings(cx),
+                                |_, _, cx| open_settings(cx),
                             )),
                     ),
             )
@@ -167,7 +172,7 @@ fn home_row(
     id: &'static str,
     icon: IconName,
     label: &'static str,
-    shortcut: Option<gpui_component::kbd::Kbd>,
+    shortcut: Option<Kbd>,
     on_click: impl Fn(&gpui::MouseDownEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
     let fg = cx.theme().foreground;
@@ -188,7 +193,7 @@ fn home_row(
         .child(
             Icon::new(icon)
                 .text_color(muted)
-                .with_size(crate::app::prefs::ui_component_size(cx)),
+                .with_size(ui_component_size(cx)),
         )
         .child(div().flex_1().text_sm().text_color(fg).child(label));
 

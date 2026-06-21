@@ -5,7 +5,13 @@ use anyhow::Context as _;
 use gpui::AsyncApp;
 use rust_xlsxwriter::{Format, Workbook};
 
+use crate::db;
 use crate::widgets::virtual_table::NULL_CELL_DISPLAY;
+
+use std::fs;
+use std::path::PathBuf;
+
+use tokio::task::spawn_blocking;
 
 // ── Serialisers ──────────────────────────────────────────────────────────────
 
@@ -106,13 +112,13 @@ pub async fn save_bytes(
     filter_name: &str,
     extensions: &[&str],
     bytes: Vec<u8>,
-) -> Option<std::path::PathBuf> {
+) -> Option<PathBuf> {
     let fname = filename.to_string();
     let filter = filter_name.to_string();
     let exts: Vec<String> = extensions.iter().map(|s| s.to_string()).collect();
 
-    crate::db::run_infallible(cx, async move {
-        tokio::task::spawn_blocking(move || -> Option<std::path::PathBuf> {
+    db::run_infallible(cx, async move {
+        spawn_blocking(move || -> Option<PathBuf> {
             let exts_ref: Vec<&str> = exts.iter().map(String::as_str).collect();
             let Some(mut path) = rfd::FileDialog::new()
                 .set_file_name(&fname)
@@ -129,7 +135,7 @@ pub async fn save_bytes(
                 path.set_extension(expected);
             }
 
-            if std::fs::write(&path, &bytes).is_ok() {
+            if fs::write(&path, &bytes).is_ok() {
                 Some(path)
             } else {
                 None

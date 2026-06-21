@@ -14,6 +14,7 @@ use mongodb::Collection;
 use mongodb::bson::{Document, doc};
 
 use crate::connection::ConnectionId;
+use crate::db;
 use crate::widgets::compact_description_list_vertical;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::panel::{
@@ -66,7 +67,7 @@ impl CollectionInspectorPanel {
     fn reload(&mut self, cx: &mut Context<Self>) {
         let coll = self.collection.clone();
         cx.spawn(async move |this, cx| {
-            let outcome = crate::db::run(cx, async move {
+            let outcome = db::run(cx, async move {
                 let ns = coll.namespace();
                 let stats_doc = coll
                     .client()

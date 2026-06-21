@@ -1,3 +1,7 @@
+use std::path::{Path, PathBuf};
+use std::time::Instant;
+
+use gpui::{App, Task};
 // sqlite/ — GPUI panels + connection lifecycle; driver logic in `based-sqlite`.
 
 pub mod attach_workspace;
@@ -24,7 +28,7 @@ use crate::project::ProjectRoot;
 use gpui_tokio::Tokio;
 
 /// Resolve relative DB paths using the active Based project root when available.
-pub fn resolve_sqlite_path(path: &std::path::Path, cx: &gpui::App) -> std::path::PathBuf {
+pub fn resolve_sqlite_path(path: &Path, cx: &App) -> PathBuf {
     based_sqlite::resolve_sqlite_path(
         path,
         &SqlitePathContext {
@@ -43,7 +47,7 @@ pub struct SqliteConnection {
 impl Connectable for SqliteConnection {
     type Config = SqliteConfig;
 
-    fn open(config: Self::Config, cx: &mut gpui::App) -> gpui::Task<anyhow::Result<Self>> {
+    fn open(config: Self::Config, cx: &mut App) -> Task<anyhow::Result<Self>> {
         let path = resolve_sqlite_path(&config.path, cx);
         Tokio::spawn_result(cx, async move {
             let pool = SqlitePool::connect_with(sqlite_connect_options(&SqliteOpenOptions {
@@ -63,11 +67,11 @@ impl Connectable for SqliteConnection {
         })
     }
 
-    fn test(config: &Self::Config, cx: &mut gpui::App) -> gpui::Task<anyhow::Result<TestReport>> {
+    fn test(config: &Self::Config, cx: &mut App) -> Task<anyhow::Result<TestReport>> {
         let config = config.clone();
         let path = resolve_sqlite_path(&config.path, cx);
         Tokio::spawn_result(cx, async move {
-            let start = std::time::Instant::now();
+            let start = Instant::now();
             let pool = SqlitePool::connect_with(sqlite_connect_options(&SqliteOpenOptions {
                 path: &path,
                 read_only: config.read_only,

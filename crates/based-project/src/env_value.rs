@@ -1,6 +1,6 @@
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::env;
 
-/// A string value or `{ env = "VAR_NAME" }` indirection.
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EnvOrString {
     Literal(String),
@@ -11,7 +11,7 @@ impl EnvOrString {
     pub fn resolve(&self) -> String {
         match self {
             Self::Literal(s) => s.clone(),
-            Self::FromEnv { var } => std::env::var(var).unwrap_or_default(),
+            Self::FromEnv { var } => env::var(var).unwrap_or_default(),
         }
     }
 }

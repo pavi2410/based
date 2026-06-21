@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
@@ -95,7 +96,7 @@ fn parse_connection_file(connections_dir: &Path, path: &Path) -> Result<ProjectC
         .strip_prefix(connections_dir)
         .with_context(|| format!("connection path not under {}", connections_dir.display()))?;
     let id = connection_id_from_rel_path(rel);
-    let raw = std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+    let raw = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
     let file: RawConnectionFile =
         toml::from_str(&raw).with_context(|| format!("parse {}", path.display()))?;
     if file.schema_version != CONNECTION_SCHEMA_VERSION {
@@ -203,9 +204,9 @@ mod tests {
     fn parse_sqlite_read_only_from_toml() {
         let dir = tempfile::tempdir().unwrap();
         let conn_dir = dir.path().join("connections");
-        std::fs::create_dir_all(&conn_dir).unwrap();
+        fs::create_dir_all(&conn_dir).unwrap();
         let path = conn_dir.join("index.conn.toml");
-        std::fs::write(
+        fs::write(
             &path,
             r#"
 schema_version = 1

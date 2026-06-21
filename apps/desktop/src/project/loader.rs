@@ -4,17 +4,16 @@ use based_sqlite::SqlitePragma;
 use crate::connection::{ConnectionConfig, ConnectionEntry};
 use crate::mongodb::MongoConfig;
 use crate::postgres::{PostgresConfig, SslMode};
+use crate::sqlite::SqliteConfig;
 
 pub fn entry_from_project(conn: &ProjectConnection) -> anyhow::Result<ConnectionEntry> {
     let config = match &conn.spec {
-        ConnectionSpec::Sqlite { file, pragma } => {
-            ConnectionConfig::SQLite(crate::sqlite::SqliteConfig {
-                label: conn.label.clone(),
-                path: file.clone(),
-                read_only: conn.read_only,
-                pragma: pragma.as_ref().map(map_pragma),
-            })
-        }
+        ConnectionSpec::Sqlite { file, pragma } => ConnectionConfig::SQLite(SqliteConfig {
+            label: conn.label.clone(),
+            path: file.clone(),
+            read_only: conn.read_only,
+            pragma: pragma.as_ref().map(map_pragma),
+        }),
         ConnectionSpec::Postgres {
             host,
             port,

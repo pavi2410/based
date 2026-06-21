@@ -3,17 +3,20 @@
 //! `gpui_tokio::init` + `Tokio::spawn` / `spawn_result` bridge Tokio futures to GPUI tasks
 //! without blocking the UI thread the way `Runtime::block_on` from a GPUI task does.
 
-pub mod column_catalog;
-
+use std::future::Future;
 use std::sync::OnceLock;
+use std::thread;
+
+pub mod column_catalog;
 
 use anyhow::Result;
 use gpui::App;
 use gpui::AsyncApp;
 use gpui_tokio::Tokio;
 use sqlx::{PgPool, SqlitePool};
+use tokio::runtime::Handle;
 
-static HANDLE: OnceLock<tokio::runtime::Handle> = OnceLock::new();
+static HANDLE: OnceLock<Handle> = OnceLock::new();
 
 /// Register Tokio with GPUI and cache the handle for pool shutdown. Call once from `App::run`
 /// (after `gpui_component::init`, before opening windows).
@@ -25,7 +28,7 @@ pub fn init(cx: &mut App) {
 /// Run an fallible async closure on Tokio; await from `cx.spawn(async |_, cx| { ... })` where `cx` is `&mut AsyncApp`.
 pub async fn run<R: Send + 'static>(
     cx: &mut AsyncApp,
-    f: impl std::future::Future<Output = Result<R>> + Send + 'static,
+    f: impl Future<Output = Result<R>> + Send + 'static,
 ) -> Result<R> {
     Tokio::spawn_result(cx, f).await
 }
@@ -33,7 +36,7 @@ pub async fn run<R: Send + 'static>(
 /// Run an infallible async closure on Tokio; `JoinError` is mapped to `anyhow::Error`.
 pub async fn run_infallible<R: Send + 'static>(
     cx: &mut AsyncApp,
-    f: impl std::future::Future<Output = R> + Send + 'static,
+    f: impl Future<Output = R> + Send + 'static,
 ) -> Result<R> {
     Tokio::spawn(cx, f).await.map_err(|e| anyhow::anyhow!(e))
 }
@@ -41,7 +44,7 @@ pub async fn run_infallible<R: Send + 'static>(
 pub fn close_sqlite_pool(pool: SqlitePool) {
     if let Some(h) = HANDLE.get() {
         let h = h.clone();
-        std::thread::spawn(move || {
+        thread::spawn(move || {
             h.block_on(async move { pool.close().await });
         });
     }
@@ -50,7 +53,7 @@ pub fn close_sqlite_pool(pool: SqlitePool) {
 pub fn close_pg_pool(pool: PgPool) {
     if let Some(h) = HANDLE.get() {
         let h = h.clone();
-        std::thread::spawn(move || {
+        thread::spawn(move || {
             h.block_on(async move { pool.close().await });
         });
     }

@@ -8,7 +8,9 @@ use gpui_component::{
 };
 use sqlx::{AssertSqlSafe, Row, SqlitePool};
 
+use crate::db;
 use crate::widgets::compact_description_list_vertical;
+use crate::widgets::row_cell::sqlite_cell_display;
 use crate::workspace::pop_out::PopOutWindowTitle;
 
 const PRAGMA_LIST: &[&str] = &[
@@ -45,14 +47,14 @@ impl PragmaBrowserPanel {
     fn load_pragmas(&mut self, cx: &mut Context<Self>) {
         let pool = self.pool.clone();
         cx.spawn(async move |this, cx| {
-            let rows = match crate::db::run_infallible(cx, async move {
+            let rows = match db::run_infallible(cx, async move {
                 let mut rows: Vec<(String, String)> = vec![];
                 for &name in PRAGMA_LIST {
                     let sql = format!("PRAGMA {name}");
                     let value = match sqlx::query(AssertSqlSafe(sql)).fetch_optional(&pool).await {
                         Ok(Some(row)) => {
                             let parts: Vec<String> = (0..row.len())
-                                .map(|i| crate::widgets::row_cell::sqlite_cell_display(&row, i))
+                                .map(|i| sqlite_cell_display(&row, i))
                                 .collect();
                             parts.join(", ")
                         }

@@ -1,3 +1,4 @@
+use std::env;
 use std::path::{Path, PathBuf};
 
 use crate::app::prefs::NativePreferences;
@@ -20,13 +21,13 @@ pub fn resolve_project_root(path: &Path) -> Option<PathBuf> {
 /// 2. Ancestor walk from process cwd (terminal launch)
 /// 3. Last opened project from native preferences (Dock / GUI launch)
 pub fn find_project_root() -> Option<PathBuf> {
-    if let Ok(dir) = std::env::var("BASED_PROJECT_DIR") {
+    if let Ok(dir) = env::var("BASED_PROJECT_DIR") {
         let p = PathBuf::from(dir);
         if p.join(".based").is_dir() {
             return Some(p);
         }
     }
-    if let Ok(cwd) = std::env::current_dir()
+    if let Ok(cwd) = env::current_dir()
         && let Some(root) = resolve_project_root(&cwd)
     {
         return Some(root);

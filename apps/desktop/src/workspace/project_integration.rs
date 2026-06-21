@@ -13,6 +13,8 @@ use crate::storage;
 use super::Workspace;
 use super::context::WorkspaceContext;
 use super::project_query::{OpenQueryResult, open_project_query, tab_spec_for_query};
+use crate::postgres::PostgresConfig;
+
 use super::templates;
 
 impl Workspace {
@@ -77,11 +79,7 @@ impl Workspace {
         cx.notify();
     }
 
-    pub fn persist_postgres_template(
-        &mut self,
-        config: &crate::postgres::PostgresConfig,
-        cx: &mut Context<Self>,
-    ) {
+    pub fn persist_postgres_template(&mut self, config: &PostgresConfig, cx: &mut Context<Self>) {
         let ctx = cx.global::<WorkspaceContext>().clone();
         let existing = ctx
             .active

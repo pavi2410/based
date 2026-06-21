@@ -1,6 +1,7 @@
 //! Reload `.based/` project snapshot, variables, queries, and connections from disk.
 
-use std::path::Path;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender, channel};
 
 use gpui::{App, BorrowAppContext, Entity, Global};
@@ -9,9 +10,9 @@ use crate::connection::registry::ConnectionRegistry;
 use crate::project::context::ProjectContext;
 use crate::project::loader::entry_from_project;
 use crate::project::settings::apply_project_settings;
-use crate::query_store::QueryStore;
+use crate::query_store::{QueryHistory, QueryStore};
 
-use super::{ProjectVars, load_variables};
+use super::{ProjectVars, load_variables, watcher::ConfigWatcher};
 
 pub struct ConfigReloadSignal {
     tx: Sender<()>,
@@ -31,7 +32,7 @@ impl ConfigReloadSignal {
 
 impl Global for ConfigReloadSignal {}
 
-pub struct ProjectRoot(pub std::path::PathBuf);
+pub struct ProjectRoot(pub PathBuf);
 
 impl Global for ProjectRoot {}
 
@@ -53,10 +54,10 @@ pub fn reload_from_disk(project_root: &Path, registry: &Entity<ConnectionRegistr
     };
 
     let queries_dir = project_root.join(".based").join("local");
-    let _ = std::fs::create_dir_all(&queries_dir);
+    let _ = fs::create_dir_all(&queries_dir);
     cx.update_global(|store: &mut QueryStore, _| {
         store.history_dir = queries_dir.clone();
-        store.history = crate::query_store::history::QueryHistory::load(&queries_dir);
+        store.history = QueryHistory::load(&queries_dir);
         store.apply_snapshot(&ctx.snapshot);
     });
 
@@ -98,13 +99,13 @@ pub fn drain_pending_reload(cx: &mut App) -> bool {
     false
 }
 
-pub fn install_reload_watcher(project_root: std::path::PathBuf, cx: &mut App) {
+pub fn install_reload_watcher(project_root: PathBuf, cx: &mut App) {
     let signal = ConfigReloadSignal::new();
     let notify_tx = signal.tx.clone();
     cx.set_global(signal);
     cx.set_global(ProjectRoot(project_root.clone()));
 
-    match super::watcher::ConfigWatcher::new(project_root, move || {
+    match ConfigWatcher::new(project_root, move || {
         let _ = notify_tx.send(());
     }) {
         Ok(watcher) => {

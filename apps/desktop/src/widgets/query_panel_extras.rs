@@ -1,9 +1,12 @@
 //! Shared query-editor chrome: history sidebar filters and variables popover.
 
+use std::collections::HashMap;
+use std::fs;
 use std::path::{Path, PathBuf};
+use std::process;
 
 use gpui::{
-    Anchor, ElementId, FontWeight, IntoElement, ParentElement, SharedString, Styled, div,
+    Anchor, App, ElementId, FontWeight, IntoElement, ParentElement, SharedString, Styled, div,
     prelude::*, px,
 };
 use gpui_component::{
@@ -39,20 +42,18 @@ impl HistoryFilter {
 pub fn open_vars_file(project_dir: &Path) {
     let path = project_dir.join(".based").join("vars.toml");
     if let Some(parent) = path.parent() {
-        let _ = std::fs::create_dir_all(parent);
+        let _ = fs::create_dir_all(parent);
     }
     if !path.exists() {
-        let _ = std::fs::write(&path, "[vars]\n");
+        let _ = fs::write(&path, "[vars]\n");
     }
     let path_str = path.display().to_string();
     #[cfg(target_os = "macos")]
-    let _ = std::process::Command::new("open").arg(&path_str).spawn();
+    let _ = process::Command::new("open").arg(&path_str).spawn();
     #[cfg(target_os = "linux")]
-    let _ = std::process::Command::new("xdg-open")
-        .arg(&path_str)
-        .spawn();
+    let _ = process::Command::new("xdg-open").arg(&path_str).spawn();
     #[cfg(target_os = "windows")]
-    let _ = std::process::Command::new("cmd")
+    let _ = process::Command::new("cmd")
         .args(["/C", "start", "", &path_str])
         .spawn();
 }
@@ -91,9 +92,9 @@ pub fn filtered_history(
 pub fn variables_popover(
     id: impl Into<ElementId>,
     project_dir: Option<PathBuf>,
-    vars: std::collections::HashMap<String, String>,
+    vars: HashMap<String, String>,
     mono_font: SharedString,
-    cx: &gpui::App,
+    cx: &App,
 ) -> Popover {
     let muted = cx.theme().muted_foreground;
     let trigger = Button::new("query-vars-trigger")

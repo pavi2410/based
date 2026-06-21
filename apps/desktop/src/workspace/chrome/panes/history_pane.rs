@@ -10,6 +10,7 @@ use gpui_component::{
     h_flex, v_flex,
 };
 
+use crate::app::prefs::code_font_family;
 use crate::connection::ConnectionId;
 use crate::query_store::QueryStore;
 use crate::widgets::empty_state::pane_empty_hint;
@@ -73,7 +74,7 @@ pub fn render_history_pane(
             .border_color(border)
             .cursor_pointer()
             .text_xs()
-            .font_family(crate::app::prefs::code_font_family(cx))
+            .font_family(code_font_family(cx))
             .text_color(muted)
             .child(preview)
             .on_mouse_down(MouseButton::Left, move |_, _, cx| {

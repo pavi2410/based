@@ -19,6 +19,8 @@ use gpui_component::{
 };
 
 use super::dock_utils::{center_panel_by_id, center_tab_panel_count};
+use crate::app::aux_windows::AuxWindows;
+use crate::app::shell::{APP_NAME, titled_titlebar};
 use crate::bindings::{
     CloseAllTabs, CloseCleanTabs, CloseOtherTabs, CloseTab, CloseTabsLeft, CloseTabsRight, PinTab,
     SplitPaneBottom, SplitPaneLeft, SplitPaneRight, SplitPaneTop,
@@ -63,7 +65,7 @@ impl PopOutManager {
                     let _ = h.update(app, |_, window, _| window.remove_window());
                 }
             });
-            crate::app::aux_windows::AuxWindows::close_all(cx);
+            AuxWindows::close_all(cx);
             cx.quit();
         } else {
             PopOutManager::update_global(cx, |m, _| {
@@ -304,7 +306,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
                     format!(
                         "{} — {}",
                         panel.pop_out_window_title(src_window, cx),
-                        crate::app::shell::APP_NAME
+                        APP_NAME
                     )
                 });
                 let origin = {
@@ -318,9 +320,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
                 match app.open_window(
                     WindowOptions {
                         window_bounds: Some(WindowBounds::Windowed(pop_bounds)),
-                        titlebar: Some(crate::app::shell::titled_titlebar(
-                            title_for_window.clone(),
-                        )),
+                        titlebar: Some(titled_titlebar(title_for_window.clone())),
                         ..Default::default()
                     },
                     move |win, cx| {

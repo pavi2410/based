@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::{Path, PathBuf};
 
 pub fn walk_files(root: &Path, suffix: &str) -> anyhow::Result<Vec<PathBuf>> {
@@ -11,7 +12,7 @@ fn walk_files_inner(dir: &Path, suffix: &str, out: &mut Vec<PathBuf>) -> anyhow:
     if !dir.is_dir() {
         return Ok(());
     }
-    for entry in std::fs::read_dir(dir)? {
+    for entry in fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();
         if path.is_dir() {

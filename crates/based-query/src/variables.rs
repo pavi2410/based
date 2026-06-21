@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fs;
 use std::path::Path;
 
 use anyhow::Result;
@@ -17,7 +18,7 @@ pub fn load_variables(project_dir: &Path) -> Result<Variables> {
     if !path.exists() {
         return Ok(HashMap::new());
     }
-    let content = std::fs::read_to_string(&path)?;
+    let content = fs::read_to_string(&path)?;
     let file: VarsFile = toml::from_str(&content)?;
     Ok(file.vars)
 }
@@ -25,11 +26,11 @@ pub fn load_variables(project_dir: &Path) -> Result<Variables> {
 pub fn save_variables(project_dir: &Path, vars: &Variables) -> Result<()> {
     let path = project_dir.join(".based").join("vars.toml");
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
+        fs::create_dir_all(parent)?;
     }
     let file = VarsFile { vars: vars.clone() };
     let content = toml::to_string_pretty(&file)?;
-    std::fs::write(&path, content)?;
+    fs::write(&path, content)?;
     Ok(())
 }
 

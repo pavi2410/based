@@ -17,6 +17,9 @@ use crate::widgets::section_eyebrow::section_eyebrow_counted;
 
 use super::ConnectionTree;
 use super::types::{ActiveObjects, ObjectKind, SchemaObject};
+use crate::app::prefs::code_font_family;
+use crate::widgets::sidebar_row_inner_gap;
+use crate::widgets::sidebar_row_padding_y;
 
 #[derive(Clone)]
 pub(crate) struct ObjectSection {
@@ -98,9 +101,9 @@ impl ObjectListDelegate {
         SchemaRowStyle {
             muted: cx.theme().muted_foreground,
             fg: cx.theme().sidebar_foreground,
-            mono_family: crate::app::prefs::code_font_family(cx),
-            row_py: crate::widgets::sidebar_row_padding_y(cx),
-            row_gap: crate::widgets::sidebar_row_inner_gap(cx),
+            mono_family: code_font_family(cx),
+            row_py: sidebar_row_padding_y(cx),
+            row_gap: sidebar_row_inner_gap(cx),
         }
     }
 }

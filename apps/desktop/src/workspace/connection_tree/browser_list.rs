@@ -34,6 +34,7 @@ use super::context_menu::{
 };
 use super::object_list::{group_by_kind, group_postgres_objects, object_matches_query};
 use super::types::{ConnCache, ConnState, SchemaObject};
+use crate::connection::ConnectionState::Connected;
 
 const DEPTH_SCHEMA: u32 = 1;
 const DEPTH_KIND: u32 = 2;
@@ -313,13 +314,7 @@ impl RenderOnce for BrowserRowItem {
                             .get(conn_idx)
                             .map(|e| {
                                 let entry = e.read(cx);
-                                (
-                                    entry.config.engine(),
-                                    matches!(
-                                        entry.state,
-                                        crate::connection::ConnectionState::Connected(_)
-                                    ),
-                                )
+                                (entry.config.engine(), matches!(entry.state, Connected(_)))
                             })
                     })
                     .unwrap_or((EngineKind::Postgres, false));

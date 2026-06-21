@@ -20,12 +20,20 @@ use sqlx::{AssertSqlSafe, Column as SqlxColumn, Row, SqlitePool, TypeInfo};
 use super::eqp_parse::{EqpNode, parse_eqp};
 use super::eqp_viewer::render_eqp_body;
 
+use crate::app::prefs;
 use crate::connection::ConnectionId;
+use crate::connection::is_connection_read_only;
 use crate::db;
+use crate::editor::EditorContext;
+use crate::editor::VariableScope;
+use crate::editor::context::EditorContextEvent;
+use crate::editor::sqlite_schema;
+use crate::project::{ProjectRoot, ProjectVars, substitute};
 use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::column_header::GridColumnMeta;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export_popover::export_popover;
+use crate::widgets::metadata_pill;
 use crate::widgets::panel::{
     panel_tab_content, tab_breadcrumb_footer, tab_breadcrumb_for_connection,
 };
@@ -40,8 +48,13 @@ use crate::widgets::sql_editor::{self, new_sql_input, set_input_text, text_from_
 use crate::widgets::virtual_table::{
     RowDelegate, data_column, meta_from_query_type, replace_table_data,
 };
+use crate::workspace::WorkspaceRef;
 use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::tabs::take_sql_inject;
+use gpui::Entity;
+use std::sync::Arc;
+use std::time::Instant;
+use tokio::time::timeout as run_with_timeout;
 
 pub enum QueryStatus {
     Idle,
@@ -69,7 +82,7 @@ pub struct QueryEditorPanel {
     bottom_tab: BottomTab,
     explain: ExplainView,
     pub(crate) tab_label: SharedString,
-    pub editor_ctx: gpui::Entity<crate::editor::EditorContext>,
+    pub editor_ctx: Entity<EditorContext>,
 }
 
 impl QueryEditorPanel {
@@ -96,15 +109,11 @@ impl QueryEditorPanel {
         let result = cx.new(|cx| configure_row_table(delegate, window, cx));
         let split_state = cx.new(|_| ResizableState::default());
         let variables = cx
-            .try_global::<crate::project::ProjectVars>()
-            .map(|pv| crate::editor::VariableScope::from_string_map(&pv.vars))
+            .try_global::<ProjectVars>()
+            .map(|pv| VariableScope::from_string_map(&pv.vars))
             .unwrap_or_default();
         let editor_ctx = cx.new(|_| {
-            crate::editor::EditorContext::new(
-                conn_id.clone(),
-                based_core::EngineKind::SQLite,
-                variables,
-            )
+            EditorContext::new(conn_id.clone(), based_core::EngineKind::SQLite, variables)
         });
         let schema_cache = editor_ctx.read(cx).schema_cache.clone();
         sql_editor::attach_sql_completion(&sql_input, schema_cache, cx);
@@ -145,20 +154,17 @@ impl QueryEditorPanel {
         let editor_ctx = self.editor_ctx.clone();
         let sql_input = self.sql_input.clone();
         cx.spawn(async move |_, cx| {
-            let loaded = db::run(cx, async move {
-                crate::editor::sqlite_schema::load_schema(&pool).await
-            })
-            .await;
+            let loaded = db::run(cx, async move { sqlite_schema::load_schema(&pool).await }).await;
 
             let Ok(cache) = loaded else {
                 return;
             };
 
-            let cache = std::sync::Arc::new(cache);
+            let cache = Arc::new(cache);
             cx.update(|cx| {
                 editor_ctx.update(cx, |ctx, cx| {
                     ctx.set_schema_cache((*cache).clone());
-                    cx.emit(crate::editor::context::EditorContextEvent::SchemaCacheRefreshed);
+                    cx.emit(EditorContextEvent::SchemaCacheRefreshed);
                 });
                 sql_editor::attach_sql_completion(&sql_input, cache, cx);
             });
@@ -230,16 +236,16 @@ impl QueryEditorPanel {
     fn run_query(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
         let pool = self.pool.clone();
         let sql_raw = self.current_sql(cx);
-        let vars = cx.global::<crate::project::ProjectVars>().vars.clone();
-        let sql = crate::project::substitute(&sql_raw, &vars);
+        let vars = cx.global::<ProjectVars>().vars.clone();
+        let sql = substitute(&sql_raw, &vars);
         let sql_executed = sql.clone();
         let conn_id = self.conn_id.clone();
-        let timeout_secs = crate::app::prefs::query_timeout_secs(cx);
+        let timeout_secs = prefs::query_timeout_secs(cx);
         self.status = QueryStatus::Running;
         self.bottom_tab = BottomTab::Results;
 
         cx.spawn(async move |this, cx| {
-            let start = std::time::Instant::now();
+            let start = Instant::now();
 
             let result: anyhow::Result<(Vec<Column>, Vec<GridColumnMeta>, Vec<Vec<SharedString>>)> =
                 db::run(cx, async move {
@@ -260,7 +266,7 @@ impl QueryEditorPanel {
                         }
 
                         let fetch = sqlx::query(AssertSqlSafe(text.to_string())).fetch_all(&pool);
-                        let rows = match tokio::time::timeout(timeout, fetch).await {
+                        let rows = match run_with_timeout(timeout, fetch).await {
                             Err(_) => {
                                 anyhow::bail!(
                                     "Query timed out after {timeout_secs}s (statement {})",
@@ -492,10 +498,8 @@ impl Render for QueryEditorPanel {
 
         let is_error = matches!(self.status, QueryStatus::Error(_));
 
-        let project_dir = cx
-            .try_global::<crate::project::ProjectRoot>()
-            .map(|p| p.0.clone());
-        let var_map = cx.global::<crate::project::ProjectVars>().vars.clone();
+        let project_dir = cx.try_global::<ProjectRoot>().map(|p| p.0.clone());
+        let var_map = cx.global::<ProjectVars>().vars.clone();
         let mono_font = cx.theme().mono_font_family.clone();
 
         let (export_headers, export_rows) = {
@@ -516,14 +520,8 @@ impl Render for QueryEditorPanel {
         let export_popover = export_popover("sqlite-qe", export_headers, export_rows);
 
         let read_only = cx
-            .try_global::<crate::workspace::WorkspaceRef>()
-            .map(|ws| {
-                crate::connection::is_connection_read_only(
-                    &self.conn_id,
-                    ws.0.read(cx).registry().read(cx),
-                    cx,
-                )
-            })
+            .try_global::<WorkspaceRef>()
+            .map(|ws| is_connection_read_only(&self.conn_id, ws.0.read(cx).registry().read(cx), cx))
             .unwrap_or(false);
         let muted = cx.theme().muted_foreground;
 
@@ -553,7 +551,7 @@ impl Render for QueryEditorPanel {
             );
         if read_only {
             toolbar = toolbar
-                .child(crate::widgets::metadata_pill("access", "Read-only", cx))
+                .child(metadata_pill("access", "Read-only", cx))
                 .child(
                     div()
                         .text_xs()

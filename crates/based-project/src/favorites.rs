@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
@@ -25,7 +26,7 @@ pub fn load_favorites(project_root: &Path) -> Result<Vec<String>> {
     if !path.exists() {
         return Ok(vec![]);
     }
-    let raw = std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
+    let raw = fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
     let file: FavoritesFile =
         toml::from_str(&raw).with_context(|| format!("parse {}", path.display()))?;
     if file.schema_version != FAVORITES_SCHEMA_VERSION {
@@ -39,7 +40,7 @@ pub fn load_favorites(project_root: &Path) -> Result<Vec<String>> {
 
 pub fn persist_favorites(project_root: &Path, paths: &[String]) -> Result<()> {
     let dir = project_root.join(".based").join("state");
-    std::fs::create_dir_all(&dir)?;
+    fs::create_dir_all(&dir)?;
     let path = dir.join("favorites.toml");
     let file = FavoritesFile {
         schema_version: FAVORITES_SCHEMA_VERSION,
@@ -49,6 +50,6 @@ pub fn persist_favorites(project_root: &Path, paths: &[String]) -> Result<()> {
             .collect(),
     };
     let content = toml::to_string_pretty(&file)?;
-    std::fs::write(&path, content).with_context(|| format!("write {}", path.display()))?;
+    fs::write(&path, content).with_context(|| format!("write {}", path.display()))?;
     Ok(())
 }

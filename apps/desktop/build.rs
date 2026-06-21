@@ -9,6 +9,7 @@
 //! to `"unknown"`.
 
 use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 fn main() {
     let sha = Command::new("git")
@@ -20,8 +21,8 @@ fn main() {
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "unknown".into());
 
-    let build_ts = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    let build_ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
 

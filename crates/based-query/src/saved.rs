@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::Path;
 
 use based_core::ConnectionId;
@@ -41,7 +42,7 @@ impl SavedQueries {
         if !path.exists() {
             return Self { queries: vec![] };
         }
-        let content = std::fs::read_to_string(path).unwrap_or_default();
+        let content = fs::read_to_string(path).unwrap_or_default();
         let file: SavedFile = toml::from_str(&content).unwrap_or_default();
         Self {
             queries: file.queries,
@@ -61,7 +62,7 @@ impl SavedQueries {
             queries: self.queries.clone(),
         };
         if let Ok(content) = toml::to_string_pretty(&file) {
-            let _ = std::fs::write(path, content);
+            let _ = fs::write(path, content);
         }
     }
 

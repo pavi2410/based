@@ -2,10 +2,12 @@ use std::collections::HashSet;
 
 use gpui::{App, Entity};
 
+use crate::app::prefs::manual_update_checks_enabled;
 use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{ConnectionId, EngineKind};
 use crate::query_store::QueryStore;
 use crate::workspace::connection_tree::ConnectionTree;
+use crate::workspace::project_query::target_hint;
 use crate::workspace::{QueryEditorInit, TabSpec};
 
 use super::types::{PaletteResult, ResultKind, WorkspacePaletteAction};
@@ -83,7 +85,7 @@ fn push_workspace_commands(results: &mut Vec<PaletteResult>, q: &str) {
             "project",
         ));
     }
-    if crate::app::prefs::manual_update_checks_enabled() && (q.is_empty() || q.contains("update")) {
+    if manual_update_checks_enabled() && (q.is_empty() || q.contains("update")) {
         results.push(blank_command(
             WorkspacePaletteAction::CheckForUpdates,
             "Check for Updates",
@@ -127,7 +129,7 @@ fn push_saved_queries(results: &mut Vec<PaletteResult>, q: &str, cx: &App) {
         )
         .to_lowercase();
         if q.is_empty() || hay.contains(q) {
-            let target = crate::workspace::project_query::target_hint(&query.target);
+            let target = target_hint(&query.target);
             results.push(PaletteResult {
                 kind: ResultKind::SavedQuery,
                 label: query.name.clone(),

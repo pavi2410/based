@@ -1,6 +1,8 @@
 use based_project::ProjectManifest;
 use gpui::App;
 
+use crate::app::prefs::set_query_timeout_secs;
+
 /// Convert project.toml `query_timeout` (milliseconds) to preference seconds.
 pub fn query_timeout_ms_to_secs(ms: u64) -> u32 {
     ((ms / 1000).max(1)) as u32
@@ -12,7 +14,7 @@ pub fn apply_project_settings(manifest: &ProjectManifest, cx: &mut App) {
         return;
     };
     if let Some(timeout) = settings.query_timeout {
-        crate::app::prefs::set_query_timeout_secs(query_timeout_ms_to_secs(timeout), cx);
+        set_query_timeout_secs(query_timeout_ms_to_secs(timeout), cx);
     }
 }
 

@@ -1,5 +1,6 @@
+use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use based_core::ConnectionId;
 use serde::{Deserialize, Serialize};
@@ -76,7 +77,7 @@ impl QueryHistory {
         if !path.exists() {
             return Self { entries: vec![] };
         }
-        let file = match std::fs::File::open(&path) {
+        let file = match File::open(&path) {
             Ok(f) => f,
             Err(_) => return Self { entries: vec![] },
         };
@@ -159,14 +160,14 @@ fn trim_connection(entries: &mut Vec<HistoryEntry>, conn_id: &ConnectionId) {
     }
 }
 
-fn history_path(local_dir: &Path) -> std::path::PathBuf {
+fn history_path(local_dir: &Path) -> PathBuf {
     local_dir.join("history.jsonl")
 }
 
 fn persist_history_slice(entries: &[HistoryEntry], local_dir: &Path) {
-    let _ = std::fs::create_dir_all(local_dir);
+    let _ = fs::create_dir_all(local_dir);
     let path = history_path(local_dir);
-    let Ok(mut file) = std::fs::File::create(&path) else {
+    let Ok(mut file) = File::create(&path) else {
         return;
     };
     for e in entries {

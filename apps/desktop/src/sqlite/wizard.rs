@@ -12,6 +12,7 @@ use gpui_component::{
 
 use crate::connection::lifecycle::Connectable;
 use crate::sqlite::{SqliteConfig, SqliteConnection};
+use std::path::PathBuf;
 
 pub enum WizardStatus {
     Idle,
@@ -48,7 +49,7 @@ impl ConnectionWizardPanel {
     fn config(&self) -> SqliteConfig {
         SqliteConfig {
             label: self.label.clone(),
-            path: std::path::PathBuf::from(&self.path),
+            path: PathBuf::from(&self.path),
             read_only: false,
             pragma: None,
         }

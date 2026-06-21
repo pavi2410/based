@@ -6,12 +6,14 @@ use gpui::{App, Context, EntityId, Focusable, Window, prelude::*};
 use gpui_component::dock::{DockItem, DockPlacement, PanelView};
 
 use super::Workspace;
+use crate::postgres::wizard::ConnectionWizardPanel;
+
 use super::dock_utils::{activate_center_panel, active_live_center_panel, wrap_center_root};
 
 impl Workspace {
     /// Open the Postgres connection wizard in a new center tab.
     pub fn open_postgres_wizard_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let panel = cx.new(|cx| crate::postgres::wizard::ConnectionWizardPanel::new(window, cx));
+        let panel = cx.new(|cx| ConnectionWizardPanel::new(window, cx));
         let arc: Arc<dyn PanelView> = Arc::new(panel);
         self.dock_area.update(cx, |dock, ecx| {
             dock.add_panel(arc.clone(), DockPlacement::Center, None, window, ecx);

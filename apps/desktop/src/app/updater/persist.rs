@@ -3,7 +3,10 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
+use super::super::prefs::{NativePreferences, UpdateCheckInterval};
+
 use super::log::{debug as udebug, warn as uwarn};
+use std::fs;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct UpdaterStateFile {
@@ -17,7 +20,7 @@ pub struct UpdaterStateFile {
 
 impl UpdaterStateFile {
     pub fn path() -> PathBuf {
-        crate::app::prefs::NativePreferences::prefs_path()
+        NativePreferences::prefs_path()
             .parent()
             .map(|p| p.join("updater_state.toml"))
             .unwrap_or_else(|| PathBuf::from("updater_state.toml"))
@@ -25,7 +28,7 @@ impl UpdaterStateFile {
 
     pub fn load() -> Self {
         let path = Self::path();
-        let raw = std::fs::read_to_string(&path).unwrap_or_default();
+        let raw = fs::read_to_string(&path).unwrap_or_default();
         if raw.is_empty() {
             udebug(format!("state load: empty ({path:?})"));
             return Self::default();
@@ -50,11 +53,11 @@ impl UpdaterStateFile {
     pub fn save_best_effort(&self) {
         let path = Self::path();
         if let Some(parent) = path.parent() {
-            let _ = std::fs::create_dir_all(parent);
+            let _ = fs::create_dir_all(parent);
         }
         match toml::to_string_pretty(self) {
             Ok(encoded) => {
-                if let Err(e) = std::fs::write(&path, encoded) {
+                if let Err(e) = fs::write(&path, encoded) {
                     uwarn(format!("state save ({path:?}): {e:#}"));
                 } else {
                     udebug(format!("state save: ok ({path:?})"));
@@ -97,18 +100,15 @@ pub fn now_unix() -> u64 {
         .as_secs()
 }
 
-pub fn interval_secs(interval: crate::app::prefs::UpdateCheckInterval) -> u64 {
+pub fn interval_secs(interval: UpdateCheckInterval) -> u64 {
     match interval {
-        crate::app::prefs::UpdateCheckInterval::Daily => 24 * 3600,
-        crate::app::prefs::UpdateCheckInterval::Weekly => 7 * 24 * 3600,
-        crate::app::prefs::UpdateCheckInterval::Monthly => 30 * 24 * 3600,
+        UpdateCheckInterval::Daily => 24 * 3600,
+        UpdateCheckInterval::Weekly => 7 * 24 * 3600,
+        UpdateCheckInterval::Monthly => 30 * 24 * 3600,
     }
 }
 
-pub fn should_run_periodic_check(
-    state: &UpdaterStateFile,
-    interval: crate::app::prefs::UpdateCheckInterval,
-) -> bool {
+pub fn should_run_periodic_check(state: &UpdaterStateFile, interval: UpdateCheckInterval) -> bool {
     let Some(last) = state.last_check_at else {
         return true;
     };

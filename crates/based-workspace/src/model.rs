@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -38,7 +40,7 @@ pub struct Environment {
     pub id: Uuid,
     pub name: String,
     #[serde(default)]
-    pub variables: std::collections::HashMap<String, String>,
+    pub variables: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -2,10 +2,12 @@
 
 use gpui::{InteractiveElement, prelude::*, *};
 
+use crate::app::prefs;
+use crate::db;
 use crate::widgets::list_row::{SchemaRowStyle, schema_object_row};
-use crate::widgets::{metadata_pill, panel_header};
+use crate::widgets::{metadata_pill, panel_header, sidebar_row_inner_gap, sidebar_row_padding_y};
 use gpui_component::{
-    ActiveTheme,
+    ActiveTheme, IconName,
     dock::{Panel, PanelEvent},
     h_flex,
     menu::PopupMenu,
@@ -22,11 +24,11 @@ pub enum ObjectKind {
 }
 
 impl ObjectKind {
-    fn list_icon(&self) -> gpui_component::IconName {
+    fn list_icon(&self) -> IconName {
         match self {
-            Self::Table => gpui_component::IconName::LayoutDashboard,
-            Self::View => gpui_component::IconName::Eye,
-            Self::Trigger => gpui_component::IconName::TriangleAlert,
+            Self::Table => IconName::LayoutDashboard,
+            Self::View => IconName::Eye,
+            Self::Trigger => IconName::TriangleAlert,
         }
     }
 }
@@ -65,7 +67,7 @@ impl SchemaTreePanel {
     fn load_tables(&mut self, cx: &mut Context<Self>) {
         let pool = self.pool.clone();
         cx.spawn(async move |this, cx| {
-            let nodes = crate::db::run(cx, async move {
+            let nodes = db::run(cx, async move {
                 let rows = sqlx::query(
                     "SELECT name, type FROM sqlite_master \
                      WHERE type IN ('table','view','trigger') \
@@ -161,9 +163,9 @@ impl Render for SchemaTreePanel {
                     SchemaRowStyle {
                         muted,
                         fg,
-                        mono_family: crate::app::prefs::code_font_family(cx),
-                        row_py: crate::widgets::sidebar_row_padding_y(cx),
-                        row_gap: crate::widgets::sidebar_row_inner_gap(cx),
+                        mono_family: prefs::code_font_family(cx),
+                        row_py: sidebar_row_padding_y(cx),
+                        row_gap: sidebar_row_inner_gap(cx),
                     },
                 )
                 .on_mouse_down(

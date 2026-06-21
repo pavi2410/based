@@ -1,3 +1,5 @@
+use std::fmt::{Display, Formatter, Result};
+
 use serde::{Deserialize, Serialize};
 
 /// Stable opaque identifier for a connection profile or config key.
@@ -11,8 +13,8 @@ impl ConnectionId {
     }
 }
 
-impl std::fmt::Display for ConnectionId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for ConnectionId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.write_str(&self.0)
     }
 }

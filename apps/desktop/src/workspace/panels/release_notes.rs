@@ -1,5 +1,9 @@
 //! Center-tab panel showing GitHub release notes markdown for a version.
 
+use crate::app::updater::fetch_release_body;
+use crate::based_panel_dropdown;
+use crate::based_panel_tab_chrome;
+use crate::db::run;
 use gpui::{
     App, Context, FocusHandle, Focusable, IntoElement, ParentElement, Render, SharedString, Styled,
     Window, div, px,
@@ -7,6 +11,7 @@ use gpui::{
 use gpui_component::{
     ActiveTheme,
     dock::{Panel, PanelEvent},
+    menu::PopupMenu,
     scroll::ScrollableElement,
     v_flex,
 };
@@ -29,10 +34,7 @@ impl ReleaseNotesPanel {
         let label: SharedString = format!("What's New in v{version}").into();
         let version_fetch = version.clone();
         cx.spawn(async move |this, cx| {
-            let result = crate::db::run(cx, async move {
-                crate::app::updater::fetch_release_body(&version_fetch).await
-            })
-            .await;
+            let result = run(cx, async move { fetch_release_body(&version_fetch).await }).await;
             let _ = this.update(cx, |panel, cx| {
                 panel.loading = false;
                 match result {
@@ -70,14 +72,14 @@ impl Panel for ReleaseNotesPanel {
 
     fn dropdown_menu(
         &mut self,
-        menu: gpui_component::menu::PopupMenu,
+        menu: PopupMenu,
         _window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> gpui_component::menu::PopupMenu {
-        crate::based_panel_dropdown!(menu, self, cx)
+    ) -> PopupMenu {
+        based_panel_dropdown!(menu, self, cx)
     }
 
-    crate::based_panel_tab_chrome!();
+    based_panel_tab_chrome!();
 }
 
 impl Render for ReleaseNotesPanel {

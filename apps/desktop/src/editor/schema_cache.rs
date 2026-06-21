@@ -1,6 +1,7 @@
 //! Cached schema objects for LSP completion and ER diagram data.
 
 use based_core::EngineKind;
+use std::time::Instant;
 
 /// A schema object (table, view, collection, etc.) visible to the editor.
 #[derive(Debug, Clone)]
@@ -40,7 +41,7 @@ pub struct ColumnInfo {
 pub struct SchemaCache {
     pub engine: Option<EngineKind>,
     pub objects: Vec<SchemaObject>,
-    pub last_refreshed_at: Option<std::time::Instant>,
+    pub last_refreshed_at: Option<Instant>,
 }
 
 impl SchemaCache {

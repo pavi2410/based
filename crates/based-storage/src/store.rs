@@ -2,14 +2,18 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 use based_workspace::{
     Collection, ConnectionTemplate, Environment, LooseQuery, SavedQueryRef, WorkspaceModel,
 };
 use serde::{Serialize, de::DeserializeOwned};
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
+use sqlx::sqlite::{
+    SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions, SqliteSynchronous,
+};
 use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 use uuid::Uuid;
 
 use crate::migrate;
@@ -43,9 +47,9 @@ impl MetadataStore {
         let options = SqliteConnectOptions::new()
             .filename(&path)
             .create_if_missing(true)
-            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
-            .synchronous(sqlx::sqlite::SqliteSynchronous::Normal)
-            .busy_timeout(std::time::Duration::from_secs(5));
+            .journal_mode(SqliteJournalMode::Wal)
+            .synchronous(SqliteSynchronous::Normal)
+            .busy_timeout(Duration::from_secs(5));
 
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
@@ -796,13 +800,12 @@ fn parse_uuid(s: &str) -> Result<Uuid> {
 }
 
 fn format_rfc3339(ts: OffsetDateTime) -> String {
-    ts.format(&time::format_description::well_known::Rfc3339)
+    ts.format(&Rfc3339)
         .unwrap_or_else(|_| "1970-01-01T00:00:00Z".into())
 }
 
 fn parse_rfc3339(s: &str) -> Result<OffsetDateTime> {
-    OffsetDateTime::parse(s, &time::format_description::well_known::Rfc3339)
-        .with_context(|| format!("invalid rfc3339 timestamp: {s}"))
+    OffsetDateTime::parse(s, &Rfc3339).with_context(|| format!("invalid rfc3339 timestamp: {s}"))
 }
 
 #[cfg(test)]

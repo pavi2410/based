@@ -1,3 +1,6 @@
+use std::time::Instant;
+
+use gpui::{App, Task};
 // postgres/ — GPUI panels + connection lifecycle; driver logic in `based-postgres`.
 
 pub mod data_viewer;
@@ -28,7 +31,7 @@ pub struct PgConnection {
 impl Connectable for PgConnection {
     type Config = PostgresConfig;
 
-    fn open(config: Self::Config, cx: &mut gpui::App) -> gpui::Task<anyhow::Result<Self>> {
+    fn open(config: Self::Config, cx: &mut App) -> Task<anyhow::Result<Self>> {
         Tokio::spawn_result(cx, async move {
             let opts = pg_connect_options(&config);
             let pool = PgPoolOptions::new()
@@ -47,10 +50,10 @@ impl Connectable for PgConnection {
         })
     }
 
-    fn test(config: &Self::Config, cx: &mut gpui::App) -> gpui::Task<anyhow::Result<TestReport>> {
+    fn test(config: &Self::Config, cx: &mut App) -> Task<anyhow::Result<TestReport>> {
         let config = config.clone();
         Tokio::spawn_result(cx, async move {
-            let start = std::time::Instant::now();
+            let start = Instant::now();
             let opts = pg_connect_options(&config);
             let pool = PgPoolOptions::new()
                 .max_connections(1)

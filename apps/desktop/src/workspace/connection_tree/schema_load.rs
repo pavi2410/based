@@ -6,6 +6,7 @@ use crate::connection::{AnyConnection, ConnectionId, EngineKind};
 
 use super::ConnectionTree;
 use super::types::{ActiveObjects, ObjectKind, SchemaObject};
+use crate::db::run;
 
 impl ConnectionTree {
     pub(crate) fn load_objects_for_connection(
@@ -63,7 +64,7 @@ impl ConnectionTree {
         cx: &mut Context<Self>,
     ) {
         cx.spawn(async move |this, cx| {
-            let result = crate::db::run(cx, async move {
+            let result = run(cx, async move {
                 let rows = sqlx::query(
                     "SELECT name, type FROM sqlite_master \
                      WHERE type IN ('table','view','trigger') \
@@ -110,7 +111,7 @@ impl ConnectionTree {
         cx: &mut Context<Self>,
     ) {
         cx.spawn(async move |this, cx| {
-            let result = crate::db::run(cx, async move {
+            let result = run(cx, async move {
                 let rows = sqlx::query(
                     r"SELECT table_schema, table_name, table_type
                       FROM information_schema.tables
@@ -159,7 +160,7 @@ impl ConnectionTree {
         cx: &mut Context<Self>,
     ) {
         cx.spawn(async move |this, cx| {
-            let result = crate::db::run(cx, async move {
+            let result = run(cx, async move {
                 let names = db.list_collection_names(None).await?;
                 let objects = names
                     .into_iter()

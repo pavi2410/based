@@ -7,8 +7,12 @@ use crate::connection::{AnyConnection, ConnectionEntry, ConnectionId, Connection
 
 use super::label::tab_label_for_spec;
 use super::spec::TabSpec;
+use crate::mongodb::tab_dispatch as mongo_tab_dispatch;
+use crate::postgres::tab_dispatch as pg_tab_dispatch;
+use crate::sqlite::tab_dispatch as sqlite_tab_dispatch;
 use crate::workspace::Workspace;
 use crate::workspace::panels::object_info::ObjectInfoPanel;
+use crate::workspace::panels::release_notes::ReleaseNotesPanel;
 
 impl Workspace {
     fn find_connection(&self, id: &ConnectionId, cx: &App) -> Option<Entity<ConnectionEntry>> {
@@ -35,9 +39,7 @@ impl Workspace {
             TabSpec::ReleaseNotes { version } => {
                 let label = tab_label_for_spec(&spec, false);
                 let v = version.clone();
-                let panel = cx.new(|cx| {
-                    crate::workspace::panels::release_notes::ReleaseNotesPanel::new(v, window, cx)
-                });
+                let panel = cx.new(|cx| ReleaseNotesPanel::new(v, window, cx));
                 panel.update(cx, |p, _| p.tab_label = label);
                 self.dock_add_and_register_tab(spec, Arc::new(panel), window, cx);
                 return;
@@ -83,15 +85,15 @@ impl Workspace {
         let panel = match ac {
             AnyConnection::Postgres(conn) => {
                 let pool = conn.read(cx).pool.clone();
-                crate::postgres::tab_dispatch::build_panel(&spec, pool, &conn_id, window, cx)
+                pg_tab_dispatch::build_panel(&spec, pool, &conn_id, window, cx)
             }
             AnyConnection::SQLite(conn) => {
                 let pool = conn.read(cx).pool.clone();
-                crate::sqlite::tab_dispatch::build_panel(&spec, pool, &conn_id, window, cx)
+                sqlite_tab_dispatch::build_panel(&spec, pool, &conn_id, window, cx)
             }
             AnyConnection::MongoDB(conn) => {
                 let db = conn.read(cx).database().clone();
-                crate::mongodb::tab_dispatch::build_panel(&spec, db, &conn_id, window, cx)
+                mongo_tab_dispatch::build_panel(&spec, db, &conn_id, window, cx)
             }
         };
 

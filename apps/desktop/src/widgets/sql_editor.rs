@@ -1,12 +1,16 @@
 //! SQL/JSON editors via gpui-component `InputState::code_editor` (tree-sitter highlighting).
 
+use std::rc::Rc;
+use std::sync::Arc;
+
 use gpui::{App, Entity, Hsla, IntoElement, ParentElement, Window, div, prelude::*, px};
 use gpui_component::{
     ActiveTheme,
-    input::{Input, InputState},
+    input::{CompletionProvider, Input, InputState},
 };
 
 use crate::app::prefs;
+use crate::editor::{SchemaCache, sql_completion::SqlCompletionProvider};
 
 pub fn new_code_input(
     language: &'static str,
@@ -28,6 +32,18 @@ pub fn new_code_input(
 
 pub fn new_sql_input(initial: &str, window: &mut Window, cx: &mut App) -> Entity<InputState> {
     new_code_input("sql", initial, window, cx)
+}
+
+/// Attach schema-aware SQL completions to an existing SQL input.
+pub fn attach_sql_completion(
+    input: &Entity<InputState>,
+    schema_cache: Arc<SchemaCache>,
+    cx: &mut App,
+) {
+    let provider: Rc<dyn CompletionProvider> = SqlCompletionProvider::new(schema_cache);
+    input.update(cx, |state, _| {
+        state.lsp.completion_provider = Some(provider);
+    });
 }
 
 pub fn new_json_input(initial: &str, window: &mut Window, cx: &mut App) -> Entity<InputState> {

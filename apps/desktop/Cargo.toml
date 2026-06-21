@@ -91,6 +91,9 @@ rust_xlsxwriter = "0"
 sqlx.workspace = true
 mongodb.workspace = true
 
+# SQL editor LSP completions (gpui-component uses the same crate)
+lsp-types = { version = "0.97.0", features = ["proposed"] }
+
 [target.'cfg(target_os = "linux")'.dependencies]
 gpui_platform = { workspace = true, features = ["x11", "wayland"] }
 

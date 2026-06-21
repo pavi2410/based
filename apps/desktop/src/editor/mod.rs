@@ -5,6 +5,8 @@
 
 pub mod context;
 pub mod schema_cache;
+pub mod sql_completion;
+pub mod sqlite_schema;
 pub mod variable_scope;
 
 pub use context::EditorContext;

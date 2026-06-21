@@ -1758,6 +1758,7 @@ dependencies = [
  "gpui_platform",
  "gpui_tokio",
  "log",
+ "lsp-types",
  "mongodb",
  "notify",
  "reqwest",

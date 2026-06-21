@@ -1,6 +1,7 @@
 // sqlite::query_editor — QueryEditorPanel: run arbitrary SQL and view results.
 
 use std::rc::Rc;
+use std::time::Duration;
 
 use gpui::{App, prelude::*, *};
 use gpui_component::{
@@ -105,7 +106,9 @@ impl QueryEditorPanel {
                 variables,
             )
         });
-        let panel = Self {
+        let schema_cache = editor_ctx.read(cx).schema_cache.clone();
+        sql_editor::attach_sql_completion(&sql_input, schema_cache, cx);
+        let mut panel = Self {
             focus_handle: cx.focus_handle(),
             pool,
             conn_id,
@@ -133,7 +136,34 @@ impl QueryEditorPanel {
                 panel.run_query(window, cx);
             });
         }
+        panel.load_schema_cache(cx);
         panel
+    }
+
+    fn load_schema_cache(&mut self, cx: &mut Context<Self>) {
+        let pool = self.pool.clone();
+        let editor_ctx = self.editor_ctx.clone();
+        let sql_input = self.sql_input.clone();
+        cx.spawn(async move |_, cx| {
+            let loaded = db::run(cx, async move {
+                crate::editor::sqlite_schema::load_schema(&pool).await
+            })
+            .await;
+
+            let Ok(cache) = loaded else {
+                return;
+            };
+
+            let cache = std::sync::Arc::new(cache);
+            cx.update(|cx| {
+                editor_ctx.update(cx, |ctx, cx| {
+                    ctx.set_schema_cache((*cache).clone());
+                    cx.emit(crate::editor::context::EditorContextEvent::SchemaCacheRefreshed);
+                });
+                sql_editor::attach_sql_completion(&sql_input, cache, cx);
+            });
+        })
+        .detach();
     }
 
     pub(crate) fn connection_id(&self) -> &ConnectionId {
@@ -204,6 +234,7 @@ impl QueryEditorPanel {
         let sql = crate::project::substitute(&sql_raw, &vars);
         let sql_executed = sql.clone();
         let conn_id = self.conn_id.clone();
+        let timeout_secs = crate::app::prefs::query_timeout_secs(cx);
         self.status = QueryStatus::Running;
         self.bottom_tab = BottomTab::Results;
 
@@ -212,30 +243,58 @@ impl QueryEditorPanel {
 
             let result: anyhow::Result<(Vec<Column>, Vec<GridColumnMeta>, Vec<Vec<SharedString>>)> =
                 db::run(cx, async move {
-                    let rows = sqlx::query(AssertSqlSafe(sql)).fetch_all(&pool).await?;
-                    let (columns, column_meta) = if let Some(first) = rows.first() {
-                        let cols = first.columns();
-                        let columns: Vec<Column> = cols
-                            .iter()
-                            .map(|c| data_column(c.name().to_string(), c.name().to_string()))
-                            .collect();
-                        let column_meta = cols
-                            .iter()
-                            .map(|c| meta_from_query_type(c.type_info().name()))
-                            .collect();
-                        (columns, column_meta)
-                    } else {
-                        (vec![], vec![])
-                    };
-                    let data_rows: Vec<Vec<SharedString>> = rows
-                        .iter()
-                        .map(|row| {
-                            (0..row.len())
-                                .map(|i| SharedString::from(sqlite_cell_display(row, i)))
-                                .collect()
-                        })
-                        .collect();
-                    Ok((columns, column_meta, data_rows))
+                    let stmts = based_query::statements_in_script(&sql);
+                    if stmts.is_empty() {
+                        return Ok((vec![], vec![], vec![]));
+                    }
+
+                    let timeout = Duration::from_secs(timeout_secs as u64);
+                    let mut last_columns = vec![];
+                    let mut last_column_meta = vec![];
+                    let mut last_data_rows = vec![];
+
+                    for (index, stmt) in stmts.iter().enumerate() {
+                        let text = stmt.text(&sql);
+                        if text.is_empty() {
+                            continue;
+                        }
+
+                        let fetch = sqlx::query(AssertSqlSafe(text.to_string())).fetch_all(&pool);
+                        let rows = match tokio::time::timeout(timeout, fetch).await {
+                            Err(_) => {
+                                anyhow::bail!(
+                                    "Query timed out after {timeout_secs}s (statement {})",
+                                    index + 1
+                                );
+                            }
+                            Ok(Err(e)) => {
+                                anyhow::bail!("Statement {} failed: {e}", index + 1);
+                            }
+                            Ok(Ok(rows)) => rows,
+                        };
+
+                        if let Some(first) = rows.first() {
+                            let cols = first.columns();
+                            last_columns = cols
+                                .iter()
+                                .map(|c| data_column(c.name().to_string(), c.name().to_string()))
+                                .collect();
+                            last_column_meta = cols
+                                .iter()
+                                .map(|c| meta_from_query_type(c.type_info().name()))
+                                .collect();
+                            last_data_rows = rows
+                                .iter()
+                                .map(|row| {
+                                    (0..row.len())
+                                        .map(|i| SharedString::from(sqlite_cell_display(row, i)))
+                                        .collect()
+                                })
+                                .collect();
+                        }
+                    }
+
+                    Ok((last_columns, last_column_meta, last_data_rows))
                 })
                 .await;
 
@@ -263,6 +322,15 @@ impl QueryEditorPanel {
                     cx.notify();
                 }
                 Err(e) => {
+                    cx.update_global(|store: &mut QueryStore, _| {
+                        store.push_history(HistoryEntry::new(
+                            conn_id.clone(),
+                            sql_executed,
+                            elapsed_ms,
+                            None,
+                            based_query::RunStatus::Error,
+                        ));
+                    });
                     panel.bottom_tab = BottomTab::Messages;
                     panel.status = QueryStatus::Error(e.to_string());
                     cx.notify();

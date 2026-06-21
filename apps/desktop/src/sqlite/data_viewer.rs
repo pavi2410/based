@@ -347,6 +347,16 @@ impl Render for DataViewerPanel {
             )
             .child(self.cell_detail.clone());
 
+        let read_only = cx
+            .try_global::<crate::workspace::WorkspaceRef>()
+            .map(|ws| {
+                crate::connection::is_connection_read_only(
+                    &self.conn_id,
+                    ws.0.read(cx).registry().read(cx),
+                    cx,
+                )
+            })
+            .unwrap_or(false);
         let crumbs = tab_breadcrumb_for_connection(&self.conn_id, [self.table_name.clone()], cx);
         let footer = tab_breadcrumb_footer(
             "sqlite-dv-breadcrumb",
@@ -354,6 +364,7 @@ impl Render for DataViewerPanel {
             Some(tab_breadcrumb_data_viewer_trailing(
                 row_info,
                 self.last_load_ms,
+                read_only,
                 "sqlite-dv-read-only",
                 cx,
             )),

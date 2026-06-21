@@ -161,8 +161,9 @@ tags = ["local", "dev"]        # Labels for query target matching and search
 | `label` | Yes | Display label |
 | `engine` | Yes | Database family |
 | `tags` | No | String labels; used by `[target]` (`tags` / `exclude_tags`) and UI filters |
+| `read_only` | No | When `true`, SQLite connections open with `mode=ro` (no writes, no create-if-missing). Default `false`. If omitted, a tag named `readonly` (any case) also enables read-only mode |
 
-There is **no `group` field**. A former `group = "local"` is expressed as `tags = ["local"]`. Tags are more flexible (`["public", "demo", "readonly"]`) and avoid two overlapping classification systems.
+There is **no `group` field**. A former `group = "local"` is expressed as `tags = ["local"]`. Tags are more flexible (`["public", "demo", "readonly"]`) and avoid two overlapping classification systems. Prefer explicit `read_only = true` over a `readonly` tag when you want driver-enforced read-only access.
 
 ### PostgreSQL
 
@@ -254,6 +255,23 @@ file = "data/northwind.db"
 ```
 
 Equivalent to `journal_mode = "wal"`, `synchronous = "normal"`, `foreign_keys = true`.
+
+**Read-only exploration** (safe for live index files — no writes, no empty DB on missing path):
+
+```toml
+schema_version = 1
+label = "Search Index"
+engine = "sqlite"
+read_only = true
+tags = ["index"]
+
+file = "data/search-index.db"
+
+[pragma]
+foreign_keys = true
+```
+
+When `read_only = true`, Based skips `journal_mode` and `synchronous` pragmas (they can mutate storage). `foreign_keys` is still applied.
 
 **Legacy / read-only example:**
 

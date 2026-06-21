@@ -96,9 +96,14 @@ impl Render for ConnectionDashboardPanel {
             AnyConnection::MongoDB(e) => e.read(cx).server_version.clone(),
         });
 
-        let (engine, state_label, conn_id) = {
+        let (engine, state_label, conn_id, read_only) = {
             let entry = self.conn.read(cx);
-            (entry.config.engine(), entry.state.label(), entry.id.clone())
+            (
+                entry.config.engine(),
+                entry.state.label(),
+                entry.id.clone(),
+                entry.config.is_read_only(),
+            )
         };
 
         let store = cx.global::<QueryStore>();
@@ -128,6 +133,9 @@ impl Render for ConnectionDashboardPanel {
         ];
         if let Some(ref ver) = server_version {
             info_rows.push(("Server".into(), ver.clone().into()));
+        }
+        if read_only {
+            info_rows.push(("Access".into(), "Read-only".into()));
         }
 
         v_flex()

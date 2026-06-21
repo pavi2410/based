@@ -49,6 +49,7 @@ impl ConnectionWizardPanel {
         SqliteConfig {
             label: self.label.clone(),
             path: std::path::PathBuf::from(&self.path),
+            read_only: false,
             pragma: None,
         }
     }

@@ -191,10 +191,11 @@ pub fn tab_breadcrumb_for_connection(
     TabBreadcrumb { engine, segments }
 }
 
-/// Trailing cluster for data-viewer breadcrumbs: row range, load time, read-only indicator.
+/// Trailing cluster for data-viewer breadcrumbs: row range, load time, optional read-only indicator.
 pub fn tab_breadcrumb_data_viewer_trailing(
     rows_value: impl Into<SharedString>,
     load_ms: Option<u64>,
+    show_read_only: bool,
     read_only_id: &'static str,
     cx: &mut App,
 ) -> AnyElement {
@@ -206,8 +207,10 @@ pub fn tab_breadcrumb_data_viewer_trailing(
     if let Some(ms) = load_ms {
         row = row.child(metadata_pill("time", format!("{ms} ms"), cx));
     }
-    row.child(tab_breadcrumb_read_only_indicator(read_only_id, cx))
-        .into_any_element()
+    if show_read_only {
+        row = row.child(tab_breadcrumb_read_only_indicator(read_only_id, cx));
+    }
+    row.into_any_element()
 }
 
 /// Muted eye icon shown at the trailing edge of data-viewer breadcrumbs.

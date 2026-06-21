@@ -47,6 +47,13 @@ impl ConnectionConfig {
             Self::SQLite(c) => &c.label,
         }
     }
+
+    pub fn is_read_only(&self) -> bool {
+        match self {
+            Self::SQLite(c) => c.read_only,
+            _ => false,
+        }
+    }
 }
 
 // ── Open connection (engine-tagged, no shared query interface) ────────────────
@@ -164,6 +171,17 @@ pub fn live_connection_count(
     cx: &gpui::App,
 ) -> usize {
     live_connections(registry, cx).len()
+}
+
+/// Whether the connection profile requests read-only access (SQLite enforced at open).
+pub fn is_connection_read_only(
+    id: &ConnectionId,
+    registry: &registry::ConnectionRegistry,
+    cx: &gpui::App,
+) -> bool {
+    registry
+        .get(id, cx)
+        .is_some_and(|e| e.read(cx).config.is_read_only())
 }
 
 /// Close pools / clients held by a live connection handle.

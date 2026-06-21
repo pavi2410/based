@@ -14,6 +14,7 @@ pub struct ProjectConnection {
     pub label: String,
     pub engine: String,
     pub tags: Vec<String>,
+    pub read_only: bool,
     pub spec: ConnectionSpec,
 }
 
@@ -72,6 +73,8 @@ struct RawConnectionFile {
     url: Option<EnvOrString>,
     #[serde(default)]
     pragma: Option<PragmaSettings>,
+    #[serde(default)]
+    read_only: Option<bool>,
 }
 
 pub fn load_connections(project_root: &Path) -> Result<Vec<ProjectConnection>> {
@@ -146,13 +149,22 @@ fn parse_connection_file(connections_dir: &Path, path: &Path) -> Result<ProjectC
         }
         other => bail!("unknown engine {other:?} in {}", path.display()),
     };
+    let read_only = resolve_read_only(file.read_only, &file.tags);
     Ok(ProjectConnection {
         id,
         label: file.label,
         engine,
         tags: file.tags,
+        read_only,
         spec,
     })
+}
+
+fn resolve_read_only(explicit: Option<bool>, tags: &[String]) -> bool {
+    if let Some(v) = explicit {
+        return v;
+    }
+    tags.iter().any(|t| t.eq_ignore_ascii_case("readonly"))
 }
 
 fn connection_id_from_rel_path(rel: &Path) -> String {
@@ -160,4 +172,52 @@ fn connection_id_from_rel_path(rel: &Path) -> String {
     s.strip_suffix(".conn.toml")
         .unwrap_or(&s)
         .replace('\\', "/")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn read_only_explicit_true() {
+        assert!(resolve_read_only(Some(true), &[]));
+    }
+
+    #[test]
+    fn read_only_explicit_false_overrides_readonly_tag() {
+        assert!(!resolve_read_only(Some(false), &["readonly".into()]));
+    }
+
+    #[test]
+    fn read_only_from_readonly_tag() {
+        assert!(resolve_read_only(None, &["demo".into(), "readonly".into()]));
+        assert!(resolve_read_only(None, &["ReadOnly".into()]));
+    }
+
+    #[test]
+    fn read_only_defaults_false() {
+        assert!(!resolve_read_only(None, &["local".into()]));
+    }
+
+    #[test]
+    fn parse_sqlite_read_only_from_toml() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn_dir = dir.path().join("connections");
+        std::fs::create_dir_all(&conn_dir).unwrap();
+        let path = conn_dir.join("index.conn.toml");
+        std::fs::write(
+            &path,
+            r#"
+schema_version = 1
+label = "Index"
+engine = "sqlite"
+read_only = true
+file = "data/index.db"
+"#,
+        )
+        .unwrap();
+        let conn = parse_connection_file(&conn_dir, &path).unwrap();
+        assert!(conn.read_only);
+        assert!(matches!(conn.spec, ConnectionSpec::Sqlite { .. }));
+    }
 }

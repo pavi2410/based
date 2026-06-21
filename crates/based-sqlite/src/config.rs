@@ -30,6 +30,8 @@ pub struct SqliteConfig {
     pub label: String,
     pub path: PathBuf,
     #[serde(default)]
+    pub read_only: bool,
+    #[serde(default)]
     pub pragma: Option<SqlitePragma>,
 }
 
@@ -57,12 +59,21 @@ pub fn resolve_sqlite_path(path: &Path, ctx: &SqlitePathContext) -> PathBuf {
         .join(path)
 }
 
-pub fn sqlite_connect_options(path: &Path, create_if_missing: bool) -> SqliteConnectOptions {
-    let mut opts = SqliteConnectOptions::new().filename(path);
-    if create_if_missing {
-        opts = opts.create_if_missing(true);
+/// Connection open parameters for [`sqlite_connect_options`].
+#[derive(Debug, Clone, Copy)]
+pub struct SqliteOpenOptions<'a> {
+    pub path: &'a Path,
+    pub read_only: bool,
+}
+
+pub fn sqlite_connect_options(opts: &SqliteOpenOptions<'_>) -> SqliteConnectOptions {
+    let mut o = SqliteConnectOptions::new().filename(opts.path);
+    if opts.read_only {
+        o = o.read_only(true);
+    } else if !opts.path.exists() {
+        o = o.create_if_missing(true);
     }
-    opts
+    o
 }
 
 #[cfg(test)]
@@ -84,6 +95,48 @@ mod tests {
         assert_eq!(
             resolve_sqlite_path(Path::new("app.db"), &ctx),
             PathBuf::from("/project/app.db")
+        );
+    }
+
+    #[test]
+    fn read_only_connect_options_builds() {
+        let missing = PathBuf::from("/nonexistent/based-test-missing.db");
+        let _opts = sqlite_connect_options(&SqliteOpenOptions {
+            path: &missing,
+            read_only: true,
+        });
+    }
+
+    #[tokio::test]
+    async fn read_only_rejects_insert() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ro.db");
+        {
+            let pool = sqlx::SqlitePool::connect_with(sqlite_connect_options(&SqliteOpenOptions {
+                path: &path,
+                read_only: false,
+            }))
+            .await
+            .unwrap();
+            sqlx::query("CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)")
+                .execute(&pool)
+                .await
+                .unwrap();
+            pool.close().await;
+        }
+        let pool = sqlx::SqlitePool::connect_with(sqlite_connect_options(&SqliteOpenOptions {
+            path: &path,
+            read_only: true,
+        }))
+        .await
+        .unwrap();
+        let err = sqlx::query("INSERT INTO t (v) VALUES ('x')")
+            .execute(&pool)
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string().to_ascii_lowercase().contains("read"),
+            "expected read-only error, got: {err}"
         );
     }
 }

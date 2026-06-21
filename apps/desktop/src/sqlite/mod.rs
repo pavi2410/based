@@ -12,7 +12,9 @@ pub mod tab_dispatch;
 pub mod tree;
 pub mod wizard;
 
-pub use based_sqlite::{SqliteConfig, SqlitePathContext, sqlite_connect_options};
+pub use based_sqlite::{
+    SqliteConfig, SqliteOpenOptions, SqlitePathContext, sqlite_connect_options,
+};
 
 use sqlx::{AssertSqlSafe, SqlitePool};
 
@@ -44,8 +46,11 @@ impl Connectable for SqliteConnection {
     fn open(config: Self::Config, cx: &mut gpui::App) -> gpui::Task<anyhow::Result<Self>> {
         let path = resolve_sqlite_path(&config.path, cx);
         Tokio::spawn_result(cx, async move {
-            let create = !path.exists();
-            let pool = SqlitePool::connect_with(sqlite_connect_options(&path, create)).await?;
+            let pool = SqlitePool::connect_with(sqlite_connect_options(&SqliteOpenOptions {
+                path: &path,
+                read_only: config.read_only,
+            }))
+            .await?;
             apply_sqlite_pragmas(&pool, &config).await?;
             let version: String = sqlx::query_scalar("SELECT sqlite_version()")
                 .fetch_one(&pool)
@@ -63,7 +68,11 @@ impl Connectable for SqliteConnection {
         let path = resolve_sqlite_path(&config.path, cx);
         Tokio::spawn_result(cx, async move {
             let start = std::time::Instant::now();
-            let pool = SqlitePool::connect_with(sqlite_connect_options(&path, false)).await?;
+            let pool = SqlitePool::connect_with(sqlite_connect_options(&SqliteOpenOptions {
+                path: &path,
+                read_only: config.read_only,
+            }))
+            .await?;
             let version: String = sqlx::query_scalar("SELECT sqlite_version()")
                 .fetch_one(&pool)
                 .await?;
@@ -83,10 +92,12 @@ impl Connectable for SqliteConnection {
 
 async fn apply_sqlite_pragmas(pool: &SqlitePool, config: &SqliteConfig) -> anyhow::Result<()> {
     if let Some(p) = &config.pragma {
-        let journal = journal_mode_pragma(&p.journal_mode)?;
-        sqlx::query(AssertSqlSafe(journal)).execute(pool).await?;
-        let sync = synchronous_pragma(&p.synchronous)?;
-        sqlx::query(AssertSqlSafe(sync)).execute(pool).await?;
+        if !config.read_only {
+            let journal = journal_mode_pragma(&p.journal_mode)?;
+            sqlx::query(AssertSqlSafe(journal)).execute(pool).await?;
+            let sync = synchronous_pragma(&p.synchronous)?;
+            sqlx::query(AssertSqlSafe(sync)).execute(pool).await?;
+        }
         let fk = if p.foreign_keys {
             "PRAGMA foreign_keys=ON"
         } else {

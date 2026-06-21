@@ -447,7 +447,19 @@ impl Render for QueryEditorPanel {
         };
         let export_popover = export_popover("sqlite-qe", export_headers, export_rows);
 
-        let toolbar = h_flex()
+        let read_only = cx
+            .try_global::<crate::workspace::WorkspaceRef>()
+            .map(|ws| {
+                crate::connection::is_connection_read_only(
+                    &self.conn_id,
+                    ws.0.read(cx).registry().read(cx),
+                    cx,
+                )
+            })
+            .unwrap_or(false);
+        let muted = cx.theme().muted_foreground;
+
+        let mut toolbar = h_flex()
             .gap(px(6.0))
             .px_2()
             .py(px(4.0))
@@ -470,7 +482,18 @@ impl Render for QueryEditorPanel {
                     .small()
                     .label("Explain")
                     .on_click(cx.listener(|panel, _, _, cx| panel.switch_to_explain(cx))),
-            )
+            );
+        if read_only {
+            toolbar = toolbar
+                .child(crate::widgets::metadata_pill("access", "Read-only", cx))
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(muted)
+                        .child("Writes will fail on this connection"),
+                );
+        }
+        toolbar = toolbar
             .child(query_panel_extras::variables_popover(
                 "sqlite-vars-popover",
                 project_dir,

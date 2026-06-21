@@ -11,6 +11,7 @@ pub fn entry_from_project(conn: &ProjectConnection) -> anyhow::Result<Connection
             ConnectionConfig::SQLite(crate::sqlite::SqliteConfig {
                 label: conn.label.clone(),
                 path: file.clone(),
+                read_only: conn.read_only,
                 pragma: pragma.as_ref().map(map_pragma),
             })
         }

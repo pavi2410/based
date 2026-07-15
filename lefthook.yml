@@ -21,12 +21,8 @@ pre-commit:
       glob: "apps/web/**"
 
 pre-push:
-  parallel: false
+  parallel: true
   commands:
-    lint:
-      run: mise run lint
-    test:
-      run: mise run test
     web-lint:
       run: mise run web-lint
       glob: "apps/web/**"

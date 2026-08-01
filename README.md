@@ -4,6 +4,8 @@ Based is a local-first desktop database client written in Rust. Connection confi
 
 **Website:** [based.pavi2410.com](https://based.pavi2410.com)
 
+<img width="3176" height="1848" alt="image" src="https://github.com/user-attachments/assets/e4b98277-2983-43da-8f52-6bc3cf411071" />
+
 ## Features
 
 - Native GPUI desktop app ([`apps/desktop`](apps/desktop))

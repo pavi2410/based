@@ -1,5 +1,8 @@
 # Based — Git-Friendly Database Client
 
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/pavi2410/based/total)
+
+
 Based is a local-first desktop database client written in Rust. Connection configs and saved queries live in a committed `.based/` folder — no backend service, data stays on your machine.
 
 **Website:** [based.pavi2410.com](https://based.pavi2410.com)

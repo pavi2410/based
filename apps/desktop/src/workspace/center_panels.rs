@@ -2,8 +2,8 @@
 
 use std::sync::Arc;
 
-use gpui::{App, Context, EntityId, Focusable, Window, prelude::*};
-use gpui_component::dock::{DockItem, DockPlacement, PanelView};
+use gpui::{App, Context, Entity, EntityId, Focusable, Window, prelude::*};
+use gpui_component::dock::{DockItem, DockPlacement, Panel, PanelView};
 
 use super::Workspace;
 use crate::connection::EngineKind;
@@ -69,9 +69,9 @@ impl Workspace {
         self.open_wizard_for(kind, window, cx);
     }
 
-    fn add_center_panel<T: gpui_component::dock::Panel>(
+    fn add_center_panel<T: Panel>(
         &mut self,
-        panel: gpui::Entity<T>,
+        panel: Entity<T>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {

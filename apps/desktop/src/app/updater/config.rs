@@ -47,9 +47,9 @@ fn is_deb_install() -> bool {
         let is_appimage = exe
             .file_name()
             .and_then(|n| n.to_str())
-            .map_or(false, |name| name.contains("AppImage"));
+            .is_some_and(|name| name.contains("AppImage"));
         if is_deb_path && !is_appimage {
-            uinfo(&format!("in_app_install: false reason=deb path={path}"));
+            uinfo(format!("in_app_install: false reason=deb path={path}"));
         }
         is_deb_path && !is_appimage
     } else {

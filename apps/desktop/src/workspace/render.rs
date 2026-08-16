@@ -26,6 +26,7 @@ use super::chrome::{
     target_picker::render_target_picker,
     topbar::Topbar,
 };
+use super::connection_tree::ICON_RAIL_WIDTH;
 use super::panels::inspector::render_inspector_body;
 use crate::app::prefs::cycle_theme;
 use crate::app::quit::maybe_show_pending_close_dialog;
@@ -94,9 +95,7 @@ impl Render for Workspace {
                 .into_any_element(),
         };
         let sidebar_width = match self.active_left_pane {
-            LeftPane::Browser if !content_rail_expanded => {
-                crate::workspace::connection_tree::ICON_RAIL_WIDTH
-            }
+            LeftPane::Browser if !content_rail_expanded => ICON_RAIL_WIDTH,
             _ => layout::SIDEBAR_EXPANDED_WIDTH,
         };
 

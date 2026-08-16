@@ -15,11 +15,13 @@ use crate::sqlite::fts_console::FtsConsolePanel;
 use crate::sqlite::inspector::TableInspectorPanel as SqliteInspectorPanel;
 use crate::sqlite::tree::SchemaTreePanel as SqliteSchemaTreePanel;
 use crate::sqlite::wizard::ConnectionWizardPanel as SqliteWizardPanel;
+use crate::workspace::panels::connection_picker::ConnectionPickerPanel;
 use crate::workspace::panels::home::HomePanel;
 use crate::workspace::panels::object_info::{ConnectionDashboardPanel, ObjectInfoPanel};
 use crate::workspace::panels::release_notes::ReleaseNotesPanel;
 
 impl PopOutWindowTitle for HomePanel {}
+impl PopOutWindowTitle for ConnectionPickerPanel {}
 impl PopOutWindowTitle for ReleaseNotesPanel {}
 impl PopOutWindowTitle for ConnectionDashboardPanel {}
 impl PopOutWindowTitle for ObjectInfoPanel {}

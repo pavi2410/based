@@ -130,4 +130,7 @@ impl EngineDescriptor for MongoEngine {
                 | "dashboard"
         )
     }
+    fn connect_hint(&self) -> &'static str {
+        "Connection URI"
+    }
 }

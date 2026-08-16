@@ -59,13 +59,13 @@ impl Workspace {
         let (show_home, open_wizard, toggle_side, toggle_left, open_notes, notes_version) = cx
             .update_global(|q: &mut WorkspaceNavQueue, _| {
                 let home = q.show_home;
-                let wizard = q.open_postgres_wizard;
+                let wizard = q.open_connection_wizard;
                 let side = q.toggle_side_pane.take();
                 let left = q.toggle_left_pane.take();
                 let notes = q.open_release_notes;
                 let notes_version = q.pending_release_notes_version.take();
                 q.show_home = false;
-                q.open_postgres_wizard = false;
+                q.open_connection_wizard = false;
                 q.open_release_notes = false;
                 (home, wizard, side, left, notes, notes_version)
             });
@@ -79,7 +79,7 @@ impl Workspace {
             self.show_home(window, cx);
         }
         if open_wizard {
-            self.open_postgres_wizard_tab(window, cx);
+            self.open_connection_picker_tab(window, cx);
         }
         if open_notes && let Some(version) = notes_version {
             enqueue_open_tab(TabSpec::ReleaseNotes { version }, cx);

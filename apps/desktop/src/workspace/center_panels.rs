@@ -6,14 +6,75 @@ use gpui::{App, Context, EntityId, Focusable, Window, prelude::*};
 use gpui_component::dock::{DockItem, DockPlacement, PanelView};
 
 use super::Workspace;
-use crate::postgres::wizard::ConnectionWizardPanel;
+use crate::connection::EngineKind;
+use crate::mongodb::wizard::ConnectionWizardPanel as MongoWizardPanel;
+use crate::postgres::wizard::ConnectionWizardPanel as PgWizardPanel;
+use crate::sqlite::wizard::ConnectionWizardPanel as SqliteWizardPanel;
+use crate::workspace::panels::ConnectionPickerPanel;
 
 use super::dock_utils::{activate_center_panel, active_live_center_panel, wrap_center_root};
 
 impl Workspace {
+    /// Open the engine picker for New Connection.
+    pub fn open_connection_picker_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let panel = cx.new(|cx| ConnectionPickerPanel::new(window, cx));
+        let arc: Arc<dyn PanelView> = Arc::new(panel);
+        self.dock_area.update(cx, |dock, ecx| {
+            dock.add_panel(arc.clone(), DockPlacement::Center, None, window, ecx);
+        });
+        self.register_center_panel(arc, cx);
+        cx.notify();
+    }
+
     /// Open the Postgres connection wizard in a new center tab.
     pub fn open_postgres_wizard_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let panel = cx.new(|cx| ConnectionWizardPanel::new(window, cx));
+        let panel = cx.new(|cx| PgWizardPanel::new(window, cx));
+        self.add_center_panel(panel, window, cx);
+    }
+
+    /// Open the MongoDB connection wizard in a new center tab.
+    pub fn open_mongo_wizard_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let panel = cx.new(|cx| MongoWizardPanel::new(window, cx));
+        self.add_center_panel(panel, window, cx);
+    }
+
+    /// Open the SQLite connection wizard in a new center tab.
+    pub fn open_sqlite_wizard_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let panel = cx.new(|cx| SqliteWizardPanel::new(window, cx));
+        self.add_center_panel(panel, window, cx);
+    }
+
+    pub fn open_wizard_for(
+        &mut self,
+        kind: EngineKind,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match kind {
+            EngineKind::Postgres => self.open_postgres_wizard_tab(window, cx),
+            EngineKind::MongoDB => self.open_mongo_wizard_tab(window, cx),
+            EngineKind::SQLite => self.open_sqlite_wizard_tab(window, cx),
+        }
+    }
+
+    /// Close the picker tab, then open the wizard for `kind`.
+    pub fn open_wizard_replacing_picker(
+        &mut self,
+        kind: EngineKind,
+        picker_id: EntityId,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.close_center_panel(picker_id, window, cx);
+        self.open_wizard_for(kind, window, cx);
+    }
+
+    fn add_center_panel<T: gpui_component::dock::Panel>(
+        &mut self,
+        panel: gpui::Entity<T>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let arc: Arc<dyn PanelView> = Arc::new(panel);
         self.dock_area.update(cx, |dock, ecx| {
             dock.add_panel(arc.clone(), DockPlacement::Center, None, window, ecx);

@@ -86,7 +86,7 @@ pub fn enqueue_open_tab(spec: TabSpec, cx: &mut impl BorrowAppContext) {
 #[derive(Default)]
 pub struct WorkspaceNavQueue {
     pub show_home: bool,
-    pub open_postgres_wizard: bool,
+    pub open_connection_wizard: bool,
     pub toggle_side_pane: Option<SidePane>,
     pub toggle_left_pane: Option<LeftPane>,
     pub open_release_notes: bool,
@@ -106,8 +106,13 @@ pub fn request_workspace_flush(cx: &mut App) {
     }
 }
 
+pub fn enqueue_open_connection_wizard(cx: &mut impl BorrowAppContext) {
+    cx.update_global(|q: &mut WorkspaceNavQueue, _| q.open_connection_wizard = true);
+}
+
+/// Deprecated alias — prefer [`enqueue_open_connection_wizard`].
 pub fn enqueue_open_postgres_wizard(cx: &mut impl BorrowAppContext) {
-    cx.update_global(|q: &mut WorkspaceNavQueue, _| q.open_postgres_wizard = true);
+    enqueue_open_connection_wizard(cx);
 }
 
 pub fn enqueue_toggle_side_pane(pane: SidePane, cx: &mut impl BorrowAppContext) {

@@ -17,6 +17,8 @@ pub trait EngineDescriptor: Send + Sync + 'static {
     fn default_port(&self) -> Option<u16>;
     /// Whether this engine supports a given tab kind label.
     fn supports_tab_kind(&self, kind: &str) -> bool;
+    /// One-line hint shown on the New Connection engine picker.
+    fn connect_hint(&self) -> &'static str;
 }
 
 /// App-level registry of all registered engine descriptors.

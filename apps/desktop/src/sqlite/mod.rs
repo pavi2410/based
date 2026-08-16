@@ -159,4 +159,7 @@ impl EngineDescriptor for SqliteEngine {
             "query_editor" | "data_viewer" | "inspector" | "object_info" | "dashboard"
         )
     }
+    fn connect_hint(&self) -> &'static str {
+        "Local database file"
+    }
 }

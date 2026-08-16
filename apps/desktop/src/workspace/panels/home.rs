@@ -127,7 +127,7 @@ impl Render for HomePanel {
                                         cx.try_global::<WorkspaceRef>().map(|w| w.0.clone())
                                     {
                                         ws.update(cx, |ws, cx| {
-                                            ws.open_postgres_wizard_tab(window, cx);
+                                            ws.open_connection_picker_tab(window, cx);
                                         });
                                     }
                                 },

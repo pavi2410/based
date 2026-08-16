@@ -104,4 +104,7 @@ impl EngineDescriptor for PostgresEngine {
             "query_editor" | "data_viewer" | "inspector" | "object_info" | "dashboard"
         )
     }
+    fn connect_hint(&self) -> &'static str {
+        "Host, port, user, SSL"
+    }
 }

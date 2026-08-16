@@ -1,18 +1,26 @@
-// sqlite::wizard — ConnectionWizardPanel: form for opening a new SQLite connection.
+//! sqlite::wizard — ConnectionWizardPanel: form for opening a new SQLite connection.
+
+use std::path::PathBuf;
 
 use gpui::{prelude::*, *};
 use gpui_component::{
     ActiveTheme,
-    button::Button,
+    button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,
+    input::{Input, InputState},
     menu::PopupMenu,
     v_flex,
 };
+use tokio::task::spawn_blocking;
 
+use crate::connection::ConnectionConfig;
+use crate::connection::categorize_connect_error;
 use crate::connection::lifecycle::Connectable;
+use crate::db;
 use crate::sqlite::{SqliteConfig, SqliteConnection};
-use std::path::PathBuf;
+use crate::widgets::{labeled_field, new_field, set_field};
+use crate::workspace::WorkspaceRef;
 
 pub enum WizardStatus {
     Idle,
@@ -29,35 +37,67 @@ pub enum WizardEvent {
 
 pub struct ConnectionWizardPanel {
     focus_handle: FocusHandle,
-    label: String,
-    path: String,
+    label: Entity<InputState>,
+    path: Entity<InputState>,
     status: WizardStatus,
     pub(crate) tab_label: SharedString,
 }
 
 impl ConnectionWizardPanel {
-    pub fn new(_window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         Self {
             focus_handle: cx.focus_handle(),
-            label: String::from("My SQLite DB"),
-            path: String::new(),
+            label: new_field(window, cx, "My SQLite DB", "Connection name"),
+            path: new_field(window, cx, "", "/path/to/database.db"),
             status: WizardStatus::Idle,
             tab_label: "New SQLite Connection".into(),
         }
     }
 
-    fn config(&self) -> SqliteConfig {
+    fn config(&self, cx: &App) -> SqliteConfig {
         SqliteConfig {
-            label: self.label.clone(),
-            path: PathBuf::from(&self.path),
+            label: self.label.read(cx).value().to_string(),
+            path: PathBuf::from(self.path.read(cx).value().as_ref()),
             read_only: false,
             pragma: None,
         }
     }
 
+    fn browse_path(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let path_field = self.path.clone();
+        cx.spawn_in(window, async move |this, cx| {
+            let picked = db::run_infallible(cx, async {
+                spawn_blocking(|| {
+                    rfd::FileDialog::new()
+                        .set_title("Choose SQLite database")
+                        .add_filter("SQLite", &["db", "sqlite", "sqlite3"])
+                        .pick_file()
+                })
+                .await
+                .ok()
+                .flatten()
+            })
+            .await
+            .ok()
+            .flatten();
+
+            let Some(path) = picked else {
+                return;
+            };
+            let _ = cx.update(|window, cx| {
+                this.update(cx, |panel, cx| {
+                    set_field(&path_field, &path.display().to_string(), window, cx);
+                    panel.status = WizardStatus::Idle;
+                    cx.notify();
+                })
+            });
+        })
+        .detach();
+    }
+
     fn test_connection(&mut self, cx: &mut Context<Self>) {
         self.status = WizardStatus::Testing;
-        let config = self.config();
+        let config = self.config(cx);
         let task = SqliteConnection::test(&config, cx);
 
         cx.spawn(async move |this, cx| {
@@ -69,7 +109,9 @@ impl ConnectionWizardPanel {
                             latency_ms: report.latency_ms,
                             version: report.server_version.unwrap_or_default(),
                         },
-                        Err(e) => WizardStatus::TestErr(e.to_string()),
+                        Err(e) => WizardStatus::TestErr(
+                            categorize_connect_error(&e.to_string()).display_message(),
+                        ),
                     };
                     cx.notify();
                 })
@@ -80,18 +122,28 @@ impl ConnectionWizardPanel {
 
     fn connect(&mut self, cx: &mut Context<Self>) {
         self.status = WizardStatus::Connecting;
-        let config = self.config();
-        let task = SqliteConnection::open(config, cx);
+        let config = self.config(cx);
+        let task = SqliteConnection::open(config.clone(), cx);
 
         cx.spawn(async move |this, cx| {
             let result = task.await;
             cx.update(|cx| {
                 this.update(cx, |panel, cx| match result {
                     Ok(conn) => {
+                        if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+                            ws.update(cx, |workspace, cx| {
+                                workspace.persist_connection_config(
+                                    &ConnectionConfig::SQLite(config),
+                                    cx,
+                                );
+                            });
+                        }
                         cx.emit(WizardEvent::Connected(conn));
                     }
                     Err(e) => {
-                        panel.status = WizardStatus::ConnectErr(e.to_string());
+                        panel.status = WizardStatus::ConnectErr(
+                            categorize_connect_error(&e.to_string()).display_message(),
+                        );
                         cx.notify();
                     }
                 })
@@ -130,7 +182,6 @@ impl Panel for ConnectionWizardPanel {
 impl Render for ConnectionWizardPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let muted = cx.theme().muted_foreground;
-        let border = cx.theme().border;
 
         let status_text: SharedString = match &self.status {
             WizardStatus::Idle => "".into(),
@@ -144,81 +195,64 @@ impl Render for ConnectionWizardPanel {
             WizardStatus::ConnectErr(e) => format!("Error: {e}").into(),
         };
 
+        let show_status = !matches!(self.status, WizardStatus::Idle);
         let is_error = matches!(
             self.status,
             WizardStatus::TestErr(_) | WizardStatus::ConnectErr(_)
         );
 
-        let label_val: SharedString = self.label.clone().into();
-        let path_val: SharedString = self.path.clone().into();
-
         v_flex()
-            .w_full()
-            .h_full()
-            .p(px(16.0))
-            .gap(px(12.0))
+            .size_full()
+            .gap_2()
+            .p_3()
+            .child(labeled_field(
+                "Label",
+                muted,
+                Input::new(&self.label).cleanable(true).aria_label("Label"),
+            ))
             .child(
                 v_flex()
-                    .gap(px(4.0))
+                    .gap_1()
+                    .child(div().text_xs().text_color(muted).child("Database path"))
                     .child(
-                        div()
-                            .text_sm()
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .child("Label"),
-                    )
-                    .child(
-                        div()
-                            .id("wizard-label")
-                            .border_1()
-                            .border_color(border)
-                            .rounded(px(4.0))
-                            .px(px(8.0))
-                            .py(px(4.0))
-                            .text_sm()
-                            .child(label_val),
-                    ),
-            )
-            .child(
-                v_flex()
-                    .gap(px(4.0))
-                    .child(
-                        div()
-                            .text_sm()
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .child("Database Path"),
-                    )
-                    .child(
-                        div()
-                            .id("wizard-path")
-                            .border_1()
-                            .border_color(border)
-                            .rounded(px(4.0))
-                            .px(px(8.0))
-                            .py(px(4.0))
-                            .text_sm()
-                            .child(path_val),
+                        h_flex()
+                            .gap_2()
+                            .items_center()
+                            .child(
+                                Input::new(&self.path)
+                                    .cleanable(true)
+                                    .aria_label("Database path")
+                                    .flex_1(),
+                            )
+                            .child(Button::new("sqlite-browse").label("Browse…").on_click(
+                                cx.listener(|panel, _, window, cx| {
+                                    panel.browse_path(window, cx);
+                                }),
+                            )),
                     ),
             )
             .child(
                 h_flex()
-                    .gap(px(8.0))
+                    .gap_2()
                     .child(
-                        Button::new("test").label("Test Connection").on_click(
-                            cx.listener(|panel, _, _window, cx| panel.test_connection(cx)),
-                        ),
+                        Button::new("sqlite-test")
+                            .label("Test")
+                            .on_click(cx.listener(|panel, _, _, cx| panel.test_connection(cx))),
                     )
                     .child(
-                        Button::new("connect")
+                        Button::new("sqlite-connect")
+                            .primary()
                             .label("Connect")
-                            .on_click(cx.listener(|panel, _, _window, cx| panel.connect(cx))),
+                            .on_click(cx.listener(|panel, _, _, cx| panel.connect(cx))),
                     ),
             )
-            .child(
-                div()
-                    .text_sm()
-                    .when(is_error, |d| d.text_color(rgb(0xff5555)))
-                    .when(!is_error, |d| d.text_color(muted))
-                    .child(status_text),
-            )
+            .when(show_status, |v| {
+                v.child(
+                    div()
+                        .text_sm()
+                        .when(is_error, |d| d.text_color(cx.theme().red))
+                        .child(status_text),
+                )
+            })
     }
 }

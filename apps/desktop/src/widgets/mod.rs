@@ -28,6 +28,7 @@ pub mod status_glyph;
 pub mod status_item;
 pub mod tab_chip;
 pub mod virtual_table;
+pub mod wizard_fields;
 
 // Flat re-exports — callers use `crate::widgets::X` instead of `crate::widgets::submod::X`.
 pub use command_shell::*;
@@ -37,3 +38,4 @@ pub use kbd::*;
 pub use layout::*;
 pub use metadata_pill::*;
 pub use panel::*;
+pub use wizard_fields::{labeled_field, new_field, set_field};

@@ -2,12 +2,13 @@
 
 use gpui::{prelude::*, *};
 use gpui_component::{
-    ActiveTheme,
+    ActiveTheme, IndexPath,
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,
     input::{Input, InputContentType, InputState},
     menu::PopupMenu,
+    select::{Select, SelectState},
     v_flex,
 };
 
@@ -38,7 +39,7 @@ pub struct ConnectionWizardPanel {
     database: Entity<InputState>,
     username: Entity<InputState>,
     password: Entity<InputState>,
-    ssl_mode: SslMode,
+    ssl_mode: Entity<SelectState<Vec<&'static str>>>,
     uri: Entity<InputState>,
     status: WizardStatus,
     pub(crate) tab_label: SharedString,
@@ -58,7 +59,14 @@ impl ConnectionWizardPanel {
                     .placeholder("Password")
                     .masked(true)
             }),
-            ssl_mode: SslMode::Prefer,
+            ssl_mode: cx.new(|cx| {
+                SelectState::new(
+                    SSL_MODE_LABELS.to_vec(),
+                    Some(IndexPath::new(ssl_mode_index(SslMode::Prefer))),
+                    window,
+                    cx,
+                )
+            }),
             uri: new_field(window, cx, "", "postgresql://user:pass@host:5432/db"),
             status: WizardStatus::Idle,
             tab_label: "New PostgreSQL connection".into(),
@@ -74,7 +82,7 @@ impl ConnectionWizardPanel {
             database: self.database.read(cx).value().to_string(),
             username: self.username.read(cx).value().to_string(),
             password: self.password.read(cx).value().to_string(),
-            ssl_mode: self.ssl_mode,
+            ssl_mode: self.current_ssl_mode(cx),
         }
     }
 
@@ -90,8 +98,20 @@ impl ConnectionWizardPanel {
         set_field(&self.database, &cfg.database, window, cx);
         set_field(&self.username, &cfg.username, window, cx);
         set_field(&self.password, &cfg.password, window, cx);
-        self.ssl_mode = cfg.ssl_mode;
+        let ssl_label = ssl_mode_label(cfg.ssl_mode);
+        self.ssl_mode.update(cx, |select, cx| {
+            select.set_selected_value(&ssl_label, window, cx);
+        });
         self.status = WizardStatus::Idle;
+    }
+
+    fn current_ssl_mode(&self, cx: &App) -> SslMode {
+        self.ssl_mode
+            .read(cx)
+            .selected_value()
+            .copied()
+            .and_then(ssl_mode_from_label)
+            .unwrap_or(SslMode::Prefer)
     }
 
     fn test_connection(&mut self, cx: &mut Context<Self>) {
@@ -297,8 +317,6 @@ impl Render for ConnectionWizardPanel {
             self.status,
             WizardStatus::TestErr(_) | WizardStatus::ConnectErr(_)
         );
-        let ssl_label = ssl_mode_label(self.ssl_mode);
-
         v_flex()
             .size_full()
             .gap_2()
@@ -381,20 +399,11 @@ impl Render for ConnectionWizardPanel {
                             .aria_label("Password"),
                     )),
             )
-            .child(
-                h_flex()
-                    .gap_2()
-                    .items_center()
-                    .child(div().text_xs().text_color(muted).child("SSL mode"))
-                    .child(
-                        Button::new("pg-ssl-mode")
-                            .label(ssl_label)
-                            .on_click(cx.listener(|panel, _, _, cx| {
-                                panel.ssl_mode = next_ssl_mode(panel.ssl_mode);
-                                cx.notify();
-                            })),
-                    ),
-            )
+            .child(labeled_field(
+                "SSL mode",
+                muted,
+                Select::new(&self.ssl_mode).w_full(),
+            ))
             .child(
                 h_flex()
                     .gap_2()
@@ -455,6 +464,8 @@ fn labeled_field(title: &str, muted: Hsla, input: impl IntoElement) -> impl Into
         .child(div().w_full().child(input))
 }
 
+const SSL_MODE_LABELS: &[&str] = &["disable", "prefer", "require", "verify-ca", "verify-full"];
+
 fn ssl_mode_label(mode: SslMode) -> &'static str {
     match mode {
         SslMode::Disable => "disable",
@@ -465,19 +476,29 @@ fn ssl_mode_label(mode: SslMode) -> &'static str {
     }
 }
 
-fn next_ssl_mode(mode: SslMode) -> SslMode {
-    match mode {
-        SslMode::Prefer => SslMode::Require,
-        SslMode::Require => SslMode::Disable,
-        SslMode::Disable => SslMode::VerifyCa,
-        SslMode::VerifyCa => SslMode::VerifyFull,
-        SslMode::VerifyFull => SslMode::Prefer,
-    }
+fn ssl_mode_from_label(label: &str) -> Option<SslMode> {
+    Some(match label {
+        "disable" => SslMode::Disable,
+        "prefer" => SslMode::Prefer,
+        "require" => SslMode::Require,
+        "verify-ca" => SslMode::VerifyCa,
+        "verify-full" => SslMode::VerifyFull,
+        _ => return None,
+    })
+}
+
+fn ssl_mode_index(mode: SslMode) -> usize {
+    SSL_MODE_LABELS
+        .iter()
+        .position(|label| *label == ssl_mode_label(mode))
+        .unwrap_or(1)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{next_ssl_mode, parse_postgres_uri, ssl_mode_label};
+    use super::{
+        SSL_MODE_LABELS, parse_postgres_uri, ssl_mode_from_label, ssl_mode_index, ssl_mode_label,
+    };
     use crate::postgres::SslMode;
 
     #[test]
@@ -519,13 +540,13 @@ mod tests {
     }
 
     #[test]
-    fn ssl_mode_cycles_through_all_variants() {
-        let start = SslMode::Prefer;
-        let mut mode = start;
-        for _ in 0..5 {
-            mode = next_ssl_mode(mode);
+    fn ssl_mode_labels_round_trip() {
+        assert_eq!(SSL_MODE_LABELS.len(), 5);
+        for (ix, label) in SSL_MODE_LABELS.iter().enumerate() {
+            let mode = ssl_mode_from_label(label).expect("known sslmode");
+            assert_eq!(ssl_mode_label(mode), *label);
+            assert_eq!(ssl_mode_index(mode), ix);
         }
-        assert!(matches!(mode, SslMode::Prefer));
-        assert_eq!(ssl_mode_label(SslMode::VerifyFull), "verify-full");
+        assert!(ssl_mode_from_label("nope").is_none());
     }
 }

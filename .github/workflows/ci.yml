@@ -12,7 +12,7 @@ concurrency:
 jobs:
   rust:
     name: rust (fmt + clippy + test + build)
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
@@ -25,6 +25,11 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: . -> target
+
+      - name: Install Linux dependencies
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/zed-industries/zed/main/script/linux -o /tmp/zed-linux-deps.sh
+          bash /tmp/zed-linux-deps.sh
 
       - name: Format check
         run: cargo fmt --all -- --check

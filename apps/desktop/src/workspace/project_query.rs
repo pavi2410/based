@@ -79,6 +79,33 @@ pub fn tab_spec_for_query(query: &ProjectQuery, conn_id: ConnectionId) -> TabSpe
     }
 }
 
+/// Whether this project query's `[target]` resolves to `conn_id` (including ambiguous matches).
+pub fn query_targets_connection(
+    query: &ProjectQuery,
+    conn_id: &ConnectionId,
+    registry: &ConnectionRegistry,
+    cx: &gpui::App,
+) -> bool {
+    let refs: Vec<ConnectionRef> = registry
+        .connections()
+        .iter()
+        .map(|e| {
+            let ent = e.read(cx);
+            ConnectionRef {
+                id: ent.id.0.clone(),
+                engine: ent.engine(),
+                tags: ent.tags.clone(),
+            }
+        })
+        .collect();
+
+    match resolve_target(&query.target, &refs, Some(conn_id.0.as_str())) {
+        Ok(id) => id == conn_id.0,
+        Err(ResolveError::Ambiguous(ids)) => ids.iter().any(|id| id == &conn_id.0),
+        Err(_) => false,
+    }
+}
+
 pub fn target_hint(target: &QueryTarget) -> String {
     use based_project::TargetConnection;
     match &target.connection {

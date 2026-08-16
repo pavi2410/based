@@ -177,6 +177,13 @@ impl BrowserListDelegate {
     fn row_at(&self, ix: IndexPath) -> Option<&BrowserRow> {
         self.rows.get(ix.row)
     }
+
+    pub(crate) fn object_count(&self) -> usize {
+        self.rows
+            .iter()
+            .filter(|r| matches!(r, BrowserRow::Object { .. }))
+            .count()
+    }
 }
 
 fn push_postgres_rows(
@@ -743,7 +750,7 @@ pub(crate) fn ensure_browser_list(
     delegate.rebuild(tree, cx);
     let list = cx.new(|cx| {
         ListState::new(delegate, window, cx)
-            .searchable(true)
+            .searchable(false)
             .selectable(true)
     });
 
@@ -756,6 +763,21 @@ pub(crate) fn refresh_browser_list(tree: &ConnectionTree, cx: &mut Context<Conne
         return;
     };
     list.update(cx, |list, cx| {
+        list.delegate_mut().rebuild(tree, cx);
+        cx.notify();
+    });
+}
+
+pub(crate) fn apply_catalog_query(
+    tree: &ConnectionTree,
+    query: &str,
+    cx: &mut Context<ConnectionTree>,
+) {
+    let Some(list) = tree.browser_list.clone() else {
+        return;
+    };
+    list.update(cx, |list, cx| {
+        list.delegate_mut().query = query.to_string();
         list.delegate_mut().rebuild(tree, cx);
         cx.notify();
     });

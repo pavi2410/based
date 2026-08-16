@@ -4,13 +4,14 @@ use std::collections::HashMap;
 use std::mem;
 
 use gpui::{
-    App, ClipboardItem, Context, Entity, EventEmitter, IntoElement, Render, Window, prelude::*,
+    App, ClipboardItem, Context, Entity, EventEmitter, Focusable, IntoElement, Render, Window,
+    prelude::*,
 };
 use gpui_component::{
     dock::DockArea,
     h_flex,
-    list::{List, ListState},
-    v_flex,
+    input::{InputEvent, InputState},
+    list::ListState,
 };
 
 use crate::connection::registry::{ConnectionRegistry, RegistryEvent};
@@ -26,6 +27,7 @@ mod browser_list;
 mod connect;
 mod connection_browser;
 mod connection_list;
+mod content_rail;
 mod context_menu;
 mod icon_rail;
 mod object_list;
@@ -58,6 +60,10 @@ pub struct ConnectionTree {
     object_list_epoch: u64,
     object_list_last_synced: u64,
     pending_open_connection: Option<usize>,
+    pub(crate) catalog_search_open: bool,
+    pub(crate) queries_search_open: bool,
+    pub(crate) catalog_search: Option<Entity<InputState>>,
+    pub(crate) queries_search: Option<Entity<InputState>>,
 }
 
 impl ConnectionTree {
@@ -112,6 +118,10 @@ impl ConnectionTree {
             object_list_epoch: 0,
             object_list_last_synced: u64::MAX,
             pending_open_connection: None,
+            catalog_search_open: false,
+            queries_search_open: false,
+            catalog_search: None,
+            queries_search: None,
         }
     }
 
@@ -252,6 +262,65 @@ impl ConnectionTree {
             Some(idx) if idx < n => {}
             _ => self.selected_connection = Some(0),
         }
+    }
+
+    pub(crate) fn selected_connection_id(&self, cx: &App) -> Option<ConnectionId> {
+        self.selected_connection_entry(cx)
+            .map(|entry| entry.read(cx).id.clone())
+    }
+
+    fn ensure_search_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.catalog_search.is_none() {
+            let input = cx.new(|cx| InputState::new(window, cx).placeholder("Search catalog"));
+            cx.subscribe_in(&input, window, |this, input, event, _window, cx| {
+                if matches!(event, InputEvent::Change) {
+                    let q = input.read(cx).value().to_string();
+                    browser_list::apply_catalog_query(this, &q, cx);
+                    cx.notify();
+                }
+            })
+            .detach();
+            self.catalog_search = Some(input);
+        }
+        if self.queries_search.is_none() {
+            let input = cx.new(|cx| InputState::new(window, cx).placeholder("Search queries"));
+            cx.subscribe_in(&input, window, |_this, _input, event, _window, cx| {
+                if matches!(event, InputEvent::Change) {
+                    cx.notify();
+                }
+            })
+            .detach();
+            self.queries_search = Some(input);
+        }
+    }
+
+    pub(crate) fn toggle_pane_search(
+        &mut self,
+        is_catalog: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if is_catalog {
+            self.catalog_search_open = !self.catalog_search_open;
+            if !self.catalog_search_open {
+                if let Some(input) = self.catalog_search.clone() {
+                    input.update(cx, |input, cx| input.set_value("", window, cx));
+                }
+                browser_list::apply_catalog_query(self, "", cx);
+            } else if let Some(input) = self.catalog_search.clone() {
+                input.read(cx).focus_handle(cx).focus(window, cx);
+            }
+        } else {
+            self.queries_search_open = !self.queries_search_open;
+            if !self.queries_search_open {
+                if let Some(input) = self.queries_search.clone() {
+                    input.update(cx, |input, cx| input.set_value("", window, cx));
+                }
+            } else if let Some(input) = self.queries_search.clone() {
+                input.read(cx).focus_handle(cx).focus(window, cx);
+            }
+        }
+        cx.notify();
     }
 
     pub fn selected_connection_entry(&self, cx: &gpui::App) -> Option<Entity<ConnectionEntry>> {
@@ -439,21 +508,15 @@ impl Render for ConnectionTree {
         if let Some(idx) = self.selected_connection {
             self.maybe_load_schema_for_connection(idx, cx);
         }
+        self.ensure_search_inputs(window, cx);
 
         let rail =
             icon_rail::render_icon_rail(cx.entity().downgrade(), self.selected_connection, cx);
         let browser_list = browser_list::ensure_browser_list(self, window, cx);
         browser_list::refresh_browser_list(self, cx);
+        let content = content_rail::render_content_rail(cx.entity(), browser_list, cx);
 
-        h_flex().size_full().min_h_0().child(rail).child(
-            v_flex().flex_1().min_w_0().min_h_0().child(
-                List::new(&browser_list)
-                    .flex_1()
-                    .min_h_0()
-                    .w_full()
-                    .search_placeholder("Search catalog"),
-            ),
-        )
+        h_flex().size_full().min_h_0().child(rail).child(content)
     }
 }
 

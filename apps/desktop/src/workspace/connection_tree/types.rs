@@ -2,7 +2,8 @@ use std::collections::HashSet;
 
 use crate::connection::EngineKind;
 use crate::workspace::TabSpec;
-use gpui_component::IconName;
+use gpui::Hsla;
+use gpui_component::{IconName, Theme};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ObjectKind {
@@ -61,6 +62,16 @@ impl ObjectKind {
             Self::MaterializedView => IconName::GalleryVerticalEnd,
             Self::Trigger => IconName::TriangleAlert,
             Self::Collection => IconName::Inbox,
+        }
+    }
+
+    /// Kind color for catalog icons (table / view / collection / trigger).
+    pub(crate) fn accent_color(&self, theme: &Theme) -> Hsla {
+        match self {
+            Self::Table => theme.blue_light,
+            Self::View | Self::MaterializedView => theme.magenta_light,
+            Self::Trigger => theme.warning_foreground,
+            Self::Collection => theme.green_light,
         }
     }
 }

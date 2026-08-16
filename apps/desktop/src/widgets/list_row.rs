@@ -12,6 +12,7 @@ const PALETTE_ROW_H: f32 = 28.0;
 pub struct SchemaRowStyle {
     pub muted: Hsla,
     pub fg: Hsla,
+    pub icon_color: Hsla,
     pub mono_family: SharedString,
     pub row_py: f32,
     pub row_gap: f32,
@@ -76,8 +77,9 @@ fn schema_object_row_inner(
     actions: Option<gpui::AnyElement>,
 ) -> impl IntoElement {
     let SchemaRowStyle {
-        muted,
+        muted: _,
         fg,
+        icon_color,
         mono_family: _,
         row_py: _,
         row_gap,
@@ -95,7 +97,7 @@ fn schema_object_row_inner(
                 .justify_center()
                 .child(
                     Icon::new(kind_icon)
-                        .text_color(muted)
+                        .text_color(icon_color)
                         .with_size(px(SCHEMA_ROW_ICON_SIZE)),
                 ),
         )

@@ -32,13 +32,12 @@ use super::connection_list::{
 use super::context_menu::{
     connection_context_menu, connection_is_connected, object_context_menu, schema_context_menu,
 };
-use super::object_list::{group_by_kind, group_postgres_objects, object_matches_query};
+use super::object_list::{group_postgres_objects, object_matches_query};
 use super::types::{ConnCache, ConnState, SchemaObject};
 use crate::connection::ConnectionState::Connected;
 
 const DEPTH_SCHEMA: u32 = 1;
 const DEPTH_KIND: u32 = 2;
-const DEPTH_LEAF: u32 = 3;
 
 #[derive(Clone)]
 pub(crate) enum BrowserRow {
@@ -195,26 +194,20 @@ fn push_postgres_rows(
         });
 
         if schema_expanded {
-            for kind in schema_section.kinds {
-                let kind_hit = q.is_empty() || kind.name.to_lowercase().contains(q);
-                let mut kind_rows = Vec::new();
-                for object in kind.items {
-                    if object_matches_query(&object, q) {
-                        kind_rows.push(BrowserRow::Object {
-                            conn_idx,
-                            object,
-                            depth: DEPTH_LEAF,
-                            bare_label: true,
-                        });
-                    }
-                }
-                if kind_hit || !kind_rows.is_empty() {
-                    child_rows.push(BrowserRow::Section {
+            let mut objects: Vec<SchemaObject> = schema_section
+                .kinds
+                .into_iter()
+                .flat_map(|kind| kind.items)
+                .collect();
+            objects.sort_by(|a, b| a.name.cmp(&b.name));
+            for object in objects {
+                if q.is_empty() || schema_hit || object_matches_query(&object, q) {
+                    child_rows.push(BrowserRow::Object {
                         conn_idx,
-                        title: kind.name,
+                        object,
                         depth: DEPTH_KIND,
+                        bare_label: true,
                     });
-                    child_rows.extend(kind_rows);
                 }
             }
         }
@@ -229,29 +222,20 @@ fn push_kind_rows(
     child_rows: &mut Vec<BrowserRow>,
     bare_label: bool,
 ) -> bool {
-    let mut child_matches = false;
-    for section in group_by_kind(objects.to_vec()) {
-        let section_hit = q.is_empty() || section.name.to_lowercase().contains(q);
-        let mut section_rows = Vec::new();
-        for object in section.items {
-            if object_matches_query(&object, q) {
-                section_rows.push(BrowserRow::Object {
-                    conn_idx,
-                    object,
-                    depth: DEPTH_KIND,
-                    bare_label,
-                });
-            }
-        }
-        if section_hit || !section_rows.is_empty() {
-            child_matches = true;
-            child_rows.push(BrowserRow::Section {
-                conn_idx,
-                title: section.name,
-                depth: DEPTH_SCHEMA,
-            });
-            child_rows.extend(section_rows);
-        }
+    let mut items: Vec<SchemaObject> = objects
+        .iter()
+        .filter(|object| object_matches_query(object, q))
+        .cloned()
+        .collect();
+    items.sort_by(|a, b| a.name.cmp(&b.name));
+    let child_matches = !items.is_empty();
+    for object in items {
+        child_rows.push(BrowserRow::Object {
+            conn_idx,
+            object,
+            depth: DEPTH_SCHEMA,
+            bare_label,
+        });
     }
     child_matches
 }
@@ -569,6 +553,7 @@ fn object_row_element(
     let style = SchemaRowStyle {
         muted,
         fg,
+        icon_color: object.kind.accent_color(cx.theme()),
         mono_family: prefs::code_font_family(cx),
         row_py: sidebar_row_padding_y(cx),
         row_gap: sidebar_row_inner_gap(cx),

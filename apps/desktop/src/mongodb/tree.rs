@@ -128,6 +128,7 @@ impl Render for CollectionsTreePanel {
                     SchemaRowStyle {
                         muted,
                         fg,
+                        icon_color: cx.theme().green_light,
                         mono_family: prefs::code_font_family(cx),
                         row_py: sidebar_row_padding_y(cx),
                         row_gap: sidebar_row_inner_gap(cx),

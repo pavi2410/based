@@ -101,6 +101,7 @@ impl ObjectListDelegate {
         SchemaRowStyle {
             muted: cx.theme().muted_foreground,
             fg: cx.theme().sidebar_foreground,
+            icon_color: cx.theme().muted_foreground,
             mono_family: code_font_family(cx),
             row_py: sidebar_row_padding_y(cx),
             row_gap: sidebar_row_inner_gap(cx),
@@ -270,7 +271,8 @@ impl ListDelegate for ObjectListDelegate {
         let object_key = object_row_key(&object);
         let is_selected = self.selected_index == Some(ix);
         let object_id_label: SharedString = object_id.clone().into();
-        let style = self.row_style(cx);
+        let mut style = self.row_style(cx);
+        style.icon_color = object.kind.accent_color(cx.theme());
 
         let show_inspect = self.conn_id_for_tabs.is_some()
             && matches!(
@@ -498,6 +500,28 @@ mod tests {
     }
 
     #[test]
+    fn flatten_schema_objects_sorts_names_without_kind_headers() {
+        let objects = vec![
+            pg_view("public", "active_users"),
+            pg_table("public", "orders"),
+            pg_table("public", "users"),
+        ];
+        let sections = group_postgres_objects(objects);
+        let mut flat: Vec<&str> = sections[0]
+            .kinds
+            .iter()
+            .flat_map(|kind| kind.items.iter().map(|o| o.name.as_str()))
+            .collect();
+        flat.sort_unstable();
+        assert_eq!(flat, vec!["active_users", "orders", "users"]);
+        assert!(
+            !flat
+                .iter()
+                .any(|name| *name == "Tables" || *name == "Views"),
+            "kind group titles must not appear as object names"
+        );
+    }
+
     fn group_by_kind_schema_less_objects() {
         let objects = vec![
             SchemaObject {

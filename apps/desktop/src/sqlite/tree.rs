@@ -163,6 +163,11 @@ impl Render for SchemaTreePanel {
                     SchemaRowStyle {
                         muted,
                         fg,
+                        icon_color: match node.kind {
+                            ObjectKind::Table => cx.theme().blue_light,
+                            ObjectKind::View => cx.theme().magenta_light,
+                            ObjectKind::Trigger => cx.theme().warning_foreground,
+                        },
                         mono_family: prefs::code_font_family(cx),
                         row_py: sidebar_row_padding_y(cx),
                         row_gap: sidebar_row_inner_gap(cx),

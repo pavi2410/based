@@ -5,6 +5,7 @@ use gpui::{App, Task};
 // sqlite/ — GPUI panels + connection lifecycle; driver logic in `based-sqlite`.
 
 pub mod attach_workspace;
+mod constraints;
 pub mod data_viewer;
 mod eqp_parse;
 pub mod eqp_viewer;

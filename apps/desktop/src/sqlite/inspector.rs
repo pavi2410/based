@@ -1,4 +1,4 @@
-// sqlite::inspector — TableInspectorPanel: columns, indexes, DDL (PRAGMA + sqlite_master).
+// sqlite::inspector — TableInspectorPanel: columns, indexes, constraints, DDL.
 
 use gpui::{prelude::*, *};
 use gpui_component::{
@@ -21,11 +21,14 @@ use crate::widgets::panel::{
 use crate::widgets::sql_editor::{self, new_sql_input, set_input_text};
 use crate::widgets::virtual_table::{RowDelegate, data_column, replace_table_rows};
 
+use super::constraints::{ConstraintInfo, load_table_constraints};
+
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 enum SqliteInspectorTab {
     #[default]
     Columns,
     Indexes,
+    Constraints,
     Ddl,
 }
 
@@ -49,10 +52,12 @@ pub struct TableInspectorPanel {
     table_name: String,
     columns: Vec<ColumnInfo>,
     indexes: Vec<IndexInfo>,
+    constraints: Vec<ConstraintInfo>,
     ddl_text: SharedString,
     ddl_input: Entity<EditorState>,
     col_table: Entity<TableState<RowDelegate>>,
     idx_table: Entity<TableState<RowDelegate>>,
+    con_table: Entity<TableState<RowDelegate>>,
     tab: SqliteInspectorTab,
     pub(crate) tab_label: SharedString,
 }
@@ -83,6 +88,16 @@ impl TableInspectorPanel {
         };
         let idx_table = cx.new(|cx| configure_row_table(idx_delegate, window, cx));
 
+        let con_delegate = RowDelegate {
+            columns: vec![
+                data_column("name", "Constraint"),
+                data_column("typ", "Type"),
+                data_column("def", "Definition"),
+            ],
+            ..Default::default()
+        };
+        let con_table = cx.new(|cx| configure_row_table(con_delegate, window, cx));
+
         let tab_label = format!("{table_name} (schema)").into();
         let ddl_input = new_sql_input("(loading…)", window, cx);
         let mut panel = Self {
@@ -92,10 +107,12 @@ impl TableInspectorPanel {
             table_name,
             columns: vec![],
             indexes: vec![],
+            constraints: vec![],
             ddl_text: SharedString::from("(loading…)"),
             ddl_input,
             col_table,
             idx_table,
+            con_table,
             tab: SqliteInspectorTab::default(),
             tab_label,
         };
@@ -132,6 +149,8 @@ impl TableInspectorPanel {
                     })
                     .collect();
 
+                let constraints = load_table_constraints(&pool, &table_name).await?;
+
                 let ddl: String = sqlx::query_scalar::<_, String>(
                     r#"SELECT COALESCE(sql, '') FROM sqlite_master WHERE type IN ('table','view') AND name = ?"#,
                 )
@@ -140,11 +159,11 @@ impl TableInspectorPanel {
                 .await?
                 .unwrap_or_default();
 
-                Ok((columns, indexes, ddl))
+                Ok((columns, indexes, constraints, ddl))
             })
             .await;
 
-            let (columns, indexes, ddl) = match loaded {
+            let (columns, indexes, constraints, ddl) = match loaded {
                 Ok(x) => x,
                 Err(_) => return,
             };
@@ -172,6 +191,17 @@ impl TableInspectorPanel {
                 })
                 .collect();
 
+            let con_data: Vec<Vec<SharedString>> = constraints
+                .iter()
+                .map(|c| {
+                    vec![
+                        SharedString::from(c.name.clone()),
+                        SharedString::from(c.constraint_type.clone()),
+                        SharedString::from(c.definition.clone()),
+                    ]
+                })
+                .collect();
+
             let ddl_ss: SharedString = if ddl.is_empty() {
                 SharedString::from("(no DDL in sqlite_master)")
             } else {
@@ -187,12 +217,16 @@ impl TableInspectorPanel {
                 panel_ent.update(cx, |panel, cx| {
                     panel.columns = columns;
                     panel.indexes = indexes;
+                    panel.constraints = constraints;
                     panel.ddl_text = ddl_ss;
                     panel.col_table.update(cx, |state, cx| {
                         replace_table_rows(state, col_data, cx);
                     });
                     panel.idx_table.update(cx, |state, cx| {
                         replace_table_rows(state, idx_data, cx);
+                    });
+                    panel.con_table.update(cx, |state, cx| {
+                        replace_table_rows(state, con_data, cx);
                     });
                     cx.notify();
                 });
@@ -260,6 +294,11 @@ impl Render for TableInspectorPanel {
                 .min_h(px(160.0))
                 .child(render_row_table(&self.idx_table, cx))
                 .into_any_element(),
+            SqliteInspectorTab::Constraints => div()
+                .flex_1()
+                .min_h(px(160.0))
+                .child(render_row_table(&self.con_table, cx))
+                .into_any_element(),
             SqliteInspectorTab::Ddl => div()
                 .id("sqlite-inspector-ddl")
                 .flex_1()
@@ -288,6 +327,12 @@ impl Render for TableInspectorPanel {
                         "sql-insp-ix",
                         "Indexes",
                         SqliteInspectorTab::Indexes,
+                        cx,
+                    ))
+                    .child(self.tab_button(
+                        "sql-insp-con",
+                        "Constraints",
+                        SqliteInspectorTab::Constraints,
                         cx,
                     ))
                     .child(self.tab_button("sql-insp-ddl", "DDL", SqliteInspectorTab::Ddl, cx)),

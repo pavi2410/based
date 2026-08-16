@@ -47,21 +47,9 @@ impl ConnectionTree {
             AnyConnection::SQLite(ent) => {
                 let pool = ent.read(cx).pool.clone();
                 let query = cx.new(|cx| {
-                    sqlite::query_editor::QueryEditorPanel::new(
-                        pool.clone(),
-                        conn_id.clone(),
-                        window,
-                        cx,
-                    )
+                    sqlite::query_editor::QueryEditorPanel::new(pool, conn_id.clone(), window, cx)
                 });
-                let pragma = cx.new(|cx| {
-                    sqlite::pragma_browser::PragmaBrowserPanel::new(pool.clone(), window, cx)
-                });
-                let panels = vec![
-                    Arc::new(dashboard) as Arc<dyn PanelView>,
-                    Arc::new(query),
-                    Arc::new(pragma),
-                ];
+                let panels = vec![Arc::new(dashboard) as Arc<dyn PanelView>, Arc::new(query)];
                 (
                     wrap_center_root(
                         DockItem::tabs(panels.clone(), &weak, window, cx),

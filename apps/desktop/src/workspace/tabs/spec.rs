@@ -96,7 +96,7 @@ pub enum TabSpec {
     ReleaseNotes {
         version: String,
     },
-    /// Connection-scoped or global panel without a dedicated tab kind (PRAGMA browser, wizards, etc.).
+    /// Connection-scoped or global panel without a dedicated tab kind (wizards, etc.).
     Builtin {
         conn_id: Option<ConnectionId>,
         panel: String,

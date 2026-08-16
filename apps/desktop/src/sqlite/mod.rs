@@ -11,7 +11,7 @@ mod eqp_parse;
 pub mod eqp_viewer;
 pub mod fts_console;
 pub mod inspector;
-pub mod pragma_browser;
+pub mod pragmas;
 pub mod query_editor;
 pub mod tab_dispatch;
 pub mod tree;

@@ -6,14 +6,18 @@ use gpui_component::{
     ActiveTheme,
     dock::{Panel, PanelControl, PanelEvent},
     menu::PopupMenu,
+    scroll::ScrollableElement,
     v_flex,
 };
+use sqlx::SqlitePool;
 
 use crate::based_panel_dropdown;
 use crate::based_panel_tab_chrome;
 use crate::connection::ConnectionId;
 use crate::connection::{AnyConnection, ConnectionEntry, ConnectionState};
+use crate::db;
 use crate::query_store::QueryStore;
+use crate::sqlite::pragmas::fetch_sqlite_pragmas;
 use crate::widgets::PANEL_RADIUS;
 use crate::widgets::{compact_description_list_vertical, engine_name, metadata_pill, panel_header};
 use crate::workspace::tabs::render_strip_tab;
@@ -21,6 +25,8 @@ use crate::workspace::tabs::render_strip_tab;
 pub struct ConnectionDashboardPanel {
     focus_handle: FocusHandle,
     conn: Entity<ConnectionEntry>,
+    pragmas: Vec<(SharedString, SharedString)>,
+    loading_pragmas: bool,
 }
 
 impl ConnectionDashboardPanel {
@@ -29,19 +35,70 @@ impl ConnectionDashboardPanel {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        cx.observe(&conn, |_this, _, cx| {
+        cx.observe(&conn, |this, _, cx| {
+            this.maybe_load_pragmas(cx);
             cx.notify();
         })
         .detach();
 
-        Self {
+        let mut panel = Self {
             focus_handle: cx.focus_handle(),
             conn,
-        }
+            pragmas: vec![],
+            loading_pragmas: false,
+        };
+        panel.maybe_load_pragmas(cx);
+        panel
     }
 
     pub(crate) fn connection_id(&self, cx: &App) -> ConnectionId {
         self.conn.read(cx).id.clone()
+    }
+
+    fn sqlite_pool(&self, cx: &App) -> Option<SqlitePool> {
+        match &self.conn.read(cx).state {
+            ConnectionState::Connected(AnyConnection::SQLite(ent)) => {
+                Some(ent.read(cx).pool.clone())
+            }
+            _ => None,
+        }
+    }
+
+    fn maybe_load_pragmas(&mut self, cx: &mut Context<Self>) {
+        let Some(pool) = self.sqlite_pool(cx) else {
+            self.pragmas.clear();
+            self.loading_pragmas = false;
+            return;
+        };
+        if self.loading_pragmas || !self.pragmas.is_empty() {
+            return;
+        }
+        self.loading_pragmas = true;
+        cx.spawn(async move |this, cx| {
+            let rows = match db::run_infallible(
+                cx,
+                async move { fetch_sqlite_pragmas(&pool).await },
+            )
+            .await
+            {
+                Ok(rows) => rows,
+                Err(_) => {
+                    let _ = this.update(cx, |panel, _| {
+                        panel.loading_pragmas = false;
+                    });
+                    return;
+                }
+            };
+            let _ = this.update(cx, |panel, cx| {
+                panel.pragmas = rows
+                    .into_iter()
+                    .map(|(k, v)| (k.into(), v.into()))
+                    .collect();
+                panel.loading_pragmas = false;
+                cx.notify();
+            });
+        })
+        .detach();
     }
 }
 
@@ -143,15 +200,23 @@ impl Render for ConnectionDashboardPanel {
             info_rows.push(("Access".into(), "Read-only".into()));
         }
 
+        let pragmas = self.pragmas.clone();
+
         v_flex()
             .size_full()
             .bg(cx.theme().background)
             .child(
                 v_flex()
+                    .flex_1()
+                    .min_h_0()
+                    .overflow_y_scrollbar()
                     .p_4()
                     .gap_4()
                     .child(compact_description_list_vertical(info_rows, true))
                     .child(dashboard_description_section("Queries", query_rows, cx))
+                    .when(!pragmas.is_empty(), |this| {
+                        this.child(dashboard_description_section("PRAGMAs", pragmas, cx))
+                    })
                     .child(dashboard_card(
                         "Start",
                         "Use the Objects pane to open tables, views, or collections. Use the query tab for ad-hoc work.",

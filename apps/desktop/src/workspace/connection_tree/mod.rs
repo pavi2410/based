@@ -53,6 +53,8 @@ pub struct ConnectionTree {
     pending_open_connection: Option<usize>,
     pub(crate) catalog_search_open: bool,
     pub(crate) queries_search_open: bool,
+    pub(crate) catalog_collapsed: bool,
+    pub(crate) queries_collapsed: bool,
     pub(crate) catalog_search: Option<Entity<InputState>>,
     pub(crate) queries_search: Option<Entity<InputState>>,
 }
@@ -108,6 +110,8 @@ impl ConnectionTree {
             pending_open_connection: None,
             catalog_search_open: false,
             queries_search_open: false,
+            catalog_collapsed: false,
+            queries_collapsed: false,
             catalog_search: None,
             queries_search: None,
         }
@@ -263,6 +267,21 @@ impl ConnectionTree {
         }
     }
 
+    pub(crate) fn toggle_pane_collapsed(&mut self, is_catalog: bool, cx: &mut Context<Self>) {
+        if is_catalog {
+            self.catalog_collapsed = !self.catalog_collapsed;
+            if self.catalog_collapsed {
+                self.catalog_search_open = false;
+            }
+        } else {
+            self.queries_collapsed = !self.queries_collapsed;
+            if self.queries_collapsed {
+                self.queries_search_open = false;
+            }
+        }
+        cx.notify();
+    }
+
     pub(crate) fn toggle_pane_search(
         &mut self,
         is_catalog: bool,
@@ -270,6 +289,7 @@ impl ConnectionTree {
         cx: &mut Context<Self>,
     ) {
         if is_catalog {
+            self.catalog_collapsed = false;
             self.catalog_search_open = !self.catalog_search_open;
             if !self.catalog_search_open {
                 if let Some(input) = self.catalog_search.clone() {
@@ -280,6 +300,7 @@ impl ConnectionTree {
                 input.read(cx).focus_handle(cx).focus(window, cx);
             }
         } else {
+            self.queries_collapsed = false;
             self.queries_search_open = !self.queries_search_open;
             if !self.queries_search_open {
                 if let Some(input) = self.queries_search.clone() {

@@ -35,6 +35,8 @@ pub(crate) fn render_content_rail(
     let catalog_count = catalog_list.read(cx).delegate().object_count();
     let catalog_open = tree.catalog_search_open;
     let queries_open = tree.queries_search_open;
+    let catalog_collapsed = tree.catalog_collapsed;
+    let queries_collapsed = tree.queries_collapsed;
     let catalog_input = tree.catalog_search.clone();
     let queries_input = tree.queries_search.clone();
     let conn_id = tree.selected_connection_id(cx);
@@ -75,6 +77,7 @@ pub(crate) fn render_content_rail(
             "Catalog",
             catalog_count,
             catalog_open,
+            catalog_collapsed,
             catalog_input,
             tree_entity.clone(),
             true,
@@ -89,6 +92,7 @@ pub(crate) fn render_content_rail(
             "Queries",
             query_count,
             queries_open,
+            queries_collapsed,
             queries_input,
             tree_entity.clone(),
             false,
@@ -102,6 +106,7 @@ fn pane_shell(
     title: &'static str,
     count: usize,
     search_open: bool,
+    collapsed: bool,
     search_input: Option<Entity<InputState>>,
     tree: WeakEntity<ConnectionTree>,
     is_catalog: bool,
@@ -111,11 +116,11 @@ fn pane_shell(
     let border = cx.theme().sidebar_border;
     let muted = cx.theme().muted_foreground;
     let tree_toggle = tree.clone();
+    let tree_collapse = tree;
 
     v_flex()
-        .flex_1()
-        .min_h(px(120.0))
-        .min_h_0()
+        .when(collapsed, |pane| pane.flex_none())
+        .when(!collapsed, |pane| pane.flex_1().min_h(px(80.0)).min_h_0())
         .when(!is_catalog, |pane| pane.border_t_1().border_color(border))
         .child(
             h_flex()
@@ -123,8 +128,23 @@ fn pane_shell(
                 .px(px(SIDEBAR_INSET))
                 .gap_2()
                 .items_center()
+                .cursor_pointer()
                 .border_b_1()
                 .border_color(border.opacity(0.86))
+                .on_mouse_down(MouseButton::Left, move |_, _, cx| {
+                    if let Some(ent) = tree_collapse.upgrade() {
+                        ent.update(cx, |t, cx| t.toggle_pane_collapsed(is_catalog, cx));
+                    }
+                })
+                .child(
+                    Icon::new(if collapsed {
+                        IconName::ChevronRight
+                    } else {
+                        IconName::ChevronDown
+                    })
+                    .xsmall()
+                    .text_color(muted),
+                )
                 .child(
                     div()
                         .text_xs()
@@ -152,6 +172,7 @@ fn pane_shell(
                     } else {
                         IconName::Search
                     }))
+                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                     .on_click(move |_, window, cx| {
                         if let Some(ent) = tree_toggle.upgrade() {
                             ent.update(cx, |t, cx| {
@@ -161,7 +182,7 @@ fn pane_shell(
                     }),
                 ),
         )
-        .when(search_open, |pane| {
+        .when(!collapsed && search_open, |pane| {
             pane.when_some(search_input, |pane, input| {
                 pane.child(
                     div()
@@ -173,7 +194,7 @@ fn pane_shell(
                 )
             })
         })
-        .child(body)
+        .when(!collapsed, |pane| pane.child(body))
 }
 
 fn render_queries_list(

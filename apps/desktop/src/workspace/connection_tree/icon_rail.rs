@@ -51,6 +51,11 @@ fn rail_icon(
     let accent = cx.theme().accent;
     let sidebar = cx.theme().sidebar;
     let hover = cx.theme().muted.opacity(0.42);
+    let outline = if is_selected {
+        accent.opacity(0.55)
+    } else {
+        cx.theme().sidebar_border
+    };
 
     div()
         .id(("rail-conn", idx))
@@ -62,11 +67,9 @@ fn rail_icon(
         .items_center()
         .justify_center()
         .cursor_pointer()
-        .when(is_selected, |d| {
-            d.bg(accent.opacity(0.16))
-                .border_1()
-                .border_color(accent.opacity(0.42))
-        })
+        .border_1()
+        .border_color(outline)
+        .when(is_selected, |d| d.bg(accent.opacity(0.16)))
         .when(!is_selected, |d| d.hover(move |d| d.bg(hover)))
         .tooltip(move |window, app| Tooltip::new(label.clone()).build(window, app))
         .on_mouse_down(MouseButton::Left, move |_, window, cx| {

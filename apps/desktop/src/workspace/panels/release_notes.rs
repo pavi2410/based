@@ -13,6 +13,7 @@ use gpui_component::{
     dock::{Panel, PanelEvent},
     menu::PopupMenu,
     scroll::ScrollableElement,
+    text::markdown,
     v_flex,
 };
 
@@ -85,7 +86,6 @@ impl Panel for ReleaseNotesPanel {
 impl Render for ReleaseNotesPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let muted = cx.theme().muted_foreground;
-        let fg = cx.theme().foreground;
 
         let content = if self.loading {
             div()
@@ -98,11 +98,7 @@ impl Render for ReleaseNotesPanel {
                 .text_color(cx.theme().danger_foreground)
                 .child(err.clone())
         } else {
-            div()
-                .text_size(px(13.0))
-                .text_color(fg)
-                .line_height(px(20.0))
-                .child(self.body.clone().unwrap_or_default())
+            div().child(markdown(self.body.clone().unwrap_or_default()).selectable(true))
         };
 
         v_flex()

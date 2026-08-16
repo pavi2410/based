@@ -2,10 +2,11 @@
 
 use gpui::{prelude::*, *};
 use gpui_component::{
-    ActiveTheme, Theme,
+    ActiveTheme,
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,
+    input::{Input, InputContentType, InputState},
     menu::PopupMenu,
     v_flex,
 };
@@ -31,66 +32,71 @@ pub enum WizardEvent {
 
 pub struct ConnectionWizardPanel {
     focus_handle: FocusHandle,
-    label: String,
-    host: String,
-    port: String,
-    database: String,
-    username: String,
-    password: String,
+    label: Entity<InputState>,
+    host: Entity<InputState>,
+    port: Entity<InputState>,
+    database: Entity<InputState>,
+    username: Entity<InputState>,
+    password: Entity<InputState>,
     ssl_mode: SslMode,
-    uri: String,
+    uri: Entity<InputState>,
     status: WizardStatus,
     pub(crate) tab_label: SharedString,
 }
 
 impl ConnectionWizardPanel {
-    pub fn new(_window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         Self {
             focus_handle: cx.focus_handle(),
-            label: String::from("PostgreSQL"),
-            host: String::from("localhost"),
-            port: String::from("5432"),
-            database: String::from("postgres"),
-            username: String::from("postgres"),
-            password: String::new(),
+            label: new_field(window, cx, "PostgreSQL", "Connection name"),
+            host: new_field(window, cx, "localhost", "Host"),
+            port: new_field(window, cx, "5432", "Port"),
+            database: new_field(window, cx, "postgres", "Database"),
+            username: new_field(window, cx, "postgres", "Username"),
+            password: cx.new(|cx| {
+                InputState::new(window, cx)
+                    .placeholder("Password")
+                    .masked(true)
+            }),
             ssl_mode: SslMode::Prefer,
-            uri: String::new(),
+            uri: new_field(window, cx, "", "postgresql://user:pass@host:5432/db"),
             status: WizardStatus::Idle,
             tab_label: "New PostgreSQL connection".into(),
         }
     }
 
-    fn config(&self) -> PostgresConfig {
-        let port = self.port.parse().unwrap_or(5432u16);
+    fn config(&self, cx: &App) -> PostgresConfig {
+        let port = self.port.read(cx).value().parse().unwrap_or(5432u16);
         PostgresConfig {
-            label: self.label.clone(),
-            host: self.host.clone(),
+            label: self.label.read(cx).value().to_string(),
+            host: self.host.read(cx).value().to_string(),
             port,
-            database: self.database.clone(),
-            username: self.username.clone(),
-            password: self.password.clone(),
+            database: self.database.read(cx).value().to_string(),
+            username: self.username.read(cx).value().to_string(),
+            password: self.password.read(cx).value().to_string(),
             ssl_mode: self.ssl_mode,
         }
     }
 
-    fn apply_uri(&mut self) {
-        let Some(cfg) = parse_postgres_uri(&self.uri) else {
+    fn apply_uri(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let uri = self.uri.read(cx).value().to_string();
+        let Some(cfg) = parse_postgres_uri(&uri) else {
             self.status = WizardStatus::TestErr("Could not parse URI".into());
             return;
         };
-        self.label = cfg.label.clone();
-        self.host = cfg.host;
-        self.port = cfg.port.to_string();
-        self.database = cfg.database;
-        self.username = cfg.username;
-        self.password = cfg.password;
+        set_field(&self.label, &cfg.label, window, cx);
+        set_field(&self.host, &cfg.host, window, cx);
+        set_field(&self.port, &cfg.port.to_string(), window, cx);
+        set_field(&self.database, &cfg.database, window, cx);
+        set_field(&self.username, &cfg.username, window, cx);
+        set_field(&self.password, &cfg.password, window, cx);
         self.ssl_mode = cfg.ssl_mode;
         self.status = WizardStatus::Idle;
     }
 
     fn test_connection(&mut self, cx: &mut Context<Self>) {
         self.status = WizardStatus::Testing;
-        let config = self.config();
+        let config = self.config(cx);
         let task = PgConnection::test(&config, cx);
         cx.spawn(async move |this, cx| {
             let result = task.await;
@@ -114,7 +120,7 @@ impl ConnectionWizardPanel {
 
     fn connect(&mut self, cx: &mut Context<Self>) {
         self.status = WizardStatus::Connecting;
-        let config = self.config();
+        let config = self.config(cx);
         let task = PgConnection::open(config.clone(), cx);
         cx.spawn(async move |this, cx| {
             let result = task.await;
@@ -272,7 +278,6 @@ impl Panel for ConnectionWizardPanel {
 
 impl Render for ConnectionWizardPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let border = cx.theme().border;
         let muted = cx.theme().muted_foreground;
 
         let status: SharedString = match &self.status {
@@ -292,7 +297,7 @@ impl Render for ConnectionWizardPanel {
             self.status,
             WizardStatus::TestErr(_) | WizardStatus::ConnectErr(_)
         );
-        let theme = cx.theme();
+        let ssl_label = ssl_mode_label(self.ssl_mode);
 
         v_flex()
             .size_full()
@@ -307,21 +312,20 @@ impl Render for ConnectionWizardPanel {
             .child(
                 h_flex()
                     .gap_2()
+                    .items_center()
                     .child(
-                        div()
-                            .flex_1()
-                            .p_2()
-                            .border_1()
-                            .border_color(border)
+                        Input::new(&self.uri)
+                            .content_type(InputContentType::Url)
+                            .cleanable(true)
+                            .aria_label("Connection URI")
                             .font_family(prefs::code_font_family(cx))
-                            .text_xs()
-                            .child(self.uri.clone()),
+                            .flex_1(),
                     )
                     .child(
                         Button::new("pg-parse-uri")
                             .label("Apply URI")
-                            .on_click(cx.listener(|panel, _, _, cx| {
-                                panel.apply_uri();
+                            .on_click(cx.listener(|panel, _, window, cx| {
+                                panel.apply_uri(window, cx);
                                 cx.notify();
                             })),
                     ),
@@ -330,34 +334,66 @@ impl Render for ConnectionWizardPanel {
             .child(
                 h_flex()
                     .gap_2()
-                    .child(field_line("Label", &self.label, theme))
-                    .child(field_line("Host", &self.host, theme)),
-            )
-            .child(
-                h_flex()
-                    .gap_2()
-                    .child(field_line("Port", &self.port, theme))
-                    .child(field_line("Database", &self.database, theme)),
-            )
-            .child(
-                h_flex()
-                    .gap_2()
-                    .child(field_line("User", &self.username, theme))
-                    .child(field_line(
-                        "Password",
-                        if self.password.is_empty() {
-                            "(empty)"
-                        } else {
-                            "••••••"
-                        },
-                        theme,
+                    .child(labeled_field(
+                        "Label",
+                        muted,
+                        Input::new(&self.label).cleanable(true).aria_label("Label"),
+                    ))
+                    .child(labeled_field(
+                        "Host",
+                        muted,
+                        Input::new(&self.host).cleanable(true).aria_label("Host"),
                     )),
             )
             .child(
-                div()
-                    .text_xs()
-                    .text_color(muted)
-                    .child("SSL mode: use URI or defaults (Prefer)"),
+                h_flex()
+                    .gap_2()
+                    .child(labeled_field(
+                        "Port",
+                        muted,
+                        Input::new(&self.port).cleanable(true).aria_label("Port"),
+                    ))
+                    .child(labeled_field(
+                        "Database",
+                        muted,
+                        Input::new(&self.database)
+                            .cleanable(true)
+                            .aria_label("Database"),
+                    )),
+            )
+            .child(
+                h_flex()
+                    .gap_2()
+                    .child(labeled_field(
+                        "User",
+                        muted,
+                        Input::new(&self.username)
+                            .content_type(InputContentType::Username)
+                            .cleanable(true)
+                            .aria_label("User"),
+                    ))
+                    .child(labeled_field(
+                        "Password",
+                        muted,
+                        Input::new(&self.password)
+                            .content_type(InputContentType::Password)
+                            .mask_toggle()
+                            .aria_label("Password"),
+                    )),
+            )
+            .child(
+                h_flex()
+                    .gap_2()
+                    .items_center()
+                    .child(div().text_xs().text_color(muted).child("SSL mode"))
+                    .child(
+                        Button::new("pg-ssl-mode")
+                            .label(ssl_label)
+                            .on_click(cx.listener(|panel, _, _, cx| {
+                                panel.ssl_mode = next_ssl_mode(panel.ssl_mode);
+                                cx.notify();
+                            })),
+                    ),
             )
             .child(
                 h_flex()
@@ -385,23 +421,111 @@ impl Render for ConnectionWizardPanel {
     }
 }
 
-fn field_line(title: &str, value: &str, theme: &Theme) -> impl IntoElement {
-    let border = theme.border;
+fn new_field(
+    window: &mut Window,
+    cx: &mut Context<ConnectionWizardPanel>,
+    default: &str,
+    placeholder: &str,
+) -> Entity<InputState> {
+    let default = default.to_string();
+    let placeholder = placeholder.to_string();
+    cx.new(|cx| {
+        InputState::new(window, cx)
+            .placeholder(placeholder)
+            .default_value(default)
+    })
+}
+
+fn set_field(input: &Entity<InputState>, value: &str, window: &mut Window, cx: &mut App) {
+    input.update(cx, |state, cx| {
+        state.set_value(value, window, cx);
+    });
+}
+
+fn labeled_field(title: &str, muted: Hsla, input: impl IntoElement) -> impl IntoElement {
     v_flex()
         .flex_1()
         .gap_1()
         .child(
             div()
                 .text_xs()
-                .text_color(theme.muted_foreground)
+                .text_color(muted)
                 .child(SharedString::from(title.to_string())),
         )
-        .child(
-            div()
-                .p_2()
-                .border_1()
-                .border_color(border)
-                .text_sm()
-                .child(value.to_string()),
+        .child(div().w_full().child(input))
+}
+
+fn ssl_mode_label(mode: SslMode) -> &'static str {
+    match mode {
+        SslMode::Disable => "disable",
+        SslMode::Prefer => "prefer",
+        SslMode::Require => "require",
+        SslMode::VerifyCa => "verify-ca",
+        SslMode::VerifyFull => "verify-full",
+    }
+}
+
+fn next_ssl_mode(mode: SslMode) -> SslMode {
+    match mode {
+        SslMode::Prefer => SslMode::Require,
+        SslMode::Require => SslMode::Disable,
+        SslMode::Disable => SslMode::VerifyCa,
+        SslMode::VerifyCa => SslMode::VerifyFull,
+        SslMode::VerifyFull => SslMode::Prefer,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{next_ssl_mode, parse_postgres_uri, ssl_mode_label};
+    use crate::postgres::SslMode;
+
+    #[test]
+    fn parse_full_uri() {
+        let cfg = parse_postgres_uri(
+            "postgresql://alice:s3cret@db.example:6543/analytics?sslmode=require",
         )
+        .expect("uri should parse");
+        assert_eq!(cfg.username, "alice");
+        assert_eq!(cfg.password, "s3cret");
+        assert_eq!(cfg.host, "db.example");
+        assert_eq!(cfg.port, 6543);
+        assert_eq!(cfg.database, "analytics");
+        assert_eq!(cfg.label, "analytics");
+        assert!(matches!(cfg.ssl_mode, SslMode::Require));
+    }
+
+    #[test]
+    fn parse_postgres_scheme_and_defaults() {
+        let cfg = parse_postgres_uri("postgres://localhost/").expect("uri should parse");
+        assert_eq!(cfg.host, "localhost");
+        assert_eq!(cfg.port, 5432);
+        assert_eq!(cfg.database, "postgres");
+        assert_eq!(cfg.username, "postgres");
+        assert!(cfg.password.is_empty());
+        assert!(matches!(cfg.ssl_mode, SslMode::Prefer));
+    }
+
+    #[test]
+    fn parse_url_encoded_password() {
+        let cfg = parse_postgres_uri("postgresql://user:p%40ss@localhost/db").unwrap();
+        assert_eq!(cfg.password, "p@ss");
+    }
+
+    #[test]
+    fn parse_rejects_non_postgres_uri() {
+        assert!(parse_postgres_uri("mysql://localhost/db").is_none());
+        assert!(parse_postgres_uri("not a uri").is_none());
+    }
+
+    #[test]
+    fn ssl_mode_cycles_through_all_variants() {
+        let start = SslMode::Prefer;
+        let mut mode = start;
+        for _ in 0..5 {
+            mode = next_ssl_mode(mode);
+        }
+        assert!(matches!(mode, SslMode::Prefer));
+        assert_eq!(ssl_mode_label(SslMode::VerifyFull), "verify-full");
+    }
 }

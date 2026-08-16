@@ -27,17 +27,17 @@ use super::TreeEvent;
 use super::browser_list::BrowserListDelegate;
 
 pub(crate) fn render_content_rail(
-    tree: Entity<ConnectionTree>,
+    tree: &ConnectionTree,
+    tree_entity: WeakEntity<ConnectionTree>,
     catalog_list: Entity<ListState<BrowserListDelegate>>,
     cx: &mut App,
 ) -> impl IntoElement {
     let catalog_count = catalog_list.read(cx).delegate().object_count();
-    let tree_read = tree.read(cx);
-    let catalog_open = tree_read.catalog_search_open;
-    let queries_open = tree_read.queries_search_open;
-    let catalog_input = tree_read.catalog_search.clone();
-    let queries_input = tree_read.queries_search.clone();
-    let conn_id = tree_read.selected_connection_id(cx);
+    let catalog_open = tree.catalog_search_open;
+    let queries_open = tree.queries_search_open;
+    let catalog_input = tree.catalog_search.clone();
+    let queries_input = tree.queries_search.clone();
+    let conn_id = tree.selected_connection_id(cx);
     let query_filter = queries_input
         .as_ref()
         .map(|input| input.read(cx).value().trim().to_ascii_lowercase())
@@ -45,7 +45,7 @@ pub(crate) fn render_content_rail(
 
     let mut queries = Vec::new();
     if let Some(conn_id) = conn_id.clone() {
-        let registry = tree_read.registry.read(cx);
+        let registry = tree.registry.read(cx);
         let store = cx.global::<QueryStore>();
         for query in store.project_queries() {
             if !query_targets_connection(query, &conn_id, registry, cx) {
@@ -75,7 +75,7 @@ pub(crate) fn render_content_rail(
             catalog_count,
             catalog_open,
             catalog_input,
-            tree.downgrade(),
+            tree_entity.clone(),
             true,
             cx,
             List::new(&catalog_list)
@@ -89,10 +89,10 @@ pub(crate) fn render_content_rail(
             query_count,
             queries_open,
             queries_input,
-            tree.downgrade(),
+            tree_entity.clone(),
             false,
             cx,
-            render_queries_list(queries, tree.downgrade(), cx),
+            render_queries_list(queries, tree_entity, cx),
         ))
 }
 

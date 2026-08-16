@@ -8,7 +8,7 @@ use gpui_component::{ActiveTheme, menu::ContextMenuExt, tooltip::Tooltip, v_flex
 use crate::widgets::engine_icon;
 
 use super::ConnectionTree;
-use super::connection_list::{ConnectionRow, build_connection_rows};
+use super::connection_list::ConnectionRow;
 use super::context_menu::connection_context_menu;
 
 pub(crate) const ICON_RAIL_WIDTH: f32 = 48.0;
@@ -16,13 +16,9 @@ pub(crate) const ICON_RAIL_WIDTH: f32 = 48.0;
 pub(crate) fn render_icon_rail(
     tree: WeakEntity<ConnectionTree>,
     selected: Option<usize>,
+    rows: Vec<ConnectionRow>,
     cx: &App,
 ) -> AnyElement {
-    let rows = tree
-        .upgrade()
-        .map(|t| build_connection_rows(t.read(cx), cx))
-        .unwrap_or_default();
-
     v_flex()
         .w(px(ICON_RAIL_WIDTH))
         .h_full()

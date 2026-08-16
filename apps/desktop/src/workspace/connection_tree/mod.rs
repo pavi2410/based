@@ -479,11 +479,16 @@ impl Render for ConnectionTree {
         }
         self.ensure_search_inputs(window, cx);
 
-        let rail =
-            icon_rail::render_icon_rail(cx.entity().downgrade(), self.selected_connection, cx);
+        let tree_entity = cx.entity().downgrade();
+        let rail = icon_rail::render_icon_rail(
+            tree_entity.clone(),
+            self.selected_connection,
+            connection_list::build_connection_rows(self, cx),
+            cx,
+        );
         let browser_list = browser_list::ensure_browser_list(self, window, cx);
         browser_list::refresh_browser_list(self, cx);
-        let content = content_rail::render_content_rail(cx.entity(), browser_list, cx);
+        let content = content_rail::render_content_rail(self, tree_entity, browser_list, cx);
 
         h_flex().size_full().min_h_0().child(rail).child(content)
     }

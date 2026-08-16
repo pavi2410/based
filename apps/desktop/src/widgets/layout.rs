@@ -44,9 +44,12 @@ impl BrowserTreeIndent {
         }
     }
 
-    /// 1-indexed depth under a connection row (1 = first child, 2 = second, …).
+    /// Catalog depth: 0 = root (schema / status / flat object), 1 = nested under schema, …
     pub fn pl(&self, level: u32) -> f32 {
-        debug_assert!(level >= 1);
-        self.base + BROWSER_TREE_INDENT_STEP * (level - 1) as f32
+        if level == 0 {
+            SIDEBAR_INSET
+        } else {
+            self.base + BROWSER_TREE_INDENT_STEP * (level - 1) as f32
+        }
     }
 }

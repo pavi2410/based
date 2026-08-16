@@ -15,7 +15,7 @@ pub fn render_body_row(
     let sidebar_bg = cx.theme().sidebar;
 
     let sidebar = v_flex()
-        .w(px(274.0))
+        .w(px(296.0))
         .h_full()
         .min_h_0()
         .flex_shrink_0()

@@ -8,6 +8,7 @@ use gpui::{
 };
 use gpui_component::{
     dock::DockArea,
+    h_flex,
     list::{List, ListState},
     v_flex,
 };
@@ -26,6 +27,7 @@ mod connect;
 mod connection_browser;
 mod connection_list;
 mod context_menu;
+mod icon_rail;
 mod object_list;
 mod open_workspace;
 mod schema_load;
@@ -239,6 +241,18 @@ impl ConnectionTree {
         cx.notify();
     }
 
+    pub(crate) fn ensure_selected_connection(&mut self, cx: &App) {
+        let n = self.registry.read(cx).connections().len();
+        if n == 0 {
+            self.selected_connection = None;
+            return;
+        }
+        match self.selected_connection {
+            Some(idx) if idx < n => {}
+            _ => self.selected_connection = Some(0),
+        }
+    }
+
     pub fn selected_connection_entry(&self, cx: &gpui::App) -> Option<Entity<ConnectionEntry>> {
         self.selected_connection
             .and_then(|idx| self.registry.read(cx).connections().get(idx).cloned())
@@ -420,15 +434,24 @@ impl Render for ConnectionTree {
             }
         }
 
+        self.ensure_selected_connection(cx);
+        if let Some(idx) = self.selected_connection {
+            self.maybe_load_schema_for_connection(idx, cx);
+        }
+
+        let rail =
+            icon_rail::render_icon_rail(cx.entity().downgrade(), self.selected_connection, cx);
         let browser_list = browser_list::ensure_browser_list(self, window, cx);
         browser_list::refresh_browser_list(self, cx);
 
-        v_flex().size_full().min_h_0().child(
-            List::new(&browser_list)
-                .flex_1()
-                .min_h_0()
-                .w_full()
-                .search_placeholder("Search connections & objects"),
+        h_flex().size_full().min_h_0().child(rail).child(
+            v_flex().flex_1().min_w_0().min_h_0().child(
+                List::new(&browser_list)
+                    .flex_1()
+                    .min_h_0()
+                    .w_full()
+                    .search_placeholder("Search catalog"),
+            ),
         )
     }
 }

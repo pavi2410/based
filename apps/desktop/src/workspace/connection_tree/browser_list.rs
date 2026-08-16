@@ -36,8 +36,8 @@ use super::object_list::{group_postgres_objects, object_matches_query};
 use super::types::{ConnCache, ConnState, SchemaObject};
 use crate::connection::ConnectionState::Connected;
 
-const DEPTH_SCHEMA: u32 = 1;
-const DEPTH_KIND: u32 = 2;
+const DEPTH_SCHEMA: u32 = 0;
+const DEPTH_KIND: u32 = 1;
 
 #[derive(Clone)]
 pub(crate) enum BrowserRow {
@@ -84,71 +84,94 @@ impl BrowserListDelegate {
 
     pub(crate) fn rebuild(&mut self, tree: &ConnectionTree, cx: &App) {
         let q = self.query.trim().to_lowercase();
-        let all_connections = build_connection_rows(tree, cx);
+        let Some(sel) = tree.selected_connection else {
+            self.rows.clear();
+            self.selected_index = None;
+            return;
+        };
+        let Some(conn) = build_connection_rows(tree, cx)
+            .into_iter()
+            .find(|c| c.idx == sel)
+        else {
+            self.rows.clear();
+            self.selected_index = None;
+            return;
+        };
+
+        let conn_id = tree
+            .registry
+            .read(cx)
+            .connections()
+            .get(conn.idx)
+            .map(|e| e.read(cx).id.clone());
+        let Some(conn_id) = conn_id else {
+            self.rows.clear();
+            self.selected_index = None;
+            return;
+        };
+
         let mut rows = Vec::new();
-
-        for conn in all_connections {
-            let conn_id = tree
-                .registry
-                .read(cx)
-                .connections()
-                .get(conn.idx)
-                .map(|e| e.read(cx).id.clone());
-            let Some(conn_id) = conn_id else { continue };
-
-            let conn_matches = q.is_empty()
-                || conn.conn_label.to_lowercase().contains(&q)
-                || conn.engine.short_label().contains(&q);
-
-            let state = tree.conn_states.get(&conn_id);
-            let expanded = state.is_some_and(|s| s.expanded());
-
-            let mut child_matches = false;
-            let mut child_rows = Vec::new();
-            if expanded && let Some(st) = state {
-                match st.cache() {
-                    ConnCache::Loading => {
-                        child_rows.push(BrowserRow::Status {
-                            conn_idx: conn.idx,
-                            message: "Loading objects…".into(),
-                            depth: DEPTH_SCHEMA,
-                        });
-                        child_matches = true;
-                    }
-                    ConnCache::Error(err) => {
-                        child_rows.push(BrowserRow::Status {
-                            conn_idx: conn.idx,
-                            message: super::notify::error_one_liner(err),
-                            depth: DEPTH_SCHEMA,
-                        });
-                        child_matches = true;
-                    }
-                    ConnCache::Ready(objects) => {
-                        child_matches = match conn.engine {
-                            EngineKind::Postgres => {
-                                push_postgres_rows(conn.idx, objects, st, &q, &mut child_rows)
-                            }
-                            _ => push_kind_rows(conn.idx, objects, &q, &mut child_rows, false),
-                        };
-                    }
-                    ConnCache::Idle => {}
+        if conn.is_connecting {
+            rows.push(BrowserRow::Status {
+                conn_idx: conn.idx,
+                message: "Connecting…".into(),
+                depth: DEPTH_SCHEMA,
+            });
+        } else if conn.is_failed {
+            rows.push(BrowserRow::Status {
+                conn_idx: conn.idx,
+                message: conn
+                    .fail_reason
+                    .as_deref()
+                    .map(super::notify::error_one_liner)
+                    .unwrap_or_else(|| "Could not connect".into()),
+                depth: DEPTH_SCHEMA,
+            });
+        } else if !conn.is_connected {
+            rows.push(BrowserRow::Status {
+                conn_idx: conn.idx,
+                message: "Not connected".into(),
+                depth: DEPTH_SCHEMA,
+            });
+        } else if let Some(st) = tree.conn_states.get(&conn_id) {
+            match st.cache() {
+                ConnCache::Loading | ConnCache::Idle => {
+                    rows.push(BrowserRow::Status {
+                        conn_idx: conn.idx,
+                        message: "Loading objects…".into(),
+                        depth: DEPTH_SCHEMA,
+                    });
                 }
-            }
-
-            if conn_matches || child_matches {
-                rows.push(BrowserRow::Connection(conn));
-                rows.extend(child_rows);
+                ConnCache::Error(err) => {
+                    rows.push(BrowserRow::Status {
+                        conn_idx: conn.idx,
+                        message: super::notify::error_one_liner(err),
+                        depth: DEPTH_SCHEMA,
+                    });
+                }
+                ConnCache::Ready(objects) => match conn.engine {
+                    EngineKind::Postgres => {
+                        push_postgres_rows(conn.idx, objects, st, &q, &mut rows);
+                    }
+                    _ => {
+                        push_kind_rows(conn.idx, objects, &q, &mut rows, false);
+                    }
+                },
             }
         }
 
         self.rows = rows;
-        if let Some(sel) = tree.selected_connection {
-            self.selected_index = self
-                .rows
+        self.selected_index = tree.selected_object.as_ref().and_then(|name| {
+            self.rows
                 .iter()
-                .position(|r| matches!(r, BrowserRow::Connection(c) if c.idx == sel))
-                .map(IndexPath::new);
-        }
+                .position(|r| {
+                    matches!(
+                        r,
+                        BrowserRow::Object { object, .. } if object.display_name() == *name
+                    )
+                })
+                .map(IndexPath::new)
+        });
     }
 
     fn row_at(&self, ix: IndexPath) -> Option<&BrowserRow> {
@@ -652,12 +675,16 @@ impl ListDelegate for BrowserListDelegate {
         _window: &mut Window,
         cx: &mut Context<ListState<Self>>,
     ) -> impl IntoElement {
-        empty_state(
-            "No matches",
-            "No connections match your search.",
-            IconName::Search,
-            cx,
-        )
+        let searching = !self.query.trim().is_empty();
+        let has_selection = self.tree.read(cx).selected_connection.is_some();
+        let (title, body) = if !has_selection {
+            ("No connections", "Add a connection to this project.")
+        } else if searching {
+            ("No matches", "No objects match your search.")
+        } else {
+            ("Empty catalog", "No objects in this catalog.")
+        };
+        empty_state(title, body, IconName::Search, cx)
     }
 
     fn set_selected_index(

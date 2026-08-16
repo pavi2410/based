@@ -18,7 +18,6 @@ impl ConnectionTree {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let same = self.selected_connection == Some(idx);
         self.selected_connection = Some(idx);
         self.selected_object = None;
         let conn_ent = match self.registry.read(cx).connections().get(idx) {
@@ -29,10 +28,8 @@ impl ConnectionTree {
         match conn_ent.read(cx).state {
             ConnectionState::Connecting { .. } => return,
             ConnectionState::Connected(_) => {
-                if !same {
-                    self.set_connection_expanded(idx, true, cx);
-                    self.pending_open_connection = Some(idx);
-                }
+                self.set_connection_expanded(idx, true, cx);
+                self.pending_open_connection = Some(idx);
                 cx.notify();
                 return;
             }

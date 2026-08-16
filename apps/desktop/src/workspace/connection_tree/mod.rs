@@ -490,7 +490,12 @@ impl Render for ConnectionTree {
         browser_list::refresh_browser_list(self, cx);
         let content = content_rail::render_content_rail(self, tree_entity, browser_list, cx);
 
-        h_flex().size_full().min_h_0().child(rail).child(content)
+        h_flex()
+            .size_full()
+            .min_h_0()
+            .items_start()
+            .child(rail)
+            .child(content)
     }
 }
 

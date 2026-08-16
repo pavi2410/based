@@ -12,7 +12,9 @@ pub mod tab_dispatch;
 pub mod tree;
 pub mod wizard;
 
-pub use based_postgres::{PostgresConfig, SslMode, execute_sql, pg_connect_options};
+pub use based_postgres::{
+    PostgresConfig, SslMode, execute_sql, pg_connect_options, postgres_uri, psql_command,
+};
 
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;

@@ -3,7 +3,8 @@
 use gpui::{App, ClipboardItem, WeakEntity};
 use gpui_component::menu::{PopupMenu, PopupMenuItem};
 
-use crate::connection::{ConnectionState, EngineKind};
+use crate::connection::{ConnectionConfig, ConnectionState, EngineKind};
+use crate::postgres::{postgres_uri, psql_command};
 use crate::workspace::notify;
 
 use super::ConnectionTree;
@@ -12,6 +13,42 @@ use super::types::{ObjectKind, SchemaObject};
 fn coming_soon_item(label: &'static str) -> PopupMenuItem {
     PopupMenuItem::new(label).on_click(move |_, _, cx| {
         notify::push_info(cx, format!("{label} — coming soon"));
+    })
+}
+
+#[derive(Clone, Copy)]
+enum PostgresCopyFormat {
+    Uri,
+    Psql,
+}
+
+fn copy_postgres_item(
+    label: &'static str,
+    tree: WeakEntity<ConnectionTree>,
+    idx: usize,
+    include_password: bool,
+    format: PostgresCopyFormat,
+) -> PopupMenuItem {
+    PopupMenuItem::new(label).on_click(move |_, _, cx| {
+        let Some(cfg) = tree.upgrade().and_then(|tree_ent| {
+            tree_ent
+                .read(cx)
+                .registry
+                .read(cx)
+                .connections()
+                .get(idx)
+                .and_then(|entry| match &entry.read(cx).config {
+                    ConnectionConfig::Postgres(cfg) => Some(cfg.clone()),
+                    _ => None,
+                })
+        }) else {
+            return;
+        };
+        let text = match format {
+            PostgresCopyFormat::Psql => psql_command(&cfg, include_password),
+            PostgresCopyFormat::Uri => postgres_uri(&cfg, include_password),
+        };
+        cx.write_to_clipboard(ClipboardItem::new_string(text));
     })
 }
 
@@ -64,8 +101,34 @@ pub(crate) fn connection_context_menu(
 
     if engine == EngineKind::Postgres {
         menu = menu
-            .item(coming_soon_item("Copy Connection String"))
-            .item(coming_soon_item("Copy psql Command"));
+            .item(copy_postgres_item(
+                "Copy Connection String",
+                tree_menu.clone(),
+                idx,
+                false,
+                PostgresCopyFormat::Uri,
+            ))
+            .item(copy_postgres_item(
+                "Copy Connection String with Password",
+                tree_menu.clone(),
+                idx,
+                true,
+                PostgresCopyFormat::Uri,
+            ))
+            .item(copy_postgres_item(
+                "Copy psql Command",
+                tree_menu.clone(),
+                idx,
+                false,
+                PostgresCopyFormat::Psql,
+            ))
+            .item(copy_postgres_item(
+                "Copy psql Command with Password",
+                tree_menu.clone(),
+                idx,
+                true,
+                PostgresCopyFormat::Psql,
+            ));
     }
 
     menu = menu

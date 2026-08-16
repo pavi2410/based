@@ -495,7 +495,7 @@ fn dev_settings_page() -> SettingPage {
                         Button::new("dev-reset-onboarding")
                             .outline()
                             .label("Reset")
-                            .with_size(options.size)
+                            .with_size(options.size())
                             .on_click(|_, _, cx| prefs::set_onboarding_completed(false, cx))
                     }),
                 )
@@ -508,7 +508,7 @@ fn dev_settings_page() -> SettingPage {
                         Button::new("dev-restart-app")
                             .outline()
                             .label("Restart")
-                            .with_size(options.size)
+                            .with_size(options.size())
                             .on_click(|_, _, _cx| restart_app())
                     }),
                 )

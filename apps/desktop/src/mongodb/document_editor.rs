@@ -6,7 +6,7 @@ use gpui_component::{
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,
-    input::{Input, InputState},
+    input::{Editor, EditorState},
     menu::PopupMenu,
     v_flex,
 };
@@ -36,7 +36,7 @@ pub struct DocumentEditorPanel {
     focus_handle: FocusHandle,
     collection: Collection<Document>,
     mode: EditorMode,
-    json_input: Entity<InputState>,
+    json_input: Entity<EditorState>,
     /// When editing, the loaded document (used for `_id` on replace).
     original: Option<Document>,
     error: Option<String>,
@@ -246,7 +246,7 @@ impl Render for DocumentEditorPanel {
                     .border_color(border)
                     .font_family(prefs::code_font_family(cx))
                     .text_sm()
-                    .child(Input::new(&self.json_input).h_full().cleanable(false)),
+                    .child(Editor::new(&self.json_input).h_full()),
             )
     }
 }

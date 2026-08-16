@@ -8,12 +8,11 @@ use gpui_component::{
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,
-    input::{InputEvent, InputState},
+    input::{EditorState, InputEvent},
     menu::PopupMenu,
     resizable::{ResizableState, resizable_panel, v_resizable},
     scroll::ScrollableElement as _,
-    table::Column,
-    table::TableState,
+    table::{Column, TableState},
     v_flex,
 };
 use sqlx::{AssertSqlSafe, PgPool, Row};
@@ -74,7 +73,7 @@ pub struct QueryEditorPanel {
     focus_handle: FocusHandle,
     pool: PgPool,
     conn_id: ConnectionId,
-    sql_input: Entity<InputState>,
+    sql_input: Entity<EditorState>,
     result: Entity<TableState<RowDelegate>>,
     status: QueryStatus,
     split_state: Entity<ResizableState>,

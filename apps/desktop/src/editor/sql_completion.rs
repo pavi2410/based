@@ -4,9 +4,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use anyhow::Result;
-use gpui::{AppContext as _, Context, Task, Window};
+use gpui::{App, AppContext as _, Task, Window};
 use gpui_component::Rope;
-use gpui_component::input::{CompletionProvider, InputState, RopeExt};
+use gpui_component::input::{CompletionProvider, RopeExt};
 use lsp_types::{
     CompletionContext, CompletionItem, CompletionItemKind, CompletionResponse, CompletionTextEdit,
     Range, TextEdit,
@@ -120,7 +120,7 @@ impl CompletionProvider for SqlCompletionProvider {
         offset: usize,
         trigger: CompletionContext,
         _: &mut Window,
-        cx: &mut Context<InputState>,
+        cx: &mut App,
     ) -> Task<Result<CompletionResponse>> {
         let query = trigger.trigger_character.unwrap_or_default();
         if query.is_empty() {
@@ -144,12 +144,7 @@ impl CompletionProvider for SqlCompletionProvider {
         })
     }
 
-    fn is_completion_trigger(
-        &self,
-        _offset: usize,
-        new_text: &str,
-        _cx: &mut Context<InputState>,
-    ) -> bool {
+    fn is_completion_trigger(&self, _offset: usize, new_text: &str, _cx: &mut App) -> bool {
         !new_text.is_empty()
             && new_text
                 .chars()

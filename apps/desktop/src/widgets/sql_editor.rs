@@ -6,7 +6,7 @@ use std::sync::Arc;
 use gpui::{App, Entity, Hsla, IntoElement, ParentElement, Window, div, prelude::*, px};
 use gpui_component::{
     ActiveTheme,
-    input::{CompletionProvider, Input, InputState},
+    input::{CompletionProvider, Editor, EditorState},
 };
 
 use crate::app::prefs;
@@ -17,10 +17,10 @@ pub fn new_code_input(
     initial: &str,
     window: &mut Window,
     cx: &mut App,
-) -> Entity<InputState> {
+) -> Entity<EditorState> {
     let input = cx.new(|cx| {
-        InputState::new(window, cx)
-            .code_editor(language)
+        EditorState::new(window, cx)
+            .language(language)
             .line_number(true)
             .searchable(true)
     });
@@ -30,38 +30,38 @@ pub fn new_code_input(
     input
 }
 
-pub fn new_sql_input(initial: &str, window: &mut Window, cx: &mut App) -> Entity<InputState> {
+pub fn new_sql_input(initial: &str, window: &mut Window, cx: &mut App) -> Entity<EditorState> {
     new_code_input("sql", initial, window, cx)
 }
 
 /// Attach schema-aware SQL completions to an existing SQL input.
 pub fn attach_sql_completion(
-    input: &Entity<InputState>,
+    input: &Entity<EditorState>,
     schema_cache: Arc<SchemaCache>,
     cx: &mut App,
 ) {
     let provider: Rc<dyn CompletionProvider> = SqlCompletionProvider::new(schema_cache);
     input.update(cx, |state, _| {
-        state.lsp.completion_provider = Some(provider);
+        state.lsp_mut().completion_provider = Some(provider);
     });
 }
 
-pub fn new_json_input(initial: &str, window: &mut Window, cx: &mut App) -> Entity<InputState> {
+pub fn new_json_input(initial: &str, window: &mut Window, cx: &mut App) -> Entity<EditorState> {
     new_code_input("json", initial, window, cx)
 }
 
-pub fn text_from_input(input: &Entity<InputState>, cx: &App) -> String {
+pub fn text_from_input(input: &Entity<EditorState>, cx: &App) -> String {
     input.read(cx).value().to_string()
 }
 
-pub fn set_input_text(input: &Entity<InputState>, text: &str, window: &mut Window, cx: &mut App) {
+pub fn set_input_text(input: &Entity<EditorState>, text: &str, window: &mut Window, cx: &mut App) {
     input.update(cx, |state, cx| {
         state.set_value(text, window, cx);
     });
 }
 
 fn code_editor_shell(
-    input: &Entity<InputState>,
+    input: &Entity<EditorState>,
     is_error: bool,
     cx: &App,
     height: Option<f32>,
@@ -87,12 +87,12 @@ fn code_editor_shell(
         shell = shell.flex_1().min_h_0().h_full();
     }
 
-    shell.child(Input::new(input).h_full().cleanable(false))
+    shell.child(Editor::new(input).h_full())
 }
 
 /// Full-height code editor surface for query / pipeline panels.
 pub fn code_editor_area(
-    input: &Entity<InputState>,
+    input: &Entity<EditorState>,
     is_error: bool,
     height: f32,
     cx: &App,
@@ -101,6 +101,6 @@ pub fn code_editor_area(
 }
 
 /// Flex child that fills remaining panel height (schema DDL, read-only viewers).
-pub fn code_editor_flex(input: &Entity<InputState>, is_error: bool, cx: &App) -> impl IntoElement {
+pub fn code_editor_flex(input: &Entity<EditorState>, is_error: bool, cx: &App) -> impl IntoElement {
     code_editor_shell(input, is_error, cx, None)
 }

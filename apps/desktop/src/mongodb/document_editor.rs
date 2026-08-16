@@ -242,11 +242,13 @@ impl Render for DocumentEditorPanel {
                     .flex_1()
                     .min_h(px(200.0))
                     .p_2()
-                    .border_1()
-                    .border_color(border)
                     .font_family(prefs::code_font_family(cx))
                     .text_sm()
-                    .child(Editor::new(&self.json_input).h_full()),
+                    .child(
+                        Editor::new(&self.json_input)
+                            .h_full()
+                            .when(self.error.is_some(), |this| this.border_color(danger)),
+                    ),
             )
     }
 }

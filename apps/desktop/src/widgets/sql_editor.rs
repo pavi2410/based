@@ -3,7 +3,7 @@
 use std::rc::Rc;
 use std::sync::Arc;
 
-use gpui::{App, Entity, Hsla, IntoElement, ParentElement, Window, div, prelude::*, px};
+use gpui::{App, Entity, IntoElement, ParentElement, Window, div, prelude::*, px};
 use gpui_component::{
     ActiveTheme,
     input::{CompletionProvider, Editor, EditorState},
@@ -67,20 +67,11 @@ fn code_editor_shell(
     cx: &App,
     height: Option<f32>,
 ) -> impl IntoElement {
-    let theme = cx.theme();
-    let border: Hsla = if is_error { theme.danger } else { theme.border };
     let font = prefs::code_font_family(cx);
     let weight = prefs::code_font_weight(cx);
     let size = px(prefs::editor_size_token(cx).editor_px());
 
-    let mut shell = div()
-        .p_2()
-        .border_1()
-        .rounded(px(7.0))
-        .border_color(border)
-        .font_family(font)
-        .font_weight(weight)
-        .text_size(size);
+    let mut shell = div().font_family(font).font_weight(weight).text_size(size);
 
     if let Some(height) = height {
         shell = shell.h(px(height));
@@ -88,7 +79,12 @@ fn code_editor_shell(
         shell = shell.flex_1().min_h_0().h_full();
     }
 
-    shell.child(Editor::new(input).h_full().readonly(readonly))
+    shell.child(
+        Editor::new(input)
+            .h_full()
+            .readonly(readonly)
+            .when(is_error, |this| this.border_color(cx.theme().danger)),
+    )
 }
 
 /// Full-height code editor surface for query / pipeline panels.

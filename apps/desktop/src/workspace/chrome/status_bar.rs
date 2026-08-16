@@ -1,4 +1,4 @@
-use gpui::{App, IntoElement, RenderOnce, SharedString, prelude::*, px};
+use gpui::{App, Entity, IntoElement, RenderOnce, SharedString, div, prelude::*, px};
 use gpui_component::{
     ActiveTheme, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants},
@@ -10,9 +10,42 @@ use crate::app::updater::UpdateBarSnapshot;
 use crate::app::updater::{self, UpdatePhase};
 use crate::bindings::{ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane};
 use crate::connection::registry::ConnectionRegistry;
+use crate::connection::{ConnectionEntry, ConnectionId, ConnectionState, EngineKind};
+use crate::widgets::engine_icon;
 use crate::widgets::status_item::{STATUS_BAR_HEIGHT, status_divider, status_segment, status_text};
+use crate::workspace::ConnectionTree;
 use crate::workspace::chrome::{left_pane::LeftPane, side_pane::SidePane};
+use crate::workspace::connection_tree::connection_actions_menu;
 use crate::workspace::tabs::{WorkspaceRef, enqueue_toggle_left_pane, enqueue_toggle_side_pane};
+
+/// Focused connection shown as a status-bar chip.
+#[derive(Clone, Debug)]
+pub struct StatusBarConnection {
+    pub id: ConnectionId,
+    pub label: SharedString,
+    pub engine: EngineKind,
+    pub is_connected: bool,
+    pub state_color: gpui::Hsla,
+    pub muted: bool,
+}
+
+impl StatusBarConnection {
+    pub fn from_entry(entry: &ConnectionEntry, muted: bool, cx: &App) -> Self {
+        Self {
+            id: entry.id.clone(),
+            label: entry.config.label().to_string().into(),
+            engine: entry.config.engine(),
+            is_connected: matches!(entry.state, ConnectionState::Connected(_)),
+            state_color: match &entry.state {
+                ConnectionState::Disconnected => cx.theme().muted_foreground.opacity(0.75),
+                ConnectionState::Connecting { .. } => cx.theme().warning_foreground,
+                ConnectionState::Connected(_) => cx.theme().green_light,
+                ConnectionState::Failed { .. } => cx.theme().danger_foreground,
+            },
+            muted,
+        }
+    }
+}
 
 /// Context passed into the workspace status rail.
 #[derive(Clone, Debug)]
@@ -22,6 +55,7 @@ pub struct StatusBarModel {
     pub scope_label: SharedString,
     pub history_ready: bool,
     pub update: UpdateBarSnapshot,
+    pub focused_connection: Option<StatusBarConnection>,
 }
 
 /// A thin status bar rendered at the bottom of the workspace.
@@ -31,6 +65,7 @@ pub struct StatusBar {
     active_side_pane: Option<SidePane>,
     active_left_pane: LeftPane,
     registry: gpui::Entity<ConnectionRegistry>,
+    connection_tree: Entity<ConnectionTree>,
 }
 
 impl StatusBar {
@@ -39,12 +74,14 @@ impl StatusBar {
         active_side_pane: Option<SidePane>,
         active_left_pane: LeftPane,
         registry: gpui::Entity<ConnectionRegistry>,
+        connection_tree: Entity<ConnectionTree>,
     ) -> Self {
         Self {
             model,
             active_side_pane,
             active_left_pane,
             registry,
+            connection_tree,
         }
     }
 }
@@ -102,6 +139,62 @@ fn side_pane_button(pane: SidePane, active: Option<SidePane>, cx: &App) -> impl 
             if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
                 ws.update(cx, |_, cx| cx.notify());
             }
+        })
+}
+
+fn connection_chip(
+    chip: StatusBarConnection,
+    tree: Entity<ConnectionTree>,
+    cx: &App,
+) -> impl IntoElement {
+    let muted = cx.theme().muted_foreground;
+    let fg = if chip.muted {
+        muted
+    } else {
+        cx.theme().foreground
+    };
+    let label = chip.label.clone();
+    let engine = chip.engine;
+    let is_connected = chip.is_connected;
+    let conn_id = chip.id.clone();
+    let tree = tree.downgrade();
+
+    Button::new("status-connection")
+        .ghost()
+        .small()
+        .child(
+            h_flex()
+                .items_center()
+                .gap(px(6.0))
+                .max_w(px(180.0))
+                .child(engine_icon(engine))
+                .child(
+                    div()
+                        .min_w_0()
+                        .flex_1()
+                        .text_xs()
+                        .text_color(fg)
+                        .truncate()
+                        .child(label),
+                )
+                .child(
+                    div()
+                        .w(px(6.0))
+                        .h(px(6.0))
+                        .rounded_full()
+                        .flex_shrink_0()
+                        .bg(chip.state_color),
+                ),
+        )
+        .dropdown_menu(move |menu, _window, _cx| {
+            connection_actions_menu(
+                conn_id.clone(),
+                engine,
+                is_connected,
+                tree.clone(),
+                menu,
+                false,
+            )
         })
 }
 
@@ -240,6 +333,8 @@ impl RenderOnce for StatusBar {
         let version_label = format!("based {}", env!("CARGO_PKG_VERSION"));
         let registry = self.registry.clone();
         let update_snapshot = self.model.update.clone();
+        let connection_tree = self.connection_tree.clone();
+        let focused_connection = self.model.focused_connection.clone();
 
         h_flex()
             .h(px(STATUS_BAR_HEIGHT))
@@ -265,6 +360,13 @@ impl RenderOnce for StatusBar {
                                     .map(|pane| left_pane_button(pane, active_left_pane, cx)),
                             ),
                     )
+                    .when_some(focused_connection, |row, chip| {
+                        row.child(status_divider(muted)).child(connection_chip(
+                            chip,
+                            connection_tree,
+                            cx,
+                        ))
+                    })
                     .child(status_divider(muted))
                     .child(status_segment(
                         "connections",

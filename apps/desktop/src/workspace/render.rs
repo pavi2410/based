@@ -23,7 +23,7 @@ use super::chrome::{
     left_pane::LeftPane,
     panes::{history_pane::render_history_pane, saved_pane::render_saved_pane},
     side_pane::{SidePane, render_side_pane},
-    status_bar::{StatusBar, StatusBarModel},
+    status_bar::{StatusBar, StatusBarConnection, StatusBarModel},
     target_picker::render_target_picker,
     topbar::Topbar,
 };
@@ -70,7 +70,8 @@ impl Render for Workspace {
         let side_pane: Option<gpui::AnyElement> = active_pane.map(|pane| {
             let body: gpui::AnyElement = match pane {
                 SidePane::Inspector => {
-                    render_inspector_body(selected_connection, window, cx).into_any_element()
+                    render_inspector_body(selected_connection.clone(), window, cx)
+                        .into_any_element()
                 }
                 SidePane::History => render_history_pane(
                     workspace_for_panes.clone(),
@@ -236,10 +237,20 @@ impl Render for Workspace {
                     scope_label: self.project_title.clone(),
                     history_ready: !cx.global::<QueryStore>().history.recent(1).is_empty(),
                     update: coordinator_snapshot(cx),
+                    focused_connection: focused_conn_id
+                        .as_ref()
+                        .and_then(|id| self.registry.read(cx).get(id, cx).cloned())
+                        .map(|ent| StatusBarConnection::from_entry(ent.read(cx), false, cx))
+                        .or_else(|| {
+                            selected_connection
+                                .as_ref()
+                                .map(|ent| StatusBarConnection::from_entry(ent.read(cx), true, cx))
+                        }),
                 },
                 active_pane,
                 self.active_left_pane,
                 self.registry.clone(),
+                self.connection_tree.clone(),
             ))
             .child(self.command_palette.clone());
 

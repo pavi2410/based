@@ -33,6 +33,7 @@ mod open_workspace;
 mod schema_load;
 mod types;
 
+pub(crate) use context_menu::connection_actions_menu;
 pub use types::{ObjectKind, SchemaObject, TreeEvent};
 
 use types::{ActiveObjects, ConnState};

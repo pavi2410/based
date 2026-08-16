@@ -1,7 +1,8 @@
 //! App shell chrome: title bar, status rail, GPUI overlay stack, main layout frame.
 //!
 //! Dependency rule: may use `widgets/`, `app/`, `bindings/`, `connection/` (types), and GPUI.
-//! Must not depend on `postgres/`, `sqlite/`, `mongodb/`, `tab_dispatch`, or `connection_tree/`.
+//! Must not depend on `postgres/`, `sqlite/`, `mongodb/`, or `tab_dispatch`.
+//! `status_bar` may call `connection_tree` menus for the focused-connection chip.
 
 pub mod env;
 pub mod layout;

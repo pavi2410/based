@@ -3,7 +3,7 @@
 use gpui::{App, ClipboardItem, WeakEntity};
 use gpui_component::menu::{PopupMenu, PopupMenuItem};
 
-use crate::connection::{ConnectionConfig, ConnectionState, EngineKind};
+use crate::connection::{ConnectionConfig, ConnectionId, ConnectionState, EngineKind};
 use crate::mongodb::{mongo_uri, mongosh_command};
 use crate::postgres::{postgres_uri, psql_command};
 use crate::sqlite::{resolve_sqlite_path, sqlite_uri, sqlite3_command};
@@ -21,7 +21,7 @@ fn coming_soon_item(label: &'static str) -> PopupMenuItem {
 fn copy_config_item(
     label: &'static str,
     tree: WeakEntity<ConnectionTree>,
-    idx: usize,
+    conn_id: ConnectionId,
     text: impl Fn(&ConnectionConfig, &App) -> Option<String> + 'static,
 ) -> PopupMenuItem {
     PopupMenuItem::new(label).on_click(move |_, _, cx| {
@@ -30,8 +30,7 @@ fn copy_config_item(
                 .read(cx)
                 .registry
                 .read(cx)
-                .connections()
-                .get(idx)
+                .get(&conn_id, cx)
                 .map(|entry| entry.read(cx).config.clone())
         }) else {
             return;
@@ -46,7 +45,7 @@ fn copy_config_item(
 fn add_copy_items(
     menu: PopupMenu,
     tree: WeakEntity<ConnectionTree>,
-    idx: usize,
+    conn_id: ConnectionId,
     engine: EngineKind,
 ) -> PopupMenu {
     match engine {
@@ -54,7 +53,7 @@ fn add_copy_items(
             .item(copy_config_item(
                 "Copy Connection String",
                 tree.clone(),
-                idx,
+                conn_id.clone(),
                 |cfg, _| match cfg {
                     ConnectionConfig::Postgres(c) => Some(postgres_uri(c, false)),
                     _ => None,
@@ -63,7 +62,7 @@ fn add_copy_items(
             .item(copy_config_item(
                 "Copy Connection String with Password",
                 tree.clone(),
-                idx,
+                conn_id.clone(),
                 |cfg, _| match cfg {
                     ConnectionConfig::Postgres(c) => Some(postgres_uri(c, true)),
                     _ => None,
@@ -72,7 +71,7 @@ fn add_copy_items(
             .item(copy_config_item(
                 "Copy psql Command",
                 tree.clone(),
-                idx,
+                conn_id.clone(),
                 |cfg, _| match cfg {
                     ConnectionConfig::Postgres(c) => Some(psql_command(c, false)),
                     _ => None,
@@ -81,7 +80,7 @@ fn add_copy_items(
             .item(copy_config_item(
                 "Copy psql Command with Password",
                 tree,
-                idx,
+                conn_id.clone(),
                 |cfg, _| match cfg {
                     ConnectionConfig::Postgres(c) => Some(psql_command(c, true)),
                     _ => None,
@@ -91,7 +90,7 @@ fn add_copy_items(
             .item(copy_config_item(
                 "Copy Connection String",
                 tree.clone(),
-                idx,
+                conn_id.clone(),
                 |cfg, cx| match cfg {
                     ConnectionConfig::SQLite(c) => {
                         let path = resolve_sqlite_path(&c.path, cx);
@@ -103,7 +102,7 @@ fn add_copy_items(
             .item(copy_config_item(
                 "Copy sqlite3 Command",
                 tree,
-                idx,
+                conn_id.clone(),
                 |cfg, cx| match cfg {
                     ConnectionConfig::SQLite(c) => {
                         let path = resolve_sqlite_path(&c.path, cx);
@@ -116,7 +115,7 @@ fn add_copy_items(
             .item(copy_config_item(
                 "Copy Connection String",
                 tree.clone(),
-                idx,
+                conn_id.clone(),
                 |cfg, _| match cfg {
                     ConnectionConfig::MongoDB(c) => Some(mongo_uri(c, false)),
                     _ => None,
@@ -125,7 +124,7 @@ fn add_copy_items(
             .item(copy_config_item(
                 "Copy Connection String with Password",
                 tree.clone(),
-                idx,
+                conn_id.clone(),
                 |cfg, _| match cfg {
                     ConnectionConfig::MongoDB(c) => Some(mongo_uri(c, true)),
                     _ => None,
@@ -134,7 +133,7 @@ fn add_copy_items(
             .item(copy_config_item(
                 "Copy mongosh Command",
                 tree.clone(),
-                idx,
+                conn_id.clone(),
                 |cfg, _| match cfg {
                     ConnectionConfig::MongoDB(c) => Some(mongosh_command(c, false)),
                     _ => None,
@@ -143,7 +142,7 @@ fn add_copy_items(
             .item(copy_config_item(
                 "Copy mongosh Command with Password",
                 tree,
-                idx,
+                conn_id.clone(),
                 |cfg, _| match cfg {
                     ConnectionConfig::MongoDB(c) => Some(mongosh_command(c, true)),
                     _ => None,
@@ -163,6 +162,85 @@ fn structure_supported(engine: EngineKind, kind: ObjectKind) -> bool {
     }
 }
 
+fn connection_idx(tree: &ConnectionTree, conn_id: &ConnectionId, cx: &App) -> Option<usize> {
+    tree.registry
+        .read(cx)
+        .connections()
+        .iter()
+        .position(|e| e.read(cx).id == *conn_id)
+}
+
+/// Shared New Query / Refresh / copy / Disconnect items.
+///
+/// `include_new_window` is for the tree context menu only; the status-bar chip skips it.
+pub(crate) fn connection_actions_menu(
+    conn_id: ConnectionId,
+    engine: EngineKind,
+    is_connected: bool,
+    tree: WeakEntity<ConnectionTree>,
+    menu: PopupMenu,
+    include_new_window: bool,
+) -> PopupMenu {
+    let tree_menu = tree.clone();
+    let mut menu = menu.item(PopupMenuItem::new("New Query").on_click({
+        let tree = tree_menu.clone();
+        let conn_id = conn_id.clone();
+        move |_, _, cx| {
+            if let Some(tree_ent) = tree.upgrade() {
+                tree_ent.update(cx, |tree, cx| {
+                    if let Some(idx) = connection_idx(tree, &conn_id, cx) {
+                        tree.open_new_query(idx, cx);
+                    }
+                });
+            }
+        }
+    }));
+
+    if is_connected {
+        menu = menu.item(PopupMenuItem::new("Refresh").on_click({
+            let tree = tree_menu.clone();
+            let conn_id = conn_id.clone();
+            move |_, _, cx| {
+                if let Some(tree_ent) = tree.upgrade() {
+                    tree_ent.update(cx, |tree, cx| {
+                        if let Some(idx) = connection_idx(tree, &conn_id, cx) {
+                            tree.refresh_connection(idx, cx);
+                        }
+                    });
+                }
+            }
+        }));
+    }
+
+    menu = add_copy_items(menu, tree_menu.clone(), conn_id.clone(), engine);
+
+    if include_new_window {
+        menu = menu
+            .separator()
+            .item(coming_soon_item("Open in New Window"))
+            .separator();
+    } else {
+        menu = menu.separator();
+    }
+
+    if is_connected {
+        menu = menu.item(PopupMenuItem::new("Disconnect").on_click({
+            let tree = tree_menu;
+            move |_, _, cx| {
+                if let Some(tree_ent) = tree.upgrade() {
+                    tree_ent.update(cx, |tree, cx| {
+                        if let Some(idx) = connection_idx(tree, &conn_id, cx) {
+                            tree.disconnect_at(idx, cx);
+                        }
+                    });
+                }
+            }
+        }));
+    }
+
+    menu
+}
+
 pub(crate) fn connection_context_menu(
     idx: usize,
     engine: EngineKind,
@@ -178,46 +256,19 @@ pub(crate) fn connection_context_menu(
         });
     }
 
-    let tree_menu = tree.clone();
-    let mut menu = menu.item(PopupMenuItem::new("New Query").on_click({
-        let tree = tree_menu.clone();
-        move |_, _, cx| {
-            if let Some(tree_ent) = tree.upgrade() {
-                tree_ent.update(cx, |tree, cx| tree.open_new_query(idx, cx));
-            }
-        }
-    }));
+    let Some(conn_id) = tree.upgrade().and_then(|tree_ent| {
+        tree_ent
+            .read(cx)
+            .registry
+            .read(cx)
+            .connections()
+            .get(idx)
+            .map(|entry| entry.read(cx).id.clone())
+    }) else {
+        return menu;
+    };
 
-    if is_connected {
-        menu = menu.item(PopupMenuItem::new("Refresh").on_click({
-            let tree = tree_menu.clone();
-            move |_, _, cx| {
-                if let Some(tree_ent) = tree.upgrade() {
-                    tree_ent.update(cx, |tree, cx| tree.refresh_connection(idx, cx));
-                }
-            }
-        }));
-    }
-
-    menu = add_copy_items(menu, tree_menu.clone(), idx, engine);
-
-    menu = menu
-        .separator()
-        .item(coming_soon_item("Open in New Window"))
-        .separator();
-
-    if is_connected {
-        menu = menu.item(PopupMenuItem::new("Disconnect").on_click({
-            let tree = tree_menu.clone();
-            move |_, _, cx| {
-                if let Some(tree_ent) = tree.upgrade() {
-                    tree_ent.update(cx, |tree, cx| tree.disconnect_at(idx, cx));
-                }
-            }
-        }));
-    }
-
-    menu
+    connection_actions_menu(conn_id, engine, is_connected, tree, menu, true)
 }
 
 /// Connection-wide refresh; per-schema invalidation is future work.

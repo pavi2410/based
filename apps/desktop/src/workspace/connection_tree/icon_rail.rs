@@ -3,7 +3,13 @@
 use gpui::{
     AnyElement, App, IntoElement, MouseButton, ParentElement, WeakEntity, div, prelude::*, px,
 };
-use gpui_component::{ActiveTheme, menu::ContextMenuExt, tooltip::Tooltip, v_flex};
+use gpui_component::{
+    ActiveTheme, Icon, IconName, Sizable as _,
+    button::{Button, ButtonVariants},
+    menu::ContextMenuExt,
+    tooltip::Tooltip,
+    v_flex,
+};
 
 use crate::widgets::engine_icon;
 
@@ -16,21 +22,55 @@ pub(crate) const ICON_RAIL_WIDTH: f32 = 48.0;
 pub(crate) fn render_icon_rail(
     tree: WeakEntity<ConnectionTree>,
     selected: Option<usize>,
+    content_expanded: bool,
     rows: Vec<ConnectionRow>,
     cx: &App,
 ) -> AnyElement {
+    let tree_toggle = tree.clone();
+    let muted = cx.theme().muted_foreground;
+
     v_flex()
         .w(px(ICON_RAIL_WIDTH))
         .h_full()
         .flex_shrink_0()
         .items_center()
-        .gap(px(4.0))
-        .py(px(8.0))
         .border_r_1()
         .border_color(cx.theme().sidebar_border)
-        .children(
-            rows.into_iter()
-                .map(|row| rail_icon(row, selected, tree.clone(), cx)),
+        .child(
+            v_flex()
+                .flex_1()
+                .w_full()
+                .items_center()
+                .gap(px(4.0))
+                .py(px(8.0))
+                .children(
+                    rows.into_iter()
+                        .map(|row| rail_icon(row, selected, tree.clone(), cx)),
+                ),
+        )
+        .child(
+            Button::new("content-rail-toggle")
+                .ghost()
+                .small()
+                .mb(px(8.0))
+                .icon(
+                    Icon::new(if content_expanded {
+                        IconName::ChevronLeft
+                    } else {
+                        IconName::ChevronRight
+                    })
+                    .text_color(muted),
+                )
+                .tooltip(if content_expanded {
+                    "Hide catalog"
+                } else {
+                    "Show catalog"
+                })
+                .on_click(move |_, _, cx| {
+                    if let Some(ent) = tree_toggle.upgrade() {
+                        ent.update(cx, |t, cx| t.toggle_content_rail(cx));
+                    }
+                }),
         )
         .into_any_element()
 }

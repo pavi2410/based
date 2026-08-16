@@ -301,13 +301,6 @@ impl Workspace {
         let handle = gpui_tokio::Tokio::handle(cx);
         let session = handle.block_on(tabs::SessionSnapshot::load(&store));
 
-        if let Some(conn_key) = session.active_connection_id.clone() {
-            let conn_id = ConnectionId(conn_key);
-            self.connection_tree.update(cx, |tree, ecx| {
-                tree.focus_connection_by_id(&conn_id, ecx);
-            });
-        }
-
         for spec in session.tabs {
             if matches!(spec, TabSpec::Home) {
                 continue;

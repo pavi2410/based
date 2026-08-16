@@ -83,6 +83,7 @@ impl Render for Workspace {
             render_side_pane(pane, body, cx).into_any_element()
         });
 
+        let content_rail_expanded = self.connection_tree.read(cx).content_rail_expanded;
         let sidebar = match self.active_left_pane {
             LeftPane::Browser => self.connection_tree.clone().into_any_element(),
             LeftPane::Workspace => v_flex()
@@ -92,9 +93,16 @@ impl Render for Workspace {
                 .child(render_query_lane(cx))
                 .into_any_element(),
         };
+        let sidebar_width = match self.active_left_pane {
+            LeftPane::Browser if !content_rail_expanded => {
+                crate::workspace::connection_tree::ICON_RAIL_WIDTH
+            }
+            _ => layout::SIDEBAR_EXPANDED_WIDTH,
+        };
 
         let body = layout::render_body_row(
             self.sidebar_collapsed,
+            sidebar_width,
             sidebar,
             self.dock_area.clone(),
             side_pane,

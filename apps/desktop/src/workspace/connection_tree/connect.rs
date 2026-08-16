@@ -20,6 +20,7 @@ impl ConnectionTree {
     ) {
         self.selected_connection = Some(idx);
         self.selected_object = None;
+        self.content_rail_expanded = true;
         let conn_ent = match self.registry.read(cx).connections().get(idx) {
             Some(e) => e.clone(),
             None => return,

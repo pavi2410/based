@@ -35,6 +35,7 @@ mod schema_load;
 mod types;
 
 pub(crate) use context_menu::connection_actions_menu;
+pub(crate) use icon_rail::ICON_RAIL_WIDTH;
 pub use types::{ObjectKind, SchemaObject, TreeEvent};
 
 use types::{ActiveObjects, ConnState};
@@ -57,6 +58,7 @@ pub struct ConnectionTree {
     pub(crate) queries_collapsed: bool,
     pub(crate) catalog_search: Option<Entity<InputState>>,
     pub(crate) queries_search: Option<Entity<InputState>>,
+    pub(crate) content_rail_expanded: bool,
 }
 
 impl ConnectionTree {
@@ -85,6 +87,7 @@ impl ConnectionTree {
                 this.selected_object = None;
                 this.bump_object_list_epoch(cx);
                 this.pending_open_connection = None;
+                this.content_rail_expanded = false;
                 cx.notify();
             }
             RegistryEvent::StateChanged(_) => cx.notify(),
@@ -114,6 +117,7 @@ impl ConnectionTree {
             queries_collapsed: false,
             catalog_search: None,
             queries_search: None,
+            content_rail_expanded: false,
         }
     }
 
@@ -231,9 +235,10 @@ impl ConnectionTree {
             self.selected_connection = None;
             return;
         }
-        match self.selected_connection {
-            Some(idx) if idx < n => {}
-            _ => self.selected_connection = Some(0),
+        if let Some(idx) = self.selected_connection
+            && idx >= n
+        {
+            self.selected_connection = None;
         }
     }
 
@@ -313,6 +318,11 @@ impl ConnectionTree {
         cx.notify();
     }
 
+    pub(crate) fn toggle_content_rail(&mut self, cx: &mut Context<Self>) {
+        self.content_rail_expanded = !self.content_rail_expanded;
+        cx.notify();
+    }
+
     pub fn selected_connection_entry(&self, cx: &gpui::App) -> Option<Entity<ConnectionEntry>> {
         self.selected_connection
             .and_then(|idx| self.registry.read(cx).connections().get(idx).cloned())
@@ -331,6 +341,7 @@ impl ConnectionTree {
         };
         self.selected_connection = Some(idx);
         self.selected_object = None;
+        self.content_rail_expanded = true;
         self.bump_object_list_epoch(cx);
         let conn_ent = self.registry.read(cx).connections()[idx].clone();
         if matches!(conn_ent.read(cx).state, ConnectionState::Connected(_)) {
@@ -504,19 +515,26 @@ impl Render for ConnectionTree {
         let rail = icon_rail::render_icon_rail(
             tree_entity.clone(),
             self.selected_connection,
+            self.content_rail_expanded,
             connection_list::build_connection_rows(self, cx),
             cx,
         );
         let browser_list = browser_list::ensure_browser_list(self, window, cx);
         browser_list::refresh_browser_list(self, cx);
-        let content = content_rail::render_content_rail(self, tree_entity, browser_list, cx);
 
         h_flex()
             .size_full()
             .min_h_0()
             .items_start()
             .child(rail)
-            .child(content)
+            .when(self.content_rail_expanded, |row| {
+                row.child(content_rail::render_content_rail(
+                    self,
+                    tree_entity,
+                    browser_list,
+                    cx,
+                ))
+            })
     }
 }
 

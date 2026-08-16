@@ -3,9 +3,13 @@
 use gpui::{AnyElement, App, Entity, IntoElement, ParentElement, div, prelude::*, px};
 use gpui_component::{ActiveTheme, dock::DockArea, h_flex, v_flex};
 
+/// Expanded browser sidebar (icon rail + catalog).
+pub const SIDEBAR_EXPANDED_WIDTH: f32 = 296.0;
+
 /// Build the workspace body: left sidebar (toggleable), center dock, optional right side pane.
 pub fn render_body_row(
     sidebar_collapsed: bool,
+    sidebar_width: f32,
     sidebar: impl IntoElement,
     dock_area: Entity<DockArea>,
     side_pane: Option<AnyElement>,
@@ -15,7 +19,7 @@ pub fn render_body_row(
     let sidebar_bg = cx.theme().sidebar;
 
     let sidebar = v_flex()
-        .w(px(296.0))
+        .w(px(sidebar_width))
         .h_full()
         .min_h_0()
         .flex_shrink_0()

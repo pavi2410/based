@@ -754,6 +754,7 @@ name = "based-storage"
 version = "0.0.0-dev"
 dependencies = [
  "anyhow",
+ "based-core",
  "based-workspace",
  "dirs 6.0.0",
  "keyring",

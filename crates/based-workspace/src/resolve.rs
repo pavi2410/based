@@ -91,6 +91,7 @@ mod tests {
         let template = ConnectionTemplate {
             id: Uuid::new_v4(),
             label: "main".into(),
+            engine: based_core::EngineKind::Postgres,
             host: "{{pg_host}}".into(),
             port: "{{pg_port}}".into(),
             database: "app".into(),
@@ -128,6 +129,7 @@ mod tests {
         let template = ConnectionTemplate {
             id: Uuid::new_v4(),
             label: "main".into(),
+            engine: based_core::EngineKind::Postgres,
             host: "{{pg_host}}".into(),
             port: "5432".into(),
             database: "app".into(),

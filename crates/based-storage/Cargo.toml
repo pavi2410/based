@@ -7,6 +7,7 @@ license = "MIT"
 publish = false
 
 [dependencies]
+based-core = { path = "../based-core" }
 based-workspace = { path = "../based-workspace" }
 anyhow = { workspace = true }
 dirs = { workspace = true }

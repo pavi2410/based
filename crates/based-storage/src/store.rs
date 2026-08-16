@@ -621,10 +621,11 @@ impl MetadataStore {
             String,
             String,
             String,
+            String,
             Option<String>,
             String,
         )> = sqlx::query_as(
-            "SELECT id, label, host, port, database_name, username, password_template,
+            "SELECT id, label, engine, host, port, database_name, username, password_template,
                     password_secret_ref, ssl_mode
              FROM connection_templates
              WHERE workspace_id = ?
@@ -639,6 +640,7 @@ impl MetadataStore {
         for (
             id,
             label,
+            engine,
             host,
             port,
             database,
@@ -657,6 +659,7 @@ impl MetadataStore {
             out.push(ConnectionTemplate {
                 id,
                 label,
+                engine: based_core::EngineKind::from_str_lossy(&engine),
                 host,
                 port,
                 database,
@@ -747,11 +750,12 @@ impl MetadataStore {
 
         sqlx::query(
             "INSERT INTO connection_templates
-             (id, workspace_id, label, host, port, database_name, username,
+             (id, workspace_id, label, engine, host, port, database_name, username,
               password_template, password_secret_ref, ssl_mode, sort_order)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT(id) DO UPDATE SET
                label = excluded.label,
+               engine = excluded.engine,
                host = excluded.host,
                port = excluded.port,
                database_name = excluded.database_name,
@@ -764,6 +768,7 @@ impl MetadataStore {
         .bind(template.id.to_string())
         .bind(workspace_id)
         .bind(&template.label)
+        .bind(template.engine.as_str())
         .bind(&template.host)
         .bind(&template.port)
         .bind(&template.database)

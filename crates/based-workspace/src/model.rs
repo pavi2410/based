@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use based_core::EngineKind;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -47,6 +48,9 @@ pub struct Environment {
 pub struct ConnectionTemplate {
     pub id: Uuid,
     pub label: String,
+    /// Defaults to Postgres for templates created before the engine column existed.
+    #[serde(default)]
+    pub engine: EngineKind,
     pub host: String,
     pub port: String,
     pub database: String,

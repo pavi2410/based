@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::connection::{ConnectionConfig, ConnectionEntry};
 use crate::postgres::{PostgresConfig, SslMode};
+use based_core::EngineKind;
 
 const TEMPLATE_KEY_PREFIX: &str = "ws-template:";
 
@@ -25,6 +26,7 @@ pub fn template_from_postgres_config(
     ConnectionTemplate {
         id: existing_id.unwrap_or_else(Uuid::new_v4),
         label: config.label.clone(),
+        engine: EngineKind::Postgres,
         host: config.host.clone(),
         port: config.port.to_string(),
         database: config.database.clone(),

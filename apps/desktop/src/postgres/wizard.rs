@@ -13,6 +13,7 @@ use gpui_component::{
 };
 
 use crate::app::prefs;
+use crate::connection::ConnectionConfig;
 use crate::connection::categorize_connect_error;
 use crate::connection::lifecycle::Connectable;
 use crate::postgres::{PgConnection, PostgresConfig, SslMode};
@@ -149,7 +150,10 @@ impl ConnectionWizardPanel {
                     Ok(conn) => {
                         if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
                             ws.update(cx, |workspace, cx| {
-                                workspace.persist_postgres_template(&config, cx);
+                                workspace.persist_connection_config(
+                                    &ConnectionConfig::Postgres(config),
+                                    cx,
+                                );
                             });
                         }
                         cx.emit(WizardEvent::Connected(conn));

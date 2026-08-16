@@ -13,7 +13,7 @@ use crate::storage;
 use super::Workspace;
 use super::context::WorkspaceContext;
 use super::project_query::{OpenQueryResult, open_project_query, tab_spec_for_query};
-use crate::postgres::PostgresConfig;
+use crate::connection::ConnectionConfig;
 
 use super::templates;
 
@@ -79,15 +79,15 @@ impl Workspace {
         cx.notify();
     }
 
-    pub fn persist_postgres_template(&mut self, config: &PostgresConfig, cx: &mut Context<Self>) {
+    pub fn persist_connection_config(&mut self, config: &ConnectionConfig, cx: &mut Context<Self>) {
         let ctx = cx.global::<WorkspaceContext>().clone();
         let existing = ctx
             .active
             .connection_templates
             .iter()
-            .find(|t| t.label == config.label)
+            .find(|t| t.label == config.label() && t.engine == config.engine())
             .map(|t| t.id);
-        let template = templates::template_from_postgres_config(config, existing);
+        let template = templates::template_from_config(config, existing);
         let store = storage::store(cx);
         let workspace_id = ctx.active.id;
         let this = cx.entity().downgrade();

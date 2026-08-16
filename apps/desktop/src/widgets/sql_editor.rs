@@ -63,6 +63,7 @@ pub fn set_input_text(input: &Entity<EditorState>, text: &str, window: &mut Wind
 fn code_editor_shell(
     input: &Entity<EditorState>,
     is_error: bool,
+    readonly: bool,
     cx: &App,
     height: Option<f32>,
 ) -> impl IntoElement {
@@ -87,7 +88,7 @@ fn code_editor_shell(
         shell = shell.flex_1().min_h_0().h_full();
     }
 
-    shell.child(Editor::new(input).h_full())
+    shell.child(Editor::new(input).h_full().readonly(readonly))
 }
 
 /// Full-height code editor surface for query / pipeline panels.
@@ -97,10 +98,15 @@ pub fn code_editor_area(
     height: f32,
     cx: &App,
 ) -> impl IntoElement {
-    code_editor_shell(input, is_error, cx, Some(height))
+    code_editor_shell(input, is_error, false, cx, Some(height))
 }
 
-/// Flex child that fills remaining panel height (schema DDL, read-only viewers).
-pub fn code_editor_flex(input: &Entity<EditorState>, is_error: bool, cx: &App) -> impl IntoElement {
-    code_editor_shell(input, is_error, cx, None)
+/// Flex child that fills remaining panel height (schema DDL, query editors).
+pub fn code_editor_flex(
+    input: &Entity<EditorState>,
+    is_error: bool,
+    readonly: bool,
+    cx: &App,
+) -> impl IntoElement {
+    code_editor_shell(input, is_error, readonly, cx, None)
 }

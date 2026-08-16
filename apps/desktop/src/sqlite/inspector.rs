@@ -304,7 +304,12 @@ impl Render for TableInspectorPanel {
                 .flex_1()
                 .min_h(px(160.0))
                 .min_h_0()
-                .child(sql_editor::code_editor_flex(&self.ddl_input, false, cx))
+                .child(sql_editor::code_editor_flex(
+                    &self.ddl_input,
+                    false,
+                    true,
+                    cx,
+                ))
                 .into_any_element(),
         };
 

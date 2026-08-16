@@ -574,6 +574,7 @@ impl Render for QueryEditorPanel {
         let editor_pane = div().size_full().p_2().child(sql_editor::code_editor_flex(
             &self.sql_input,
             is_error,
+            false,
             cx,
         ));
 

@@ -219,12 +219,12 @@ impl Render for ConnectionDashboardPanel {
                     })
                     .child(dashboard_card(
                         "Start",
-                        "Use the Objects pane to open tables, views, or collections. Use the query tab for ad-hoc work.",
+                        "Use Catalog to open tables, views, or collections. Saved queries for this connection are in Queries. Use a query tab for ad-hoc work.",
                         cx,
                     ))
                     .child(dashboard_card(
                         "Workflow",
-                        "Objects stay in the sidebar; work opens as tabs in the center.",
+                        "Catalog and Queries stay in the sidebar; work opens as tabs in the center.",
                         cx,
                     )),
             )

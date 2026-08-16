@@ -25,7 +25,6 @@ use crate::workspace::TabSpec;
 
 mod browser_list;
 mod connect;
-mod connection_browser;
 mod connection_list;
 mod content_rail;
 mod context_menu;
@@ -40,9 +39,6 @@ pub use types::{ObjectKind, SchemaObject, TreeEvent};
 
 use types::{ActiveObjects, ConnState};
 
-use connection_list::ConnectionListDelegate;
-use object_list::ObjectListDelegate;
-
 pub struct ConnectionTree {
     pub registry: Entity<ConnectionRegistry>,
     dock_area: Entity<DockArea>,
@@ -53,12 +49,7 @@ pub struct ConnectionTree {
     pub(crate) active_objects: ActiveObjects,
     pub(crate) selected_object: Option<String>,
     pub(crate) browser_list: Option<Entity<ListState<browser_list::BrowserListDelegate>>>,
-    #[allow(dead_code)]
-    pub(crate) connection_list: Option<Entity<ListState<ConnectionListDelegate>>>,
-    #[allow(dead_code)]
-    pub(crate) object_list: Option<Entity<ListState<ObjectListDelegate>>>,
     object_list_epoch: u64,
-    object_list_last_synced: u64,
     pending_open_connection: Option<usize>,
     pub(crate) catalog_search_open: bool,
     pub(crate) queries_search_open: bool,
@@ -113,10 +104,7 @@ impl ConnectionTree {
             active_objects: ActiveObjects::Empty,
             selected_object: None,
             browser_list: None,
-            connection_list: None,
-            object_list: None,
             object_list_epoch: 0,
-            object_list_last_synced: u64::MAX,
             pending_open_connection: None,
             catalog_search_open: false,
             queries_search_open: false,
@@ -128,25 +116,6 @@ impl ConnectionTree {
     pub(crate) fn bump_object_list_epoch(&mut self, cx: &mut Context<Self>) {
         self.object_list_epoch = self.object_list_epoch.wrapping_add(1);
         browser_list::refresh_browser_list(self, cx);
-    }
-
-    pub(crate) fn toggle_connection_expanded(&mut self, idx: usize, cx: &mut Context<Self>) {
-        let Some(conn_id) = self
-            .registry
-            .read(cx)
-            .connections()
-            .get(idx)
-            .map(|e| e.read(cx).id.clone())
-        else {
-            return;
-        };
-        if let Some(st) = self.conn_states.get_mut(&conn_id) {
-            st.set_expanded(!st.expanded());
-            if st.expanded() {
-                self.maybe_load_schema_for_connection(idx, cx);
-            }
-        }
-        self.bump_object_list_epoch(cx);
     }
 
     pub(crate) fn set_connection_expanded(

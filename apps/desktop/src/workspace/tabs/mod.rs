@@ -16,8 +16,7 @@ pub use navigation::TabNavigationHistory;
 pub use open::{
     DockAreaRef, SqlInject, TabManagerRef, TabOpenQueue, WorkspaceNavQueue, WorkspaceRef,
     enqueue_open_release_notes, enqueue_open_tab, enqueue_show_home, enqueue_sql_inject,
-    enqueue_toggle_left_pane, enqueue_toggle_side_pane, mark_query_tab_dirty,
-    request_workspace_flush, take_sql_inject,
+    enqueue_toggle_side_pane, mark_query_tab_dirty, request_workspace_flush, take_sql_inject,
 };
 pub use session::SessionSnapshot;
 pub use spec::{QueryEditorInit, TabSpec};

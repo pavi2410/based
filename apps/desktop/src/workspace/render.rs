@@ -248,7 +248,6 @@ impl Render for Workspace {
                         }),
                 },
                 active_pane,
-                self.active_left_pane,
                 self.registry.clone(),
                 self.connection_tree.clone(),
             ))

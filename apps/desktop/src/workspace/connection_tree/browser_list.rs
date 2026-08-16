@@ -8,10 +8,9 @@ use gpui::{
     SharedString, Task, WeakEntity, Window, div, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme, IconName, IndexPath, Selectable, Sizable as _, StyledExt,
+    ActiveTheme, IconName, IndexPath, Selectable, Sizable as _,
     button::{Button, ButtonVariants},
     h_flex,
-    list::ListItem,
     list::{ListDelegate, ListState},
     menu::ContextMenuExt,
 };
@@ -21,17 +20,13 @@ use crate::connection::EngineKind;
 use crate::widgets::empty_state::empty_state;
 use crate::widgets::list_row::{SchemaRowStyle, schema_object_row};
 use crate::widgets::{
-    BrowserTreeIndent, CONNECTION_CHEVRON_SLOT_W, SIDEBAR_INSET, engine_icon,
-    sidebar_row_inner_gap, sidebar_row_padding_y,
+    BrowserTreeIndent, CONNECTION_CHEVRON_SLOT_W, SIDEBAR_INSET, sidebar_row_inner_gap,
+    sidebar_row_padding_y,
 };
 
 use super::ConnectionTree;
-use super::connection_list::{
-    ConnectionRow, build_connection_rows, connection_row_status_indicator,
-};
-use super::context_menu::{
-    connection_context_menu, connection_is_connected, object_context_menu, schema_context_menu,
-};
+use super::connection_list::build_connection_rows;
+use super::context_menu::{connection_is_connected, object_context_menu, schema_context_menu};
 use super::object_list::{group_postgres_objects, object_matches_query};
 use super::types::{ConnCache, ConnState, SchemaObject};
 use crate::connection::ConnectionState::Connected;
@@ -41,7 +36,6 @@ const DEPTH_KIND: u32 = 1;
 
 #[derive(Clone)]
 pub(crate) enum BrowserRow {
-    Connection(ConnectionRow),
     Status {
         conn_idx: usize,
         message: SharedString,
@@ -51,11 +45,6 @@ pub(crate) enum BrowserRow {
         conn_idx: usize,
         name: SharedString,
         expanded: bool,
-    },
-    Section {
-        conn_idx: usize,
-        title: SharedString,
-        depth: u32,
     },
     Object {
         conn_idx: usize,
@@ -275,7 +264,6 @@ pub(crate) struct BrowserRowItem {
     id: ElementId,
     row: BrowserRow,
     selected: bool,
-    conn_expanded: bool,
     tree: WeakEntity<ConnectionTree>,
 }
 
@@ -294,10 +282,6 @@ impl RenderOnce for BrowserRowItem {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let indent = BrowserTreeIndent::from_app(cx);
         match self.row {
-            BrowserRow::Connection(row) => {
-                connection_row_element(row, self.selected, self.conn_expanded, self.tree, cx)
-                    .into_any_element()
-            }
             BrowserRow::Status { message, depth, .. } => {
                 status_row(message, depth, &indent, cx).into_any_element()
             }
@@ -307,9 +291,6 @@ impl RenderOnce for BrowserRowItem {
                 expanded,
             } => schema_row_element(conn_idx, name, expanded, self.tree, &indent, cx)
                 .into_any_element(),
-            BrowserRow::Section { title, depth, .. } => {
-                section_row(title, depth, &indent, cx).into_any_element()
-            }
             BrowserRow::Object {
                 conn_idx,
                 object,
@@ -363,29 +344,6 @@ fn status_row(
         .text_xs()
         .text_color(cx.theme().muted_foreground)
         .child(message)
-}
-
-fn section_row(
-    title: SharedString,
-    depth: u32,
-    indent: &BrowserTreeIndent,
-    cx: &App,
-) -> impl IntoElement {
-    let muted = cx.theme().muted_foreground;
-    h_flex()
-        .pl(px(indent.pl(depth)))
-        .pr(px(SIDEBAR_INSET))
-        .py(px(sidebar_row_padding_y(cx)))
-        .items_center()
-        .child(
-            div()
-                .text_xs()
-                .font_bold()
-                .font_family(prefs::ui_font_family(cx))
-                .font_weight(prefs::ui_font_weight(cx))
-                .text_color(muted.opacity(0.86))
-                .child(title),
-        )
 }
 
 fn schema_row_element(
@@ -474,97 +432,6 @@ fn object_row_key(object: &SchemaObject) -> u64 {
     hasher.finish()
 }
 
-fn connection_row_element(
-    row: ConnectionRow,
-    selected: bool,
-    expanded: bool,
-    tree: WeakEntity<ConnectionTree>,
-    cx: &mut App,
-) -> impl IntoElement {
-    let ConnectionRow {
-        idx,
-        conn_label,
-        state_label: _,
-        engine,
-        state_color,
-        is_connected,
-        is_connecting,
-        is_failed,
-        fail_reason: _,
-    } = row;
-
-    let tree_click = tree.clone();
-    let tree_chevron = tree.clone();
-    let tree_menu = tree.clone();
-    let err_fg = cx.theme().danger_foreground;
-
-    let chevron = Button::new(("browser-chevron", idx))
-        .ghost()
-        .xsmall()
-        .icon(if expanded {
-            IconName::ChevronDown
-        } else {
-            IconName::ChevronRight
-        })
-        .on_mouse_down(MouseButton::Left, move |_, _, cx| {
-            cx.stop_propagation();
-            if let Some(ent) = tree_chevron.upgrade() {
-                ent.update(cx, |t, cx| t.toggle_connection_expanded(idx, cx));
-            }
-        });
-
-    let chevron_lead = h_flex()
-        .w(px(CONNECTION_CHEVRON_SLOT_W))
-        .flex_shrink_0()
-        .items_center()
-        .justify_center()
-        .when(is_connected, |slot| slot.child(chevron));
-
-    div()
-        .w_full()
-        .context_menu(move |menu, _window, cx| {
-            connection_context_menu(idx, engine, is_connected, tree_menu.clone(), menu, cx)
-        })
-        .child(
-            ListItem::new(("browser-conn", idx))
-                .selected(selected)
-                .pl(px(SIDEBAR_INSET))
-                .pr(px(SIDEBAR_INSET))
-                .py(px(sidebar_row_padding_y(cx)))
-                .cursor_pointer()
-                .on_mouse_down(MouseButton::Left, move |_, window, cx| {
-                    if let Some(ent) = tree_click.upgrade() {
-                        ent.update(cx, |t, cx| t.on_connection_row_clicked(idx, window, cx));
-                    }
-                })
-                .child(
-                    h_flex()
-                        .w_full()
-                        .gap(px(sidebar_row_inner_gap(cx)))
-                        .items_center()
-                        .child(chevron_lead)
-                        .child(engine_icon(engine))
-                        .child(
-                            div()
-                                .flex_1()
-                                .min_w_0()
-                                .text_sm()
-                                .truncate()
-                                .when(is_failed, |d| d.text_color(err_fg.opacity(0.92)))
-                                .child(conn_label),
-                        )
-                        .child(connection_row_status_indicator(
-                            is_connected,
-                            is_failed,
-                            is_connecting,
-                            state_color,
-                            err_fg,
-                            cx,
-                        )),
-                ),
-        )
-}
-
 #[allow(clippy::too_many_arguments)]
 fn object_row_element(
     conn_idx: usize,
@@ -644,35 +511,15 @@ impl ListDelegate for BrowserListDelegate {
         &mut self,
         ix: IndexPath,
         _window: &mut Window,
-        cx: &mut Context<ListState<Self>>,
+        _cx: &mut Context<ListState<Self>>,
     ) -> Option<Self::Item> {
         let row = self.row_at(ix)?.clone();
         let selected = self.selected_index == Some(ix);
-        let conn_expanded = match &row {
-            BrowserRow::Connection(c) => self
-                .tree
-                .read(cx)
-                .conn_states
-                .get(
-                    &self
-                        .tree
-                        .read(cx)
-                        .registry
-                        .read(cx)
-                        .connections()
-                        .get(c.idx)?
-                        .read(cx)
-                        .id,
-                )
-                .is_some_and(|s| s.expanded()),
-            _ => false,
-        };
         let id: ElementId = ("browser-row", ix.row).into();
         Some(BrowserRowItem {
             id,
             row,
             selected,
-            conn_expanded,
             tree: self.tree.downgrade(),
         })
     }
@@ -702,7 +549,6 @@ impl ListDelegate for BrowserListDelegate {
     ) {
         self.selected_index = ix;
         let selected = ix.and_then(|i| match self.row_at(i) {
-            Some(BrowserRow::Connection(c)) => Some(c.idx),
             Some(BrowserRow::Object { conn_idx, .. }) => Some(*conn_idx),
             _ => None,
         });

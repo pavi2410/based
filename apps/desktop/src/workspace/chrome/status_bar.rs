@@ -14,9 +14,9 @@ use crate::connection::{ConnectionEntry, ConnectionId, ConnectionState, EngineKi
 use crate::widgets::engine_icon;
 use crate::widgets::status_item::{STATUS_BAR_HEIGHT, status_divider, status_segment, status_text};
 use crate::workspace::ConnectionTree;
-use crate::workspace::chrome::{left_pane::LeftPane, side_pane::SidePane};
+use crate::workspace::chrome::side_pane::SidePane;
 use crate::workspace::connection_tree::connection_actions_menu;
-use crate::workspace::tabs::{WorkspaceRef, enqueue_toggle_left_pane, enqueue_toggle_side_pane};
+use crate::workspace::tabs::{WorkspaceRef, enqueue_toggle_side_pane};
 
 /// Focused connection shown as a status-bar chip.
 #[derive(Clone, Debug)]
@@ -63,7 +63,6 @@ pub struct StatusBarModel {
 pub struct StatusBar {
     model: StatusBarModel,
     active_side_pane: Option<SidePane>,
-    active_left_pane: LeftPane,
     registry: gpui::Entity<ConnectionRegistry>,
     connection_tree: Entity<ConnectionTree>,
 }
@@ -72,43 +71,16 @@ impl StatusBar {
     pub fn new(
         model: StatusBarModel,
         active_side_pane: Option<SidePane>,
-        active_left_pane: LeftPane,
         registry: gpui::Entity<ConnectionRegistry>,
         connection_tree: Entity<ConnectionTree>,
     ) -> Self {
         Self {
             model,
             active_side_pane,
-            active_left_pane,
             registry,
             connection_tree,
         }
     }
-}
-
-fn left_pane_button(pane: LeftPane, active: LeftPane, cx: &App) -> impl IntoElement {
-    let is_active = active == pane;
-    let color = if is_active {
-        cx.theme().accent_foreground
-    } else {
-        cx.theme().muted_foreground
-    };
-    let id = match pane {
-        LeftPane::Browser => "status-left-browser",
-        LeftPane::Workspace => "status-left-workspace",
-    };
-
-    Button::new(id)
-        .ghost()
-        .small()
-        .icon(Icon::new(pane.icon()).text_color(color))
-        .tooltip(pane.tooltip())
-        .on_click(move |_, _, cx| {
-            enqueue_toggle_left_pane(pane, cx);
-            if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
-                ws.update(cx, |_, cx| cx.notify());
-            }
-        })
 }
 
 fn side_pane_button(pane: SidePane, active: Option<SidePane>, cx: &App) -> impl IntoElement {
@@ -329,7 +301,6 @@ impl RenderOnce for StatusBar {
         };
 
         let active_side_pane = self.active_side_pane;
-        let active_left_pane = self.active_left_pane;
         let version_label = format!("based {}", env!("CARGO_PKG_VERSION"));
         let registry = self.registry.clone();
         let update_snapshot = self.model.update.clone();
@@ -350,24 +321,10 @@ impl RenderOnce for StatusBar {
                     .gap(px(8.0))
                     .items_center()
                     .min_w_0()
-                    .child(
-                        h_flex()
-                            .gap(px(1.0))
-                            .items_center()
-                            .flex_shrink_0()
-                            .children(
-                                LeftPane::ALL
-                                    .map(|pane| left_pane_button(pane, active_left_pane, cx)),
-                            ),
-                    )
                     .when_some(focused_connection, |row, chip| {
-                        row.child(status_divider(muted)).child(connection_chip(
-                            chip,
-                            connection_tree,
-                            cx,
-                        ))
+                        row.child(connection_chip(chip, connection_tree, cx))
+                            .child(status_divider(muted))
                     })
-                    .child(status_divider(muted))
                     .child(status_segment(
                         "connections",
                         self.model.connection_count.to_string(),

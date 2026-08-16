@@ -147,6 +147,13 @@ impl TabSpec {
         }
     }
 
+    /// Whether this tab should be written to / restored from the session snapshot.
+    ///
+    /// What's New is a one-shot after an in-app update, not workspace state.
+    pub fn persist_in_session(&self) -> bool {
+        !matches!(self, Self::ReleaseNotes { .. })
+    }
+
     pub fn kind_label(&self) -> &'static str {
         match self {
             Self::Home => "home",
@@ -215,5 +222,14 @@ mod tests {
         let a = TabSpec::blank_query_editor(ConnectionId("pg".into()));
         let b = TabSpec::blank_query_editor(ConnectionId("pg".into()));
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn release_notes_are_not_session_persisted() {
+        let notes = TabSpec::ReleaseNotes {
+            version: "0.0.0-dev".into(),
+        };
+        assert!(!notes.persist_in_session());
+        assert!(TabSpec::Home.persist_in_session());
     }
 }

@@ -153,6 +153,14 @@ fn handle_pending_release_notes(state: &mut UpdaterStateFile, cx: &mut App) {
     let Some(version) = state.take_pending_release_notes() else {
         return;
     };
+    // Dev/debug builds cannot install updates; leftover pending notes must not
+    // open What's New on every `cargo run`.
+    if prefs::update_check_settings_locked() {
+        udebug(format!(
+            "pending release notes: cleared v{version} (dev build, updates locked)"
+        ));
+        return;
+    }
     let show = UpdateCoordinator::prefs(cx).show_release_notes_after_update;
     if show {
         uinfo(format!("pending release notes: opening tab for v{version}"));

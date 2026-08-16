@@ -283,11 +283,26 @@ impl Workspace {
         if tm.tabs.is_empty() {
             return;
         }
+        let mut tabs = Vec::new();
+        let mut active = None;
+        for (i, t) in tm.tabs.iter().enumerate() {
+            if !t.spec.persist_in_session() {
+                continue;
+            }
+            if tm.active_idx == Some(i) {
+                active = Some(tabs.len());
+            }
+            tabs.push(t.spec.clone());
+        }
         let snapshot = tabs::SessionSnapshot {
-            tabs: tm.tabs.iter().map(|t| t.spec.clone()).collect(),
-            active: tm.active_idx,
+            tabs,
+            active,
             active_connection_id: self.focused_conn_id(cx).map(|id| id.0.clone()),
-            pinned_tabs: tm.pinned_specs(),
+            pinned_tabs: tm
+                .pinned_specs()
+                .into_iter()
+                .filter(TabSpec::persist_in_session)
+                .collect(),
         };
         let store = storage::store(cx);
         let handle = gpui_tokio::Tokio::handle(cx);
@@ -301,22 +316,29 @@ impl Workspace {
         let handle = gpui_tokio::Tokio::handle(cx);
         let session = handle.block_on(tabs::SessionSnapshot::load(&store));
 
+        let active_spec = session
+            .active
+            .and_then(|idx| session.tabs.get(idx).cloned());
         for spec in session.tabs {
-            if matches!(spec, TabSpec::Home) {
+            if matches!(spec, TabSpec::Home) || !spec.persist_in_session() {
                 continue;
             }
             self.pending_open_tab = Some(spec);
             self.flush_pending_open_tab(window, cx);
         }
-        if let Some(idx) = session.active {
+        if let Some(spec) = active_spec.filter(TabSpec::persist_in_session) {
             self.tab_manager.update(cx, |tm, ecx| {
-                if idx < tm.tabs.len() {
+                if let Some(idx) = tm.tabs.iter().position(|t| t.spec == spec) {
                     tm.activate(idx, ecx);
                 }
             });
         }
-        if !session.pinned_tabs.is_empty() {
-            let pinned = session.pinned_tabs;
+        let pinned: Vec<TabSpec> = session
+            .pinned_tabs
+            .into_iter()
+            .filter(TabSpec::persist_in_session)
+            .collect();
+        if !pinned.is_empty() {
             self.sync_tab_manager_from_dock(cx);
             self.tab_manager.update(cx, |tm, ecx| {
                 tm.apply_pinned_specs(&pinned, ecx);

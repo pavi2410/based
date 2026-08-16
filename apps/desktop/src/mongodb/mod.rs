@@ -12,7 +12,7 @@ pub mod tab_dispatch;
 pub mod tree;
 pub mod wizard;
 
-pub use based_mongo::{MongoConfig, document_from_json};
+pub use based_mongo::{MongoConfig, document_from_json, mongo_uri, mongosh_command};
 
 use mongodb::bson::doc;
 use mongodb::options::ClientOptions;

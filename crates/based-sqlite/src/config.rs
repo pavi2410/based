@@ -67,6 +67,49 @@ pub struct SqliteOpenOptions<'a> {
     pub read_only: bool,
 }
 
+/// SQLite URI (`file:…`). `read_only` adds `?mode=ro`.
+pub fn sqlite_uri(path: &Path, read_only: bool) -> String {
+    let raw = path.to_string_lossy().replace('\\', "/");
+    let encoded = percent_encode_path(&raw);
+    let uri = if encoded.starts_with('/') {
+        format!("file:{encoded}")
+    } else {
+        format!("file:///{encoded}")
+    };
+    if read_only {
+        format!("{uri}?mode=ro")
+    } else {
+        uri
+    }
+}
+
+/// `sqlite3` invocation for the given database file.
+pub fn sqlite3_command(path: &Path, read_only: bool) -> String {
+    let quoted = shell_single_quote(&path.to_string_lossy());
+    if read_only {
+        format!("sqlite3 -readonly {quoted}")
+    } else {
+        format!("sqlite3 {quoted}")
+    }
+}
+
+fn percent_encode_path(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for byte in s.as_bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' | b'/' => {
+                out.push(*byte as char);
+            }
+            _ => out.push_str(&format!("%{byte:02X}")),
+        }
+    }
+    out
+}
+
+fn shell_single_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
 pub fn sqlite_connect_options(opts: &SqliteOpenOptions<'_>) -> SqliteConnectOptions {
     let mut o = SqliteConnectOptions::new().filename(opts.path);
     if opts.read_only {
@@ -106,6 +149,54 @@ mod tests {
             path: &missing,
             read_only: true,
         });
+    }
+
+    #[test]
+    fn uri_uses_file_scheme() {
+        assert_eq!(
+            sqlite_uri(Path::new("/tmp/app.db"), false),
+            "file:/tmp/app.db"
+        );
+    }
+
+    #[test]
+    fn uri_marks_read_only() {
+        assert_eq!(
+            sqlite_uri(Path::new("/tmp/app.db"), true),
+            "file:/tmp/app.db?mode=ro"
+        );
+    }
+
+    #[test]
+    fn uri_percent_encodes_path() {
+        assert_eq!(
+            sqlite_uri(Path::new("/tmp/my db.db"), false),
+            "file:/tmp/my%20db.db"
+        );
+    }
+
+    #[test]
+    fn sqlite3_quotes_path() {
+        assert_eq!(
+            sqlite3_command(Path::new("/tmp/app.db"), false),
+            "sqlite3 '/tmp/app.db'"
+        );
+    }
+
+    #[test]
+    fn sqlite3_readonly_flag() {
+        assert_eq!(
+            sqlite3_command(Path::new("/tmp/app.db"), true),
+            "sqlite3 -readonly '/tmp/app.db'"
+        );
+    }
+
+    #[test]
+    fn sqlite3_escapes_single_quotes() {
+        assert_eq!(
+            sqlite3_command(Path::new("/tmp/o'reilly.db"), false),
+            "sqlite3 '/tmp/o'\\''reilly.db'"
+        );
     }
 
     #[tokio::test]

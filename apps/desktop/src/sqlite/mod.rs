@@ -17,7 +17,8 @@ pub mod tree;
 pub mod wizard;
 
 pub use based_sqlite::{
-    SqliteConfig, SqliteOpenOptions, SqlitePathContext, sqlite_connect_options,
+    SqliteConfig, SqliteOpenOptions, SqlitePathContext, sqlite_connect_options, sqlite_uri,
+    sqlite3_command,
 };
 
 use sqlx::{AssertSqlSafe, SqlitePool};

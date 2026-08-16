@@ -4,7 +4,9 @@ use gpui::{App, ClipboardItem, WeakEntity};
 use gpui_component::menu::{PopupMenu, PopupMenuItem};
 
 use crate::connection::{ConnectionConfig, ConnectionState, EngineKind};
+use crate::mongodb::{mongo_uri, mongosh_command};
 use crate::postgres::{postgres_uri, psql_command};
+use crate::sqlite::{resolve_sqlite_path, sqlite_uri, sqlite3_command};
 use crate::workspace::notify;
 
 use super::ConnectionTree;
@@ -16,18 +18,11 @@ fn coming_soon_item(label: &'static str) -> PopupMenuItem {
     })
 }
 
-#[derive(Clone, Copy)]
-enum PostgresCopyFormat {
-    Uri,
-    Psql,
-}
-
-fn copy_postgres_item(
+fn copy_config_item(
     label: &'static str,
     tree: WeakEntity<ConnectionTree>,
     idx: usize,
-    include_password: bool,
-    format: PostgresCopyFormat,
+    text: impl Fn(&ConnectionConfig, &App) -> Option<String> + 'static,
 ) -> PopupMenuItem {
     PopupMenuItem::new(label).on_click(move |_, _, cx| {
         let Some(cfg) = tree.upgrade().and_then(|tree_ent| {
@@ -37,19 +32,124 @@ fn copy_postgres_item(
                 .read(cx)
                 .connections()
                 .get(idx)
-                .and_then(|entry| match &entry.read(cx).config {
-                    ConnectionConfig::Postgres(cfg) => Some(cfg.clone()),
-                    _ => None,
-                })
+                .map(|entry| entry.read(cx).config.clone())
         }) else {
             return;
         };
-        let text = match format {
-            PostgresCopyFormat::Psql => psql_command(&cfg, include_password),
-            PostgresCopyFormat::Uri => postgres_uri(&cfg, include_password),
+        let Some(text) = text(&cfg, cx) else {
+            return;
         };
         cx.write_to_clipboard(ClipboardItem::new_string(text));
     })
+}
+
+fn add_copy_items(
+    menu: PopupMenu,
+    tree: WeakEntity<ConnectionTree>,
+    idx: usize,
+    engine: EngineKind,
+) -> PopupMenu {
+    match engine {
+        EngineKind::Postgres => menu
+            .item(copy_config_item(
+                "Copy Connection String",
+                tree.clone(),
+                idx,
+                |cfg, _| match cfg {
+                    ConnectionConfig::Postgres(c) => Some(postgres_uri(c, false)),
+                    _ => None,
+                },
+            ))
+            .item(copy_config_item(
+                "Copy Connection String with Password",
+                tree.clone(),
+                idx,
+                |cfg, _| match cfg {
+                    ConnectionConfig::Postgres(c) => Some(postgres_uri(c, true)),
+                    _ => None,
+                },
+            ))
+            .item(copy_config_item(
+                "Copy psql Command",
+                tree.clone(),
+                idx,
+                |cfg, _| match cfg {
+                    ConnectionConfig::Postgres(c) => Some(psql_command(c, false)),
+                    _ => None,
+                },
+            ))
+            .item(copy_config_item(
+                "Copy psql Command with Password",
+                tree,
+                idx,
+                |cfg, _| match cfg {
+                    ConnectionConfig::Postgres(c) => Some(psql_command(c, true)),
+                    _ => None,
+                },
+            )),
+        EngineKind::SQLite => menu
+            .item(copy_config_item(
+                "Copy Connection String",
+                tree.clone(),
+                idx,
+                |cfg, cx| match cfg {
+                    ConnectionConfig::SQLite(c) => {
+                        let path = resolve_sqlite_path(&c.path, cx);
+                        Some(sqlite_uri(&path, c.read_only))
+                    }
+                    _ => None,
+                },
+            ))
+            .item(copy_config_item(
+                "Copy sqlite3 Command",
+                tree,
+                idx,
+                |cfg, cx| match cfg {
+                    ConnectionConfig::SQLite(c) => {
+                        let path = resolve_sqlite_path(&c.path, cx);
+                        Some(sqlite3_command(&path, c.read_only))
+                    }
+                    _ => None,
+                },
+            )),
+        EngineKind::MongoDB => menu
+            .item(copy_config_item(
+                "Copy Connection String",
+                tree.clone(),
+                idx,
+                |cfg, _| match cfg {
+                    ConnectionConfig::MongoDB(c) => Some(mongo_uri(c, false)),
+                    _ => None,
+                },
+            ))
+            .item(copy_config_item(
+                "Copy Connection String with Password",
+                tree.clone(),
+                idx,
+                |cfg, _| match cfg {
+                    ConnectionConfig::MongoDB(c) => Some(mongo_uri(c, true)),
+                    _ => None,
+                },
+            ))
+            .item(copy_config_item(
+                "Copy mongosh Command",
+                tree.clone(),
+                idx,
+                |cfg, _| match cfg {
+                    ConnectionConfig::MongoDB(c) => Some(mongosh_command(c, false)),
+                    _ => None,
+                },
+            ))
+            .item(copy_config_item(
+                "Copy mongosh Command with Password",
+                tree,
+                idx,
+                |cfg, _| match cfg {
+                    ConnectionConfig::MongoDB(c) => Some(mongosh_command(c, true)),
+                    _ => None,
+                },
+            )),
+    }
 }
 
 fn structure_supported(engine: EngineKind, kind: ObjectKind) -> bool {
@@ -99,37 +199,7 @@ pub(crate) fn connection_context_menu(
         }));
     }
 
-    if engine == EngineKind::Postgres {
-        menu = menu
-            .item(copy_postgres_item(
-                "Copy Connection String",
-                tree_menu.clone(),
-                idx,
-                false,
-                PostgresCopyFormat::Uri,
-            ))
-            .item(copy_postgres_item(
-                "Copy Connection String with Password",
-                tree_menu.clone(),
-                idx,
-                true,
-                PostgresCopyFormat::Uri,
-            ))
-            .item(copy_postgres_item(
-                "Copy psql Command",
-                tree_menu.clone(),
-                idx,
-                false,
-                PostgresCopyFormat::Psql,
-            ))
-            .item(copy_postgres_item(
-                "Copy psql Command with Password",
-                tree_menu.clone(),
-                idx,
-                true,
-                PostgresCopyFormat::Psql,
-            ));
-    }
+    menu = add_copy_items(menu, tree_menu.clone(), idx, engine);
 
     menu = menu
         .separator()

@@ -50,9 +50,6 @@ impl StatusBarConnection {
 /// Context passed into the workspace status rail.
 #[derive(Clone, Debug)]
 pub struct StatusBarModel {
-    pub connection_count: usize,
-    pub connected_count: usize,
-    pub scope_label: SharedString,
     pub history_ready: bool,
     pub update: UpdateBarSnapshot,
     pub focused_connection: Option<StatusBarConnection>,
@@ -278,11 +275,6 @@ impl RenderOnce for StatusBar {
     fn render(self, _window: &mut gpui::Window, cx: &mut App) -> impl IntoElement {
         let muted = cx.theme().muted_foreground;
         let fg = cx.theme().foreground;
-        let live_dot = if self.model.connected_count > 0 {
-            Some(cx.theme().green_light)
-        } else {
-            None
-        };
 
         let history_value = if self.model.history_ready {
             "ready"
@@ -323,31 +315,7 @@ impl RenderOnce for StatusBar {
                     .min_w_0()
                     .when_some(focused_connection, |row, chip| {
                         row.child(connection_chip(chip, connection_tree, cx))
-                            .child(status_divider(muted))
-                    })
-                    .child(status_segment(
-                        "connections",
-                        self.model.connection_count.to_string(),
-                        muted,
-                        fg,
-                        None,
-                    ))
-                    .child(status_divider(muted))
-                    .child(status_segment(
-                        "live",
-                        self.model.connected_count.to_string(),
-                        muted,
-                        fg,
-                        live_dot,
-                    ))
-                    .child(status_divider(muted))
-                    .child(status_segment(
-                        "scope",
-                        self.model.scope_label,
-                        muted,
-                        fg,
-                        None,
-                    )),
+                    }),
             )
             .child(
                 h_flex()

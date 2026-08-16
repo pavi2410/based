@@ -4,7 +4,7 @@
 //! intentional: GPUI has no reliable post-init hook, so the first render frame is used as a
 //! deferred executor.
 
-use gpui::{Context, Entity, IntoElement, Render, Window, div, prelude::*};
+use gpui::{Context, IntoElement, Render, Window, div, prelude::*};
 use gpui_component::{ActiveTheme, Placement, v_flex};
 
 use crate::bindings::{
@@ -14,7 +14,6 @@ use crate::bindings::{
     ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane,
     ToggleSidebarRail,
 };
-use crate::connection::{ConnectionEntry, ConnectionState};
 use crate::project::ProjectContext;
 
 use super::Workspace;
@@ -53,13 +52,6 @@ impl Render for Workspace {
         self.flush_pending_open_tab(window, cx);
         self.ensure_home_tab(window, cx);
         let this = cx.entity().clone();
-        let conn_list: Vec<Entity<ConnectionEntry>> = self.registry.read(cx).connections().to_vec();
-        let conn_count = conn_list.len();
-        let connected_count = conn_list
-            .iter()
-            .filter(|ent| matches!(ent.read(cx).state, ConnectionState::Connected(_)))
-            .count();
-
         let selected_connection = self.connection_tree.read(cx).selected_connection_entry(cx);
         let focused_conn_id = self.focused_conn_id(cx);
         let active_pane = self.active_side_pane;
@@ -232,9 +224,6 @@ impl Render for Workspace {
             .child(body)
             .child(StatusBar::new(
                 StatusBarModel {
-                    connection_count: conn_count,
-                    connected_count,
-                    scope_label: self.project_title.clone(),
                     history_ready: !cx.global::<QueryStore>().history.recent(1).is_empty(),
                     update: coordinator_snapshot(cx),
                     focused_connection: focused_conn_id

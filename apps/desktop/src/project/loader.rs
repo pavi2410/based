@@ -27,7 +27,7 @@ pub fn entry_from_project(conn: &ProjectConnection) -> anyhow::Result<Connection
             port: *port,
             database: database.clone(),
             username: username.clone(),
-            password: password.resolve(),
+            password: password.resolve()?,
             ssl_mode: if *ssl {
                 SslMode::Require
             } else {
@@ -35,7 +35,7 @@ pub fn entry_from_project(conn: &ProjectConnection) -> anyhow::Result<Connection
             },
         }),
         ConnectionSpec::MongoDB { url, database } => {
-            let uri = url.resolve();
+            let uri = url.resolve()?;
             if uri.trim().is_empty() {
                 anyhow::bail!("mongodb connection {} has empty url", conn.id);
             }

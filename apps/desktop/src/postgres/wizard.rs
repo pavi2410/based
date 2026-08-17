@@ -173,12 +173,22 @@ impl ConnectionWizardPanel {
 }
 
 /// Minimal `postgresql://user:pass@host:port/db?sslmode=prefer` parser.
+///
+/// A scheme is optional; `user:pass@host:5432/db` is treated like `postgres://…`.
 fn parse_postgres_uri(input: &str) -> Option<PostgresConfig> {
     let s = input.trim();
-    let rest = s
-        .strip_prefix("postgresql://")
-        .or_else(|| s.strip_prefix("postgres://"))?;
-
+    if s.is_empty() || s.contains(char::is_whitespace) {
+        return None;
+    }
+    let rest = match s.split_once("://") {
+        Some((scheme, rest)) => {
+            if scheme != "postgresql" && scheme != "postgres" {
+                return None;
+            }
+            rest
+        }
+        None => s,
+    };
     let (credentials, after_at) = match rest.split_once('@') {
         Some((c, h)) => (c, h),
         None => ("", rest),
@@ -508,6 +518,29 @@ mod tests {
     fn parse_rejects_non_postgres_uri() {
         assert!(parse_postgres_uri("mysql://localhost/db").is_none());
         assert!(parse_postgres_uri("not a uri").is_none());
+    }
+
+    #[test]
+    fn parse_uri_without_scheme() {
+        let cfg = parse_postgres_uri("alice:s3cret@db.example:6543/analytics?sslmode=require")
+            .expect("schemeless uri should parse");
+        assert_eq!(cfg.username, "alice");
+        assert_eq!(cfg.password, "s3cret");
+        assert_eq!(cfg.host, "db.example");
+        assert_eq!(cfg.port, 6543);
+        assert_eq!(cfg.database, "analytics");
+        assert!(matches!(cfg.ssl_mode, SslMode::Require));
+    }
+
+    #[test]
+    fn parse_schemeless_host_defaults() {
+        let cfg = parse_postgres_uri("localhost/mydb").expect("schemeless host should parse");
+        assert_eq!(cfg.host, "localhost");
+        assert_eq!(cfg.port, 5432);
+        assert_eq!(cfg.database, "mydb");
+        assert_eq!(cfg.username, "postgres");
+        assert!(cfg.password.is_empty());
+        assert!(matches!(cfg.ssl_mode, SslMode::Prefer));
     }
 
     #[test]

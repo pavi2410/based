@@ -19,6 +19,7 @@ use crate::app::prefs::{
     UpdateCheckInterval,
 };
 use crate::app::restart::restart_app;
+use crate::app::shell;
 use crate::theme::{DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME, ThemeNameItem};
 
 #[cfg(target_os = "macos")]
@@ -539,7 +540,9 @@ impl Render for SettingsWindow {
             .size_full()
             .bg(bg)
             .text_color(fg)
-            .when(!cfg!(target_os = "macos"), |this| this.pt(px(36.0)))
+            .when(!cfg!(target_os = "macos"), |this| {
+                this.child(shell::aux_client_title_bar("Based — Settings"))
+            })
             .child(
                 div()
                     .flex_1()

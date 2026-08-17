@@ -4,7 +4,7 @@ use gpui::{
     AnyWindowHandle, App, AppContext, BorrowAppContext, Global, WindowBounds, WindowId,
     WindowOptions, px, size,
 };
-use gpui_component::Root;
+use gpui_component::{Root, TITLE_BAR_HEIGHT};
 
 use super::prefs;
 use super::shell::{self, APP_NAME};
@@ -103,9 +103,15 @@ pub fn open_onboarding_review(cx: &mut App) -> anyhow::Result<AnyWindowHandle> {
 }
 
 fn onboarding_window_options(cx: &App) -> WindowOptions {
+    let mut height = px(560.0);
+    if !cfg!(target_os = "macos") {
+        height += TITLE_BAR_HEIGHT;
+    }
     WindowOptions {
-        window_bounds: Some(WindowBounds::centered(size(px(680.0), px(560.0)), cx)),
+        window_bounds: Some(WindowBounds::centered(size(px(680.0), height), cx)),
         titlebar: Some(shell::titled_titlebar("Based — Setup")),
+        #[cfg(not(target_os = "macos"))]
+        app_owns_titlebar_drag: true,
         ..Default::default()
     }
 }

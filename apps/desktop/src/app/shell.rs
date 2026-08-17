@@ -6,11 +6,12 @@
 //! [`crate::workspace::chrome::topbar`].
 
 use gpui::{
-    AnyWindowHandle, App, AppContext, Bounds, KeyBinding, Menu, MenuItem, OsAction, SharedString,
-    SystemMenuType, TitlebarOptions, WindowBounds, WindowOptions, point, px, size,
+    AnyWindowHandle, App, AppContext, Bounds, KeyBinding, Menu, MenuItem, OsAction, ParentElement,
+    Pixels, SharedString, Size, Styled, SystemMenuType, TitlebarOptions, WindowBounds,
+    WindowOptions, div, point, px, size,
 };
 use gpui_component::{
-    Root, TitleBar,
+    Root, TITLE_BAR_HEIGHT, TitleBar,
     input::{Copy, Cut, Paste, Redo, SelectAll, Undo},
 };
 
@@ -56,6 +57,23 @@ pub fn titled_titlebar(window_title: impl Into<SharedString>) -> TitlebarOptions
     let mut options = TitleBar::title_bar_options();
     options.title = Some(window_title.into());
     options
+}
+
+/// Client-drawn title bar with window controls.
+///
+/// [`TitleBar::title_bar_options`] uses a transparent CSD titlebar. macOS still
+/// draws traffic lights; Linux and Windows do not, so any window that uses those
+/// options must render a [`TitleBar`] or it has no close/min/max buttons.
+pub fn aux_client_title_bar(title: impl Into<SharedString>) -> TitleBar {
+    TitleBar::new().child(div().text_sm().child(title.into()))
+}
+
+fn about_window_size() -> Size<Pixels> {
+    let mut height = px(480.0);
+    if !cfg!(target_os = "macos") {
+        height += TITLE_BAR_HEIGHT;
+    }
+    size(px(380.0), height)
 }
 
 /// Title bar options for the Settings window.
@@ -213,10 +231,12 @@ pub fn open_about(cx: &mut App) {
     }
     let opened = cx.open_window(
         WindowOptions {
-            window_bounds: Some(WindowBounds::centered(size(px(380.0), px(480.0)), cx)),
+            window_bounds: Some(WindowBounds::centered(about_window_size(), cx)),
             titlebar: Some(titled_titlebar("About Based")),
             is_resizable: false,
             is_minimizable: false,
+            #[cfg(not(target_os = "macos"))]
+            app_owns_titlebar_drag: true,
             ..Default::default()
         },
         |win, cx| {
@@ -252,6 +272,8 @@ pub fn open_settings(cx: &mut App) {
                 size: size(px(800.0), px(600.0)),
             })),
             titlebar: Some(settings_titlebar()),
+            #[cfg(not(target_os = "macos"))]
+            app_owns_titlebar_drag: true,
             ..Default::default()
         },
         |win, cx| {

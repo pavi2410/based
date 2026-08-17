@@ -18,7 +18,7 @@ use gpui_component::{
 };
 
 use crate::app::launch;
-use crate::app::shell::OpenSettingsMenu;
+use crate::app::shell::{self, OpenSettingsMenu};
 use crate::bindings::{
     ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane, ToggleSidebarRail,
 };
@@ -61,30 +61,43 @@ impl Focusable for OnboardingWindow {
 impl Render for OnboardingWindow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let show_finish = self.mode == OnboardingMode::FirstRunGate;
+        let title = if show_finish {
+            "Based — Setup"
+        } else {
+            "Based — Onboarding"
+        };
         v_flex()
             .size_full()
-            .items_center()
-            .justify_start()
-            .overflow_y_scrollbar()
             .bg(cx.theme().background)
+            .when(!cfg!(target_os = "macos"), |this| {
+                this.child(shell::aux_client_title_bar(title))
+            })
             .child(
                 v_flex()
-                    .w_full()
+                    .flex_1()
+                    .min_h_0()
                     .items_center()
-                    .py(px(32.0))
-                    .px(px(24.0))
+                    .justify_start()
+                    .overflow_y_scrollbar()
                     .child(
                         v_flex()
-                            .w(px(ONBOARDING_COLUMN_W))
-                            .gap(px(32.0))
-                            .child(onboarding_header(show_finish, cx))
-                            .child(theme_onboarding_picker("onboarding", cx))
-                            .child(onboarding_section(
-                                "Keyboard Shortcuts",
-                                "Common shortcuts to get around the workspace.",
-                                cx,
-                                shortcuts_grid(window, cx),
-                            )),
+                            .w_full()
+                            .items_center()
+                            .py(px(32.0))
+                            .px(px(24.0))
+                            .child(
+                                v_flex()
+                                    .w(px(ONBOARDING_COLUMN_W))
+                                    .gap(px(32.0))
+                                    .child(onboarding_header(show_finish, cx))
+                                    .child(theme_onboarding_picker("onboarding", cx))
+                                    .child(onboarding_section(
+                                        "Keyboard Shortcuts",
+                                        "Common shortcuts to get around the workspace.",
+                                        cx,
+                                        shortcuts_grid(window, cx),
+                                    )),
+                            ),
                     ),
             )
     }

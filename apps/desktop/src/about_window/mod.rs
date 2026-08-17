@@ -18,6 +18,7 @@ use std::sync::LazyLock;
 use time::OffsetDateTime;
 
 use crate::app::prefs::{manual_update_checks_enabled, update_check_settings_locked};
+use crate::app::shell;
 use crate::app::updater::{
     UpdatePhase, check_now, coordinator_snapshot, open_release_notes_for_current,
 };
@@ -91,14 +92,21 @@ impl Render for AboutWindow {
             .size_full()
             .bg(bg)
             .text_color(fg)
-            .pt(px(24.0))
-            .px(px(24.0))
-            .pb(px(16.0))
-            .gap(px(12.0))
-            .child(hero(fg, muted))
-            .child(update_card(muted, border, link, cx))
-            .child(links_columns(muted, link, hover_bg))
-            .child(footer(border, muted, link, hover_bg))
+            .when(!cfg!(target_os = "macos"), |this| {
+                this.child(shell::aux_client_title_bar("About Based"))
+            })
+            .child(
+                v_flex()
+                    .flex_1()
+                    .pt(px(24.0))
+                    .px(px(24.0))
+                    .pb(px(16.0))
+                    .gap(px(12.0))
+                    .child(hero(fg, muted))
+                    .child(update_card(muted, border, link, cx))
+                    .child(links_columns(muted, link, hover_bg))
+                    .child(footer(border, muted, link, hover_bg)),
+            )
     }
 }
 

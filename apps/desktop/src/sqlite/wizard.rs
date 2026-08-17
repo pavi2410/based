@@ -124,33 +124,36 @@ impl ConnectionWizardPanel {
 
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
-            let _ = cx.update(|window, cx| {
-                this.update(cx, |panel, cx| match result {
-                    Ok(conn) => {
-                        let panel_id = cx.entity().entity_id();
-                        if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
-                            ws.update(cx, |workspace, cx| {
-                                workspace.finish_wizard_connect(
-                                    ConnectionConfig::SQLite(config),
-                                    OpenedConnection::Sqlite(conn),
-                                    panel_id,
-                                    window,
-                                    cx,
-                                );
-                            });
-                        } else {
-                            db::close_sqlite_pool(conn.pool);
+            let _ = cx.update(|window, cx| match result {
+                Ok(conn) => {
+                    if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+                        // Close the wizard outside `this.update` — removing the panel
+                        // re-enters the entity and panics otherwise.
+                        ws.update(cx, |workspace, cx| {
+                            workspace.finish_wizard_connect(
+                                ConnectionConfig::SQLite(config),
+                                OpenedConnection::Sqlite(conn),
+                                this.entity_id(),
+                                window,
+                                cx,
+                            );
+                        });
+                    } else {
+                        db::close_sqlite_pool(conn.pool);
+                        let _ = this.update(cx, |panel, cx| {
                             panel.status = WizardStatus::ConnectErr("Workspace is not open".into());
                             cx.notify();
-                        }
+                        });
                     }
-                    Err(e) => {
+                }
+                Err(e) => {
+                    let _ = this.update(cx, |panel, cx| {
                         panel.status = WizardStatus::ConnectErr(
                             categorize_connect_error(&e.to_string()).display_message(),
                         );
                         cx.notify();
-                    }
-                })
+                    });
+                }
             });
         })
         .detach();

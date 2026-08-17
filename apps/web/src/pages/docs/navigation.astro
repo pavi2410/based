@@ -1,0 +1,162 @@
+---
+import Kbd from "../../components/docs/Kbd.astro";
+import DocsLayout from "../../layouts/DocsLayout.astro";
+---
+
+<DocsLayout
+  title="Navigation"
+  description="Tabs, keyboard shortcuts, the catalog, saved queries, history, favorites, and detached windows."
+>
+  <p>
+    Navigation is tab-first. Almost everything you open — a table, a query, a
+    structure inspector — is a center tab tied to a connection. The catalog and
+    command palette are how you get there without hunting menus.
+  </p>
+
+  <h2>Keyboard</h2>
+  <div class="docs-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Shortcut</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><Kbd>⌘O</Kbd> / <Kbd>Ctrl+O</Kbd></td>
+          <td>Open project</td>
+        </tr>
+        <tr>
+          <td><Kbd>⌘,</Kbd></td>
+          <td>Settings window</td>
+        </tr>
+        <tr>
+          <td><Kbd>⌘K</Kbd> / <Kbd>Ctrl+K</Kbd></td>
+          <td>Command palette</td>
+        </tr>
+        <tr>
+          <td><Kbd>⌘\</Kbd> / <Kbd>Ctrl+\</Kbd></td>
+          <td>Toggle sidebar</td>
+        </tr>
+        <tr>
+          <td><Kbd>⌘⌥N</Kbd> / <Kbd>Ctrl+Alt+N</Kbd></td>
+          <td>New query (focused connection)</td>
+        </tr>
+        <tr>
+          <td><Kbd>⌘Enter</Kbd> / <Kbd>Ctrl+Enter</Kbd></td>
+          <td>Run query (editor focused)</td>
+        </tr>
+        <tr>
+          <td><Kbd>⌘W</Kbd> / <Kbd>Ctrl+W</Kbd></td>
+          <td>Close active tab</td>
+        </tr>
+        <tr>
+          <td><Kbd>⌘⌥W</Kbd> / <Kbd>Ctrl+Alt+W</Kbd></td>
+          <td>Close other tabs</td>
+        </tr>
+        <tr>
+          <td><Kbd>⌘⌥⇧W</Kbd> / <Kbd>Ctrl+Alt+Shift+W</Kbd></td>
+          <td>Close all unpinned tabs</td>
+        </tr>
+        <tr>
+          <td><Kbd>⌘⌥⌫</Kbd> / <Kbd>Ctrl+Alt+Backspace</Kbd></td>
+          <td>Close clean (non-dirty, unpinned) tabs</td>
+        </tr>
+        <tr>
+          <td><Kbd>⌥⌘←</Kbd> / <Kbd>⌥Ctrl+←</Kbd></td>
+          <td>Back in the tab stack</td>
+        </tr>
+        <tr>
+          <td><Kbd>⌥⌘→</Kbd> / <Kbd>⌥Ctrl+→</Kbd></td>
+          <td>Forward in the tab stack</td>
+        </tr>
+        <tr>
+          <td><Kbd>⌘⌥I</Kbd> / <Kbd>Ctrl+Alt+I</Kbd></td>
+          <td>Toggle Inspector</td>
+        </tr>
+        <tr>
+          <td><Kbd>⌘⌥H</Kbd> / <Kbd>Ctrl+Alt+H</Kbd></td>
+          <td>Toggle History</td>
+        </tr>
+        <tr>
+          <td><Kbd>⌘⌥S</Kbd> / <Kbd>Ctrl+Alt+S</Kbd></td>
+          <td>Toggle Saved</td>
+        </tr>
+        <tr>
+          <td><Kbd>⌘⌥⇧T</Kbd> / <Kbd>Ctrl+Alt+Shift+T</Kbd></td>
+          <td>Cycle appearance</td>
+        </tr>
+        <tr>
+          <td><Kbd>⌘Q</Kbd> / <Kbd>Ctrl+Q</Kbd></td>
+          <td>Quit</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    Pin / unpin, split pane, close tabs to the left/right, and Open Home have
+    no global shortcut — use the tab ⋯ menu or the application menus. Keybindings
+    are compiled into the app; there is no user keymap file yet.
+  </p>
+
+  <h2>Tabs</h2>
+  <ul>
+    <li>
+      Open from the catalog, palette, Saved, History, or by connecting (workspace
+      bootstrap tabs).
+    </li>
+    <li>
+      Close from ⋯ → Close tab or <Kbd>⌘W</Kbd>. Last tab closed → Home
+      respawns.
+    </li>
+    <li>Pin from the tab ⋯ menu so the tab survives Close all / Close others.</li>
+    <li>Split the dock from View or ⋯ (top / bottom / left / right).</li>
+    <li>
+      <strong>Open in new window</strong> on ⋯ detaches that panel. One pop-out
+      per panel. Closing the main window closes pop-outs and quits.
+    </li>
+  </ul>
+  <p>
+    Session restore remembers tab specs, the active tab, and pins in local
+    metadata storage (not in git).
+  </p>
+
+  <h2>Catalog</h2>
+  <p>
+    Select a connection to load its schema cache. Search filters objects.
+    Double-click or context <strong>Open Data</strong> opens a data viewer tab
+    (deduped). <strong>Open Structure</strong> opens the inspector for Postgres
+    and SQLite tables and views.
+  </p>
+
+  <h2>Saved, history, favorites</h2>
+  <div class="docs-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Thing</th>
+          <th>Source</th>
+          <th>In git?</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Saved queries</td>
+          <td><code>.based/queries/**/*.toml</code></td>
+          <td>Yes</td>
+        </tr>
+        <tr>
+          <td>Favorites</td>
+          <td><code>.based/state/favorites.toml</code> — Shift-click the star</td>
+          <td>No</td>
+        </tr>
+        <tr>
+          <td>Run history</td>
+          <td><code>.based/local/history.jsonl</code> (max 500 per connection)</td>
+          <td>No</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</DocsLayout>

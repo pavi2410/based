@@ -9,20 +9,29 @@ interface Props {
 
 const { stars } = Astro.props;
 
+const onHome = Astro.url.pathname === "/";
+const onDocs = Astro.url.pathname.startsWith("/docs");
+const hash = (id: string) => (onHome ? `#${id}` : `/#${id}`);
+
 const links = [
-  { href: "#how-it-works", label: "How it works" },
-  { href: "#features", label: "Features" },
-  { href: "#engines", label: "Engines" },
-  { href: "#install", label: "Install" },
+  { href: hash("how-it-works"), label: "How it works", active: false },
+  { href: hash("features"), label: "Features", active: false },
+  { href: hash("engines"), label: "Engines", active: false },
+  { href: "/docs", label: "Docs", active: onDocs },
+  { href: hash("install"), label: "Install", active: false },
 ];
 ---
 
 <header class="nav">
   <div class="container nav-inner">
-    <a href="#top" class="nav-brand">based</a>
+    <a href={onHome ? "#top" : "/"} class="nav-brand">based</a>
 
     <nav class="nav-links" aria-label="Primary">
-      {links.map((link) => <a href={link.href}>{link.label}</a>)}
+      {links.map((link) => (
+        <a href={link.href} class:list={[link.active && "is-active"]} aria-current={link.active ? "page" : undefined}>
+          {link.label}
+        </a>
+      ))}
     </nav>
 
     <div class="nav-actions">
@@ -40,7 +49,7 @@ const links = [
           </span>
         )}
       </a>
-      <a href="#install" class="btn btn-primary nav-btn">
+      <a href={hash("install")} class="btn btn-primary nav-btn">
         <DownloadIcon class="btn-icon" />
         Download
       </a>
@@ -90,7 +99,8 @@ const links = [
     transition: color 120ms var(--motion-ease);
   }
 
-  .nav-links a:hover {
+  .nav-links a:hover,
+  .nav-links a.is-active {
     color: var(--text);
   }
 
@@ -106,7 +116,7 @@ const links = [
     font-size: 0.9rem;
   }
 
-  @media (max-width: 860px) {
+  @media (max-width: 980px) {
     .nav-links {
       display: none;
     }

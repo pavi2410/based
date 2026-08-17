@@ -1,0 +1,218 @@
+---
+import Callout from "../../components/docs/Callout.astro";
+import Kbd from "../../components/docs/Kbd.astro";
+import DocsLayout from "../../layouts/DocsLayout.astro";
+---
+
+<DocsLayout
+  title="Settings"
+  description="Machine-local preferences: appearance, updates, query defaults, and how the table grid behaves. Open with ⌘,."
+>
+  <p>
+    Settings is a separate window (<Kbd>⌘,</Kbd>, the title-bar overflow, or
+    Home). Values persist in <code>native_preferences.toml</code> under the OS
+    preferences directory (on macOS,
+    <code>~/Library/Application Support/based/</code>). They are not part of
+    the <code>.based/</code> project and are not committed.
+  </p>
+  <p>
+    Debug builds add a Developer page (reset onboarding, restart). Release
+    builds hide it.
+  </p>
+
+  <h2>Appearance</h2>
+  <h3>Theme</h3>
+  <div class="docs-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Setting</th>
+          <th>Options</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Appearance</td>
+          <td>Light, Dark, System (default System).</td>
+        </tr>
+        <tr>
+          <td>Light theme</td>
+          <td>
+            Used whenever the window is light. Default <code>Based Light</code>.
+          </td>
+        </tr>
+        <tr>
+          <td>Dark theme</td>
+          <td>Default <code>Based Dark</code>.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    Paired families: Based, Gruvbox, Catppuccin (Latte / Mocha), Ayu,
+    Everforest, Solarized. Light and dark names are independent — you can mix
+    families.
+  </p>
+
+  <h3>Density</h3>
+  <p>
+    Compact, Default, or Comfortable scales UI, editor, and table size tokens
+    together. Tweaking a size by hand marks the preset as Custom.
+  </p>
+  <div class="docs-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Preset</th>
+          <th>UI</th>
+          <th>Editor</th>
+          <th>Table row</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Compact</td>
+          <td>XSmall (12px)</td>
+          <td>Small (13px)</td>
+          <td>XSmall</td>
+        </tr>
+        <tr>
+          <td>Default</td>
+          <td>Medium (14px)</td>
+          <td>Medium (14px)</td>
+          <td>XSmall</td>
+        </tr>
+        <tr>
+          <td>Comfortable</td>
+          <td>Medium (14px)</td>
+          <td>Large (16px)</td>
+          <td>Small</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Fonts</h3>
+  <div class="docs-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Surface</th>
+          <th>Families</th>
+          <th>Weight / size</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>UI</td>
+          <td>IBM Plex Mono (default), System UI, JetBrains Mono, System Mono</td>
+          <td>Light–Semibold; XSmall–Large</td>
+        </tr>
+        <tr>
+          <td>Query editor</td>
+          <td>JetBrains Mono (default), IBM Plex Mono, System Mono</td>
+          <td>Same weight/size tokens</td>
+        </tr>
+        <tr>
+          <td>Tables</td>
+          <td>—</td>
+          <td>Row size token + zebra striping switch</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    System Mono is Menlo on macOS, Consolas on Windows, DejaVu Sans Mono on
+    Linux.
+  </p>
+
+  <h2>Updates</h2>
+  <p>
+    GitHub releases. Automatic check is disabled on <code>0.0.0-dev</code>
+    builds; those toggles appear locked.
+  </p>
+  <div class="docs-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Setting</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Check at startup</td>
+          <td>On</td>
+        </tr>
+        <tr>
+          <td>Check automatically</td>
+          <td>On</td>
+        </tr>
+        <tr>
+          <td>Check interval</td>
+          <td>Daily (or Weekly / Monthly)</td>
+        </tr>
+        <tr>
+          <td>Download automatically</td>
+          <td>On</td>
+        </tr>
+        <tr>
+          <td>Show release notes after updating</td>
+          <td>On</td>
+        </tr>
+        <tr>
+          <td>Include pre-releases</td>
+          <td>Off</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Query defaults</h2>
+  <h3>Data fetching</h3>
+  <div class="docs-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Setting</th>
+          <th>Range</th>
+          <th>Default</th>
+          <th>Used for</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Page size</td>
+          <td>50–5000, step 50</td>
+          <td>500</td>
+          <td>Rows per page in SQL table viewers.</td>
+        </tr>
+        <tr>
+          <td>Query timeout</td>
+          <td>5–600 seconds, step 5</td>
+          <td>30</td>
+          <td>
+            SQLite multi-statement runs. Postgres enforcement in the editor is
+            planned — the control still stores the value.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <Callout>
+    Opening a project that sets <code>[settings].query_timeout</code> in
+    <code>project.toml</code> (milliseconds) overwrites this preference for the
+    session. See <a href="/docs/configuration">Configuration</a>.
+  </Callout>
+
+  <h3>Table interaction</h3>
+  <p>All default on:</p>
+  <ul>
+    <li><strong>Sortable columns</strong> — click headers to sort the loaded page.</li>
+    <li><strong>Resize columns</strong> — drag borders.</li>
+    <li><strong>Reorder columns</strong> — drag headers.</li>
+    <li><strong>Row selection</strong> — select whole rows.</li>
+    <li><strong>Cell selection</strong> — select cells; enables keyboard movement.</li>
+    <li><strong>Loop selection</strong> — keyboard selection wraps at edges.</li>
+  </ul>
+</DocsLayout>

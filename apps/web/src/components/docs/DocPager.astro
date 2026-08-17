@@ -1,0 +1,28 @@
+---
+import { docPager } from "../../lib/docs";
+
+const { prev, next } = docPager(Astro.url.pathname);
+---
+
+{
+  (prev || next) && (
+    <nav class="docs-pager" aria-label="Adjacent documentation pages">
+      {prev ? (
+        <a class="docs-pager-link" href={prev.href}>
+          <span class="docs-pager-dir">Previous</span>
+          <span class="docs-pager-title">{prev.title}</span>
+        </a>
+      ) : (
+        <span />
+      )}
+      {next ? (
+        <a class="docs-pager-link next" href={next.href}>
+          <span class="docs-pager-dir">Next</span>
+          <span class="docs-pager-title">{next.title}</span>
+        </a>
+      ) : (
+        <span />
+      )}
+    </nav>
+  )
+}

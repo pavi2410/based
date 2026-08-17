@@ -1,0 +1,305 @@
+---
+import Callout from "../../components/docs/Callout.astro";
+import CodeSample from "../../components/docs/CodeSample.astro";
+import DocsLayout from "../../layouts/DocsLayout.astro";
+
+const gitignore = `local/
+state/
+.env
+.env.local
+.DS_Store
+Thumbs.db
+`;
+
+const projectToml = `schema_version = 1
+
+name = "my-app"
+description = "Database queries and connections for my-app"
+
+[settings]
+query_timeout = 30000
+max_result_rows = 1000
+enable_query_cache = true
+cache_ttl = 3600
+`;
+
+const envExample = `# .env.example
+LOCAL_PG_PASSWORD=
+MONGO_URL=mongodb://localhost:37017
+`;
+
+const favorites = `schema_version = 1
+
+[[favorite]]
+path = "northwind/recent-orders"
+
+[[favorite]]
+path = "mindsdb/fraud-summary"
+`;
+---
+
+<DocsLayout
+  title="Configuration"
+  description="The .based/ project folder is the git-friendly unit: committed connections and queries, gitignored secrets and personal state, plus machine-local app prefs."
+>
+  <p>
+    based has no server-side project. The unit of collaboration is a
+    <code>.based/</code> directory in a git repo. Teammates clone, fill in
+    secrets locally, and open the folder. File watchers reload after
+    <code>git pull</code>.
+  </p>
+
+  <h2>Design rules</h2>
+  <ol>
+    <li>
+      <strong>Version controlled by default</strong> — connections (non-secret),
+      queries, and shared project settings are plain files you commit.
+    </li>
+    <li>
+      <strong>One concern per file</strong> — small diffs, fewer merge
+      conflicts, easy review.
+    </li>
+    <li>
+      <strong>Secrets stay out of git</strong> — passwords and tokens use
+      environment variables, not committed literals.
+    </li>
+    <li>
+      <strong>User preference stays local</strong> — favorites, history, and UI
+      state are not team-wide.
+    </li>
+    <li>
+      <strong>Explicit over implicit</strong> — which connection a query runs
+      against is declared in <code>[target]</code>, not inferred from folders.
+    </li>
+  </ol>
+
+  <h2>Directory layout</h2>
+  <CodeSample
+    filename=".based/"
+    lang="plaintext"
+    code={`.based/
+  project.toml                 # Project manifest (committed)
+  connections/
+    **/*.toml                   # One file per connection (committed)
+  queries/
+    **/*.toml                   # One file per saved query (committed)
+  vars.toml                    # Query $VAR map (committed if shared)
+  .env                         # Local secrets (gitignored)
+  .env.example                 # Template for required env vars (committed)
+  state/                       # Per-user project preferences (gitignored)
+  local/                       # Ephemeral runtime data (gitignored)
+`}
+  />
+  <p>Recommended <code>.based/.gitignore</code>:</p>
+  <CodeSample filename=".based/.gitignore" lang="bash" code={gitignore} />
+
+  <h2>Committed vs local</h2>
+  <div class="docs-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Path</th>
+          <th>In git?</th>
+          <th>Purpose</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>project.toml</code></td>
+          <td>Yes</td>
+          <td>Project name and global settings</td>
+        </tr>
+        <tr>
+          <td><code>connections/**/*.toml</code></td>
+          <td>Yes</td>
+          <td>Connection definitions</td>
+        </tr>
+        <tr>
+          <td><code>queries/**/*.toml</code></td>
+          <td>Yes</td>
+          <td>Saved SQL and aggregations</td>
+        </tr>
+        <tr>
+          <td><code>vars.toml</code></td>
+          <td>Usually</td>
+          <td>Non-secret query variables</td>
+        </tr>
+        <tr>
+          <td><code>.env.example</code></td>
+          <td>Yes</td>
+          <td>Documents env vars teammates need</td>
+        </tr>
+        <tr>
+          <td><code>.env</code></td>
+          <td>No</td>
+          <td>Secret values for this machine</td>
+        </tr>
+        <tr>
+          <td><code>state/</code></td>
+          <td>No</td>
+          <td>Favorites, active environment, UI prefs</td>
+        </tr>
+        <tr>
+          <td><code>local/</code></td>
+          <td>No</td>
+          <td>Query history, session snapshots, caches</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Schema version</h2>
+  <p>
+    Every committed Based file carries its own <code>schema_version</code>
+    (integer). It describes <em>that file’s</em> structure, not the whole
+    project. Connection format v2 does not imply query format v2. Unknown
+    versions fail to load with an upgrade/migrate message. New files use
+    <code>schema_version = 1</code>.
+  </p>
+
+  <h2><code>project.toml</code></h2>
+  <CodeSample filename=".based/project.toml" code={projectToml} />
+  <div class="docs-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Field</th>
+          <th>Required</th>
+          <th>In the app today</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>schema_version</code></td>
+          <td>Yes</td>
+          <td>Must be <code>1</code>.</td>
+        </tr>
+        <tr>
+          <td><code>name</code></td>
+          <td>Yes</td>
+          <td>Shown in the title bar.</td>
+        </tr>
+        <tr>
+          <td><code>description</code></td>
+          <td>No</td>
+          <td>Display only.</td>
+        </tr>
+        <tr>
+          <td><code>query_timeout</code></td>
+          <td>No</td>
+          <td>
+            Milliseconds. On project open, converted to seconds and written
+            into the app’s query-timeout preference.
+          </td>
+        </tr>
+        <tr>
+          <td><code>max_result_rows</code></td>
+          <td>No</td>
+          <td>Parsed, not enforced yet.</td>
+        </tr>
+        <tr>
+          <td><code>enable_query_cache</code> / <code>cache_ttl</code></td>
+          <td>No</td>
+          <td>Parsed, not enforced yet.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <Callout kind="warn">
+    Project <code>query_timeout</code> overwrites the Settings value when you
+    open the project. It does not stay scoped only to that repo after you
+    change Settings again.
+  </Callout>
+
+  <h2>Connections and queries</h2>
+  <p>
+    File formats, ids, tags, engines, and <code>[target]</code> resolution are
+    specified on <a href="/docs/connections">Connections</a> and
+    <a href="/docs/editor">Editor</a>. Skip files named <code>_*.toml</code>.
+  </p>
+
+  <h2>Variables</h2>
+  <CodeSample
+    filename=".based/vars.toml"
+    code={`[vars]
+SCHEMA = "public"
+LIMIT = "100"
+`}
+  />
+  <p>
+    Loaded at startup into a process-wide map. SQL uses <code>$SCHEMA</code>
+    substitution. Keep secrets out of this file — it is usually committed.
+  </p>
+
+  <h2>Secrets</h2>
+  <CodeSample filename=".based/.env.example" lang="bash" code={envExample} />
+  <p>
+    Connection fields use <code>{`password = { env = "LOCAL_PG_PASSWORD" }`}</code>
+    or <code>{`url = { env = "MONGO_URL" }`}</code>. Resolution reads the
+    <strong>process environment</strong> at connect time. Copy
+    <code>.env.example</code> to <code>.env</code> and arrange for those
+    variables to be set in the environment you launch Based from (shell,
+    direnv, or a wrapper). Never commit <code>.env</code>.
+  </p>
+
+  <h2>Local state</h2>
+  <h3><code>state/favorites.toml</code></h3>
+  <CodeSample filename=".based/state/favorites.toml" code={favorites} />
+  <p>
+    Paths are relative to <code>queries/</code> without <code>.toml</code>.
+    Starring from Saved writes here, not into the query file.
+  </p>
+  <h3>Other state (planned)</h3>
+  <div class="docs-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>Purpose</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>state/active_environment.toml</code></td>
+          <td>Selected environment name. Displayed in the title bar; switching is not in the UI yet.</td>
+        </tr>
+        <tr>
+          <td><code>state/ui.toml</code></td>
+          <td>Sidebar expansion and similar chrome (planned).</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Local runtime</h2>
+  <div class="docs-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>Purpose</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>local/history.jsonl</code></td>
+          <td>Append-only run history, capped per connection.</td>
+        </tr>
+        <tr>
+          <td><code>local/session.json</code></td>
+          <td>Open tabs / cursors (optional).</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>App preferences</h2>
+  <p>
+    Theme, fonts, density, page size, table interaction, and updater flags live
+    in <code>native_preferences.toml</code> next to other OS app data — see
+    <a href="/docs/settings">Settings</a>. That file also stores
+    <code>last_opened_project</code> and <code>recent_projects</code> (recent
+    submenu UI is still pending).
+  </p>
+  <p>There is no project-level or user-level keybindings file. Shortcuts are built in.</p>
+</DocsLayout>

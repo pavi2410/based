@@ -69,10 +69,12 @@ mise run web-deploy
 ```text
 apps/web/
 ├── src/
-│   ├── components/   # Hero, GitHubStar, Screenshot, SignalChips, etc.
-│   ├── layouts/
-│   ├── lib/github.ts
-│   ├── pages/index.astro
+│   ├── components/   # Hero, docs chrome, Screenshot, SignalChips, etc.
+│   ├── layouts/      # BaseLayout, DocsLayout
+│   ├── lib/          # github.ts, docs.ts
+│   ├── pages/
+│   │   ├── index.astro
+│   │   └── docs/     # Product documentation
 │   └── styles/
 ├── public/           # favicon, og.png (1200×630), engine icons, hero screenshot
 └── wrangler.jsonc

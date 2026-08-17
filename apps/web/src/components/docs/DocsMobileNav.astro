@@ -1,0 +1,23 @@
+---
+import { DOC_PAGES, normalizeDocPath } from "../../lib/docs";
+
+const current = normalizeDocPath(Astro.url.pathname);
+---
+
+<nav class="docs-mobile-nav" aria-label="Documentation pages">
+  <ul class="docs-mobile-nav-list">
+    {
+      DOC_PAGES.map((page) => (
+        <li>
+          <a
+            href={page.href}
+            class:list={[current === page.href && "is-active"]}
+            aria-current={current === page.href ? "page" : undefined}
+          >
+            {page.title}
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+</nav>

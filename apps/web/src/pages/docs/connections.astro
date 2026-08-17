@@ -1,0 +1,218 @@
+---
+import Callout from "../../components/docs/Callout.astro";
+import CodeSample from "../../components/docs/CodeSample.astro";
+import DocsLayout from "../../layouts/DocsLayout.astro";
+
+const postgresToml = `schema_version = 1
+label = "Local PostgreSQL (Docker)"
+engine = "postgres"
+tags = ["local", "dev"]
+
+host = "localhost"
+port = 5432
+database = "based"
+username = "based"
+password = { env = "LOCAL_PG_PASSWORD" }
+ssl = false
+`;
+
+const sqliteToml = `schema_version = 1
+label = "Northwind"
+engine = "sqlite"
+tags = ["local", "demo"]
+read_only = false
+file = "data/northwind.db"
+
+[pragma]
+journal_mode = "wal"
+synchronous = "normal"
+foreign_keys = true
+`;
+
+const mongoToml = `schema_version = 1
+label = "Analytics MongoDB"
+engine = "mongodb"
+tags = ["staging"]
+
+url = { env = "MONGO_URL" }
+database = "analytics"
+`;
+---
+
+<DocsLayout
+  title="Connections"
+  description="One TOML file per connection, committed with the repo. The app loads them into a registry you open, test, and disconnect from the sidebar."
+>
+  <p>
+    Connections are not trapped in a GUI settings dump. They live under
+    <code>.based/connections/</code> as small TOML files. Opening a Based
+    project loads every <code>*.toml</code> in that tree (files whose names
+    start with <code>_</code> are skipped, so drafts can sit beside real
+    connections).
+  </p>
+
+  <h2>Identity is the path</h2>
+  <p>
+    There is no <code>id</code> field in the file. The stable id is the path
+    relative to <code>connections/</code> without the <code>.toml</code>
+    suffix:
+  </p>
+  <div class="docs-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>Connection id</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>connections/northwind.toml</code></td>
+          <td><code>northwind</code></td>
+        </tr>
+        <tr>
+          <td><code>connections/local/northwind.toml</code></td>
+          <td><code>local/northwind</code></td>
+        </tr>
+        <tr>
+          <td><code>connections/public/ebi_postgres.toml</code></td>
+          <td><code>public/ebi_postgres</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    Saved queries point at this id in <code>[target].connection</code>. Rename
+    or move the file and the id changes — git will show both sides of the
+    update. Nested folders are for humans (sidebar grouping). They do not
+    change engine behavior; use <code>tags</code> for anything queries match
+    against.
+  </p>
+
+  <h2>Common fields</h2>
+  <div class="docs-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Field</th>
+          <th>Required</th>
+          <th>Meaning</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>schema_version</code></td>
+          <td>Yes</td>
+          <td>Connection file format. Currently <code>1</code>.</td>
+        </tr>
+        <tr>
+          <td><code>label</code></td>
+          <td>Yes</td>
+          <td>Name in the tree, status bar, and menus.</td>
+        </tr>
+        <tr>
+          <td><code>engine</code></td>
+          <td>Yes</td>
+          <td>
+            <code>postgres</code> (alias <code>postgresql</code>),
+            <code>sqlite</code>, or <code>mongodb</code> (alias <code>mongo</code>).
+          </td>
+        </tr>
+        <tr>
+          <td><code>tags</code></td>
+          <td>No</td>
+          <td>
+            String labels for query <code>[target]</code> matching. A tag named
+            <code>readonly</code> (any case) implies SQLite read-only if
+            <code>read_only</code> is omitted.
+          </td>
+        </tr>
+        <tr>
+          <td><code>read_only</code></td>
+          <td>No</td>
+          <td>
+            When <code>true</code>, SQLite opens <code>mode=ro</code>. Explicit
+            <code>false</code> wins over a <code>readonly</code> tag.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Engine files</h2>
+  <h3>PostgreSQL</h3>
+  <CodeSample filename=".based/connections/local/postgres.toml" code={postgresToml} />
+  <p>
+    <code>ssl = true</code> → Require; <code>ssl = false</code> → Disable. For
+    Verify CA / Verify Full, use the in-app wizard (session connection) until
+    those modes exist on the file format.
+  </p>
+
+  <h3>SQLite</h3>
+  <CodeSample filename=".based/connections/local/northwind.toml" code={sqliteToml} />
+
+  <h3>MongoDB</h3>
+  <CodeSample filename=".based/connections/staging/analytics.toml" code={mongoToml} />
+
+  <h2>Secrets</h2>
+  <p>
+    Any password or URI field can be a literal string or
+    <code>{`{ env = "VAR" }`}</code>. Based resolves the latter from the
+    <strong>process environment</strong> at connect time. If the variable is
+    missing, connect fails with a clear error.
+  </p>
+  <p>
+    Keep values out of git: commit <code>.based/.env.example</code> with empty
+    keys, and a gitignored <code>.based/.env</code> on each machine. Launch
+    Based from an environment that has those variables set (your shell, direnv,
+    or a wrapper). Do not put secrets in the connection TOML when you can avoid
+    it.
+  </p>
+  <Callout kind="warn">
+    <strong>Inline passwords are allowed</strong> for local demos only. They
+    will be committed if the file is. Prefer <code>{`{ env = "…" }`}</code>.
+  </Callout>
+
+  <h2>In the app</h2>
+  <h3>Project connections</h3>
+  <p>
+    File → Open Project (<kbd class="kbd">⌘O</kbd> / <kbd class="kbd">Ctrl+O</kbd>)
+    picks a folder that contains <code>.based/</code>. Connections appear in
+    the left icon rail. Click a disconnected row to connect; the catalog loads
+    and the center workspace switches to that engine. Disconnect from the
+    connection context menu or the status-bar chip.
+  </p>
+  <h3>Ephemeral connections</h3>
+  <p>
+    Home → New Connection opens an engine picker and a wizard (Postgres /
+    SQLite / MongoDB). <strong>Test</strong> reports latency and server
+    version. Connect adds the connection to this session only — it does
+    <em>not</em> write a file under <code>.based/connections/</code>. To share
+    it, add a TOML file yourself (or wait for the project wizard).
+  </p>
+  <h3>Connection tree</h3>
+  <ul>
+    <li>Icon rail: every connection, engine icon, state color.</li>
+    <li>
+      Content rail: catalog grouped by schema (Postgres) or a flat list
+      (SQLite, MongoDB). Search filters objects.
+    </li>
+    <li>
+      Object actions: Open Data, Open Structure (SQL tables/views), Copy Name,
+      copy connection string / CLI command, Refresh, Disconnect.
+    </li>
+  </ul>
+  <p>
+    Tags are parsed and used by query targeting; they are not shown as badges
+    in the tree yet. The title-bar environment name is display-only — switching
+    environments is not in the UI.
+  </p>
+
+  <h2>Reload</h2>
+  <p>
+    Based watches <code>.based/</code>. After <code>git pull</code> or an
+    external edit, connections and saved queries reload without restarting the
+    app. Switching project or quitting prompts if you still have live
+    connections or dirty tabs.
+  </p>
+</DocsLayout>

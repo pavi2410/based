@@ -1,0 +1,109 @@
+---
+import Callout from "../../components/docs/Callout.astro";
+import DocsLayout from "../../layouts/DocsLayout.astro";
+---
+
+<DocsLayout
+  title="Table grid"
+  description="Read-only virtual tables for SQL results, table viewers, and Mongo documents — pagination, filters, sort, and export."
+>
+  <p>
+    Data viewers, query results, and Mongo document lists share the same grid.
+    It is a virtualized table: large result sets stay scrollable without
+    mounting every row. Cells render as formatted strings from the engine.
+  </p>
+  <Callout kind="warn">
+    The grid is <strong>read-only</strong>. Inline row editing, dirty-state
+    save/discard, and Mongo document edit are not wired in the UI. Double-click
+    a cell to open a detail panel instead of editing in place.
+  </Callout>
+
+  <h2>Where it appears</h2>
+  <ul>
+    <li>
+      <strong>Open Data</strong> on a table, view, or collection — a tab keyed
+      by connection + object (opening the same object focuses the existing tab).
+    </li>
+    <li><strong>Query results</strong> under the SQL / pipeline editor.</li>
+    <li><strong>Mongo documents</strong> from <code>find()</code> on a collection.</li>
+  </ul>
+
+  <h2>Pagination</h2>
+  <p>
+    SQL viewers fetch a page at a time. Page size comes from Settings → Query
+    defaults (default <strong>500</strong>, range 50–5000). Prev / next move
+    through pages.
+  </p>
+  <p>
+    Mongo document viewer is not paged the same way: it runs <code>find()</code>
+    with a fixed limit of <strong>200</strong> documents.
+  </p>
+
+  <h2>Filters</h2>
+  <p>
+    The filter bar picks a column, an operator, and a value, then applies a
+    server-side predicate (SQL <code>WHERE</code> or a Mongo filter). Apply and
+    Clear sit on the bar.
+  </p>
+  <div class="docs-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Operator</th>
+          <th>SQL (Postgres)</th>
+          <th>SQL (SQLite)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>=</td>
+          <td>equality</td>
+          <td>equality</td>
+        </tr>
+        <tr>
+          <td>≠</td>
+          <td>not equal</td>
+          <td>not equal</td>
+        </tr>
+        <tr>
+          <td>contains</td>
+          <td><code>ILIKE '%value%'</code></td>
+          <td><code>LIKE</code> (case-insensitive via lowercasing)</td>
+        </tr>
+        <tr>
+          <td>&gt; / &lt;</td>
+          <td>comparison</td>
+          <td>comparison</td>
+        </tr>
+        <tr>
+          <td>is null / is not null</td>
+          <td>no value field</td>
+          <td>no value field</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    Identifiers are quoted. Values are escaped as SQL string literals. Mongo
+    uses the same operators as a JSON predicate on the selected field.
+  </p>
+
+  <h2>Sorting and columns</h2>
+  <p>
+    Header click sorts <strong>the current page in the client</strong>. It does
+    not add <code>ORDER BY</code> to the query. Column resize, reorder, row
+    select, cell select, and wrap-around keyboard selection are all toggles in
+    Settings → Query defaults → Table interaction.
+  </p>
+  <p>
+    Zebra striping and row size live under Settings → Appearance → Tables.
+    SQLite read-only connections show a read-only badge in the viewer footer.
+  </p>
+
+  <h2>Export</h2>
+  <p>
+    CSV and XLSX export from a popover on data viewers and query result grids.
+    Export uses the rows currently loaded in the grid, not the unfetched rest
+    of the table.
+  </p>
+</DocsLayout>

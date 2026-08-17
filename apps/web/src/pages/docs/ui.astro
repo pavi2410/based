@@ -1,0 +1,115 @@
+---
+import Kbd from "../../components/docs/Kbd.astro";
+import DocsLayout from "../../layouts/DocsLayout.astro";
+---
+
+<DocsLayout
+  title="UI"
+  description="The native shell: title bar, sidebar, center dock, side panes, Home, command palette, and appearance."
+>
+  <p>
+    based is a GPUI desktop app (the same GPU UI stack as Zed), not a wrapped
+    browser. Chrome layout, fonts, and theme are app preferences — they are not
+    stored in the git project.
+  </p>
+
+  <h2>Title bar</h2>
+  <p>Custom title bar with platform traffic lights where the OS expects them.</p>
+  <ul>
+    <li>
+      <strong>Context rail</strong> — project name (open another folder), git
+      branch (read-only), environment name (read-only).
+    </li>
+    <li>
+      <strong>Center</strong> — command palette search field. Click it or press
+      <Kbd>⌘K</Kbd> / <Kbd>Ctrl+K</Kbd>.
+    </li>
+    <li>
+      <strong>Right</strong> — appearance cycle (sun / moon), app overflow
+      (About, Settings, updates; Help items on non-macOS).
+    </li>
+  </ul>
+
+  <h2>Sidebar</h2>
+  <p>
+    Left column, about 296px, collapsible with <Kbd>⌘\</Kbd> /
+    <Kbd>Ctrl+\</Kbd>. Collapsed state is remembered in native preferences, not
+    in Settings.
+  </p>
+  <ul>
+    <li><strong>Icon rail</strong> — connections, engine icon, connect state.</li>
+    <li><strong>Content rail</strong> — catalog for the selected connection, plus a query lane for loose queries.</li>
+  </ul>
+
+  <h2>Center dock</h2>
+  <p>
+    Tabs use a dock area with a tab bar (not a standalone tabs widget). Labels
+    are short names from the panel. Split panes are available from the View
+    menu and the tab ⋯ menu. There is no per-tab × yet — close from ⋯ or
+    <Kbd>⌘W</Kbd> / <Kbd>Ctrl+W</Kbd>. Closing the last tab respawns Home.
+    Pinned tabs are not closable.
+  </p>
+
+  <h2>Status bar</h2>
+  <ul>
+    <li>Connection chip: engine, label, state; menu for connection actions.</li>
+    <li>
+      Pane toggles: Inspector (<Kbd>⌘⌥I</Kbd>), History (<Kbd>⌘⌥H</Kbd>),
+      Saved (<Kbd>⌘⌥S</Kbd>).
+    </li>
+    <li>Update progress when the updater is running, plus app version.</li>
+  </ul>
+
+  <h2>Right panes</h2>
+  <div class="docs-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Pane</th>
+          <th>Content</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Inspector</td>
+          <td>Metadata for the active tab’s object or connection. Empty state shows shortcut hints.</td>
+        </tr>
+        <tr>
+          <td>History</td>
+          <td>Run history for the current connection (All / Today). Click a row to reopen it in a query tab.</td>
+        </tr>
+        <tr>
+          <td>Saved</td>
+          <td>All project queries; favorites sort first. Shift-click the star to pin.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Home</h2>
+  <p>
+    Default center tab: logo and quick actions — New Query, Command Palette,
+    Open Project, New Connection, Settings. After you connect, a Home dashboard
+    for that connection is pinned and not closable. The generic Home tab is
+    closable when other tabs are open; it comes back if you close everything.
+  </p>
+
+  <h2>Command palette</h2>
+  <p>
+    <Kbd>⌘K</Kbd> / <Kbd>Ctrl+K</Kbd> searches schema objects, saved queries,
+    history, and workspace commands. <Kbd>↑</Kbd> / <Kbd>↓</Kbd> move,
+    <Kbd>Enter</Kbd> opens. <Kbd>Shift+Enter</Kbd> on a schema object inserts a
+    new query with <code>SELECT * FROM … LIMIT 100</code> (no auto-run); on a
+    history item it injects SQL into the active editor. <Kbd>Escape</Kbd>
+    dismisses.
+  </p>
+
+  <h2>Appearance</h2>
+  <p>
+    Light, Dark, or System. Light and dark each have their own theme name.
+    Bundled families include Based, Gruvbox, Catppuccin, Ayu, Everforest, and
+    Solarized. Cycle appearance with the title-bar button or
+    <Kbd>⌘⌥⇧T</Kbd> / <Kbd>Ctrl+Alt+Shift+T</Kbd>. Density and fonts are in
+    <a href="/docs/settings">Settings</a>.
+  </p>
+</DocsLayout>

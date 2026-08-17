@@ -1,0 +1,284 @@
+---
+import Callout from "../../components/docs/Callout.astro";
+import CodeSample from "../../components/docs/CodeSample.astro";
+import Kbd from "../../components/docs/Kbd.astro";
+import DocsLayout from "../../layouts/DocsLayout.astro";
+
+const sqlQuery = `schema_version = 1
+
+name = "List Tables"
+description = "Postgres information_schema tables"
+
+[target]
+engine = "postgres"
+
+[sql]
+query = """
+SELECT table_schema AS schema, table_name AS name
+FROM information_schema.tables
+WHERE table_type = 'BASE TABLE'
+  AND table_schema NOT IN ('pg_catalog', 'information_schema')
+ORDER BY 1, 2;
+"""
+`;
+
+const exclusiveQuery = `schema_version = 1
+name = "Recent Orders"
+tags = ["orders"]
+
+[target]
+connection = "local/northwind"
+
+[sql]
+query = """
+SELECT OrderID, OrderDate FROM Orders
+ORDER BY OrderDate DESC
+LIMIT 50;
+"""
+`;
+
+const aggregateQuery = `schema_version = 1
+name = "Completed by plan"
+
+[target]
+engine = "mongodb"
+
+[aggregate]
+collection = "orders"
+pipeline = """
+[
+  { "$match": { "status": "completed" } },
+  { "$group": { "_id": "$plan", "count": { "$sum": 1 } } },
+  { "$sort": { "count": -1 } }
+]
+"""
+`;
+---
+
+<DocsLayout
+  title="Editor"
+  description="Center-tab SQL and aggregation editors: run, results, explain, variables, and saved query files."
+>
+  <p>
+    Each connection owns query tabs in the center dock. PostgreSQL and SQLite
+    get a SQL editor; MongoDB gets a JSON aggregation pipeline builder. New
+    query tabs always open a fresh tab (they are not deduped).
+  </p>
+
+  <h2>Open and run</h2>
+  <div class="docs-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Action</th>
+          <th>How</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>New query</td>
+          <td>
+            <Kbd>⌘⌥N</Kbd> / <Kbd>Ctrl+Alt+N</Kbd> (needs a focused connection),
+            File menu, connection menu, Home, or command palette
+          </td>
+        </tr>
+        <tr>
+          <td>Run</td>
+          <td>
+            <Kbd>⌘Enter</Kbd> / <Kbd>Ctrl+Enter</Kbd> with the editor focused, or
+            the Run button
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    Run executes the <strong>entire buffer</strong>. Selection-only run and
+    “statement at cursor” are not shipped. SQLite may contain multiple
+    statements; Based runs the script and shows the last result set.
+  </p>
+  <p>
+    New query tabs auto-run when the buffer is already non-empty (for example
+    a saved query or a palette-generated <code>SELECT *</code>).
+  </p>
+  <Callout>
+    There is no cancel action yet — a long run cannot be aborted from the UI.
+    SQL format-on-key is also not shipped. Postgres syntax highlighting is
+    still plain text.
+  </Callout>
+
+  <h2>Result panes</h2>
+  <p>Under the editor:</p>
+  <ul>
+    <li><strong>Results</strong> — the same table grid as data viewers (see <a href="/docs/table-grid">Table grid</a>).</li>
+    <li><strong>Messages</strong> — errors and OK summaries.</li>
+    <li><strong>Explain</strong> — Postgres <code>EXPLAIN (FORMAT JSON)</code>; SQLite <code>EXPLAIN QUERY PLAN</code> as a tree.</li>
+  </ul>
+  <p>Export the current result to CSV or XLSX from the viewer chrome.</p>
+
+  <h2>Variables</h2>
+  <p>
+    Query text can include <code>$NAME</code> placeholders from
+    <code>.based/vars.toml</code>:
+  </p>
+  <CodeSample
+    filename=".based/vars.toml"
+    code={`[vars]
+SCHEMA = "public"
+`}
+  />
+  <p>
+    Unknown <code>$NAME</code> tokens are left as-is. The editor toolbar has a
+    variables popover; <strong>Edit file</strong> opens <code>vars.toml</code>
+    in your system editor.
+  </p>
+  <p>
+    Postgres also resolves Postman-style <code>{"{{name}}"}</code> templates and
+    builtins:
+  </p>
+  <div class="docs-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Token</th>
+          <th>Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>{"{{$randomUUID}}"}</code></td>
+          <td>UUID v4</td>
+        </tr>
+        <tr>
+          <td><code>{"{{$timestamp}}"}</code></td>
+          <td>Unix timestamp (UTC)</td>
+        </tr>
+        <tr>
+          <td><code>{"{{$isoTimestamp}}"}</code></td>
+          <td>RFC 3339 timestamp</td>
+        </tr>
+        <tr>
+          <td><code>{"{{$randomInt(min,max)}}"}</code></td>
+          <td>Inclusive random integer</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Saved queries</h2>
+  <p>
+    One file per query under <code>.based/queries/**/*.toml</code> (skip
+    <code>_*.toml</code>). The file path relative to <code>queries/</code> is
+    the internal identity. Folders group the Saved pane; they do
+    <em>not</em> pick the connection. That is <code>[target]</code>.
+  </p>
+  <div class="docs-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Field</th>
+          <th>Required</th>
+          <th>Meaning</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>schema_version</code></td>
+          <td>Yes</td>
+          <td>Query file format. Currently <code>1</code>.</td>
+        </tr>
+        <tr>
+          <td><code>name</code></td>
+          <td>Yes</td>
+          <td>Label in Saved, palette, and tabs.</td>
+        </tr>
+        <tr>
+          <td><code>description</code></td>
+          <td>No</td>
+          <td>Longer explanation.</td>
+        </tr>
+        <tr>
+          <td><code>tags</code></td>
+          <td>No</td>
+          <td>Labels on the query itself (search/filter). Unrelated to connection tags.</td>
+        </tr>
+        <tr>
+          <td><code>[target]</code></td>
+          <td>Yes</td>
+          <td>Which connection(s) may run this query.</td>
+        </tr>
+        <tr>
+          <td><code>[sql]</code> or <code>[aggregate]</code></td>
+          <td>Exactly one</td>
+          <td>SQL body, or Mongo pipeline + collection.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Portable SQL (any Postgres)</h3>
+  <CodeSample filename=".based/queries/pg-list-tables.toml" code={sqlQuery} />
+
+  <h3>Pinned to one connection</h3>
+  <CodeSample filename=".based/queries/northwind/recent-orders.toml" code={exclusiveQuery} />
+
+  <h3>Mongo aggregation</h3>
+  <CodeSample filename=".based/queries/orders/completed-by-plan.toml" code={aggregateQuery} />
+
+  <h2 id="target">Query targets</h2>
+  <p>
+    Fields combine with <strong>AND</strong>. No globs and no nested tag
+    language in v1.
+  </p>
+  <div class="docs-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Field</th>
+          <th>Rule</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>connection</code> string</td>
+          <td>
+            Exclusive: only this id. Must not be combined with
+            <code>engine</code>, <code>tags</code>, or <code>exclude_tags</code>.
+          </td>
+        </tr>
+        <tr>
+          <td><code>connection</code> array</td>
+          <td>Id must be one of the listed ids. May combine with the filters below.</td>
+        </tr>
+        <tr>
+          <td><code>engine</code></td>
+          <td><code>postgres</code>, <code>sqlite</code>, or <code>mongodb</code>.</td>
+        </tr>
+        <tr>
+          <td><code>tags</code></td>
+          <td>Connection must have <em>every</em> listed tag (case-sensitive).</td>
+        </tr>
+        <tr>
+          <td><code>exclude_tags</code></td>
+          <td>Connection must have <em>none</em> of these tags.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>When you open or run a query:</p>
+  <ol>
+    <li>Exclusive string → that connection (error if missing).</li>
+    <li>Otherwise compute the matching set.</li>
+    <li>If the focused connection is in the set, prefer it.</li>
+    <li>One match → use it. Several → picker. None → error.</li>
+  </ol>
+  <p>The query text is never rewritten per connection.</p>
+
+  <h2>Favorites and history</h2>
+  <p>
+    Starring a query writes <code>.based/state/favorites.toml</code> (gitignored).
+    It does not edit the query file. History is append-only
+    <code>.based/local/history.jsonl</code>, capped per connection, also
+    gitignored. Open either from the right panes or the command palette.
+  </p>
+</DocsLayout>

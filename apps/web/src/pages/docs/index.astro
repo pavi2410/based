@@ -1,0 +1,99 @@
+---
+import { DOC_PAGES } from "../../lib/docs";
+import DocsLayout from "../../layouts/DocsLayout.astro";
+
+const pages = DOC_PAGES.filter((page) => page.href !== "/docs");
+---
+
+<DocsLayout
+  title="Docs"
+  description="How based works as a desktop database client: engines, connections, the editor, the grid, the UI, and the files you commit."
+>
+  <p>
+    based is a local-first desktop client for PostgreSQL, SQLite, and MongoDB.
+    There is no account and no backend. You open a folder that contains a
+    <code>.based/</code> project, connect straight from your machine, and keep
+    shared setup in plain files.
+  </p>
+
+  <h2>Two layers of state</h2>
+  <p>
+    Almost every control in the app belongs to one of two layers. Mixing them
+    up is the usual source of “why didn’t this sync to my teammate?”
+  </p>
+  <div class="docs-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Layer</th>
+          <th>Where it lives</th>
+          <th>Shared?</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Project</td>
+          <td>
+            <code>.based/</code> in the repo — connections, saved queries,
+            <code>project.toml</code>, <code>vars.toml</code>
+          </td>
+          <td>Commit what the team should share. Gitignore secrets and personal state.</td>
+        </tr>
+        <tr>
+          <td>App</td>
+          <td>
+            Settings window → <code>native_preferences.toml</code> on this machine
+          </td>
+          <td>Theme, fonts, page size, table behavior. Not part of the repo.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Workspace map</h2>
+  <p>
+    The main window is a three-pane shell: catalog on the left, tabs in the
+    center, optional Inspector / History / Saved on the right. Home is the
+    default center tab until you connect.
+  </p>
+  <div class="docs-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Area</th>
+          <th>What you do there</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Left sidebar</td>
+          <td>Pick a connection, browse schema objects, open data or a new query.</td>
+        </tr>
+        <tr>
+          <td>Center tabs</td>
+          <td>Query editor, table viewer, structure inspector, Home, Mongo pipeline builder.</td>
+        </tr>
+        <tr>
+          <td>Right panes</td>
+          <td>Inspector metadata, per-connection run history, project saved queries.</td>
+        </tr>
+        <tr>
+          <td>Command palette</td>
+          <td>Jump to objects, queries, history, and workspace commands without the mouse.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Guides</h2>
+  <div class="docs-card-grid">
+    {
+      pages.map((page) => (
+        <a class="docs-card" href={page.href}>
+          <h3 class="docs-card-title">{page.title}</h3>
+          <p class="docs-card-body">{page.description}</p>
+        </a>
+      ))
+    }
+  </div>
+</DocsLayout>

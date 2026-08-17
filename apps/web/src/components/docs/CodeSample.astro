@@ -1,0 +1,24 @@
+---
+import { Code } from "astro:components";
+import CopyButton from "../CopyButton.astro";
+
+interface Props {
+  code: string;
+  lang?: "toml" | "bash" | "plaintext";
+  filename?: string;
+}
+
+const { code, lang = "toml", filename } = Astro.props;
+---
+
+<figure class="code-sample">
+  {
+    filename && (
+      <figcaption class="code-sample-head">
+        <span>{filename}</span>
+        <CopyButton value={code} iconOnly pushEnd ariaLabel={`Copy ${filename}`} />
+      </figcaption>
+    )
+  }
+  <Code code={code} lang={lang} theme="github-dark-default" />
+</figure>

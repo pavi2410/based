@@ -1,0 +1,31 @@
+---
+import { DOC_GROUPS, DOC_PAGES, normalizeDocPath } from "../../lib/docs";
+
+const current = normalizeDocPath(Astro.url.pathname);
+---
+
+<nav class="docs-sidebar" aria-label="Documentation">
+  {
+    DOC_GROUPS.map((group) => {
+      const pages = DOC_PAGES.filter((page) => page.group === group);
+      return (
+        <div class="docs-nav-group">
+          <p class="docs-nav-label">{group}</p>
+          <ul class="docs-nav-list">
+            {pages.map((page) => (
+              <li>
+                <a
+                  href={page.href}
+                  class:list={["docs-nav-link", current === page.href && "is-active"]}
+                  aria-current={current === page.href ? "page" : undefined}
+                >
+                  {page.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      );
+    })
+  }
+</nav>

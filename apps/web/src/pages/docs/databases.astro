@@ -1,0 +1,182 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+---
+
+<DocsLayout
+  title="Databases"
+  description="PostgreSQL, SQLite, and MongoDB in the same project. Each connection picks an engine; the workspace changes with it."
+>
+  <p>
+    A Based project can hold any mix of the three engines. The engine is a field
+    on the connection file (<code>engine = "postgres"</code>,
+    <code>"sqlite"</code>, or <code>"mongodb"</code>), not a separate app mode.
+    Postgres is the deepest daily driver; SQLite and MongoDB share the same
+    catalog, tabs, and saved-query model.
+  </p>
+
+  <h2>At a glance</h2>
+  <div class="docs-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>PostgreSQL</th>
+          <th>SQLite</th>
+          <th>MongoDB</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Query language</td>
+          <td>SQL</td>
+          <td>SQL (multi-statement scripts)</td>
+          <td>Aggregation pipeline (JSON)</td>
+        </tr>
+        <tr>
+          <td>Catalog</td>
+          <td>Schemas → tables, views, materialized views</td>
+          <td>Tables, views, triggers</td>
+          <td>Collections</td>
+        </tr>
+        <tr>
+          <td>Data viewer</td>
+          <td>Paginated <code>SELECT *</code></td>
+          <td>Paginated <code>SELECT *</code></td>
+          <td><code>find()</code>, first 200 documents</td>
+        </tr>
+        <tr>
+          <td>Structure</td>
+          <td>Columns, indexes, constraints, stats</td>
+          <td>Columns, indexes, constraints, DDL</td>
+          <td>Collection stats / inferred schema</td>
+        </tr>
+        <tr>
+          <td>Explain</td>
+          <td><code>EXPLAIN (FORMAT JSON)</code></td>
+          <td><code>EXPLAIN QUERY PLAN</code></td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td>Autocomplete</td>
+          <td>Not yet</td>
+          <td>Tables, columns, keywords, functions</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td>Read-only mode</td>
+          <td>Not in the connection file</td>
+          <td><code>read_only = true</code> or a <code>readonly</code> tag</td>
+          <td>Not in the connection file</td>
+        </tr>
+        <tr>
+          <td>Inline row editing</td>
+          <td>Not shipped</td>
+          <td>Not shipped</td>
+          <td>Document edit UI not wired</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="postgresql">PostgreSQL</h2>
+  <p>
+    Primary SQL engine via sqlx. A project connection needs
+    <code>host</code>, <code>database</code>, and <code>username</code>.
+    <code>port</code> defaults to <code>5432</code>. Password should be
+    <code>{`{ env = "VAR" }`}</code>, not a literal in git.
+  </p>
+  <p>
+    <code>ssl</code> on a connection file is a boolean: <code>true</code> maps
+    to SSL mode <strong>Require</strong>, <code>false</code> (the default) to
+    <strong>Disable</strong>. The New Connection wizard exposes the full set:
+    Prefer, Require, Disable, Verify CA, Verify Full.
+  </p>
+  <ul>
+    <li>Ad-hoc SQL editor and saved <code>[sql]</code> queries.</li>
+    <li>Data viewer with page size from Settings (default 500 rows).</li>
+    <li>Structure inspector for tables and views.</li>
+    <li>Explain pane on the query editor.</li>
+    <li>Test-before-connect in the wizard (latency + server version).</li>
+  </ul>
+
+  <h2 id="sqlite">SQLite</h2>
+  <p>
+    File-backed. <code>file</code> is a path relative to the repo root (or
+    absolute). Connection-time PRAGMAs live in an optional
+    <code>[pragma]</code> table and are applied when the pool opens.
+  </p>
+  <div class="docs-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Key</th>
+          <th>Default</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>journal_mode</code></td>
+          <td><code>wal</code></td>
+          <td>Skipped when the connection is read-only (would mutate storage).</td>
+        </tr>
+        <tr>
+          <td><code>synchronous</code></td>
+          <td><code>normal</code></td>
+          <td>Also skipped in read-only mode.</td>
+        </tr>
+        <tr>
+          <td><code>foreign_keys</code></td>
+          <td><code>true</code></td>
+          <td>Still applied when read-only.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    Set <code>read_only = true</code> (preferred) or a <code>readonly</code> tag
+    to open with <code>mode=ro</code>: no writes, and no empty database created
+    if the file is missing. The connection dashboard also shows a live PRAGMA
+    snapshot.
+  </p>
+  <p>
+    SQLite is the only engine with SQL autocomplete today. Multi-statement
+    scripts run as a batch; the last result is shown. Query timeout from
+    Settings is enforced on SQLite runs.
+  </p>
+
+  <h2 id="mongodb">MongoDB</h2>
+  <p>
+    Native driver. The connection file needs a <code>url</code> (literal URI or
+    <code>{`{ env = "MONGO_URL" }`}</code>) and an optional default
+    <code>database</code>.
+  </p>
+  <ul>
+    <li>Catalog lists collections.</li>
+    <li>Pipeline builder: JSON array of stages, run against a collection.</li>
+    <li>
+      Saved queries use <code>[aggregate]</code> with <code>pipeline</code> and
+      usually <code>collection</code>.
+    </li>
+    <li>Document viewer: flattened <code>find()</code>, capped at 200 documents.</li>
+    <li>
+      Change-stream sampler opens on connect (needs a replica set; samples up
+      to 64 events).
+    </li>
+  </ul>
+  <p>
+    Introspection pipelines whose first stage is database-scoped (for example
+    <code>$listCollections</code>) may omit <code>collection</code>; Based
+    supplies a harmless default handle. Data pipelines that read documents
+    must set <code>collection</code>.
+  </p>
+
+  <h2>What is not engine-specific</h2>
+  <p>
+    Saved queries, history, the command palette, export to CSV/XLSX, and the
+    table grid chrome are shared. A query’s <code>[target]</code> decides which
+    connection (and therefore which engine) it may run against — see
+    <a href="/docs/connections">Connections</a> and
+    <a href="/docs/editor">Editor</a>.
+  </p>
+</DocsLayout>

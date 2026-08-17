@@ -1,0 +1,45 @@
+---
+import AmbientGlow from "../components/AmbientGlow.astro";
+import DocPager from "../components/docs/DocPager.astro";
+import DocsMobileNav from "../components/docs/DocsMobileNav.astro";
+import DocsSidebar from "../components/docs/DocsSidebar.astro";
+import Footer from "../components/Footer.astro";
+import Nav from "../components/Nav.astro";
+import { docPageByPath } from "../lib/docs";
+import { fetchStarCount } from "../lib/github";
+import BaseLayout from "./BaseLayout.astro";
+import "../styles/docs.css";
+
+interface Props {
+  title: string;
+  description: string;
+}
+
+const { title, description } = Astro.props;
+const stars = await fetchStarCount();
+const page = docPageByPath(Astro.url.pathname);
+const fullTitle = `${title} — based docs`;
+---
+
+<BaseLayout title={fullTitle} description={description}>
+  <div class="page">
+    <AmbientGlow />
+    <Nav stars={stars} />
+    <div class="container">
+      <DocsMobileNav />
+      <div class="docs-shell">
+        <DocsSidebar />
+        <div class="docs-main">
+          <article class="docs-prose">
+            {page && <p class="docs-eyebrow">{page.group}</p>}
+            <h1 class="docs-title">{title}</h1>
+            <p class="docs-lead">{description}</p>
+            <slot />
+          </article>
+          <DocPager />
+          <Footer />
+        </div>
+      </div>
+    </div>
+  </div>
+</BaseLayout>

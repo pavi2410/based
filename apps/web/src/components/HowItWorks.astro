@@ -10,9 +10,22 @@ import FileBrowser from "./FileBrowser.astro";
       based reads a <span class="mono">.based/</span> directory in your repo.
       Connections and saved queries are small TOML files your team reviews in
       pull requests. Secrets go in a gitignored <span class="mono">.env</span> —
-      never committed.
+      never committed. <a class="how-docs" href="/docs">Read the docs</a>.
     </p>
   </div>
 
   <FileBrowser />
 </section>
+
+<style>
+  .how-docs {
+    color: color-mix(in srgb, var(--accent-blue) 78%, var(--text));
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-color: color-mix(in srgb, var(--muted) 42%, transparent);
+  }
+
+  .how-docs:hover {
+    color: var(--text);
+  }
+</style>

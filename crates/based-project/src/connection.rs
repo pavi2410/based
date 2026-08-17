@@ -5,7 +5,7 @@ use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
 use crate::env_value::EnvOrString;
-use crate::walk::walk_files;
+use crate::walk::{rel_id, walk_toml_files};
 
 pub const CONNECTION_SCHEMA_VERSION: u64 = 1;
 
@@ -83,7 +83,7 @@ pub fn load_connections(project_root: &Path) -> Result<Vec<ProjectConnection>> {
     if !dir.is_dir() {
         return Ok(vec![]);
     }
-    let files = walk_files(&dir, ".conn.toml")?;
+    let files = walk_toml_files(&dir)?;
     let mut connections = Vec::with_capacity(files.len());
     for path in files {
         connections.push(parse_connection_file(&dir, &path)?);
@@ -95,7 +95,7 @@ fn parse_connection_file(connections_dir: &Path, path: &Path) -> Result<ProjectC
     let rel = path
         .strip_prefix(connections_dir)
         .with_context(|| format!("connection path not under {}", connections_dir.display()))?;
-    let id = connection_id_from_rel_path(rel);
+    let id = rel_id(rel);
     let raw = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
     let file: RawConnectionFile =
         toml::from_str(&raw).with_context(|| format!("parse {}", path.display()))?;
@@ -168,13 +168,6 @@ fn resolve_read_only(explicit: Option<bool>, tags: &[String]) -> bool {
     tags.iter().any(|t| t.eq_ignore_ascii_case("readonly"))
 }
 
-fn connection_id_from_rel_path(rel: &Path) -> String {
-    let s = rel.to_string_lossy();
-    s.strip_suffix(".conn.toml")
-        .unwrap_or(&s)
-        .replace('\\', "/")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -201,11 +194,20 @@ mod tests {
     }
 
     #[test]
+    fn connection_id_from_plain_and_legacy_toml() {
+        assert_eq!(rel_id(Path::new("local/northwind.toml")), "local/northwind");
+        assert_eq!(
+            rel_id(Path::new("local/northwind.conn.toml")),
+            "local/northwind"
+        );
+    }
+
+    #[test]
     fn parse_sqlite_read_only_from_toml() {
         let dir = tempfile::tempdir().unwrap();
         let conn_dir = dir.path().join("connections");
         fs::create_dir_all(&conn_dir).unwrap();
-        let path = conn_dir.join("index.conn.toml");
+        let path = conn_dir.join("index.toml");
         fs::write(
             &path,
             r#"

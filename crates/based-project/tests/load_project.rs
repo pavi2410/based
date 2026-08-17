@@ -13,6 +13,12 @@ fn loads_repo_based_project() {
     assert_eq!(snap.manifest.name, "based");
     assert!(!snap.connections.is_empty());
     assert!(!snap.queries.is_empty());
+    assert!(snap.connections.iter().any(|c| c.id == "local/northwind"));
+    assert!(
+        snap.queries
+            .iter()
+            .any(|q| q.path == "local/northwind/recent-orders")
+    );
 }
 
 #[test]
@@ -107,7 +113,47 @@ query = "SELECT 1"
         "schema_version = 1\nname = \"t\"\n",
     )
     .unwrap();
-    fs::write(based.join("queries/bad.query.toml"), raw).unwrap();
+    fs::write(based.join("queries/bad.toml"), raw).unwrap();
     let err = load_project(dir.path()).unwrap_err();
     assert!(err.to_string().contains("exclusive"));
+}
+
+#[test]
+fn skips_underscore_prefixed_toml() {
+    let dir = tempfile::tempdir().unwrap();
+    let based = dir.path().join(".based");
+    fs::create_dir_all(based.join("connections")).unwrap();
+    fs::create_dir_all(based.join("queries")).unwrap();
+    fs::write(
+        based.join("project.toml"),
+        "schema_version = 1\nname = \"t\"\n",
+    )
+    .unwrap();
+    fs::write(
+        based.join("connections/_template.toml"),
+        r#"
+schema_version = 1
+label = "Template"
+engine = "sqlite"
+file = "missing.db"
+"#,
+    )
+    .unwrap();
+    fs::write(
+        based.join("queries/_draft.toml"),
+        r#"
+schema_version = 1
+name = "Draft"
+
+[target]
+engine = "sqlite"
+
+[sql]
+query = "SELECT 1"
+"#,
+    )
+    .unwrap();
+    let snap = load_project(dir.path()).unwrap();
+    assert!(snap.connections.is_empty());
+    assert!(snap.queries.is_empty());
 }

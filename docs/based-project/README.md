@@ -20,9 +20,9 @@ Implementation may lag this spec during early development; when in doubt, **this
 .based/
   project.toml                 # Project manifest (committed)
   connections/
-    **/*.conn.toml              # One file per connection (committed; folders optional)
+    **/*.toml                   # One file per connection (committed; folders optional)
   queries/
-    **/*.query.toml            # One file per saved query (committed)
+    **/*.toml                   # One file per saved query (committed)
   .env                         # Local secrets (gitignored)
   .env.example                 # Template for required env vars (committed)
   state/                       # Per-user project preferences (gitignored)
@@ -47,8 +47,8 @@ Thumbs.db
 | Path | In git? | Purpose |
 |------|---------|---------|
 | `project.toml` | Yes | Project name and global settings |
-| `connections/**/*.conn.toml` | Yes | Connection definitions (hosts, engines, non-secret config) |
-| `queries/**/*.query.toml` | Yes | Saved SQL queries and MongoDB aggregations |
+| `connections/**/*.toml` | Yes | Connection definitions (hosts, engines, non-secret config) |
+| `queries/**/*.toml` | Yes | Saved SQL queries and MongoDB aggregations |
 | `.env.example` | Yes | Documents which env vars teammates need |
 | `.env` | No | Secret values for this machine |
 | `state/` | No | Favorites, active environment selection, other user prefs |
@@ -67,8 +67,8 @@ Every committed Based file carries its own **`schema_version`** (integer). It de
 | File | Versions |
 |------|----------|
 | `project.toml` | Manifest format |
-| `connections/**/*.conn.toml` | Connection file format |
-| `queries/**/*.query.toml` | Query file format |
+| `connections/**/*.toml` | Connection file format |
+| `queries/**/*.toml` | Query file format |
 | `state/*.toml` (gitignored) | Local state file format |
 
 The numbers are **independent per file type**. Connection format v2 does not imply query format v2. When a spec change spans multiple file types, bump each affected type’s version in the changelog and migration notes.
@@ -109,23 +109,23 @@ cache_ttl = 3600           # seconds
 
 ---
 
-## Connections (`connections/**/*.conn.toml`)
+## Connections (`connections/**/*.toml`)
 
 One file per connection. The **stable connection id** is derived from the file path — there is **no `id` field** in the file.
 
 ```text
-connections/northwind.conn.toml           →  id = "northwind"
-connections/local/northwind.conn.toml     →  id = "local/northwind"
-connections/public/ebi_postgres.conn.toml →  id = "public/ebi_postgres"
+connections/northwind.toml           →  id = "northwind"
+connections/local/northwind.toml     →  id = "local/northwind"
+connections/public/ebi_postgres.toml →  id = "public/ebi_postgres"
 ```
 
-**Id rule:** path relative to `connections/`, with the `.conn.toml` suffix removed.
+**Id rule:** path relative to `connections/`, with the `.toml` suffix removed.
 
 Queries reference this id in `[target].connection = "northwind"`. Renaming or moving a connection file changes its id; update query targets accordingly (git diff makes this obvious).
 
 **Why no `id` in the body?** A duplicated id that must match the path can drift when someone renames the file. The path is the single source of truth.
 
-**Why `conn.toml` not `connection.toml`?** The `connections/` directory already provides context; the shorter suffix keeps paths readable while staying distinct from `*.query.toml`.
+**Why plain `*.toml`?** The `connections/` and `queries/` directories already provide type context. Files whose names start with `_` (e.g. `_template.toml`) are skipped so drafts and templates can live beside real files.
 
 ### Folder layout (organization only)
 
@@ -133,12 +133,12 @@ Both layouts are valid:
 
 ```text
 # Flat
-connections/local_postgres.conn.toml
-connections/northwind.conn.toml
+connections/local_postgres.toml
+connections/northwind.toml
 
 # Nested (sidebar sections — cosmetic only)
-connections/local/northwind.conn.toml
-connections/public/ebi_postgres.conn.toml
+connections/local/northwind.toml
+connections/public/ebi_postgres.toml
 ```
 
 Nested folders affect **UI grouping** in the connection tree, not query matching or engine behavior. Use **`tags`** for attributes that queries match against.
@@ -300,9 +300,9 @@ database = "analytics"         # Default database (optional)
 
 ---
 
-## Queries (`queries/**/*.query.toml`)
+## Queries (`queries/**/*.toml`)
 
-One file per query. The app loads **all** `*.query.toml` files under `queries/`, recursively.
+One file per query. The app loads **all** `*.toml` files under `queries/`, recursively, except names that start with `_`.
 
 ### Folder layout (organization only)
 
@@ -310,19 +310,19 @@ Both layouts are valid and **semantically equivalent** if file contents match:
 
 ```text
 # Flat (prefix by connection or topic)
-queries/northwind-recent-orders.query.toml
-queries/pg-list-tables.query.toml
+queries/northwind-recent-orders.toml
+queries/pg-list-tables.toml
 
 # Nested (folders for humans — cosmetic only)
-queries/northwind/recent-orders.query.toml
-queries/reports/northwind/revenue.query.toml
+queries/northwind/recent-orders.toml
+queries/reports/northwind/revenue.toml
 ```
 
 **Rules:**
 
 - **Path does not determine** which connection runs the query. Use `[target]` (below).
 - **Nested folders** may group queries in the UI sidebar; same rationale as `connections/` — organization only, no extra field.
-- **Internal identity** — the file’s path relative to `queries/` (e.g. `northwind/recent-orders.query.toml`) avoids stem collisions.
+- **Internal identity** — the file’s path relative to `queries/` without the `.toml` suffix (e.g. `northwind/recent-orders`) avoids stem collisions.
 
 There is **no** monolithic `queries.toml`. Do not commit team queries there.
 
@@ -379,7 +379,7 @@ ORDER BY 1, 2;
 
 ```toml
 [sql]
-file = "revenue-report.sql"    # Relative to the .query.toml directory
+file = "revenue-report.sql"    # Relative to the query .toml directory
 ```
 
 ### MongoDB aggregations (`[aggregate]`)
@@ -408,7 +408,7 @@ pipeline = """
 ```toml
 [aggregate]
 collection = "orders"
-file = "fraud-summary.pipeline.json"    # Relative to the .query.toml directory
+file = "fraud-summary.pipeline.json"    # Relative to the query .toml directory
 ```
 
 #### When is `collection` required?
@@ -488,7 +488,7 @@ connection = ["public/ebi", "public/mindsdb"]
 | **Array** | Connection id must be **one of** the listed ids. **May** combine with `engine`, `tags`, and `exclude_tags` (all AND). |
 | **`["only"]`** | Allowed; equivalent to `connection = "only"`. |
 
-Connection ids are paths under `connections/` without the `.conn.toml` suffix (e.g. `local/northwind`).
+Connection ids are paths under `connections/` without the `.toml` suffix (e.g. `local/northwind`).
 
 ### Filter mode (no exclusive string)
 
@@ -574,13 +574,13 @@ Queries the user has pinned. References project queries by path or id, **not** e
 schema_version = 1
 
 [[favorite]]
-path = "northwind/recent-orders.query.toml"
+path = "northwind/recent-orders"
 
 [[favorite]]
-path = "mindsdb/fraud-summary.query.toml"
+path = "mindsdb/fraud-summary"
 ```
 
-Starring from the History pane writes here, not into `queries/*.query.toml`.
+Starring from the History pane writes here, not into `queries/*.toml`. Loaders also accept legacy `*.query.toml` paths and strip the suffix.
 
 ### Other state files (planned)
 
@@ -640,8 +640,8 @@ Until then:
 
 | User action | Source |
 |-------------|--------|
-| Browse connections | `connections/**/*.conn.toml` |
-| Open Saved query | `queries/**/*.query.toml` + `state/favorites.toml` for pins |
+| Browse connections | `connections/**/*.toml` |
+| Open Saved query | `queries/**/*.toml` + `state/favorites.toml` for pins |
 | Run query | Resolve `[target]` → execute `[sql]` or `[aggregate]` |
 | Star a query | Write `state/favorites.toml` |
 | View run history | `local/history.jsonl` |
@@ -664,12 +664,12 @@ my-repo/
     .env.example
     connections/
       local/
-        northwind.conn.toml
-        local_postgres.conn.toml
+        northwind.toml
+        local_postgres.toml
     queries/
       northwind/
-        recent-orders.query.toml
-      pg-list-tables.query.toml
+        recent-orders.toml
+      pg-list-tables.toml
   data/
     northwind.db
 ```
@@ -686,7 +686,7 @@ query_timeout = 30000
 max_result_rows = 1000
 ```
 
-**`.based/connections/local/northwind.conn.toml`**
+**`.based/connections/local/northwind.toml`**
 
 ```toml
 schema_version = 1
@@ -701,7 +701,7 @@ synchronous = "normal"
 foreign_keys = true
 ```
 
-**`.based/queries/pg-list-tables.query.toml`**
+**`.based/queries/pg-list-tables.toml`**
 
 ```toml
 schema_version = 1
@@ -721,7 +721,7 @@ ORDER BY 1, 2;
 """
 ```
 
-**`.based/queries/northwind/recent-orders.query.toml`**
+**`.based/queries/northwind/recent-orders.toml`**
 
 ```toml
 schema_version = 1
@@ -744,6 +744,7 @@ ORDER BY OrderDate DESC LIMIT 50;
 
 | Date | Change |
 |------|--------|
+| 2026-08-18 | Drop `*.conn.toml` / `*.query.toml` midfixes; load `connections/**/*.toml` and `queries/**/*.toml`; skip `_*.toml`; query identity omits `.toml` |
 | 2026-05-30 | MongoDB: `[pipeline]` → `[aggregate]`; body field `query` → `pipeline`; `collection` under `[aggregate]` |
 | 2026-05-30 | Rename `mongo_collection` → `collection` on MongoDB aggregation queries |
 | 2026-05-30 | Drop query UI `collection` grouping; use query `tags` and folders only |

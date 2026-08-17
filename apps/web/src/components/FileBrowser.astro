@@ -3,8 +3,8 @@ import { Code } from "astro:components";
 import FileIcon from "./icons/FileIcon.astro";
 import FolderIcon from "./icons/FolderIcon.astro";
 import projectToml from "../assets/filebrowser/project.toml?raw";
-import queryToml from "../assets/filebrowser/churn.query.toml?raw";
-import connectionToml from "../assets/filebrowser/local.conn.toml?raw";
+import queryToml from "../assets/filebrowser/churn.toml?raw";
+import connectionToml from "../assets/filebrowser/local.toml?raw";
 import envExample from "../assets/filebrowser/.env.example?raw";
 
 const theme = "github-dark-default";
@@ -32,8 +32,8 @@ const theme = "github-dark-default";
     <header class="fb-pane-header fb-header-editor mono">
       <FileIcon class="fb-icon" />
       <span class="fn fn-proj">project.toml</span>
-      <span class="fn fn-query">queries/churn.query.toml</span>
-      <span class="fn fn-conn">connections/local.conn.toml</span>
+      <span class="fn fn-query">queries/churn.toml</span>
+      <span class="fn fn-conn">connections/local.toml</span>
       <span class="fn fn-env">.env.example</span>
     </header>
 
@@ -57,7 +57,7 @@ const theme = "github-dark-default";
         <li class="fb-item fb-child" data-file="conn">
           <label for="fb-conn" class="fb-node fb-selectable">
             <FileIcon class="fb-icon" />
-            local.conn.toml
+            local.toml
           </label>
           <span class="tag tag-git">committed</span>
         </li>
@@ -71,7 +71,7 @@ const theme = "github-dark-default";
         <li class="fb-item fb-child" data-file="query">
           <label for="fb-query" class="fb-node fb-selectable">
             <FileIcon class="fb-icon" />
-            churn.query.toml
+            churn.toml
           </label>
           <span class="tag tag-git">committed</span>
         </li>

@@ -5,13 +5,14 @@ use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
 use crate::target::QueryTarget;
-use crate::walk::walk_files;
+use crate::walk::{rel_id, walk_toml_files};
 
 pub const QUERY_SCHEMA_VERSION: u64 = 1;
 
 #[derive(Debug, Clone)]
 pub struct ProjectQuery {
-    /// Path relative to `.based/queries/` (e.g. `local/northwind/recent-orders.query.toml`).
+    /// Path relative to `.based/queries/` without the `.toml` suffix
+    /// (e.g. `local/northwind/recent-orders`).
     pub path: String,
     pub name: String,
     pub description: Option<String>,
@@ -61,7 +62,7 @@ pub fn load_queries(project_root: &Path) -> Result<Vec<ProjectQuery>> {
     if !dir.is_dir() {
         return Ok(vec![]);
     }
-    let files = walk_files(&dir, ".query.toml")?;
+    let files = walk_toml_files(&dir)?;
     let mut queries = Vec::with_capacity(files.len());
     for path in files {
         queries.push(parse_query_file(&dir, &path)?);
@@ -73,7 +74,7 @@ fn parse_query_file(queries_dir: &Path, path: &Path) -> Result<ProjectQuery> {
     let rel = path
         .strip_prefix(queries_dir)
         .with_context(|| format!("query path not under {}", queries_dir.display()))?;
-    let rel_path = rel.to_string_lossy().replace('\\', "/");
+    let rel_path = rel_id(rel);
     let raw = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
     let file: QueryFileRaw =
         toml::from_str(&raw).with_context(|| format!("parse {}", path.display()))?;
@@ -111,4 +112,51 @@ fn parse_query_file(queries_dir: &Path, path: &Path) -> Result<ProjectQuery> {
         target: file.target,
         body,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn write_sql_query(path: &Path, name: &str) {
+        fs::write(
+            path,
+            format!(
+                r#"
+schema_version = 1
+name = "{name}"
+
+[target]
+engine = "sqlite"
+
+[sql]
+query = "SELECT 1"
+"#
+            ),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn query_identity_strips_toml_suffix() {
+        let dir = tempfile::tempdir().unwrap();
+        let queries = dir.path().join("queries");
+        fs::create_dir_all(queries.join("local/northwind")).unwrap();
+        let path = queries.join("local/northwind/recent-orders.toml");
+        write_sql_query(&path, "Recent Orders");
+        let query = parse_query_file(&queries, &path).unwrap();
+        assert_eq!(query.path, "local/northwind/recent-orders");
+    }
+
+    #[test]
+    fn query_identity_strips_legacy_query_toml_suffix() {
+        let dir = tempfile::tempdir().unwrap();
+        let queries = dir.path().join("queries");
+        fs::create_dir_all(&queries).unwrap();
+        let path = queries.join("list-tables.query.toml");
+        write_sql_query(&path, "List Tables");
+        let query = parse_query_file(&queries, &path).unwrap();
+        assert_eq!(query.path, "list-tables");
+    }
 }

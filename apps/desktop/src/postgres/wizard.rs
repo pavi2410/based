@@ -6,7 +6,7 @@ use gpui_component::{
     button::{Button, ButtonVariants},
     dock::{Panel, PanelEvent},
     h_flex,
-    input::{Input, InputContentType, InputState},
+    input::{Input, InputContentType, InputEvent, InputState},
     menu::PopupMenu,
     select::{Select, SelectState},
     v_flex,
@@ -47,6 +47,18 @@ pub struct ConnectionWizardPanel {
 
 impl ConnectionWizardPanel {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let uri = new_field(window, cx, "", "postgresql://user:pass@host:5432/db");
+        cx.subscribe_in(&uri, window, |panel, _, event, window, cx| {
+            if let InputEvent::PressEnter {
+                secondary: false,
+                shift: false,
+            } = event
+            {
+                panel.apply_uri(window, cx);
+                cx.notify();
+            }
+        })
+        .detach();
         Self {
             focus_handle: cx.focus_handle(),
             label: new_field(window, cx, "PostgreSQL", "Connection name"),
@@ -67,7 +79,7 @@ impl ConnectionWizardPanel {
                     cx,
                 )
             }),
-            uri: new_field(window, cx, "", "postgresql://user:pass@host:5432/db"),
+            uri,
             status: WizardStatus::Idle,
             tab_label: "New PostgreSQL connection".into(),
         }

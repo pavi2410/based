@@ -7,7 +7,8 @@ name = "desktop"
 # and forbids leading zeros on numeric components.
 version = "0.0.0-dev"
 edition = "2024"
-description = "based — Git-Friendly Database Client (native GPUI build)"
+authors = ["pavi2410"]
+description = "Git-friendly desktop client for PostgreSQL, MongoDB, and SQLite"
 homepage = "https://github.com/pavi2410/based"
 license = "MIT"
 publish = false
@@ -22,6 +23,11 @@ identifier = "com.pavi2410.based"
 publisher = "pavi2410"
 out-dir = "dist"
 category = "DeveloperTool"
+license-file = "../../LICENSE"
+long-description = """
+Based is a native desktop database client for PostgreSQL, MongoDB, and SQLite.
+Connection configs and saved queries live in a git-friendly .based folder.
+"""
 icons = [
   "assets/icon.png",
   "assets/icon@2x.png",
@@ -39,6 +45,7 @@ generate-desktop-entry = true
 
 [package.metadata.packager.deb]
 desktop-template = "linux/based.desktop"
+section = "database"
 depends = [
   "libssl3",
   "libfontconfig1",

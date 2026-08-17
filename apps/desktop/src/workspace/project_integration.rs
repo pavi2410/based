@@ -1,11 +1,14 @@
 //! Workspace reactions to `.based/` project changes and workspace-level context updates.
 
+use std::mem;
 use std::path::PathBuf;
 
 use based_project::ProjectQuery;
 use gpui::Context;
 
-use crate::connection::ConnectionId;
+use crate::connection::{
+    ConnectionConfig, ConnectionId, ConnectionState, OpenedConnection, opened_into_any,
+};
 use crate::db;
 use crate::project::ProjectContext;
 use crate::query_store::QueryStore;
@@ -14,7 +17,6 @@ use crate::storage;
 use super::Workspace;
 use super::context::WorkspaceContext;
 use super::project_query::{OpenQueryResult, open_project_query, tab_spec_for_query};
-use crate::connection::ConnectionConfig;
 
 use super::templates;
 
@@ -130,25 +132,20 @@ impl Workspace {
     pub fn finish_wizard_connect(
         &mut self,
         config: ConnectionConfig,
-        opened: crate::connection::OpenedConnection,
+        opened: OpenedConnection,
         wizard_panel_id: gpui::EntityId,
         window: &mut gpui::Window,
         cx: &mut Context<Self>,
     ) {
         let ctx = cx.global::<WorkspaceContext>().clone();
         let (template, mut entry) = templates::entry_from_wizard_config(&ctx.active, &config);
-        entry.state = crate::connection::ConnectionState::Connected(
-            crate::connection::opened_into_any(opened, cx),
-        );
+        entry.state = ConnectionState::Connected(opened_into_any(opened, cx));
         let conn_id = entry.id.clone();
         self.registry.update(cx, |reg, cx| {
             if let Some(existing) = reg.get(&entry.id, cx).cloned() {
                 existing.update(cx, |e, cx| {
                     e.config = entry.config.clone();
-                    e.state = std::mem::replace(
-                        &mut entry.state,
-                        crate::connection::ConnectionState::Disconnected,
-                    );
+                    e.state = mem::replace(&mut entry.state, ConnectionState::Disconnected);
                     e.last_error = None;
                     cx.notify();
                 });

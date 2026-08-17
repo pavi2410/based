@@ -179,6 +179,8 @@ mod tests {
     use super::*;
     use based_workspace::WorkspaceModel;
 
+    use crate::connection::{ConnectionId, ConnectionState};
+
     #[test]
     fn template_key_prefix_is_stable() {
         let id = Uuid::nil();
@@ -258,12 +260,9 @@ mod tests {
         assert_eq!(template.id, existing.id);
         assert_eq!(
             entry.id,
-            crate::connection::ConnectionId::from_key(&template_stable_key(existing.id))
+            ConnectionId::from_key(&template_stable_key(existing.id))
         );
-        assert!(matches!(
-            entry.state,
-            crate::connection::ConnectionState::Disconnected
-        ));
+        assert!(matches!(entry.state, ConnectionState::Disconnected));
     }
 
     #[test]

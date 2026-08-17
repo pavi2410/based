@@ -5,6 +5,7 @@ members = [
     "crates/based-mongo",
     "crates/based-postgres",
     "crates/based-project",
+    "crates/based-query",
     "crates/based-sqlite",
     "crates/based-storage",
     "crates/based-workspace",

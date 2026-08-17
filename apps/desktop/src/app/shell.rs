@@ -36,6 +36,23 @@ use crate::workspace::{
 
 pub const APP_NAME: &str = "Based";
 
+/// Freedesktop application id / X11 WM_CLASS.
+///
+/// cargo-packager writes `usr/share/applications/{main_binary}.desktop` and
+/// hicolor icons named `{main_binary}`. GNOME matches a window to that launcher
+/// by Wayland `app_id` (and `StartupWMClass` on X11), so this must stay `based`.
+pub const LINUX_APP_ID: &str = "based";
+
+/// [`WindowOptions`] with Linux dock identity filled in. Use as the `..` base
+/// for every `open_window` so aux windows, pop-outs, and the workspace match
+/// the `.desktop` file.
+pub fn identified_window_options() -> WindowOptions {
+    WindowOptions {
+        app_id: Some(LINUX_APP_ID.to_string()),
+        ..Default::default()
+    }
+}
+
 gpui::actions!(
     app_shell,
     [
@@ -237,7 +254,7 @@ pub fn open_about(cx: &mut App) {
             is_minimizable: false,
             #[cfg(not(target_os = "macos"))]
             app_owns_titlebar_drag: true,
-            ..Default::default()
+            ..identified_window_options()
         },
         |win, cx| {
             win.set_window_title("About Based");
@@ -274,7 +291,7 @@ pub fn open_settings(cx: &mut App) {
             titlebar: Some(settings_titlebar()),
             #[cfg(not(target_os = "macos"))]
             app_owns_titlebar_drag: true,
-            ..Default::default()
+            ..identified_window_options()
         },
         |win, cx| {
             win.set_window_title("Based — Settings");
@@ -288,5 +305,20 @@ pub fn open_settings(cx: &mut App) {
             AuxWindows::insert(AuxKind::Settings, any, cx);
         }
         Err(err) => log::warn!("settings window: {err:#}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn identified_windows_advertise_the_packager_desktop_id() {
+        // cargo-packager writes usr/share/applications/{main_binary}.desktop.
+        assert_eq!(LINUX_APP_ID, "based");
+        assert_eq!(
+            identified_window_options().app_id.as_deref(),
+            Some(LINUX_APP_ID)
+        );
     }
 }

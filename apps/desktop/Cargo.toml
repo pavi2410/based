@@ -38,6 +38,7 @@ signing_identity = "-"
 generate-desktop-entry = true
 
 [package.metadata.packager.deb]
+desktop-template = "linux/based.desktop"
 depends = [
   "libssl3",
   "libfontconfig1",

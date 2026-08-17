@@ -55,7 +55,7 @@ pub fn open_main_workspace(cx: &mut App) -> anyhow::Result<()> {
         WindowOptions {
             window_bounds: Some(WindowBounds::centered(size(px(1280.0), px(800.0)), cx)),
             titlebar: Some(shell::titled_titlebar(APP_NAME)),
-            ..Default::default()
+            ..shell::identified_window_options()
         },
         |window, cx| {
             window.set_window_title(APP_NAME);
@@ -112,7 +112,7 @@ fn onboarding_window_options(cx: &App) -> WindowOptions {
         titlebar: Some(shell::titled_titlebar("Based — Setup")),
         #[cfg(not(target_os = "macos"))]
         app_owns_titlebar_drag: true,
-        ..Default::default()
+        ..shell::identified_window_options()
     }
 }
 

@@ -20,7 +20,7 @@ use gpui_component::{
 
 use super::dock_utils::{center_panel_by_id, center_tab_panel_count};
 use crate::app::aux_windows::AuxWindows;
-use crate::app::shell::{APP_NAME, titled_titlebar};
+use crate::app::shell::{APP_NAME, identified_window_options, titled_titlebar};
 use crate::bindings::{
     CloseAllTabs, CloseCleanTabs, CloseOtherTabs, CloseTab, CloseTabsLeft, CloseTabsRight, PinTab,
     SplitPaneBottom, SplitPaneLeft, SplitPaneRight, SplitPaneTop,
@@ -321,7 +321,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
                     WindowOptions {
                         window_bounds: Some(WindowBounds::Windowed(pop_bounds)),
                         titlebar: Some(titled_titlebar(title_for_window.clone())),
-                        ..Default::default()
+                        ..identified_window_options()
                     },
                     move |win, cx| {
                         Theme::change(Theme::global(cx).mode, Some(win), cx);

@@ -62,6 +62,22 @@ pub struct ConnectionTree {
 }
 
 impl ConnectionTree {
+    pub(crate) fn queue_open_connected(&mut self, conn_id: &ConnectionId, cx: &mut Context<Self>) {
+        let idx = self
+            .registry
+            .read(cx)
+            .connections()
+            .iter()
+            .position(|e| e.read(cx).id == *conn_id);
+        let Some(idx) = idx else {
+            return;
+        };
+        self.selected_connection = Some(idx);
+        self.content_rail_expanded = true;
+        self.pending_open_connection = Some(idx);
+        cx.notify();
+    }
+
     pub fn new(
         registry: Entity<ConnectionRegistry>,
         dock_area: Entity<DockArea>,

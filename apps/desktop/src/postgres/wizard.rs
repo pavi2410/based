@@ -14,8 +14,10 @@ use gpui_component::{
 
 use crate::app::prefs;
 use crate::connection::ConnectionConfig;
+use crate::connection::OpenedConnection;
 use crate::connection::categorize_connect_error;
 use crate::connection::lifecycle::Connectable;
+use crate::db::close_pg_pool;
 use crate::postgres::{PgConnection, PostgresConfig, SslMode};
 use crate::widgets::{labeled_field, new_field, set_field};
 use crate::workspace::WorkspaceRef;
@@ -27,10 +29,6 @@ pub enum WizardStatus {
     TestErr(String),
     Connecting,
     ConnectErr(String),
-}
-
-pub enum WizardEvent {
-    Connected(PgConnection),
 }
 
 pub struct ConnectionWizardPanel {
@@ -140,24 +138,31 @@ impl ConnectionWizardPanel {
         .detach();
     }
 
-    fn connect(&mut self, cx: &mut Context<Self>) {
+    fn connect(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.status = WizardStatus::Connecting;
         let config = self.config(cx);
         let task = PgConnection::open(config.clone(), cx);
-        cx.spawn(async move |this, cx| {
+        cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
-            cx.update(|cx| {
+            let _ = cx.update(|window, cx| {
                 this.update(cx, |panel, cx| match result {
                     Ok(conn) => {
+                        let panel_id = cx.entity().entity_id();
                         if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
                             ws.update(cx, |workspace, cx| {
-                                workspace.persist_connection_config(
-                                    &ConnectionConfig::Postgres(config),
+                                workspace.finish_wizard_connect(
+                                    ConnectionConfig::Postgres(config),
+                                    OpenedConnection::Postgres(conn),
+                                    panel_id,
+                                    window,
                                     cx,
                                 );
                             });
+                        } else {
+                            close_pg_pool(conn.pool);
+                            panel.status = WizardStatus::ConnectErr("Workspace is not open".into());
+                            cx.notify();
                         }
-                        cx.emit(WizardEvent::Connected(conn));
                     }
                     Err(e) => {
                         panel.status = WizardStatus::ConnectErr(
@@ -166,7 +171,7 @@ impl ConnectionWizardPanel {
                         cx.notify();
                     }
                 })
-            })
+            });
         })
         .detach();
     }
@@ -286,7 +291,6 @@ fn url_decode(s: &str) -> String {
 }
 
 impl EventEmitter<PanelEvent> for ConnectionWizardPanel {}
-impl EventEmitter<WizardEvent> for ConnectionWizardPanel {}
 
 impl Focusable for ConnectionWizardPanel {
     fn focus_handle(&self, _: &App) -> FocusHandle {
@@ -431,7 +435,9 @@ impl Render for ConnectionWizardPanel {
                         Button::new("pg-connect")
                             .primary()
                             .label("Connect")
-                            .on_click(cx.listener(|panel, _, _, cx| panel.connect(cx))),
+                            .on_click(
+                                cx.listener(|panel, _, window, cx| panel.connect(window, cx)),
+                            ),
                     ),
             )
             .when(show_status, |v| {

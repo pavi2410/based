@@ -79,15 +79,12 @@ impl Workspace {
         cx.notify();
     }
 
-    pub fn persist_connection_config(&mut self, config: &ConnectionConfig, cx: &mut Context<Self>) {
+    fn persist_connection_template(
+        &mut self,
+        template: based_workspace::ConnectionTemplate,
+        cx: &mut Context<Self>,
+    ) {
         let ctx = cx.global::<WorkspaceContext>().clone();
-        let existing = ctx
-            .active
-            .connection_templates
-            .iter()
-            .find(|t| t.label == config.label() && t.engine == config.engine())
-            .map(|t| t.id);
-        let template = templates::template_from_config(config, existing);
         let store = storage::store(cx);
         let workspace_id = ctx.active.id;
         let this = cx.entity().downgrade();
@@ -120,5 +117,42 @@ impl Workspace {
             })
         })
         .detach();
+    }
+
+    /// Persist the wizard config, attach the live connection, and replace the wizard tab.
+    pub fn finish_wizard_connect(
+        &mut self,
+        config: ConnectionConfig,
+        opened: crate::connection::OpenedConnection,
+        wizard_panel_id: gpui::EntityId,
+        window: &mut gpui::Window,
+        cx: &mut Context<Self>,
+    ) {
+        let ctx = cx.global::<WorkspaceContext>().clone();
+        let (template, mut entry) = templates::entry_from_wizard_config(&ctx.active, &config);
+        entry.state = crate::connection::ConnectionState::Connected(
+            crate::connection::opened_into_any(opened, cx),
+        );
+        let conn_id = entry.id.clone();
+        self.registry.update(cx, |reg, cx| {
+            if let Some(existing) = reg.get(&entry.id, cx).cloned() {
+                existing.update(cx, |e, cx| {
+                    e.config = entry.config.clone();
+                    e.state = std::mem::replace(
+                        &mut entry.state,
+                        crate::connection::ConnectionState::Disconnected,
+                    );
+                    e.last_error = None;
+                    cx.notify();
+                });
+            } else {
+                reg.add(entry, cx);
+            }
+        });
+        self.connection_tree.update(cx, |tree, cx| {
+            tree.queue_open_connected(&conn_id, cx);
+        });
+        self.persist_connection_template(template, cx);
+        self.close_center_panel(wizard_panel_id, window, cx);
     }
 }

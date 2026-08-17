@@ -22,6 +22,26 @@ pub fn is_template_key(stable_key: &str) -> bool {
     stable_key.starts_with(TEMPLATE_KEY_PREFIX)
 }
 
+/// Build a persistable template and registry entry for a wizard Connect.
+///
+/// Reuses an existing template id when the workspace already has the same
+/// label+engine so later persist does not create a duplicate sidebar row.
+pub fn entry_from_wizard_config(
+    workspace: &WorkspaceModel,
+    config: &ConnectionConfig,
+) -> (ConnectionTemplate, ConnectionEntry) {
+    let existing_id = workspace
+        .connection_templates
+        .iter()
+        .find(|t| t.label == config.label() && t.engine == config.engine())
+        .map(|t| t.id);
+    let template = template_from_config(config, existing_id);
+    let entry = resolve_template_entry(workspace, &template).unwrap_or_else(|_| {
+        ConnectionEntry::with_stable_id(config.clone(), &template_stable_key(template.id))
+    });
+    (template, entry)
+}
+
 pub fn template_from_config(
     config: &ConnectionConfig,
     existing_id: Option<Uuid>,
@@ -217,6 +237,33 @@ mod tests {
             }
             other => panic!("expected MongoDB, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn wizard_entry_reuses_existing_template_id() {
+        let mut ws = WorkspaceModel::new("test");
+        let config = ConnectionConfig::Postgres(PostgresConfig {
+            label: "Local PG".into(),
+            host: "localhost".into(),
+            port: 5432,
+            database: "postgres".into(),
+            username: "postgres".into(),
+            password: String::new(),
+            ssl_mode: SslMode::Prefer,
+        });
+        let existing = template_from_config(&config, None);
+        ws.connection_templates.push(existing.clone());
+
+        let (template, entry) = entry_from_wizard_config(&ws, &config);
+        assert_eq!(template.id, existing.id);
+        assert_eq!(
+            entry.id,
+            crate::connection::ConnectionId::from_key(&template_stable_key(existing.id))
+        );
+        assert!(matches!(
+            entry.state,
+            crate::connection::ConnectionState::Disconnected
+        ));
     }
 
     #[test]

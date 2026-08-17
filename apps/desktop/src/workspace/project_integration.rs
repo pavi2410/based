@@ -6,6 +6,7 @@ use based_project::ProjectQuery;
 use gpui::Context;
 
 use crate::connection::ConnectionId;
+use crate::db;
 use crate::project::ProjectContext;
 use crate::query_store::QueryStore;
 use crate::storage;
@@ -88,21 +89,27 @@ impl Workspace {
         let store = storage::store(cx);
         let workspace_id = ctx.active.id;
         let this = cx.entity().downgrade();
+        let template_for_resolve = template.clone();
         cx.spawn(async move |_, cx| {
-            if let Err(err) = store
-                .upsert_connection_template(workspace_id, &template)
-                .await
-            {
+            // Metadata SQLite uses sqlx; GPUI tasks are not on Tokio.
+            let refreshed = db::run(cx, async move {
+                store
+                    .upsert_connection_template(workspace_id, &template)
+                    .await?;
+                super::context::refresh_context(store, workspace_id).await
+            })
+            .await;
+            if let Err(err) = &refreshed {
                 log::warn!("persist connection template failed: {err:#}");
                 return;
             }
-            let refreshed = super::context::refresh_context(store, workspace_id).await;
             cx.update(|cx| {
                 let Some(this) = this.upgrade() else {
                     return;
                 };
                 if let Ok(ctx) = refreshed {
-                    let entry = templates::resolve_template_entry(&ctx.active, &template).ok();
+                    let entry =
+                        templates::resolve_template_entry(&ctx.active, &template_for_resolve).ok();
                     this.update(cx, |ws, cx| {
                         ws.apply_workspace_context(ctx, cx);
                         if let Some(entry) = entry {

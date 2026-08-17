@@ -27,7 +27,7 @@ based/
 │   ├── desktop/   # Main native app (Rust + GPUI)
 │   └── web/       # Marketing site (Astro + Cloudflare)
 ├── crates/        # Shared libraries (project format, engines, query layer)
-├── docs/          # Project format spec and engineering docs
+├── docs/          # Project format spec
 ├── .based/        # Example project config for this repo
 ├── Cargo.toml
 └── mise.toml      # Task runner

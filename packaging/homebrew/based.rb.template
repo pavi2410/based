@@ -7,7 +7,7 @@ cask "based" do
   desc "Git-friendly database client"
   homepage "https://github.com/pavi2410/based"
 
-  depends_on macos: ">= :ventura"
+  depends_on macos: :ventura
   depends_on arch: :arm64
 
   app "Based.app"

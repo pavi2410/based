@@ -93,16 +93,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          DMG=$(find apps/desktop/dist -name '*.dmg' | head -1)
+          # -print -quit: `find | head` SIGPIPEs under pipefail while walking Based.app/.
+          DMG=$(find apps/desktop/dist -name '*.dmg' -print -quit)
           if [ -z "$DMG" ]; then
             echo "::error::No .dmg found in apps/desktop/dist"
             exit 1
           fi
+          echo "Verifying $DMG"
           MNT=$(mktemp -d)
           cleanup() { hdiutil detach "$MNT" -quiet 2>/dev/null || true; rmdir "$MNT" 2>/dev/null || true; }
           trap cleanup EXIT
-          hdiutil attach "$DMG" -mountpoint "$MNT" -nobrowse -quiet
+          hdiutil attach "$DMG" -mountpoint "$MNT" -nobrowse
           APP="$MNT/Based.app"
+          if [ ! -d "$APP" ]; then
+            echo "::error::Based.app not found at $APP"
+            ls -la "$MNT" || true
+            exit 1
+          fi
           codesign --verify --deep --strict "$APP"
 
       - name: Build and sign updater bundle

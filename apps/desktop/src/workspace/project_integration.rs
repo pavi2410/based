@@ -3,12 +3,13 @@
 use std::mem;
 use std::path::PathBuf;
 
-use based_project::{ProjectQuery, load_env_file, slug_from_label};
+use based_project::{ProjectQuery, load_env_file};
 use gpui::Context;
 
+use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{
     ConnectionConfig, ConnectionEntry, ConnectionId, ConnectionOrigin, ConnectionState,
-    OpenedConnection, opened_into_any,
+    OpenedConnection, close_any_connection, opened_into_any,
 };
 use crate::project::ProjectContext;
 use crate::project::loader::entry_from_tree;
@@ -89,24 +90,38 @@ impl Workspace {
         cx.notify();
     }
 
-    /// Persist the wizard config as `.toml` in the chosen based-dir, attach the
-    /// live connection, and replace the wizard tab.
-    pub fn finish_wizard_connect(
+    /// Attach a live wizard session without writing files or closing the form.
+    pub fn attach_wizard_session(
         &mut self,
         config: ConnectionConfig,
         opened: OpenedConnection,
-        destination: ConnectionDestination,
-        wizard_panel_id: gpui::EntityId,
-        window: &mut gpui::Window,
+        session_id: ConnectionId,
         cx: &mut Context<Self>,
     ) {
-        let based_dir = match destination.based_dir(self.project_dir.as_deref()) {
-            Ok(dir) => dir,
-            Err(err) => {
-                log::warn!("connection destination: {err:#}");
-                return;
-            }
+        let origin = if session_id.is_personal() || session_id.is_ephemeral() {
+            ConnectionOrigin::Personal
+        } else {
+            ConnectionOrigin::Project
         };
+        let mut entry = ConnectionEntry::with_origin(config, &session_id.0, vec![], origin);
+        entry.state = ConnectionState::Connected(opened_into_any(opened, cx));
+        self.upsert_registry_entry(entry, true, cx);
+        self.connection_tree.update(cx, |tree, cx| {
+            tree.queue_open_connected(&session_id, cx);
+        });
+    }
+
+    /// Persist the wizard config to the chosen based-dir. Migrates a live unsaved session.
+    pub fn save_wizard_connection(
+        &mut self,
+        config: ConnectionConfig,
+        destination: ConnectionDestination,
+        session_id: Option<ConnectionId>,
+        cx: &mut Context<Self>,
+    ) -> Result<ConnectionId, String> {
+        let based_dir = destination
+            .based_dir(self.project_dir.as_deref())
+            .map_err(|err| format!("{err:#}"))?;
         let origin = destination.origin();
         let mut entry = match persist_config_to_based_dir(&based_dir, &config) {
             Ok(conn) => {
@@ -118,18 +133,47 @@ impl Workspace {
             }
             Err(err) => {
                 log::warn!("persist connection file failed: {err:#}");
-                let slug = slug_from_label(config.label());
-                entry_from_config(&config, &slug, origin)
+                return Err(format!("Could not save connection: {err:#}"));
             }
         };
-        entry.state = ConnectionState::Connected(opened_into_any(opened, cx));
-        let conn_id = entry.id.clone();
+        let saved_id = entry.id.clone();
+        if let Some(from) = session_id.as_ref().filter(|from| *from != &saved_id)
+            && let Some(live) = take_registry_state(&self.registry, from, cx)
+        {
+            entry.state = live;
+        }
+        let open_catalog = matches!(entry.state, ConnectionState::Connected(_));
+        self.upsert_registry_entry(entry, false, cx);
+        if open_catalog {
+            self.connection_tree.update(cx, |tree, cx| {
+                tree.queue_open_connected(&saved_id, cx);
+            });
+        }
+        Ok(saved_id)
+    }
+
+    fn upsert_registry_entry(
+        &mut self,
+        mut entry: ConnectionEntry,
+        replace_live: bool,
+        cx: &mut Context<Self>,
+    ) {
         self.registry.update(cx, |reg, cx| {
             if let Some(existing) = reg.get(&entry.id, cx).cloned() {
                 existing.update(cx, |e, cx| {
                     e.config = entry.config.clone();
                     e.origin = entry.origin;
-                    e.state = mem::replace(&mut entry.state, ConnectionState::Disconnected);
+                    if replace_live
+                        || matches!(entry.state, ConnectionState::Connected(_))
+                        || matches!(e.state, ConnectionState::Disconnected)
+                    {
+                        let incoming =
+                            mem::replace(&mut entry.state, ConnectionState::Disconnected);
+                        let old = mem::replace(&mut e.state, incoming);
+                        if replace_live && let ConnectionState::Connected(ac) = old {
+                            close_any_connection(ac, cx);
+                        }
+                    }
                     e.last_error = None;
                     cx.notify();
                 });
@@ -137,11 +181,25 @@ impl Workspace {
                 reg.add(entry, cx);
             }
         });
-        self.connection_tree.update(cx, |tree, cx| {
-            tree.queue_open_connected(&conn_id, cx);
-        });
-        self.close_center_panel(wizard_panel_id, window, cx);
     }
+}
+
+fn take_registry_state(
+    registry: &gpui::Entity<ConnectionRegistry>,
+    id: &ConnectionId,
+    cx: &mut Context<Workspace>,
+) -> Option<ConnectionState> {
+    let mut taken = None;
+    registry.update(cx, |reg, cx| {
+        let Some(existing) = reg.get(id, cx).cloned() else {
+            return;
+        };
+        existing.update(cx, |e, _| {
+            taken = Some(mem::replace(&mut e.state, ConnectionState::Disconnected));
+        });
+        reg.remove(id, cx);
+    });
+    taken
 }
 
 fn entry_from_config(
@@ -149,9 +207,6 @@ fn entry_from_config(
     relative_id: &str,
     origin: ConnectionOrigin,
 ) -> ConnectionEntry {
-    let key = match origin {
-        ConnectionOrigin::Personal => ConnectionId::personal(relative_id).0,
-        ConnectionOrigin::Project => relative_id.to_string(),
-    };
+    let key = super::wizard_logic::saved_id_for_destination(origin, relative_id).0;
     ConnectionEntry::with_origin(config.clone(), &key, vec![], origin)
 }

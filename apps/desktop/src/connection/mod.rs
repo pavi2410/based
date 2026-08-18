@@ -67,6 +67,15 @@ impl ConnectionConfig {
             _ => false,
         }
     }
+
+    pub fn with_label(mut self, label: String) -> Self {
+        match &mut self {
+            Self::Postgres(c) => c.label = label,
+            Self::MongoDB(c) => c.label = label,
+            Self::SQLite(c) => c.label = label,
+        }
+        self
+    }
 }
 
 // ── Open connection (engine-tagged, no shared query interface) ────────────────

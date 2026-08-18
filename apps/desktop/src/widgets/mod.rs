@@ -38,4 +38,4 @@ pub use kbd::*;
 pub use layout::*;
 pub use metadata_pill::*;
 pub use panel::*;
-pub use wizard_fields::{labeled_field, new_field, set_field};
+pub use wizard_fields::{labeled_field, labeled_fixed, new_field, set_field};

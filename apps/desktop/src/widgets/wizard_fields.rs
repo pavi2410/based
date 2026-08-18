@@ -28,8 +28,20 @@ pub fn set_field(input: &Entity<InputState>, value: &str, window: &mut Window, c
 }
 
 pub fn labeled_field(title: &str, muted: Hsla, input: impl IntoElement) -> impl IntoElement {
+    labeled_field_inner(title, muted, input).flex_1()
+}
+
+pub fn labeled_fixed(
+    title: &str,
+    muted: Hsla,
+    width: f32,
+    input: impl IntoElement,
+) -> impl IntoElement {
+    labeled_field_inner(title, muted, input).w(gpui::px(width))
+}
+
+fn labeled_field_inner(title: &str, muted: Hsla, input: impl IntoElement) -> gpui::Div {
     v_flex()
-        .flex_1()
         .gap_1()
         .child(
             div()

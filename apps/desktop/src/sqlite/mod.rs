@@ -15,7 +15,6 @@ pub mod pragmas;
 pub mod query_editor;
 pub mod tab_dispatch;
 pub mod tree;
-pub mod wizard;
 
 pub use based_sqlite::{
     SqliteConfig, SqliteOpenOptions, SqlitePathContext, sqlite_connect_options, sqlite_uri,

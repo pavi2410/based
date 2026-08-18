@@ -132,6 +132,9 @@ pub(crate) fn retain_after_origin_sync(
     is_connected: bool,
     snapshot_ids: &HashSet<ConnectionId>,
 ) -> bool {
+    if id.is_ephemeral() {
+        return true;
+    }
     if entry_origin != syncing {
         return true;
     }
@@ -233,5 +236,20 @@ mod tests {
     #[test]
     fn close_project_keeps_personal_user_id() {
         assert!(retain_after_project_close(&id("user:analytics")));
+    }
+
+    #[test]
+    fn origin_sync_keeps_unsaved_session_not_on_disk() {
+        let unsaved = id("unsaved:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        let snapshot = HashSet::new();
+        assert!(retain_after_origin_sync(
+            ConnectionOrigin::Personal,
+            ConnectionOrigin::Personal,
+            &unsaved,
+            false,
+            &snapshot,
+        ));
+        assert!(retain_after_project_close(&unsaved));
+        assert!(retain_after_project_sync(&unsaved, false, &snapshot));
     }
 }

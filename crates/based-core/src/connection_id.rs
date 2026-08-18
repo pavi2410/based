@@ -12,6 +12,8 @@ impl ConnectionId {
     pub const WORKSPACE_TEMPLATE_PREFIX: &'static str = "ws-template:";
     /// Prefix for connections stored in the personal based-dir (`~/.config/based`).
     pub const USER_PREFIX: &'static str = "user:";
+    /// Prefix for a live session that has not been saved to a based-dir.
+    pub const UNSAVED_PREFIX: &'static str = "unsaved:";
 
     pub fn from_key(key: &str) -> Self {
         Self(key.to_string())
@@ -22,14 +24,29 @@ impl ConnectionId {
         Self(format!("{}{relative_id}", Self::USER_PREFIX))
     }
 
+    /// Live wizard session that is not written to disk: `unsaved:` + key.
+    pub fn unsaved(key: &str) -> Self {
+        Self(format!("{}{key}", Self::UNSAVED_PREFIX))
+    }
+
     /// User-local connection stored in workspace metadata, not the open `.based/` project.
     pub fn is_workspace_local(&self) -> bool {
-        self.is_personal() || self.0.starts_with(Self::WORKSPACE_TEMPLATE_PREFIX)
+        self.is_personal() || self.is_ephemeral()
     }
 
     /// Connection loaded from the personal based-dir.
     pub fn is_personal(&self) -> bool {
         self.0.starts_with(Self::USER_PREFIX)
+    }
+
+    /// Live session that is not a project or personal file.
+    pub fn is_unsaved(&self) -> bool {
+        self.0.starts_with(Self::UNSAVED_PREFIX)
+    }
+
+    /// Unsaved live sessions and workspace SQLite templates — never owned by a based-dir snapshot.
+    pub fn is_ephemeral(&self) -> bool {
+        self.is_unsaved() || self.0.starts_with(Self::WORKSPACE_TEMPLATE_PREFIX)
     }
 }
 
@@ -63,5 +80,22 @@ mod tests {
         assert!(id.is_personal());
         assert!(id.is_workspace_local());
         assert_ne!(id, ConnectionId::from_key("local/northwind"));
+    }
+
+    #[test]
+    fn unsaved_ids_are_ephemeral_and_workspace_local() {
+        let id = ConnectionId::unsaved("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        assert_eq!(id.0, "unsaved:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        assert!(id.is_unsaved());
+        assert!(id.is_ephemeral());
+        assert!(id.is_workspace_local());
+        assert!(!id.is_personal());
+    }
+
+    #[test]
+    fn project_and_personal_ids_are_not_ephemeral() {
+        assert!(!ConnectionId::from_key("local/northwind").is_ephemeral());
+        assert!(!ConnectionId::personal("analytics").is_ephemeral());
+        assert!(!ConnectionId::personal("analytics").is_unsaved());
     }
 }

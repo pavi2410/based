@@ -22,6 +22,7 @@ pub mod notify;
 pub mod project_query;
 pub mod query_lane;
 pub mod templates;
+pub mod wizard_logic;
 
 mod center_panels;
 mod dock_utils;

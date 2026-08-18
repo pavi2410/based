@@ -4,6 +4,7 @@ pub mod context;
 pub mod discovery;
 pub mod loader;
 pub mod open;
+pub mod personal;
 pub mod pick;
 pub mod reload;
 pub mod settings;

@@ -532,7 +532,7 @@ impl Render for ConnectionTree {
             tree_entity.clone(),
             self.selected_connection,
             self.content_rail_expanded,
-            connection_list::build_connection_rows(self, cx),
+            connection_list::build_rail_items(self, cx),
             cx,
         );
         let browser_list = browser_list::ensure_browser_list(self, window, cx);

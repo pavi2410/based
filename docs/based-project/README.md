@@ -740,10 +740,28 @@ ORDER BY OrderDate DESC LIMIT 50;
 
 ---
 
+## Personal connections (`~/.config/based`)
+
+User-local connections live in a **personal based-dir**, not in SQLite and not in `~/.based` (an ancestor walk would treat `$HOME` as a project).
+
+| | |
+|---|---|
+| Path | `$XDG_CONFIG_HOME/based` if that env var is set and non-empty, else `~/.config/based` (`dirs::home_dir().join(".config/based")`). Not `dirs::config_dir()` (macOS Application Support / Windows AppData). |
+| Layout | Same as a project based-dir: `connections/**/*.toml` and `.env`. There is **no** nested `.based/` folder inside the personal root. |
+| Ids | `user:` + the relative file id (`connections/analytics.toml` → `user:analytics`). Repo ids stay unprefixed (`local/northwind`). |
+| `[target]` | Project queries bind **repo ids only**. Filter targets (`engine = "postgres"`) ignore personal connections. |
+| Wizard | With no project open, Connect writes Personal. With a project open, choose **This project** or **Personal** before Connect. One file, never both stores. |
+| Secrets | Non-empty passwords/URLs are written as `{ env = "BASED_<SLUG>_PASSWORD" }` / `BASED_<SLUG>_URL` in that tree’s `.env`. |
+
+Typical personal root: Linux `/home/pavi/.config/based`, macOS `/Users/pavi/.config/based`, Windows `C:\Users\pavi\.config\based`.
+
+---
+
 ## Changelog (spec)
 
 | Date | Change |
 |------|--------|
+| 2026-08-18 | Personal based-dir `~/.config/based`: same connection files + `.env`; ids prefixed `user:`; project `[target]` ignores personal ids |
 | 2026-08-18 | Drop `*.conn.toml` / `*.query.toml` midfixes; load `connections/**/*.toml` and `queries/**/*.toml`; skip `_*.toml`; query identity omits `.toml` |
 | 2026-05-30 | MongoDB: `[pipeline]` → `[aggregate]`; body field `query` → `pipeline`; `collection` under `[aggregate]` |
 | 2026-05-30 | Rename `mongo_collection` → `collection` on MongoDB aggregation queries |

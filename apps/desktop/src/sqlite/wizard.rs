@@ -19,9 +19,13 @@ use crate::connection::OpenedConnection;
 use crate::connection::categorize_connect_error;
 use crate::connection::lifecycle::Connectable;
 use crate::db;
+use crate::project::ProjectRoot;
 use crate::sqlite::{SqliteConfig, SqliteConnection};
 use crate::widgets::{labeled_field, new_field, set_field};
 use crate::workspace::WorkspaceRef;
+use crate::workspace::connection_destination::{
+    ConnectionDestination, destination_row, resolve_wizard_destination,
+};
 
 pub enum WizardStatus {
     Idle,
@@ -36,6 +40,7 @@ pub struct ConnectionWizardPanel {
     focus_handle: FocusHandle,
     label: Entity<InputState>,
     path: Entity<InputState>,
+    destination: Option<ConnectionDestination>,
     status: WizardStatus,
     pub(crate) tab_label: SharedString,
 }
@@ -46,6 +51,7 @@ impl ConnectionWizardPanel {
             focus_handle: cx.focus_handle(),
             label: new_field(window, cx, "My SQLite DB", "Connection name"),
             path: new_field(window, cx, "", "/path/to/database.db"),
+            destination: None,
             status: WizardStatus::Idle,
             tab_label: "New SQLite Connection".into(),
         }
@@ -118,6 +124,15 @@ impl ConnectionWizardPanel {
     }
 
     fn connect(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let destination =
+            match resolve_wizard_destination(cx.has_global::<ProjectRoot>(), self.destination) {
+                Ok(dest) => dest,
+                Err(msg) => {
+                    self.status = WizardStatus::ConnectErr(msg);
+                    cx.notify();
+                    return;
+                }
+            };
         self.status = WizardStatus::Connecting;
         let config = self.config(cx);
         let task = SqliteConnection::open(config.clone(), cx);
@@ -133,6 +148,7 @@ impl ConnectionWizardPanel {
                             workspace.finish_wizard_connect(
                                 ConnectionConfig::SQLite(config),
                                 OpenedConnection::Sqlite(conn),
+                                destination,
                                 this.entity_id(),
                                 window,
                                 cx,
@@ -237,6 +253,14 @@ impl Render for ConnectionWizardPanel {
                             )),
                     ),
             )
+            .when(cx.has_global::<ProjectRoot>(), |v| {
+                v.child(destination_row(
+                    self.destination,
+                    muted,
+                    cx,
+                    |panel, dest| panel.destination = Some(dest),
+                ))
+            })
             .child(
                 h_flex()
                     .gap_2()

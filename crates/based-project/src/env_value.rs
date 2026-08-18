@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::env;
 
 use anyhow::{Result, bail};
@@ -11,13 +12,19 @@ pub enum EnvOrString {
 
 impl EnvOrString {
     pub fn resolve(&self) -> Result<String> {
+        self.resolve_with(&HashMap::new())
+    }
+
+    /// Resolve a literal, then `std::env`, then values from a based-dir `.env` map.
+    pub fn resolve_with(&self, file_vars: &HashMap<String, String>) -> Result<String> {
         match self {
             Self::Literal(s) => Ok(s.clone()),
             Self::FromEnv { var } => match env::var(var) {
                 Ok(value) => Ok(value),
-                Err(env::VarError::NotPresent) => {
-                    bail!("environment variable `{var}` is not set")
-                }
+                Err(env::VarError::NotPresent) => match file_vars.get(var) {
+                    Some(value) => Ok(value.clone()),
+                    None => bail!("environment variable `{var}` is not set"),
+                },
                 Err(env::VarError::NotUnicode(_)) => {
                     bail!("environment variable `{var}` is not valid Unicode")
                 }
@@ -65,6 +72,7 @@ impl Serialize for EnvOrString {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     #[test]
     fn literal_resolves_as_is() {
@@ -123,5 +131,33 @@ mod tests {
             env::remove_var(var);
         }
         assert_eq!(resolved.unwrap(), "");
+    }
+
+    #[test]
+    fn resolve_with_uses_file_vars_when_process_env_missing() {
+        let var = "BASED_TEST_ENV_OR_STRING_FILE_ONLY";
+        unsafe {
+            env::remove_var(var);
+        }
+        let mut file_vars = HashMap::new();
+        file_vars.insert(var.to_string(), "from-file".into());
+        let value = EnvOrString::FromEnv { var: var.into() };
+        assert_eq!(value.resolve_with(&file_vars).unwrap(), "from-file");
+    }
+
+    #[test]
+    fn resolve_with_prefers_process_env_over_file_vars() {
+        let var = "BASED_TEST_ENV_OR_STRING_BOTH";
+        unsafe {
+            env::set_var(var, "from-process");
+        }
+        let mut file_vars = HashMap::new();
+        file_vars.insert(var.to_string(), "from-file".into());
+        let value = EnvOrString::FromEnv { var: var.into() };
+        let resolved = value.resolve_with(&file_vars);
+        unsafe {
+            env::remove_var(var);
+        }
+        assert_eq!(resolved.unwrap(), "from-process");
     }
 }

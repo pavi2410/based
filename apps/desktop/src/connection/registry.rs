@@ -7,19 +7,7 @@ use std::collections::HashSet;
 
 use gpui::{App, AppContext as _, Context, Entity, EventEmitter};
 
-use super::{ConnectionEntry, ConnectionId, ConnectionState};
-
-/// Project reload only owns `.based/connections/` rows.
-///
-/// Keep wizard templates (`ws-template:`) and live sessions even when the
-/// snapshot skipped them (missing env vars) or never listed them.
-pub(crate) fn retain_after_project_sync(
-    id: &ConnectionId,
-    is_connected: bool,
-    snapshot_ids: &HashSet<ConnectionId>,
-) -> bool {
-    snapshot_ids.contains(id) || is_connected || id.is_workspace_local()
-}
+use super::{ConnectionEntry, ConnectionId, ConnectionOrigin, ConnectionState};
 
 pub enum RegistryEvent {
     Added(ConnectionId),
@@ -65,11 +53,23 @@ impl ConnectionRegistry {
     }
 
     pub fn sync_project_entries(&mut self, entries: Vec<ConnectionEntry>, cx: &mut Context<Self>) {
+        self.sync_origin_entries(ConnectionOrigin::Project, entries, cx);
+    }
+
+    /// Replace connections for one origin; leave the other origin untouched.
+    pub fn sync_origin_entries(
+        &mut self,
+        origin: ConnectionOrigin,
+        entries: Vec<ConnectionEntry>,
+        cx: &mut Context<Self>,
+    ) {
         let new_ids: HashSet<_> = entries.iter().map(|e| e.id.clone()).collect();
         self.connections.retain(|entity| {
             let entry = entity.read(cx);
             let id = entry.id.clone();
-            let keep = retain_after_project_sync(
+            let keep = retain_after_origin_sync(
+                origin,
+                entry.origin,
                 &id,
                 matches!(entry.state, ConnectionState::Connected(_)),
                 &new_ids,
@@ -85,11 +85,18 @@ impl ConnectionRegistry {
                 existing.update(cx, |e, _| {
                     e.config = entry.config;
                     e.tags = entry.tags;
+                    e.origin = entry.origin;
                 });
             } else {
                 self.add(entry, cx);
             }
         }
+
+        self.connections
+            .sort_by_key(|entity| match entity.read(cx).origin {
+                ConnectionOrigin::Project => 0u8,
+                ConnectionOrigin::Personal => 1,
+            });
     }
 
     pub fn ordered_ids(&self, cx: &App) -> Vec<ConnectionId> {
@@ -116,6 +123,41 @@ impl ConnectionRegistry {
 /// Keep user-local workspace templates; drop `.based/` project rows.
 pub(crate) fn retain_after_project_close(id: &ConnectionId) -> bool {
     id.is_workspace_local()
+}
+
+pub(crate) fn retain_after_origin_sync(
+    syncing: ConnectionOrigin,
+    entry_origin: ConnectionOrigin,
+    id: &ConnectionId,
+    is_connected: bool,
+    snapshot_ids: &HashSet<ConnectionId>,
+) -> bool {
+    if entry_origin != syncing {
+        return true;
+    }
+    if syncing == ConnectionOrigin::Project && id.is_workspace_local() {
+        return true;
+    }
+    snapshot_ids.contains(id) || is_connected
+}
+
+/// Project reload only owns `.based/connections/` rows.
+pub(crate) fn retain_after_project_sync(
+    id: &ConnectionId,
+    is_connected: bool,
+    snapshot_ids: &HashSet<ConnectionId>,
+) -> bool {
+    retain_after_origin_sync(
+        ConnectionOrigin::Project,
+        if id.is_workspace_local() {
+            ConnectionOrigin::Personal
+        } else {
+            ConnectionOrigin::Project
+        },
+        id,
+        is_connected,
+        snapshot_ids,
+    )
 }
 
 impl EventEmitter<RegistryEvent> for ConnectionRegistry {}
@@ -166,5 +208,30 @@ mod tests {
     fn close_project_drops_project_connection_even_if_live() {
         let northwind = id("local/northwind");
         assert!(!retain_after_project_close(&northwind));
+    }
+
+    #[test]
+    fn project_sync_keeps_personal_user_id() {
+        let personal = id("user:analytics");
+        let snapshot = HashSet::new();
+        assert!(retain_after_project_sync(&personal, false, &snapshot));
+    }
+
+    #[test]
+    fn origin_sync_keeps_other_origin_when_snapshot_empty() {
+        let personal = id("user:analytics");
+        let snapshot = HashSet::new();
+        assert!(retain_after_origin_sync(
+            ConnectionOrigin::Project,
+            ConnectionOrigin::Personal,
+            &personal,
+            false,
+            &snapshot,
+        ));
+    }
+
+    #[test]
+    fn close_project_keeps_personal_user_id() {
+        assert!(retain_after_project_close(&id("user:analytics")));
     }
 }

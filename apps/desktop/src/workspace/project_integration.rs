@@ -3,22 +3,22 @@
 use std::mem;
 use std::path::PathBuf;
 
-use based_project::ProjectQuery;
+use based_project::{ProjectQuery, load_env_file, slug_from_label};
 use gpui::Context;
 
 use crate::connection::{
-    ConnectionConfig, ConnectionId, ConnectionState, OpenedConnection, opened_into_any,
+    ConnectionConfig, ConnectionEntry, ConnectionId, ConnectionOrigin, ConnectionState,
+    OpenedConnection, opened_into_any,
 };
-use crate::db;
 use crate::project::ProjectContext;
+use crate::project::loader::entry_from_tree;
 use crate::query_store::QueryStore;
-use crate::storage;
 
 use super::Workspace;
+use super::connection_destination::ConnectionDestination;
+use super::connection_persist::persist_config_to_based_dir;
 use super::context::WorkspaceContext;
 use super::project_query::{OpenQueryResult, open_project_query, tab_spec_for_query};
-
-use super::templates;
 
 impl Workspace {
     pub fn set_pending_target_pick(&mut self, query: ProjectQuery, candidates: Vec<ConnectionId>) {
@@ -89,69 +89,46 @@ impl Workspace {
         cx.notify();
     }
 
-    fn persist_connection_template(
-        &mut self,
-        template: based_workspace::ConnectionTemplate,
-        cx: &mut Context<Self>,
-    ) {
-        let ctx = cx.global::<WorkspaceContext>().clone();
-        let store = storage::store(cx);
-        let workspace_id = ctx.active.id;
-        let this = cx.entity().downgrade();
-        let template_for_resolve = template.clone();
-        cx.spawn(async move |_, cx| {
-            // Metadata SQLite uses sqlx; GPUI tasks are not on Tokio.
-            let refreshed = db::run(cx, async move {
-                store
-                    .upsert_connection_template(workspace_id, &template)
-                    .await?;
-                super::context::refresh_context(store, workspace_id).await
-            })
-            .await;
-            if let Err(err) = &refreshed {
-                log::warn!("persist connection template failed: {err:#}");
-                return;
-            }
-            cx.update(|cx| {
-                let Some(this) = this.upgrade() else {
-                    return;
-                };
-                if let Ok(ctx) = refreshed {
-                    let entry =
-                        templates::resolve_template_entry(&ctx.active, &template_for_resolve).ok();
-                    this.update(cx, |ws, cx| {
-                        ws.apply_workspace_context(ctx, cx);
-                        if let Some(entry) = entry {
-                            ws.registry.update(cx, |reg, cx| {
-                                if reg.get(&entry.id, cx).is_none() {
-                                    reg.add(entry, cx);
-                                }
-                            });
-                        }
-                    });
-                }
-            })
-        })
-        .detach();
-    }
-
-    /// Persist the wizard config, attach the live connection, and replace the wizard tab.
+    /// Persist the wizard config as `.toml` in the chosen based-dir, attach the
+    /// live connection, and replace the wizard tab.
     pub fn finish_wizard_connect(
         &mut self,
         config: ConnectionConfig,
         opened: OpenedConnection,
+        destination: ConnectionDestination,
         wizard_panel_id: gpui::EntityId,
         window: &mut gpui::Window,
         cx: &mut Context<Self>,
     ) {
-        let ctx = cx.global::<WorkspaceContext>().clone();
-        let (template, mut entry) = templates::entry_from_wizard_config(&ctx.active, &config);
+        let based_dir = match destination.based_dir(self.project_dir.as_deref()) {
+            Ok(dir) => dir,
+            Err(err) => {
+                log::warn!("connection destination: {err:#}");
+                return;
+            }
+        };
+        let origin = destination.origin();
+        let mut entry = match persist_config_to_based_dir(&based_dir, &config) {
+            Ok(conn) => {
+                let vars = load_env_file(&based_dir.join(".env")).unwrap_or_default();
+                entry_from_tree(&conn, origin, &vars).unwrap_or_else(|err| {
+                    log::warn!("resolve persisted connection failed: {err:#}");
+                    entry_from_config(&config, &conn.id, origin)
+                })
+            }
+            Err(err) => {
+                log::warn!("persist connection file failed: {err:#}");
+                let slug = slug_from_label(config.label());
+                entry_from_config(&config, &slug, origin)
+            }
+        };
         entry.state = ConnectionState::Connected(opened_into_any(opened, cx));
         let conn_id = entry.id.clone();
         self.registry.update(cx, |reg, cx| {
             if let Some(existing) = reg.get(&entry.id, cx).cloned() {
                 existing.update(cx, |e, cx| {
                     e.config = entry.config.clone();
+                    e.origin = entry.origin;
                     e.state = mem::replace(&mut entry.state, ConnectionState::Disconnected);
                     e.last_error = None;
                     cx.notify();
@@ -163,7 +140,18 @@ impl Workspace {
         self.connection_tree.update(cx, |tree, cx| {
             tree.queue_open_connected(&conn_id, cx);
         });
-        self.persist_connection_template(template, cx);
         self.close_center_panel(wizard_panel_id, window, cx);
     }
+}
+
+fn entry_from_config(
+    config: &ConnectionConfig,
+    relative_id: &str,
+    origin: ConnectionOrigin,
+) -> ConnectionEntry {
+    let key = match origin {
+        ConnectionOrigin::Personal => ConnectionId::personal(relative_id).0,
+        ConnectionOrigin::Project => relative_id.to_string(),
+    };
+    ConnectionEntry::with_origin(config.clone(), &key, vec![], origin)
 }

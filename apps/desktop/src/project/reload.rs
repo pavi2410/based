@@ -6,9 +6,10 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 
 use gpui::{App, BorrowAppContext, Entity, Global};
 
+use crate::connection::ConnectionOrigin;
 use crate::connection::registry::ConnectionRegistry;
 use crate::project::context::ProjectContext;
-use crate::project::loader::entry_from_project;
+use crate::project::loader::load_entries_from_based_dir;
 use crate::project::settings::apply_project_settings;
 use crate::query_store::{QueryHistory, QueryStore};
 
@@ -61,16 +62,11 @@ pub fn reload_from_disk(project_root: &Path, registry: &Entity<ConnectionRegistr
         store.apply_snapshot(&ctx.snapshot);
     });
 
-    let mut entries = Vec::new();
-    for conn in &ctx.snapshot.connections {
-        match entry_from_project(conn) {
-            Ok(e) => entries.push(e),
-            Err(e) => log::warn!("connection {} skipped: {e:#}", conn.id),
-        }
-    }
+    let entries =
+        load_entries_from_based_dir(&project_root.join(".based"), ConnectionOrigin::Project);
 
     registry.update(cx, |reg, cx| {
-        reg.sync_project_entries(entries, cx);
+        reg.sync_origin_entries(ConnectionOrigin::Project, entries, cx);
     });
 
     cx.set_global(ctx.clone());

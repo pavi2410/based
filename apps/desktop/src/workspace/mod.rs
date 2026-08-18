@@ -14,6 +14,8 @@ pub use tabs::{
 pub mod connection_tree;
 pub use connection_tree::ConnectionTree;
 
+pub mod connection_destination;
+pub mod connection_persist;
 pub mod context;
 pub mod item;
 pub mod notify;
@@ -44,11 +46,13 @@ use crate::command_palette::{
     PaletteEvent::{InjectSql, OpenProjectQuery, OpenTab, WorkspaceAction},
 };
 use crate::connection::ConnectionId;
+use crate::connection::ConnectionOrigin;
 use crate::connection::registry::ConnectionRegistry;
 use based_project::ProjectQuery;
 
 use crate::project::{
-    ProjectContext, ProjectRoot, RegistryRef, find_project_root, loader::entry_from_project,
+    ProjectContext, ProjectRoot, RegistryRef, find_project_root,
+    loader::load_entries_from_based_dir, personal::personal_root,
 };
 
 use crate::storage;
@@ -115,15 +119,13 @@ impl Workspace {
 
         let registry = cx.new(ConnectionRegistry::new);
         registry.update(cx, |reg, cx| {
-            if let Some(ref ctx) = project_context {
-                let mut entries = Vec::new();
-                for conn in &ctx.snapshot.connections {
-                    match entry_from_project(conn) {
-                        Ok(e) => entries.push(e),
-                        Err(e) => log::warn!("connection {} skipped: {e:#}", conn.id),
-                    }
-                }
-                reg.sync_project_entries(entries, cx);
+            let personal =
+                load_entries_from_based_dir(&personal_root(), ConnectionOrigin::Personal);
+            reg.sync_origin_entries(ConnectionOrigin::Personal, personal, cx);
+            if let Some(root) = project_dir.as_ref() {
+                let project =
+                    load_entries_from_based_dir(&root.join(".based"), ConnectionOrigin::Project);
+                reg.sync_origin_entries(ConnectionOrigin::Project, project, cx);
             }
         });
 

@@ -17,8 +17,12 @@ use crate::connection::OpenedConnection;
 use crate::connection::categorize_connect_error;
 use crate::connection::lifecycle::Connectable;
 use crate::mongodb::{MongoConfig, MongoConnection};
+use crate::project::ProjectRoot;
 use crate::widgets::{labeled_field, new_field};
 use crate::workspace::WorkspaceRef;
+use crate::workspace::connection_destination::{
+    ConnectionDestination, destination_row, resolve_wizard_destination,
+};
 
 pub enum WizardStatus {
     Idle,
@@ -35,6 +39,7 @@ pub struct ConnectionWizardPanel {
     uri: Entity<InputState>,
     database: Entity<InputState>,
     auth_source: Entity<InputState>,
+    destination: Option<ConnectionDestination>,
     status: WizardStatus,
     pub(crate) tab_label: SharedString,
 }
@@ -52,6 +57,7 @@ impl ConnectionWizardPanel {
             ),
             database: new_field(window, cx, "", "Database override (optional)"),
             auth_source: new_field(window, cx, "", "authSource (optional)"),
+            destination: None,
             status: WizardStatus::Idle,
             tab_label: "New MongoDB connection".into(),
         }
@@ -101,6 +107,15 @@ impl ConnectionWizardPanel {
     }
 
     fn connect(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let destination =
+            match resolve_wizard_destination(cx.has_global::<ProjectRoot>(), self.destination) {
+                Ok(dest) => dest,
+                Err(msg) => {
+                    self.status = WizardStatus::ConnectErr(msg);
+                    cx.notify();
+                    return;
+                }
+            };
         self.status = WizardStatus::Connecting;
         let config = self.config(cx);
         let task = MongoConnection::open(config.clone(), cx);
@@ -115,6 +130,7 @@ impl ConnectionWizardPanel {
                             workspace.finish_wizard_connect(
                                 ConnectionConfig::MongoDB(config),
                                 OpenedConnection::MongoDB(conn),
+                                destination,
                                 this.entity_id(),
                                 window,
                                 cx,
@@ -226,6 +242,14 @@ impl Render for ConnectionWizardPanel {
                     .cleanable(true)
                     .aria_label("authSource"),
             ))
+            .when(cx.has_global::<ProjectRoot>(), |v| {
+                v.child(destination_row(
+                    self.destination,
+                    muted,
+                    cx,
+                    |panel, dest| panel.destination = Some(dest),
+                ))
+            })
             .child(
                 div()
                     .text_xs()

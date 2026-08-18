@@ -14,7 +14,7 @@ use gpui_component::{
 use crate::widgets::engine_icon;
 
 use super::ConnectionTree;
-use super::connection_list::ConnectionRow;
+use super::connection_list::{ConnectionRow, RailItem};
 use super::context_menu::connection_context_menu;
 
 pub(crate) const ICON_RAIL_WIDTH: f32 = 48.0;
@@ -23,7 +23,7 @@ pub(crate) fn render_icon_rail(
     tree: WeakEntity<ConnectionTree>,
     selected: Option<usize>,
     content_expanded: bool,
-    rows: Vec<ConnectionRow>,
+    rows: Vec<RailItem>,
     cx: &App,
 ) -> AnyElement {
     let tree_toggle = tree.clone();
@@ -43,10 +43,12 @@ pub(crate) fn render_icon_rail(
                 .items_center()
                 .gap(px(4.0))
                 .py(px(8.0))
-                .children(
-                    rows.into_iter()
-                        .map(|row| rail_icon(row, selected, tree.clone(), cx)),
-                ),
+                .children(rows.into_iter().map(|item| match item {
+                    RailItem::Divider => rail_divider(cx).into_any_element(),
+                    RailItem::Connection(row) => {
+                        rail_icon(row, selected, tree.clone(), cx).into_any_element()
+                    }
+                })),
         )
         .child(
             Button::new("content-rail-toggle")
@@ -73,6 +75,15 @@ pub(crate) fn render_icon_rail(
                 }),
         )
         .into_any_element()
+}
+
+fn rail_divider(cx: &App) -> impl IntoElement {
+    div()
+        .w(px(20.0))
+        .h(px(8.0))
+        .flex()
+        .items_center()
+        .child(div().w_full().h(px(1.0)).bg(cx.theme().sidebar_border))
 }
 
 fn rail_icon(

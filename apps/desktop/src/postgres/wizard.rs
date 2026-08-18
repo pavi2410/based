@@ -19,8 +19,12 @@ use crate::connection::categorize_connect_error;
 use crate::connection::lifecycle::Connectable;
 use crate::db::close_pg_pool;
 use crate::postgres::{PgConnection, PostgresConfig, SslMode};
+use crate::project::ProjectRoot;
 use crate::widgets::{labeled_field, new_field, set_field};
 use crate::workspace::WorkspaceRef;
+use crate::workspace::connection_destination::{
+    ConnectionDestination, destination_row, resolve_wizard_destination,
+};
 
 pub enum WizardStatus {
     Idle,
@@ -41,6 +45,7 @@ pub struct ConnectionWizardPanel {
     password: Entity<InputState>,
     ssl_mode: Entity<SelectState<Vec<&'static str>>>,
     uri: Entity<InputState>,
+    destination: Option<ConnectionDestination>,
     status: WizardStatus,
     pub(crate) tab_label: SharedString,
 }
@@ -80,6 +85,7 @@ impl ConnectionWizardPanel {
                 )
             }),
             uri,
+            destination: None,
             status: WizardStatus::Idle,
             tab_label: "New PostgreSQL connection".into(),
         }
@@ -151,6 +157,15 @@ impl ConnectionWizardPanel {
     }
 
     fn connect(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let destination =
+            match resolve_wizard_destination(cx.has_global::<ProjectRoot>(), self.destination) {
+                Ok(dest) => dest,
+                Err(msg) => {
+                    self.status = WizardStatus::ConnectErr(msg);
+                    cx.notify();
+                    return;
+                }
+            };
         self.status = WizardStatus::Connecting;
         let config = self.config(cx);
         let task = PgConnection::open(config.clone(), cx);
@@ -165,6 +180,7 @@ impl ConnectionWizardPanel {
                             workspace.finish_wizard_connect(
                                 ConnectionConfig::Postgres(config),
                                 OpenedConnection::Postgres(conn),
+                                destination,
                                 this.entity_id(),
                                 window,
                                 cx,
@@ -438,6 +454,14 @@ impl Render for ConnectionWizardPanel {
                 muted,
                 Select::new(&self.ssl_mode).w_full(),
             ))
+            .when(cx.has_global::<ProjectRoot>(), |v| {
+                v.child(destination_row(
+                    self.destination,
+                    muted,
+                    cx,
+                    |panel, dest| panel.destination = Some(dest),
+                ))
+            })
             .child(
                 h_flex()
                     .gap_2()

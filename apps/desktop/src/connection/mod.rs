@@ -26,6 +26,14 @@ use crate::sqlite::{SqliteConfig, SqliteConnection};
 pub use based_core::categorize_connect_error;
 pub use based_core::{ConnectionId, EngineKind};
 
+/// Which based-dir a connection was loaded from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ConnectionOrigin {
+    #[default]
+    Project,
+    Personal,
+}
+
 // ── Connection config (engine-tagged) ────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,6 +110,7 @@ pub struct ConnectionEntry {
     pub id: ConnectionId,
     pub config: ConnectionConfig,
     pub tags: Vec<String>,
+    pub origin: ConnectionOrigin,
     pub state: ConnectionState,
     pub last_connected_at: Option<OffsetDateTime>,
     pub last_error: Option<String>,
@@ -122,11 +131,21 @@ impl ConnectionEntry {
         stable_key: &str,
         tags: Vec<String>,
     ) -> Self {
+        Self::with_origin(config, stable_key, tags, ConnectionOrigin::Project)
+    }
+
+    pub fn with_origin(
+        config: ConnectionConfig,
+        stable_key: &str,
+        tags: Vec<String>,
+        origin: ConnectionOrigin,
+    ) -> Self {
         let id = ConnectionId::from_key(stable_key);
         Self {
             id,
             config,
             tags,
+            origin,
             state: ConnectionState::Disconnected,
             last_connected_at: None,
             last_error: None,
@@ -190,7 +209,9 @@ pub fn live_project_connection_count(
         .iter()
         .filter(|ent| {
             let entry = ent.read(cx);
-            matches!(entry.state, ConnectionState::Connected(_)) && !entry.id.is_workspace_local()
+            matches!(entry.state, ConnectionState::Connected(_))
+                && !entry.id.is_workspace_local()
+                && entry.origin != ConnectionOrigin::Personal
         })
         .count()
 }

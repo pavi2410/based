@@ -3,6 +3,7 @@ use based_project::{
 };
 
 use crate::connection::ConnectionId;
+use crate::connection::ConnectionOrigin;
 use crate::connection::registry::ConnectionRegistry;
 use crate::workspace::{QueryEditorInit, TabSpec};
 
@@ -21,18 +22,7 @@ pub fn open_project_query(
     cx: &gpui::App,
     focused: Option<&ConnectionId>,
 ) -> OpenQueryResult {
-    let refs: Vec<ConnectionRef> = registry
-        .connections()
-        .iter()
-        .map(|e| {
-            let ent = e.read(cx);
-            ConnectionRef {
-                id: ent.id.0.clone(),
-                engine: ent.engine(),
-                tags: ent.tags.clone(),
-            }
-        })
-        .collect();
+    let refs: Vec<ConnectionRef> = project_target_refs(registry, cx);
 
     let focused_key = focused.map(|id| id.0.as_str());
     let conn_id = match resolve_target(&query.target, &refs, focused_key) {
@@ -86,24 +76,35 @@ pub fn query_targets_connection(
     registry: &ConnectionRegistry,
     cx: &gpui::App,
 ) -> bool {
-    let refs: Vec<ConnectionRef> = registry
-        .connections()
-        .iter()
-        .map(|e| {
-            let ent = e.read(cx);
-            ConnectionRef {
-                id: ent.id.0.clone(),
-                engine: ent.engine(),
-                tags: ent.tags.clone(),
-            }
-        })
-        .collect();
+    let refs: Vec<ConnectionRef> = project_target_refs(registry, cx);
 
     match resolve_target(&query.target, &refs, Some(conn_id.0.as_str())) {
         Ok(id) => id == conn_id.0,
         Err(ResolveError::Ambiguous(ids)) => ids.iter().any(|id| id == &conn_id.0),
         Err(_) => false,
     }
+}
+
+fn project_target_refs(registry: &ConnectionRegistry, cx: &gpui::App) -> Vec<ConnectionRef> {
+    registry
+        .connections()
+        .iter()
+        .filter_map(|e| {
+            let ent = e.read(cx);
+            if !include_in_project_target(ent.origin, &ent.id) {
+                return None;
+            }
+            Some(ConnectionRef {
+                id: ent.id.0.clone(),
+                engine: ent.engine(),
+                tags: ent.tags.clone(),
+            })
+        })
+        .collect()
+}
+
+pub(crate) fn include_in_project_target(origin: ConnectionOrigin, id: &ConnectionId) -> bool {
+    origin == ConnectionOrigin::Project && !id.is_personal()
 }
 
 pub fn target_hint(target: &QueryTarget) -> String {
@@ -125,5 +126,30 @@ pub fn target_hint(target: &QueryTarget) -> String {
                 parts.join(", ")
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::connection::{ConnectionId, ConnectionOrigin};
+
+    #[test]
+    fn project_targets_ignore_personal_ids() {
+        let project = ConnectionId::from_key("local/northwind");
+        let personal = ConnectionId::personal("local/northwind");
+        assert!(include_in_project_target(
+            ConnectionOrigin::Project,
+            &project
+        ));
+        assert!(!include_in_project_target(
+            ConnectionOrigin::Personal,
+            &personal
+        ));
+        assert!(!include_in_project_target(
+            ConnectionOrigin::Project,
+            &personal
+        ));
+        assert_ne!(project, personal);
     }
 }

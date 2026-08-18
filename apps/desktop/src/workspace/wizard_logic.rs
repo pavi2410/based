@@ -92,6 +92,20 @@ pub fn saved_id_for_destination(origin: ConnectionOrigin, relative_id: &str) -> 
     }
 }
 
+/// Add a trimmed tag. Empty and duplicate names are ignored (case-sensitive).
+pub fn add_wizard_tag(tags: &mut Vec<String>, raw: &str) -> bool {
+    let tag = raw.trim();
+    if tag.is_empty() || tags.iter().any(|existing| existing == tag) {
+        return false;
+    }
+    tags.push(tag.to_string());
+    true
+}
+
+pub fn remove_wizard_tag(tags: &mut Vec<String>, tag: &str) {
+    tags.retain(|existing| existing != tag);
+}
+
 fn first_nonempty(parts: &[&str]) -> String {
     parts
         .iter()
@@ -282,5 +296,25 @@ mod tests {
         })
         .with_label("Analytics".into());
         assert_eq!(config.label(), "Analytics");
+    }
+
+    #[test]
+    fn add_wizard_tag_trims_and_skips_empty_or_duplicate() {
+        let mut tags = Vec::new();
+        assert!(add_wizard_tag(&mut tags, "  local  "));
+        assert_eq!(tags, vec!["local"]);
+        assert!(!add_wizard_tag(&mut tags, "local"));
+        assert!(!add_wizard_tag(&mut tags, "   "));
+        assert!(add_wizard_tag(&mut tags, "dev"));
+        assert_eq!(tags, vec!["local", "dev"]);
+    }
+
+    #[test]
+    fn remove_wizard_tag_drops_matching_name() {
+        let mut tags = vec!["local".into(), "dev".into()];
+        remove_wizard_tag(&mut tags, "local");
+        assert_eq!(tags, vec!["dev"]);
+        remove_wizard_tag(&mut tags, "missing");
+        assert_eq!(tags, vec!["dev"]);
     }
 }

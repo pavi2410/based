@@ -13,10 +13,11 @@ use crate::postgres::SslMode;
 pub fn persist_config_to_based_dir(
     based_dir: &Path,
     config: &ConnectionConfig,
+    tags: &[String],
 ) -> anyhow::Result<ProjectConnection> {
     let relative_id = slug_from_label(config.label());
     persist_secret(based_dir, &relative_id, config)?;
-    let conn = project_connection_from_config(config, relative_id);
+    let conn = project_connection_from_config(config, relative_id, tags);
     write_connection_file(based_dir, &conn)?;
     Ok(conn)
 }
@@ -46,7 +47,9 @@ fn persist_secret(
 fn project_connection_from_config(
     config: &ConnectionConfig,
     relative_id: String,
+    tags: &[String],
 ) -> ProjectConnection {
+    let tags = tags.to_vec();
     match config {
         ConnectionConfig::Postgres(c) => {
             let password = if c.password.is_empty() {
@@ -60,7 +63,7 @@ fn project_connection_from_config(
                 id: relative_id,
                 label: c.label.clone(),
                 engine: "postgres".into(),
-                tags: vec![],
+                tags,
                 read_only: false,
                 spec: ConnectionSpec::Postgres {
                     host: c.host.clone(),
@@ -84,7 +87,7 @@ fn project_connection_from_config(
                 id: relative_id,
                 label: c.label.clone(),
                 engine: "mongodb".into(),
-                tags: vec![],
+                tags,
                 read_only: false,
                 spec: ConnectionSpec::MongoDB {
                     url,
@@ -96,7 +99,7 @@ fn project_connection_from_config(
             id: relative_id,
             label: c.label.clone(),
             engine: "sqlite".into(),
-            tags: vec![],
+            tags,
             read_only: c.read_only,
             spec: ConnectionSpec::Sqlite {
                 file: c.path.clone(),
@@ -129,7 +132,7 @@ mod tests {
             password: "s3cret".into(),
             ssl_mode: SslMode::Require,
         });
-        let conn = persist_config_to_based_dir(based, &config).unwrap();
+        let conn = persist_config_to_based_dir(based, &config, &[]).unwrap();
         assert_eq!(conn.id, "analytics");
         let loaded = load_connections_from_based_dir(based).unwrap();
         assert_eq!(loaded.len(), 1);
@@ -153,9 +156,30 @@ mod tests {
             read_only: false,
             pragma: None,
         });
-        persist_config_to_based_dir(based, &config).unwrap();
+        persist_config_to_based_dir(based, &config, &[]).unwrap();
         assert!(!based.join(".env").exists());
         let loaded = load_connections_from_based_dir(based).unwrap();
         assert_eq!(loaded[0].id, "northwind");
+    }
+
+    #[test]
+    fn persist_writes_connection_tags() {
+        let dir = tempfile::tempdir().unwrap();
+        let based = dir.path();
+        let config = ConnectionConfig::Postgres(PostgresConfig {
+            label: "Analytics".into(),
+            host: "db.example".into(),
+            port: 5432,
+            database: "analytics".into(),
+            username: "alice".into(),
+            password: String::new(),
+            ssl_mode: SslMode::Disable,
+        });
+        persist_config_to_based_dir(based, &config, &["local".into(), "dev".into()]).unwrap();
+        let loaded = load_connections_from_based_dir(based).unwrap();
+        assert_eq!(loaded[0].tags, vec!["local", "dev"]);
+        let raw = fs::read_to_string(based.join("connections/analytics.toml")).unwrap();
+        assert!(raw.contains("local"));
+        assert!(raw.contains("dev"));
     }
 }

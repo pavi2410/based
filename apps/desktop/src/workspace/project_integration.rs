@@ -117,18 +117,19 @@ impl Workspace {
         config: ConnectionConfig,
         destination: ConnectionDestination,
         session_id: Option<ConnectionId>,
+        tags: Vec<String>,
         cx: &mut Context<Self>,
     ) -> Result<ConnectionId, String> {
         let based_dir = destination
             .based_dir(self.project_dir.as_deref())
             .map_err(|err| format!("{err:#}"))?;
         let origin = destination.origin();
-        let mut entry = match persist_config_to_based_dir(&based_dir, &config) {
+        let mut entry = match persist_config_to_based_dir(&based_dir, &config, &tags) {
             Ok(conn) => {
                 let vars = load_env_file(&based_dir.join(".env")).unwrap_or_default();
                 entry_from_tree(&conn, origin, &vars).unwrap_or_else(|err| {
                     log::warn!("resolve persisted connection failed: {err:#}");
-                    entry_from_config(&config, &conn.id, origin)
+                    entry_from_config(&config, &conn.id, origin, tags.clone())
                 })
             }
             Err(err) => {
@@ -163,6 +164,7 @@ impl Workspace {
                 existing.update(cx, |e, cx| {
                     e.config = entry.config.clone();
                     e.origin = entry.origin;
+                    e.tags = entry.tags.clone();
                     if replace_live
                         || matches!(entry.state, ConnectionState::Connected(_))
                         || matches!(e.state, ConnectionState::Disconnected)
@@ -206,7 +208,8 @@ fn entry_from_config(
     config: &ConnectionConfig,
     relative_id: &str,
     origin: ConnectionOrigin,
+    tags: Vec<String>,
 ) -> ConnectionEntry {
     let key = super::wizard_logic::saved_id_for_destination(origin, relative_id).0;
-    ConnectionEntry::with_origin(config.clone(), &key, vec![], origin)
+    ConnectionEntry::with_origin(config.clone(), &key, tags, origin)
 }

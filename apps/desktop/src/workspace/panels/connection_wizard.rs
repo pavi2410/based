@@ -4,16 +4,20 @@ use std::path::PathBuf;
 
 use gpui::{prelude::*, *};
 use gpui_component::{
-    ActiveTheme, Disableable as _, IndexPath, Sizable as _, Size,
+    ActiveTheme, Disableable as _, IndexPath, Sizable as _, Size, WindowExt,
     button::{Button, ButtonVariants},
     checkbox::Checkbox,
+    dialog::{DialogAction, DialogClose, DialogFooter},
     dock::{Panel, PanelEvent},
     h_flex,
     input::{Input, InputContentType, InputEvent, InputState},
     menu::PopupMenu,
+    notification::Notification,
+    scroll::ScrollableElement,
     select::{Select, SelectEvent, SelectState},
     separator::Separator,
     switch::Switch,
+    tag::Tag,
     v_flex,
 };
 use tokio::task::spawn_blocking;
@@ -37,11 +41,13 @@ use crate::workspace::connection_destination::{
     ConnectionDestination, destination_row, resolve_wizard_destination,
 };
 use crate::workspace::wizard_logic::{
-    save_label_from_config, ssl_mode_from_toggle, ssl_toggle_enabled, wizard_session_id,
+    add_wizard_tag, remove_wizard_tag, save_label_from_config, ssl_mode_from_toggle,
+    ssl_toggle_enabled, wizard_session_id,
 };
 
 const ENGINE_LABELS: &[&str] = &["PostgreSQL", "MongoDB", "SQLite"];
 const SSL_ON_LABELS: &[&str] = &["require", "verify-ca", "verify-full"];
+const WIZARD_COLUMN_W: f32 = 480.0;
 
 pub enum WizardStatus {
     Idle,
@@ -67,12 +73,13 @@ pub struct ConnectionWizardPanel {
     ssl_enabled: bool,
     ssl_mode: Entity<SelectState<Vec<&'static str>>>,
     uri: Entity<InputState>,
-    import_url: bool,
     mongo_uri: Entity<InputState>,
     mongo_database: Entity<InputState>,
     sqlite_path: Entity<InputState>,
     sqlite_read_only: bool,
     name: Entity<InputState>,
+    tag_input: Entity<InputState>,
+    tags: Vec<String>,
     destination: Option<ConnectionDestination>,
     session_id: Option<ConnectionId>,
     status: WizardStatus,
@@ -103,6 +110,19 @@ impl ConnectionWizardPanel {
         })
         .detach();
 
+        let tag_input = new_field(window, cx, "", "Add a tag");
+        cx.subscribe_in(&tag_input, window, |panel, _, event, window, cx| {
+            if let InputEvent::PressEnter {
+                secondary: false,
+                shift: false,
+            } = event
+            {
+                panel.add_tag_from_input(window, cx);
+                cx.notify();
+            }
+        })
+        .detach();
+
         Self {
             focus_handle: cx.focus_handle(),
             engine,
@@ -120,7 +140,6 @@ impl ConnectionWizardPanel {
                 SelectState::new(SSL_ON_LABELS.to_vec(), Some(IndexPath::new(0)), window, cx)
             }),
             uri,
-            import_url: false,
             mongo_uri: new_field(
                 window,
                 cx,
@@ -131,6 +150,8 @@ impl ConnectionWizardPanel {
             sqlite_path: new_field(window, cx, "", "/path/to/database.db"),
             sqlite_read_only: false,
             name: new_field(window, cx, "", "Name"),
+            tag_input,
+            tags: Vec::new(),
             destination: None,
             session_id: None,
             status: WizardStatus::Idle,
@@ -191,11 +212,11 @@ impl ConnectionWizardPanel {
         config.with_label(label)
     }
 
-    fn apply_uri(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn apply_uri(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         let uri = self.uri.read(cx).value().to_string();
         let Some(cfg) = parse_postgres_uri(&uri) else {
             self.status = WizardStatus::TestErr("Could not parse URI".into());
-            return;
+            return false;
         };
         set_field(&self.host, &cfg.host, window, cx);
         set_field(&self.port, &cfg.port.to_string(), window, cx);
@@ -210,6 +231,59 @@ impl ConnectionWizardPanel {
             });
         }
         self.status = WizardStatus::Idle;
+        true
+    }
+
+    fn open_import_url_dialog(&self, window: &mut Window, cx: &mut Context<Self>) {
+        let uri = self.uri.clone();
+        let panel = cx.entity().downgrade();
+        let code_font = prefs::code_font_family(cx);
+        window.open_dialog(cx, move |dialog, _, _| {
+            let uri = uri.clone();
+            let panel = panel.clone();
+            dialog
+                .title("Import from URL")
+                .child(
+                    Input::new(&uri)
+                        .content_type(InputContentType::Url)
+                        .cleanable(true)
+                        .aria_label("Connection URI")
+                        .font_family(code_font.clone())
+                        .w_full(),
+                )
+                .footer(
+                    DialogFooter::new()
+                        .child(
+                            DialogClose::new()
+                                .child(Button::new("import-url-cancel").outline().label("Cancel")),
+                        )
+                        .child(
+                            DialogAction::new()
+                                .child(Button::new("import-url-apply").primary().label("Apply")),
+                        ),
+                )
+                .on_ok(move |_, window, cx| {
+                    let mut applied = false;
+                    let _ = panel.update(cx, |panel, cx| {
+                        applied = panel.apply_uri(window, cx);
+                        cx.notify();
+                    });
+                    if !applied {
+                        window.push_notification(
+                            Notification::error("Could not parse URI").title("Import from URL"),
+                            cx,
+                        );
+                    }
+                    applied
+                })
+        });
+    }
+
+    fn add_tag_from_input(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let raw = self.tag_input.read(cx).value().to_string();
+        if add_wizard_tag(&mut self.tags, &raw) {
+            set_field(&self.tag_input, "", window, cx);
+        }
     }
 
     fn test_connection(&mut self, cx: &mut Context<Self>) {
@@ -286,7 +360,7 @@ impl ConnectionWizardPanel {
         let config = self.labeled_config(cx);
         let session_id = self.session_id.clone();
         let result = ws.update(cx, |workspace, cx| {
-            workspace.save_wizard_connection(config, destination, session_id, cx)
+            workspace.save_wizard_connection(config, destination, session_id, self.tags.clone(), cx)
         });
         match result {
             Ok(id) => {
@@ -445,230 +519,244 @@ impl Render for ConnectionWizardPanel {
             WizardStatus::TestErr(_) | WizardStatus::ConnectErr(_) | WizardStatus::SaveErr(_)
         );
 
+        let tag_chips: Vec<_> = self
+            .tags
+            .iter()
+            .cloned()
+            .map(|tag| {
+                let label = tag.clone();
+                h_flex()
+                    .id(SharedString::from(format!("wizard-tag-{tag}")))
+                    .cursor_pointer()
+                    .child(Tag::secondary().with_size(Size::Small).child(tag))
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |panel, _, _, cx| {
+                            remove_wizard_tag(&mut panel.tags, &label);
+                            cx.notify();
+                        }),
+                    )
+            })
+            .collect();
+
         v_flex()
             .size_full()
-            .gap_3()
-            .p_4()
+            .items_center()
+            .overflow_y_scrollbar()
             .child(
-                h_flex()
-                    .w_full()
-                    .items_center()
-                    .justify_between()
+                v_flex()
+                    .w(px(WIZARD_COLUMN_W))
+                    .gap_3()
+                    .py_4()
+                    .px_4()
                     .child(
-                        div()
-                            .text_sm()
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .child("New connection"),
-                    )
-                    .when(engine == EngineKind::Postgres, |h| {
-                        h.child(
-                            Button::new("wizard-import-url")
-                                .ghost()
-                                .label(if self.import_url {
-                                    "Hide URL"
-                                } else {
-                                    "Import from URL"
-                                })
-                                .on_click(cx.listener(|panel, _, _, cx| {
-                                    panel.import_url = !panel.import_url;
-                                    cx.notify();
-                                })),
-                        )
-                    }),
-            )
-            .child(labeled_field(
-                "Engine",
-                muted,
-                Select::new(&self.engine).w_full(),
-            ))
-            .when(engine == EngineKind::Postgres && self.import_url, |v| {
-                v.child(
-                    h_flex()
-                        .gap_2()
-                        .items_center()
-                        .child(
-                            Input::new(&self.uri)
-                                .content_type(InputContentType::Url)
-                                .cleanable(true)
-                                .aria_label("Connection URI")
-                                .font_family(prefs::code_font_family(cx))
-                                .flex_1(),
-                        )
-                        .child(Button::new("wizard-apply-uri").label("Apply").on_click(
-                            cx.listener(|panel, _, window, cx| {
-                                panel.apply_uri(window, cx);
-                                cx.notify();
+                        h_flex()
+                            .w_full()
+                            .items_center()
+                            .justify_between()
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .child("New connection"),
+                            )
+                            .when(engine == EngineKind::Postgres, |h| {
+                                h.child(
+                                    Button::new("wizard-import-url")
+                                        .ghost()
+                                        .label("Import from URL")
+                                        .on_click(cx.listener(|panel, _, window, cx| {
+                                            panel.open_import_url_dialog(window, cx);
+                                        })),
+                                )
                             }),
-                        )),
-                )
-            })
-            .when(engine == EngineKind::Postgres, |v| {
-                v.child(
-                    h_flex()
-                        .gap_2()
-                        .child(labeled_field(
-                            "Host",
-                            muted,
-                            Input::new(&self.host).cleanable(true).aria_label("Host"),
-                        ))
-                        .child(labeled_fixed(
-                            "Port",
-                            muted,
-                            96.0,
-                            Input::new(&self.port).cleanable(true).aria_label("Port"),
-                        )),
-                )
-                .child(
-                    h_flex()
-                        .gap_2()
-                        .child(labeled_field(
-                            "User",
-                            muted,
-                            Input::new(&self.username)
-                                .content_type(InputContentType::Username)
-                                .cleanable(true)
-                                .aria_label("User"),
-                        ))
-                        .child(labeled_field(
-                            "Password",
-                            muted,
-                            Input::new(&self.password)
-                                .content_type(InputContentType::Password)
-                                .mask_toggle()
-                                .aria_label("Password"),
-                        )),
-                )
-                .child(labeled_field(
-                    "Database",
-                    muted,
-                    Input::new(&self.database)
-                        .cleanable(true)
-                        .aria_label("Database"),
-                ))
-                .child(
-                    h_flex()
-                        .w_full()
-                        .items_center()
-                        .justify_between()
-                        .child(div().text_sm().child("SSL"))
-                        .child(
-                            Switch::new("wizard-ssl")
-                                .with_size(Size::Small)
-                                .checked(self.ssl_enabled)
-                                .on_click(cx.listener(|panel, checked, _, cx| {
-                                    panel.ssl_enabled = *checked;
-                                    cx.notify();
-                                })),
-                        ),
-                )
-                .when(self.ssl_enabled, |v| {
-                    v.child(labeled_field(
-                        "SSL mode",
+                    )
+                    .child(labeled_field(
+                        "Engine",
                         muted,
-                        Select::new(&self.ssl_mode).w_full(),
+                        Select::new(&self.engine).w_full(),
                     ))
-                })
-            })
-            .when(engine == EngineKind::MongoDB, |v| {
-                v.child(labeled_field(
-                    "URI",
-                    muted,
-                    Input::new(&self.mongo_uri)
-                        .content_type(InputContentType::Url)
-                        .cleanable(true)
-                        .aria_label("Connection URI")
-                        .font_family(prefs::code_font_family(cx)),
-                ))
-                .child(labeled_field(
-                    "Database (optional)",
-                    muted,
-                    Input::new(&self.mongo_database)
-                        .cleanable(true)
-                        .aria_label("Database"),
-                ))
-            })
-            .when(engine == EngineKind::SQLite, |v| {
-                v.child(
-                    v_flex()
-                        .gap_1()
-                        .child(div().text_xs().text_color(muted).child("Database path"))
+                    .when(engine == EngineKind::Postgres, |v| {
+                        v.child(
+                            h_flex()
+                                .gap_2()
+                                .child(labeled_field(
+                                    "Host",
+                                    muted,
+                                    Input::new(&self.host).cleanable(true).aria_label("Host"),
+                                ))
+                                .child(labeled_fixed(
+                                    "Port",
+                                    muted,
+                                    96.0,
+                                    Input::new(&self.port).cleanable(true).aria_label("Port"),
+                                )),
+                        )
                         .child(
                             h_flex()
                                 .gap_2()
-                                .items_center()
-                                .child(
-                                    Input::new(&self.sqlite_path)
+                                .child(labeled_field(
+                                    "User",
+                                    muted,
+                                    Input::new(&self.username)
+                                        .content_type(InputContentType::Username)
                                         .cleanable(true)
-                                        .aria_label("Database path")
-                                        .flex_1(),
-                                )
+                                        .aria_label("User"),
+                                ))
+                                .child(labeled_field(
+                                    "Password",
+                                    muted,
+                                    Input::new(&self.password)
+                                        .content_type(InputContentType::Password)
+                                        .mask_toggle()
+                                        .aria_label("Password"),
+                                )),
+                        )
+                        .child(labeled_field(
+                            "Database",
+                            muted,
+                            Input::new(&self.database)
+                                .cleanable(true)
+                                .aria_label("Database"),
+                        ))
+                        .child(
+                            h_flex()
+                                .w_full()
+                                .items_center()
+                                .justify_between()
+                                .child(div().text_sm().child("SSL"))
                                 .child(
-                                    Button::new("wizard-sqlite-browse")
-                                        .label("Browse…")
-                                        .on_click(cx.listener(|panel, _, window, cx| {
-                                            panel.browse_sqlite(window, cx);
+                                    Switch::new("wizard-ssl")
+                                        .with_size(Size::Small)
+                                        .checked(self.ssl_enabled)
+                                        .on_click(cx.listener(|panel, checked, _, cx| {
+                                            panel.ssl_enabled = *checked;
+                                            cx.notify();
                                         })),
                                 ),
-                        ),
-                )
-                .child(
-                    Checkbox::new("wizard-sqlite-ro")
-                        .label("Read-only")
-                        .checked(self.sqlite_read_only)
-                        .on_click(cx.listener(|panel, checked, _, cx| {
-                            panel.sqlite_read_only = *checked;
-                            cx.notify();
-                        })),
-                )
-            })
-            .child(
-                h_flex()
-                    .gap_2()
+                        )
+                        .when(self.ssl_enabled, |v| {
+                            v.child(labeled_field(
+                                "SSL mode",
+                                muted,
+                                Select::new(&self.ssl_mode).w_full(),
+                            ))
+                        })
+                    })
+                    .when(engine == EngineKind::MongoDB, |v| {
+                        v.child(labeled_field(
+                            "URI",
+                            muted,
+                            Input::new(&self.mongo_uri)
+                                .content_type(InputContentType::Url)
+                                .cleanable(true)
+                                .aria_label("Connection URI")
+                                .font_family(prefs::code_font_family(cx)),
+                        ))
+                        .child(labeled_field(
+                            "Database (optional)",
+                            muted,
+                            Input::new(&self.mongo_database)
+                                .cleanable(true)
+                                .aria_label("Database"),
+                        ))
+                    })
+                    .when(engine == EngineKind::SQLite, |v| {
+                        v.child(
+                            v_flex()
+                                .gap_1()
+                                .child(div().text_xs().text_color(muted).child("Database path"))
+                                .child(
+                                    h_flex()
+                                        .gap_2()
+                                        .items_center()
+                                        .child(
+                                            Input::new(&self.sqlite_path)
+                                                .cleanable(true)
+                                                .aria_label("Database path")
+                                                .flex_1(),
+                                        )
+                                        .child(
+                                            Button::new("wizard-sqlite-browse")
+                                                .label("Browse…")
+                                                .on_click(cx.listener(|panel, _, window, cx| {
+                                                    panel.browse_sqlite(window, cx);
+                                                })),
+                                        ),
+                                ),
+                        )
+                        .child(
+                            Checkbox::new("wizard-sqlite-ro")
+                                .label("Read-only")
+                                .checked(self.sqlite_read_only)
+                                .on_click(cx.listener(|panel, checked, _, cx| {
+                                    panel.sqlite_read_only = *checked;
+                                    cx.notify();
+                                })),
+                        )
+                    })
                     .child(
-                        Button::new("wizard-test")
-                            .label("Test")
-                            .disabled(busy)
-                            .on_click(cx.listener(|panel, _, _, cx| panel.test_connection(cx))),
-                    )
-                    .child(
-                        Button::new("wizard-connect")
-                            .primary()
-                            .label("Connect")
-                            .disabled(busy)
-                            .on_click(
-                                cx.listener(|panel, _, window, cx| panel.connect(window, cx)),
+                        h_flex()
+                            .gap_2()
+                            .child(
+                                Button::new("wizard-test")
+                                    .label("Test")
+                                    .disabled(busy)
+                                    .on_click(
+                                        cx.listener(|panel, _, _, cx| panel.test_connection(cx)),
+                                    ),
+                            )
+                            .child(
+                                Button::new("wizard-connect")
+                                    .primary()
+                                    .label("Connect")
+                                    .disabled(busy)
+                                    .on_click(cx.listener(|panel, _, window, cx| {
+                                        panel.connect(window, cx)
+                                    })),
                             ),
+                    )
+                    .when(show_status, |v| {
+                        v.child(
+                            div()
+                                .text_sm()
+                                .when(is_err, |d| d.text_color(cx.theme().red))
+                                .child(status),
+                        )
+                    })
+                    .child(Separator::horizontal())
+                    .child(labeled_field(
+                        "Name",
+                        muted,
+                        Input::new(&self.name)
+                            .cleanable(true)
+                            .aria_label("Connection name"),
+                    ))
+                    .child(
+                        v_flex()
+                            .gap_1()
+                            .child(div().text_xs().text_color(muted).child("Tags"))
+                            .child(h_flex().gap_1().flex_wrap().children(tag_chips))
+                            .child(
+                                Input::new(&self.tag_input)
+                                    .cleanable(true)
+                                    .aria_label("Add a tag"),
+                            ),
+                    )
+                    .when(cx.has_global::<ProjectRoot>(), |v| {
+                        v.child(destination_row(
+                            self.destination,
+                            muted,
+                            cx,
+                            |panel, dest| panel.destination = Some(dest),
+                        ))
+                    })
+                    .child(
+                        Button::new("wizard-save")
+                            .label("Save")
+                            .disabled(busy)
+                            .on_click(cx.listener(|panel, _, _, cx| panel.save(cx))),
                     ),
-            )
-            .when(show_status, |v| {
-                v.child(
-                    div()
-                        .text_sm()
-                        .when(is_err, |d| d.text_color(cx.theme().red))
-                        .child(status),
-                )
-            })
-            .child(Separator::horizontal())
-            .child(labeled_field(
-                "Name",
-                muted,
-                Input::new(&self.name)
-                    .cleanable(true)
-                    .aria_label("Connection name"),
-            ))
-            .when(cx.has_global::<ProjectRoot>(), |v| {
-                v.child(destination_row(
-                    self.destination,
-                    muted,
-                    cx,
-                    |panel, dest| panel.destination = Some(dest),
-                ))
-            })
-            .child(
-                Button::new("wizard-save")
-                    .label("Save")
-                    .disabled(busy)
-                    .on_click(cx.listener(|panel, _, _, cx| panel.save(cx))),
             )
     }
 }

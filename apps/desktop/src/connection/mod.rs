@@ -178,6 +178,23 @@ pub fn live_connection_count(
     live_connections(registry, cx).len()
 }
 
+/// Count project-owned connections in [`ConnectionState::Connected`].
+/// Workspace-local wizard templates are excluded.
+pub fn live_project_connection_count(
+    registry: &gpui::Entity<registry::ConnectionRegistry>,
+    cx: &gpui::App,
+) -> usize {
+    registry
+        .read(cx)
+        .connections()
+        .iter()
+        .filter(|ent| {
+            let entry = ent.read(cx);
+            matches!(entry.state, ConnectionState::Connected(_)) && !entry.id.is_workspace_local()
+        })
+        .count()
+}
+
 /// Whether the connection profile requests read-only access (SQLite enforced at open).
 pub fn is_connection_read_only(
     id: &ConnectionId,

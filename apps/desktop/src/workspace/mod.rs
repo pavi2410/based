@@ -84,6 +84,8 @@ pub struct Workspace {
     /// Queued in-place project switch; confirm dialog on next [`Render`].
     pub(crate) pending_project_switch: Option<PathBuf>,
     pub(crate) pending_project_switch_confirm: bool,
+    /// Queued Close Project; confirm dialog on next [`Render`].
+    pub(crate) pending_project_close_confirm: bool,
     tab_navigation: TabNavigationHistory,
     /// Live center tab panels. gpui-component `DockItem.items` can desync from `TabPanel.panels`
     /// (split add and tab remove do not always update the snapshot `items` vec).
@@ -186,6 +188,7 @@ impl Workspace {
             pending_close_confirm: false,
             pending_project_switch: None,
             pending_project_switch_confirm: false,
+            pending_project_close_confirm: false,
             tab_navigation: TabNavigationHistory::default(),
             center_panels: vec![home_arc],
         };
@@ -351,6 +354,14 @@ impl Workspace {
 
     pub fn has_dirty_tabs(&self, cx: &App) -> bool {
         self.tab_manager.read(cx).tabs.iter().any(|t| t.dirty)
+    }
+
+    pub fn has_dirty_project_tabs(&self, cx: &App) -> bool {
+        self.tab_manager
+            .read(cx)
+            .tabs
+            .iter()
+            .any(|t| t.dirty && t.spec.conn_id().is_some_and(|id| !id.is_workspace_local()))
     }
 
     pub fn toggle_sidebar_rail(&mut self, cx: &mut Context<Self>) {

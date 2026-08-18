@@ -27,7 +27,10 @@ use crate::bindings::{
     SplitPaneRight, SplitPaneTop, ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane,
     ToggleSavedPane, ToggleSidebarRail,
 };
-use crate::project::{prompt_open_project_in_new_window, prompt_open_project_in_window};
+use crate::project::{
+    prompt_open_project_in_new_window, prompt_open_project_in_window,
+    request_close_project_in_window,
+};
 use crate::settings_window::SettingsWindow;
 use crate::workspace::{
     WorkspaceRef,
@@ -66,6 +69,7 @@ gpui::actions!(
         ShowAll,
         OpenProject,
         OpenProjectInNewWindow,
+        CloseProject,
     ]
 );
 
@@ -136,6 +140,7 @@ fn file_menu_items() -> Vec<MenuItem> {
     vec![
         MenuItem::action("Open Project…", OpenProject),
         MenuItem::action("Open Project in New Window…", OpenProjectInNewWindow),
+        MenuItem::action("Close Project", CloseProject),
         MenuItem::separator(),
         MenuItem::action("New Query", NewQuery),
         MenuItem::separator(),
@@ -192,6 +197,7 @@ pub fn init(cx: &mut App) {
     cx.on_action(|_: &OpenReleaseNotes, cx| open_release_notes_for_current(cx));
     cx.on_action(|_: &OpenProject, cx| prompt_open_project_in_window(cx));
     cx.on_action(|_: &OpenProjectInNewWindow, cx| prompt_open_project_in_new_window(cx));
+    cx.on_action(|_: &CloseProject, cx| request_close_project_in_window(cx));
     #[cfg(target_os = "macos")]
     cx.on_action(|_: &HideApp, cx| cx.hide());
     cx.on_action(|_: &HideOthers, cx| cx.hide_other_apps());

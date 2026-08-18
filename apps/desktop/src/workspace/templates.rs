@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use based_core::EngineKind;
+use based_core::{ConnectionId, EngineKind};
 use based_workspace::{ConnectionTemplate, WorkspaceModel, resolve_connection_template};
 use uuid::Uuid;
 
@@ -12,14 +12,14 @@ use crate::mongodb::MongoConfig;
 use crate::postgres::{PostgresConfig, SslMode};
 use crate::sqlite::SqliteConfig;
 
-const TEMPLATE_KEY_PREFIX: &str = "ws-template:";
+const TEMPLATE_KEY_PREFIX: &str = ConnectionId::WORKSPACE_TEMPLATE_PREFIX;
 
 pub fn template_stable_key(template_id: Uuid) -> String {
     format!("{TEMPLATE_KEY_PREFIX}{template_id}")
 }
 
 pub fn is_template_key(stable_key: &str) -> bool {
-    stable_key.starts_with(TEMPLATE_KEY_PREFIX)
+    ConnectionId::from_key(stable_key).is_workspace_local()
 }
 
 /// Build a persistable template and registry entry for a wizard Connect.

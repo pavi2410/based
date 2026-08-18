@@ -12,7 +12,10 @@ pub mod watcher;
 
 pub use context::ProjectContext;
 pub use discovery::find_project_root;
-pub use open::{prompt_open_project_in_new_window, prompt_open_project_in_window};
+pub use open::{
+    prompt_open_project_in_new_window, prompt_open_project_in_window,
+    request_close_project_in_window,
+};
 pub use variables::*;
 
 use std::collections::HashMap;

@@ -11,6 +11,7 @@ use crate::app::updater::check_now;
 use crate::command_palette::WorkspacePaletteAction;
 use crate::project::prompt_open_project_in_new_window;
 use crate::project::prompt_open_project_in_window;
+use crate::project::request_close_project_in_window;
 
 impl Workspace {
     pub(crate) fn handle_palette_workspace_action(
@@ -34,6 +35,9 @@ impl Workspace {
             }
             WorkspacePaletteAction::OpenProjectInNewWindow => {
                 prompt_open_project_in_new_window(cx);
+            }
+            WorkspacePaletteAction::CloseProject => {
+                request_close_project_in_window(cx);
             }
         }
     }

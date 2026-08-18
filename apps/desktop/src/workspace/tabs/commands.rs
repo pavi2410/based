@@ -247,6 +247,18 @@ impl Workspace {
         });
     }
 
+    /// Close tabs owned by the `.based/` project; keep Home and workspace-local connection tabs.
+    pub fn close_project_tabs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.close_matching_tabs(window, cx, |_panel_id, tab, closable| {
+            closable
+                && !tab.pinned
+                && tab
+                    .spec
+                    .conn_id()
+                    .is_some_and(|id| !id.is_workspace_local())
+        });
+    }
+
     pub fn close_clean_tabs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.close_matching_tabs(window, cx, |_panel_id, tab, closable| {
             closable && !tab.pinned && !tab.dirty

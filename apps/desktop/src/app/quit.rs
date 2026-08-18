@@ -12,7 +12,8 @@ use gpui_component::{
 
 use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{
-    ConnectionState, LiveConnection, close_any_connection, live_connection_count, live_connections,
+    ConnectionId, ConnectionState, LiveConnection, close_any_connection, live_connection_count,
+    live_connections,
 };
 use crate::widgets::{engine_icon, engine_label_inline};
 use crate::workspace::Workspace;
@@ -239,9 +240,26 @@ fn render_live_connection_list(live: &[LiveConnection], cx: &mut App) -> impl In
 }
 
 pub fn disconnect_all(registry: &Entity<ConnectionRegistry>, cx: &mut App) {
-    trace("disconnect_all");
+    disconnect_matching(registry, cx, |_| true);
+}
+
+/// Disconnect `.based/` project connections; leave workspace-local templates live.
+pub fn disconnect_project_owned(registry: &Entity<ConnectionRegistry>, cx: &mut App) {
+    disconnect_matching(registry, cx, |id| !id.is_workspace_local());
+}
+
+fn disconnect_matching(
+    registry: &Entity<ConnectionRegistry>,
+    cx: &mut App,
+    mut pred: impl FnMut(&ConnectionId) -> bool,
+) {
+    trace("disconnect_matching");
     let entries = registry.read(cx).connections().to_vec();
     for ent in entries {
+        let id = ent.read(cx).id.clone();
+        if !pred(&id) {
+            continue;
+        }
         ent.update(cx, |entry, cx| {
             if let ConnectionState::Connected(ac) =
                 mem::replace(&mut entry.state, ConnectionState::Disconnected)

@@ -18,7 +18,7 @@ pub(crate) fn retain_after_project_sync(
     is_connected: bool,
     snapshot_ids: &HashSet<ConnectionId>,
 ) -> bool {
-    snapshot_ids.contains(id) || is_connected || id.0.starts_with("ws-template:")
+    snapshot_ids.contains(id) || is_connected || id.is_workspace_local()
 }
 
 pub enum RegistryEvent {
@@ -98,6 +98,24 @@ impl ConnectionRegistry {
             .map(|e| e.read(cx).id.clone())
             .collect()
     }
+
+    /// Remove `.based/` project connections after Close Project.
+    /// Workspace-local wizard templates (`ws-template:`) stay in the registry.
+    pub fn remove_project_owned(&mut self, cx: &mut Context<Self>) {
+        self.connections.retain(|entity| {
+            let id = entity.read(cx).id.clone();
+            let keep = retain_after_project_close(&id);
+            if !keep {
+                cx.emit(RegistryEvent::Removed(id));
+            }
+            keep
+        });
+    }
+}
+
+/// Keep user-local workspace templates; drop `.based/` project rows.
+pub(crate) fn retain_after_project_close(id: &ConnectionId) -> bool {
+    id.is_workspace_local()
 }
 
 impl EventEmitter<RegistryEvent> for ConnectionRegistry {}
@@ -136,5 +154,17 @@ mod tests {
         let local_pg = id("local/postgres");
         let snapshot = HashSet::new();
         assert!(retain_after_project_sync(&local_pg, true, &snapshot));
+    }
+
+    #[test]
+    fn close_project_keeps_workspace_template() {
+        let wizard = id("ws-template:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        assert!(retain_after_project_close(&wizard));
+    }
+
+    #[test]
+    fn close_project_drops_project_connection_even_if_live() {
+        let northwind = id("local/northwind");
+        assert!(!retain_after_project_close(&northwind));
     }
 }

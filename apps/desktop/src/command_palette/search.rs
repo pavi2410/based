@@ -5,6 +5,7 @@ use gpui::{App, Entity};
 use crate::app::prefs::manual_update_checks_enabled;
 use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{ConnectionId, EngineKind};
+use crate::project::ProjectRoot;
 use crate::query_store::QueryStore;
 use crate::workspace::connection_tree::ConnectionTree;
 use crate::workspace::project_query::target_hint;
@@ -20,7 +21,7 @@ pub struct SearchContext<'a> {
 pub fn collect_results(ctx: SearchContext<'_>, query: &str, cx: &App) -> Vec<PaletteResult> {
     let q = query.to_lowercase();
     let mut results = vec![];
-    push_workspace_commands(&mut results, &q);
+    push_workspace_commands(&mut results, &q, cx);
     push_schema_objects(&mut results, ctx.connection_tree, &q, cx);
     push_saved_queries(&mut results, &q, cx);
     push_history(&mut results, ctx.registry, &q, cx);
@@ -39,7 +40,19 @@ fn blank_command(action: WorkspacePaletteAction, label: &str, sublabel: &str) ->
     }
 }
 
-fn push_workspace_commands(results: &mut Vec<PaletteResult>, q: &str) {
+fn wants_project_commands(q: &str) -> bool {
+    q.is_empty()
+        || q.contains("project")
+        || q.contains("folder")
+        || q.contains("open")
+        || q.contains("close")
+}
+
+fn include_close_project_command(q: &str, has_open_project: bool) -> bool {
+    has_open_project && wants_project_commands(q)
+}
+
+fn push_workspace_commands(results: &mut Vec<PaletteResult>, q: &str, cx: &App) {
     if q.is_empty() || q.contains("workspace") || q.contains("loose") || q.contains("collection") {
         results.push(blank_command(
             WorkspacePaletteAction::NewLooseQuery,
@@ -73,7 +86,7 @@ fn push_workspace_commands(results: &mut Vec<PaletteResult>, q: &str) {
             "navigation",
         ));
     }
-    if q.is_empty() || q.contains("project") || q.contains("folder") || q.contains("open") {
+    if wants_project_commands(q) {
         results.push(blank_command(
             WorkspacePaletteAction::OpenProject,
             "Open Project",
@@ -84,6 +97,13 @@ fn push_workspace_commands(results: &mut Vec<PaletteResult>, q: &str) {
             "Open Project in New Window",
             "project",
         ));
+        if include_close_project_command(q, cx.try_global::<ProjectRoot>().is_some()) {
+            results.push(blank_command(
+                WorkspacePaletteAction::CloseProject,
+                "Close Project",
+                "project",
+            ));
+        }
     }
     if manual_update_checks_enabled() && (q.is_empty() || q.contains("update")) {
         results.push(blank_command(
@@ -187,5 +207,24 @@ fn push_history(
                 project_query_path: None,
             });
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn close_query_matches_project_commands() {
+        assert!(wants_project_commands("close"));
+        assert!(wants_project_commands("project"));
+        assert!(!wants_project_commands("update"));
+    }
+
+    #[test]
+    fn close_project_command_only_when_a_project_is_open() {
+        assert!(include_close_project_command("close", true));
+        assert!(!include_close_project_command("close", false));
+        assert!(!include_close_project_command("update", true));
     }
 }

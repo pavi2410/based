@@ -72,10 +72,14 @@ pub struct QueryHistory {
 }
 
 impl QueryHistory {
+    pub fn empty() -> Self {
+        Self { entries: vec![] }
+    }
+
     pub fn load(local_dir: &Path) -> Self {
         let path = history_path(local_dir);
         if !path.exists() {
-            return Self { entries: vec![] };
+            return Self::empty();
         }
         let file = match File::open(&path) {
             Ok(f) => f,
@@ -89,7 +93,7 @@ impl QueryHistory {
         Self { entries }
     }
 
-    pub fn push(&mut self, entry: HistoryEntry, local_dir: &Path) {
+    pub fn push(&mut self, entry: HistoryEntry, local_dir: Option<&Path>) {
         let conn_id = entry.conn_id.clone();
         self.entries.push(entry);
         trim_connection(&mut self.entries, &conn_id);
@@ -127,7 +131,7 @@ impl QueryHistory {
             .collect()
     }
 
-    pub fn set_pinned(&mut self, id: Uuid, pinned: bool, local_dir: &Path) -> bool {
+    pub fn set_pinned(&mut self, id: Uuid, pinned: bool, local_dir: Option<&Path>) -> bool {
         let Some(entry) = self.entries.iter_mut().find(|e| e.id == id) else {
             return false;
         };
@@ -164,7 +168,10 @@ fn history_path(local_dir: &Path) -> PathBuf {
     local_dir.join("history.jsonl")
 }
 
-fn persist_history_slice(entries: &[HistoryEntry], local_dir: &Path) {
+fn persist_history_slice(entries: &[HistoryEntry], local_dir: Option<&Path>) {
+    let Some(local_dir) = local_dir.filter(|p| !p.as_os_str().is_empty()) else {
+        return;
+    };
     let _ = fs::create_dir_all(local_dir);
     let path = history_path(local_dir);
     let Ok(mut file) = File::create(&path) else {
@@ -202,11 +209,29 @@ mod tests {
     fn push_and_retrieve() {
         let dir = tempdir().unwrap();
         let mut h = QueryHistory::load(dir.path());
-        h.push(entry("pg", "SELECT 1"), dir.path());
-        h.push(entry("pg", "SELECT 2"), dir.path());
+        h.push(entry("pg", "SELECT 1"), Some(dir.path()));
+        h.push(entry("pg", "SELECT 2"), Some(dir.path()));
         let results = h.for_conn(&ConnectionId("pg".into()));
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].query, "SELECT 2");
+    }
+
+    #[test]
+    fn empty_has_no_entries() {
+        let h = QueryHistory::empty();
+        assert!(h.recent(10).is_empty());
+    }
+
+    #[test]
+    fn memory_only_push_does_not_write_files() {
+        let dir = tempdir().unwrap();
+        let mut h = QueryHistory::empty();
+        h.push(entry("pg", "SELECT 1"), None);
+        assert_eq!(h.recent(1)[0].query, "SELECT 1");
+        assert!(
+            fs::read_dir(dir.path()).unwrap().next().is_none(),
+            "memory-only history must not create files"
+        );
     }
 
     #[test]
@@ -215,8 +240,8 @@ mod tests {
         let mut h = QueryHistory::load(dir.path());
         let e = entry("pg", "SELECT 1");
         let id = e.id;
-        h.push(e, dir.path());
-        assert!(h.set_pinned(id, true, dir.path()));
+        h.push(e, Some(dir.path()));
+        assert!(h.set_pinned(id, true, Some(dir.path())));
         let h2 = QueryHistory::load(dir.path());
         assert!(h2.entries[0].pinned);
     }

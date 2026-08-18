@@ -32,7 +32,9 @@ use crate::app::prefs::cycle_theme;
 use crate::app::quit::maybe_show_pending_close_dialog;
 use crate::app::updater::coordinator_snapshot;
 use crate::project::drain_pending_reload;
-use crate::project::open::maybe_show_pending_project_switch_dialog;
+use crate::project::open::{
+    maybe_show_pending_project_close_dialog, maybe_show_pending_project_switch_dialog,
+};
 use crate::query_store::QueryStore;
 use crate::workspace::query_lane::render_query_lane;
 
@@ -40,6 +42,7 @@ impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         maybe_show_pending_close_dialog(self, window, cx);
         maybe_show_pending_project_switch_dialog(self, window, cx);
+        maybe_show_pending_project_close_dialog(self, window, cx);
         if drain_pending_reload(cx)
             && let Some(pctx) = cx.try_global::<ProjectContext>()
         {

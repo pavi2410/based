@@ -72,6 +72,13 @@ impl Workspace {
         cx.notify();
     }
 
+    pub fn apply_closed_project(&mut self, cx: &mut Context<Self>) {
+        self.project_dir = None;
+        self.project_title = "No project".into();
+        self.connection_tree.update(cx, |_, cx| cx.notify());
+        cx.notify();
+    }
+
     pub fn apply_workspace_context(&mut self, ctx: WorkspaceContext, cx: &mut Context<Self>) {
         if let Some(pctx) = cx.try_global::<ProjectContext>() {
             self.project_title = pctx.project_name().into();

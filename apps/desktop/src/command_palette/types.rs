@@ -24,6 +24,7 @@ pub enum WorkspacePaletteAction {
     CheckForUpdates,
     OpenProject,
     OpenProjectInNewWindow,
+    CloseProject,
 }
 
 /// A search result the palette can return.

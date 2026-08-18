@@ -312,6 +312,12 @@ impl NativePreferences {
             log::warn!("native prefs save: {e:#}");
         }
     }
+
+    /// Forget the last-opened path so Dock relaunch does not reopen it.
+    /// Recent projects are left intact.
+    pub fn forget_last_opened_project(&mut self) {
+        self.last_opened_project = None;
+    }
 }
 
 fn chrome_prefs(cx: &App) -> ChromePrefs {
@@ -931,6 +937,17 @@ pub fn record_opened_project(path: PathBuf, cx: &mut App) {
     });
 }
 
+/// Clear `last_opened_project` after Close Project. Keeps `recent_projects`.
+pub fn clear_last_opened_project(cx: &mut App) {
+    cx.update_global(|p: &mut NativePreferences, _| {
+        if p.last_opened_project.is_none() {
+            return;
+        }
+        p.forget_last_opened_project();
+        p.save_best_effort();
+    });
+}
+
 pub fn set_update_include_prereleases(enabled: bool, cx: &mut App) {
     update_update_prefs(
         |u| {
@@ -942,4 +959,20 @@ pub fn set_update_include_prereleases(enabled: bool, cx: &mut App) {
         },
         cx,
     );
+}
+
+#[cfg(test)]
+mod last_opened_project_tests {
+    use super::*;
+
+    #[test]
+    fn forget_last_opened_keeps_recent_projects() {
+        let mut prefs = NativePreferences::default();
+        let path = PathBuf::from("/proj");
+        prefs.last_opened_project = Some(path.clone());
+        prefs.recent_projects.push(path);
+        prefs.forget_last_opened_project();
+        assert!(prefs.last_opened_project.is_none());
+        assert_eq!(prefs.recent_projects, [PathBuf::from("/proj")]);
+    }
 }

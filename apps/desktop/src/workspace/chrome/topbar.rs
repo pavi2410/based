@@ -4,7 +4,10 @@ use crate::app::updater::check_now;
 use crate::app::updater::open_release_notes_for_current;
 use crate::project::prompt_open_project_in_new_window;
 use crate::project::prompt_open_project_in_window;
-use gpui::{App, Entity, IntoElement, ParentElement, RenderOnce, SharedString, Styled, div, px};
+use crate::project::request_close_project_in_window;
+use gpui::{
+    App, Entity, IntoElement, ParentElement, RenderOnce, SharedString, Styled, div, prelude::*, px,
+};
 use gpui_component::{
     ActiveTheme as _, Icon, IconName, Sizable as _, TitleBar,
     button::{Button, ButtonVariants},
@@ -81,6 +84,13 @@ impl RenderOnce for ContextRail {
                 )
             });
 
+        let has_project = !project_path.is_empty();
+        let project_tooltip = if has_project {
+            SharedString::from(project_path)
+        } else {
+            "Open a folder containing .based/".into()
+        };
+
         h_flex()
             .flex_1()
             .items_center()
@@ -98,62 +108,79 @@ impl RenderOnce for ContextRail {
                                 .child(SharedString::from(project_name)),
                         ),
                     )
-                    .tooltip(SharedString::from(if project_path.is_empty() {
-                        "Open a folder containing .based/".into()
-                    } else {
-                        project_path
-                    }))
-                    .dropdown_menu(move |menu, _window, _cx| {
-                        menu.item(
-                            PopupMenuItem::new("Open Folder…")
-                                .icon(IconName::FolderOpen)
-                                .on_click(|_, _, cx| prompt_open_project_in_window(cx)),
-                        )
-                        .item(
-                            PopupMenuItem::new("Open Folder in New Window…")
-                                .icon(IconName::FolderOpen)
-                                .on_click(|_, _, cx| {
-                                    prompt_open_project_in_new_window(cx);
+                    .tooltip(project_tooltip)
+                    .dropdown_menu({
+                        move |menu, _window, _cx| {
+                            let mut menu = menu
+                                .item(
+                                    PopupMenuItem::new("Open Folder…")
+                                        .icon(IconName::FolderOpen)
+                                        .on_click(|_, _, cx| prompt_open_project_in_window(cx)),
+                                )
+                                .item(
+                                    PopupMenuItem::new("Open Folder in New Window…")
+                                        .icon(IconName::FolderOpen)
+                                        .on_click(|_, _, cx| {
+                                            prompt_open_project_in_new_window(cx);
+                                        }),
+                                );
+                            if has_project {
+                                menu = menu.item(PopupMenuItem::separator()).item(
+                                    PopupMenuItem::new("Close Project")
+                                        .icon(IconName::Close)
+                                        .on_click(|_, _, cx| request_close_project_in_window(cx)),
+                                );
+                            }
+                            menu
+                        }
+                    }),
+            )
+            .when(has_project, {
+                let branch = branch.clone();
+                let env = env.clone();
+                move |row| {
+                    row.child(div().text_xs().text_color(muted).child("/"))
+                        .child(
+                            Button::new("ctx-branch")
+                                .ghost()
+                                .small()
+                                .icon(Icon::empty().path(GIT_BRANCH_ICON_PATH))
+                                .label(branch.clone())
+                                .tooltip(SharedString::from("Git branch (read-only)"))
+                                .dropdown_menu({
+                                    let branch_item = branch.clone();
+                                    move |menu, _window, _cx| {
+                                        menu.item(
+                                            PopupMenuItem::new(SharedString::from(
+                                                branch_item.clone(),
+                                            ))
+                                            .disabled(true),
+                                        )
+                                    }
                                 }),
                         )
-                    }),
-            )
-            .child(div().text_xs().text_color(muted).child("/"))
-            .child(
-                Button::new("ctx-branch")
-                    .ghost()
-                    .small()
-                    .icon(Icon::empty().path(GIT_BRANCH_ICON_PATH))
-                    .label(branch.clone())
-                    .tooltip(SharedString::from("Git branch (read-only)"))
-                    .dropdown_menu({
-                        let branch_item = branch.clone();
-                        move |menu, _window, _cx| {
-                            menu.item(
-                                PopupMenuItem::new(SharedString::from(branch_item.clone()))
-                                    .disabled(true),
-                            )
-                        }
-                    }),
-            )
-            .child(div().text_xs().text_color(muted).child("/"))
-            .child(
-                Button::new("ctx-env")
-                    .ghost()
-                    .small()
-                    .icon(IconName::Globe)
-                    .label(env.clone())
-                    .tooltip(SharedString::from("Active environment"))
-                    .dropdown_menu({
-                        let env_item = env.clone();
-                        move |menu, _window, _cx| {
-                            menu.item(
-                                PopupMenuItem::new(SharedString::from(env_item.clone()))
-                                    .disabled(true),
-                            )
-                        }
-                    }),
-            )
+                        .child(div().text_xs().text_color(muted).child("/"))
+                        .child(
+                            Button::new("ctx-env")
+                                .ghost()
+                                .small()
+                                .icon(IconName::Globe)
+                                .label(env.clone())
+                                .tooltip(SharedString::from("Active environment"))
+                                .dropdown_menu({
+                                    let env_item = env.clone();
+                                    move |menu, _window, _cx| {
+                                        menu.item(
+                                            PopupMenuItem::new(SharedString::from(
+                                                env_item.clone(),
+                                            ))
+                                            .disabled(true),
+                                        )
+                                    }
+                                }),
+                        )
+                }
+            })
     }
 }
 

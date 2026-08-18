@@ -56,7 +56,7 @@ pub fn reload_from_disk(project_root: &Path, registry: &Entity<ConnectionRegistr
     let queries_dir = project_root.join(".based").join("local");
     let _ = fs::create_dir_all(&queries_dir);
     cx.update_global(|store: &mut QueryStore, _| {
-        store.history_dir = queries_dir.clone();
+        store.history_dir = Some(queries_dir.clone());
         store.history = QueryHistory::load(&queries_dir);
         store.apply_snapshot(&ctx.snapshot);
     });
@@ -117,5 +117,18 @@ pub fn install_reload_watcher(project_root: PathBuf, cx: &mut App) {
             log::warn!("config watcher install failed: {e:#}");
             cx.set_global(super::ConfigWatcherGlobal { _watcher: None });
         }
+    }
+}
+
+/// Drop the `.based/` watcher and `ProjectRoot` so Close Project unbinds cleanly.
+pub fn stop_reload_watcher(cx: &mut App) {
+    cx.set_global(super::ConfigWatcherGlobal { _watcher: None });
+    take_global::<ConfigReloadSignal>(cx);
+    take_global::<ProjectRoot>(cx);
+}
+
+fn take_global<T: Global>(cx: &mut App) {
+    if cx.has_global::<T>() {
+        let _ = cx.remove_global::<T>();
     }
 }

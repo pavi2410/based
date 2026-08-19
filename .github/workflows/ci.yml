@@ -26,18 +26,23 @@ jobs:
         with:
           workspaces: . -> target
 
-      # GitHub-hosted runners default to azure.archive.ubuntu.com, which can
-      # hang indefinitely on apt-get update. Prefer the main Ubuntu archive.
-      - name: Fix Ubuntu archive mirror
+      # GHA images point apt at mirror+file:/etc/apt/apt-mirrors.txt with
+      # azure.archive.ubuntu.com as priority:1. That host often hangs instead of
+      # failing, so sed on sources.list is a no-op. Rewrite the mirror list.
+      # https://github.com/actions/runner-images/issues/7048
+      # https://github.com/actions/runner-images/blob/main/images/ubuntu/scripts/build/configure-apt-sources.sh
+      - name: Prefer Ubuntu archive over Azure apt mirror
         run: |
-          shopt -s nullglob
-          for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
-            [ -f "$f" ] || continue
-            sudo sed -i \
-              's|https\?://azure\.archive\.ubuntu\.com/ubuntu|http://archive.ubuntu.com/ubuntu|g' \
-              "$f"
-          done
-          sudo apt-get update
+          printf '%s\n' \
+            $'http://archive.ubuntu.com/ubuntu/\tpriority:1' \
+            $'http://security.ubuntu.com/ubuntu/\tpriority:2' \
+            | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+          # Bound stalls; default Acquire timeouts can sit for hours.
+          printf '%s\n' \
+            'Acquire::http::Timeout "20";' \
+            'Acquire::https::Timeout "20";' \
+            'Acquire::Retries "2";' \
+            | sudo tee /etc/apt/apt.conf.d/99-gha-timeouts >/dev/null
 
       - name: Install Linux dependencies
         run: |

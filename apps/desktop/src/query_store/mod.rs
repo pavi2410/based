@@ -93,6 +93,7 @@ pub fn init(project_root: Option<PathBuf>, snapshot: Option<ProjectSnapshot>, cx
 mod tests {
     use super::*;
     use based_project::{ProjectQuery, QueryBody, QueryTarget};
+    use std::env;
     use std::sync::Mutex;
 
     static CWD_LOCK: Mutex<()> = Mutex::new(());
@@ -144,13 +145,13 @@ mod tests {
     fn no_project_history_stays_in_memory() {
         let _cwd_lock = CWD_LOCK.lock().unwrap();
         let cwd = tempfile::tempdir().unwrap();
-        let prev = std::env::current_dir().unwrap();
-        std::env::set_current_dir(cwd.path()).unwrap();
+        let prev = env::current_dir().unwrap();
+        env::set_current_dir(cwd.path()).unwrap();
         let mut store = QueryStore::new(None, None);
         store.push_history(sample_history("SELECT 1"));
         let leaked =
             cwd.path().join(".based").exists() || cwd.path().join("history.jsonl").exists();
-        std::env::set_current_dir(prev).unwrap();
+        env::set_current_dir(prev).unwrap();
         assert!(!leaked, "no-project history must not write cwd files");
         assert_eq!(store.history.recent(1)[0].query, "SELECT 1");
     }
@@ -170,12 +171,12 @@ mod tests {
         store.clear_project();
 
         let cwd = tempfile::tempdir().unwrap();
-        let prev = std::env::current_dir().unwrap();
-        std::env::set_current_dir(cwd.path()).unwrap();
+        let prev = env::current_dir().unwrap();
+        env::set_current_dir(cwd.path()).unwrap();
         store.push_history(sample_history("SELECT 2"));
         let leaked =
             cwd.path().join(".based").exists() || cwd.path().join("history.jsonl").exists();
-        std::env::set_current_dir(prev).unwrap();
+        env::set_current_dir(prev).unwrap();
 
         assert!(!leaked, "closed-project history must not write cwd files");
         assert_eq!(fs::read_to_string(&hist).unwrap(), before);

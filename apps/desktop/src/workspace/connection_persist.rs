@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use based_project::{
-    ConnectionSpec, EnvOrString, PragmaSettings, ProjectConnection, secret_env_key,
+    ConnectionSpec, EnvOrString, PragmaSettings, ProjectConnection, SshSettings, secret_env_key,
     slug_from_label, upsert_env_file, write_connection_file,
 };
 
@@ -34,12 +34,26 @@ fn persist_secret(
 ) -> anyhow::Result<()> {
     let env_path = based_dir.join(".env");
     match config {
-        ConnectionConfig::Postgres(c) if !c.password.is_empty() => {
-            upsert_env_file(
-                &env_path,
-                &secret_env_key(relative_id, "PASSWORD"),
-                &c.password,
-            )?;
+        ConnectionConfig::Postgres(c) => {
+            if !c.password.is_empty() {
+                upsert_env_file(
+                    &env_path,
+                    &secret_env_key(relative_id, "PASSWORD"),
+                    &c.password,
+                )?;
+            }
+            if let Some(pass) = c
+                .ssh
+                .as_ref()
+                .and_then(|s| s.key_passphrase.as_deref())
+                .filter(|p| !p.is_empty())
+            {
+                upsert_env_file(
+                    &env_path,
+                    &secret_env_key(relative_id, "SSH_KEY_PASSPHRASE"),
+                    pass,
+                )?;
+            }
         }
         ConnectionConfig::MongoDB(c) if !c.uri.is_empty() => {
             upsert_env_file(&env_path, &secret_env_key(relative_id, "URL"), &c.uri)?;
@@ -64,6 +78,21 @@ fn project_connection_from_config(
                     var: secret_env_key(&relative_id, "PASSWORD"),
                 }
             };
+            let ssh =
+                c.ssh
+                    .as_ref()
+                    .filter(|s| s.is_configured())
+                    .map(|s| SshSettings {
+                        host: s.host.clone(),
+                        port: s.port,
+                        user: s.user.clone(),
+                        key_path: s.key_path.clone(),
+                        key_passphrase: s.key_passphrase.as_ref().filter(|p| !p.is_empty()).map(
+                            |_| EnvOrString::FromEnv {
+                                var: secret_env_key(&relative_id, "SSH_KEY_PASSPHRASE"),
+                            },
+                        ),
+                    });
             ProjectConnection {
                 id: relative_id,
                 label: c.label.clone(),
@@ -78,6 +107,7 @@ fn project_connection_from_config(
                     password,
                     ssl: !matches!(c.ssl_mode, SslMode::Disable),
                 },
+                ssh,
             }
         }
         ConnectionConfig::MongoDB(c) => {
@@ -98,6 +128,7 @@ fn project_connection_from_config(
                     url,
                     database: c.database.clone(),
                 },
+                ssh: None,
             }
         }
         ConnectionConfig::SQLite(c) => ProjectConnection {
@@ -110,6 +141,7 @@ fn project_connection_from_config(
                 file: c.path.clone(),
                 pragma: c.pragma.as_ref().map(pragma_from_sqlite),
             },
+            ssh: None,
         },
     }
 }
@@ -144,6 +176,7 @@ mod tests {
             username: "alice".into(),
             password: "s3cret".into(),
             ssl_mode: SslMode::Require,
+            ssh: None,
         });
         let conn = persist_config_to_based_dir(based, &config, &[], None).unwrap();
         assert_eq!(conn.id, "analytics");
@@ -187,6 +220,7 @@ mod tests {
             username: "alice".into(),
             password: String::new(),
             ssl_mode: SslMode::Disable,
+            ssh: None,
         });
         persist_config_to_based_dir(based, &config, &["local".into(), "dev".into()], None).unwrap();
         let loaded = load_connections_from_based_dir(based).unwrap();
@@ -208,6 +242,7 @@ mod tests {
             username: "alice".into(),
             password: String::new(),
             ssl_mode: SslMode::Disable,
+            ssh: None,
         });
         persist_config_to_based_dir(based, &original, &[], None).unwrap();
         let renamed = ConnectionConfig::Postgres(PostgresConfig {
@@ -218,6 +253,7 @@ mod tests {
             username: "alice".into(),
             password: String::new(),
             ssl_mode: SslMode::Disable,
+            ssh: None,
         });
         let conn = persist_config_to_based_dir(based, &renamed, &[], Some("analytics")).unwrap();
         assert_eq!(conn.id, "analytics");
@@ -227,5 +263,39 @@ mod tests {
         let loaded = load_connections_from_based_dir(based).unwrap();
         assert_eq!(loaded[0].id, "analytics");
         assert_eq!(loaded[0].label, "Reporting");
+    }
+
+    #[test]
+    fn persist_postgres_writes_ssh_and_key_passphrase_env() {
+        use based_core::SshTunnelConfig;
+        let dir = tempfile::tempdir().unwrap();
+        let based = dir.path();
+        let config = ConnectionConfig::Postgres(PostgresConfig {
+            label: "Prod".into(),
+            host: "mydb.internal".into(),
+            port: 5432,
+            database: "app".into(),
+            username: "app".into(),
+            password: "dbpass".into(),
+            ssl_mode: SslMode::Require,
+            ssh: Some(SshTunnelConfig {
+                host: "bastion.example.com".into(),
+                port: 22,
+                user: "ec2-user".into(),
+                key_path: Some("~/.ssh/id_ed25519".into()),
+                key_passphrase: Some("keypass".into()),
+            }),
+        });
+        persist_config_to_based_dir(based, &config, &[], None).unwrap();
+        let raw = fs::read_to_string(based.join("connections/prod.toml")).unwrap();
+        assert!(raw.contains("[ssh]"));
+        assert!(raw.contains("bastion.example.com"));
+        assert!(raw.contains("BASED_PROD_SSH_KEY_PASSPHRASE"));
+        assert!(!raw.contains("keypass"));
+        let env = load_env_file(&based.join(".env")).unwrap();
+        assert_eq!(
+            env.get("BASED_PROD_SSH_KEY_PASSPHRASE").map(String::as_str),
+            Some("keypass")
+        );
     }
 }

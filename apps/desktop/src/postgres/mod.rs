@@ -17,17 +17,38 @@ pub use based_postgres::{
 };
 
 use sqlx::PgPool;
-use sqlx::postgres::PgPoolOptions;
+use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 
 use crate::connection::lifecycle::{Connectable, TestReport};
+use crate::connection::tunnel::{open_optional_tunnel, rewrite_tcp_endpoint};
 use crate::db;
+use based_ssh::SshTunnel;
 use gpui_tokio::Tokio;
 
 /// Live Postgres connection wrapping a sqlx pool.
 pub struct PgConnection {
+    tunnel: Option<SshTunnel>,
     pub config: PostgresConfig,
-    pub pool: PgPool,
     pub server_version: Option<String>,
+    pub pool: PgPool,
+}
+
+async fn connect_opts(
+    config: &PostgresConfig,
+) -> anyhow::Result<(PgConnectOptions, Option<SshTunnel>, PostgresConfig)> {
+    let stored = config.clone();
+    let tunnel = open_optional_tunnel(
+        config.ssh.as_ref(),
+        &config.host,
+        config.port,
+        config.ssl_mode,
+    )
+    .await?;
+    let mut connect = config.clone();
+    if let Some(tunnel) = &tunnel {
+        rewrite_tcp_endpoint(&mut connect.host, &mut connect.port, tunnel);
+    }
+    Ok((pg_connect_options(&connect), tunnel, stored))
 }
 
 impl Connectable for PgConnection {
@@ -35,7 +56,7 @@ impl Connectable for PgConnection {
 
     fn open(config: Self::Config, cx: &mut App) -> Task<anyhow::Result<Self>> {
         Tokio::spawn_result(cx, async move {
-            let opts = pg_connect_options(&config);
+            let (opts, tunnel, stored) = connect_opts(&config).await?;
             let pool = PgPoolOptions::new()
                 .max_connections(8)
                 .connect_with(opts)
@@ -45,7 +66,8 @@ impl Connectable for PgConnection {
                 .await?;
             let short = version.lines().next().unwrap_or(&version).to_string();
             Ok(Self {
-                config,
+                tunnel,
+                config: stored,
                 pool,
                 server_version: Some(short),
             })
@@ -56,7 +78,7 @@ impl Connectable for PgConnection {
         let config = config.clone();
         Tokio::spawn_result(cx, async move {
             let start = Instant::now();
-            let opts = pg_connect_options(&config);
+            let (opts, _tunnel, _) = connect_opts(&config).await?;
             let pool = PgPoolOptions::new()
                 .max_connections(1)
                 .connect_with(opts)

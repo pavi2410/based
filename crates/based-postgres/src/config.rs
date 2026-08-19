@@ -1,3 +1,4 @@
+use based_core::SshTunnelConfig;
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::{PgConnectOptions, PgSslMode};
 
@@ -10,6 +11,8 @@ pub struct PostgresConfig {
     pub username: String,
     pub password: String,
     pub ssl_mode: SslMode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ssh: Option<SshTunnelConfig>,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
@@ -109,6 +112,7 @@ mod tests {
             username: "alice".into(),
             password: "s3cret".into(),
             ssl_mode: SslMode::Require,
+            ssh: None,
         }
     }
 
@@ -149,6 +153,7 @@ mod tests {
             username: "al ice".into(),
             password: "p@ss:w/rd".into(),
             ssl_mode: SslMode::Prefer,
+            ssh: None,
         };
         assert_eq!(
             postgres_uri(&cfg, true),

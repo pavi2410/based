@@ -12,7 +12,7 @@ mod target;
 mod walk;
 
 pub use connection::{
-    ConnectionSpec, PragmaSettings, ProjectConnection, load_connections,
+    ConnectionSpec, PragmaSettings, ProjectConnection, SshSettings, load_connections,
     load_connections_from_based_dir, slug_from_label, write_connection_file,
 };
 pub use dotenv::{load_env_file, secret_env_key, upsert_env_file};

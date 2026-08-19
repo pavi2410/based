@@ -134,6 +134,7 @@ pub fn open_params_changed(old: &ConnectionConfig, new: &ConnectionConfig) -> bo
                 || a.username != b.username
                 || a.password != b.password
                 || ssl_mode_key(a.ssl_mode) != ssl_mode_key(b.ssl_mode)
+                || a.ssh != b.ssh
         }
         (ConnectionConfig::MongoDB(a), ConnectionConfig::MongoDB(b)) => {
             a.uri != b.uri || a.database != b.database || a.auth_source != b.auth_source
@@ -356,6 +357,7 @@ mod tests {
             username: "postgres".into(),
             password: String::new(),
             ssl_mode: SslMode::Disable,
+            ssh: None,
         })
         .with_label("Analytics".into());
         assert_eq!(config.label(), "Analytics");
@@ -390,6 +392,7 @@ mod tests {
             username: "postgres".into(),
             password: "s3cret".into(),
             ssl_mode: SslMode::Disable,
+            ssh: None,
         })
     }
 
@@ -428,5 +431,21 @@ mod tests {
         assert!(open_params_changed(&old, &new));
         assert!(should_reconnect_after_save(true, &old, &new));
         assert!(!should_reconnect_after_save(false, &old, &new));
+    }
+
+    #[test]
+    fn open_params_detect_ssh_change() {
+        let old = pg("Prod", "mydb.internal");
+        let mut new = pg("Prod", "mydb.internal");
+        if let ConnectionConfig::Postgres(c) = &mut new {
+            c.ssh = Some(based_core::SshTunnelConfig {
+                host: "bastion.example.com".into(),
+                port: 22,
+                user: "ec2-user".into(),
+                key_path: None,
+                key_passphrase: None,
+            });
+        }
+        assert!(open_params_changed(&old, &new));
     }
 }

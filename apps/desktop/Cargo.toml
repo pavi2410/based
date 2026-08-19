@@ -60,6 +60,7 @@ based-project = { path = "../../crates/based-project" }
 based-query = { path = "../../crates/based-query" }
 based-postgres = { path = "../../crates/based-postgres" }
 based-sqlite = { path = "../../crates/based-sqlite" }
+based-ssh = { path = "../../crates/based-ssh" }
 based-storage = { path = "../../crates/based-storage" }
 based-workspace = { path = "../../crates/based-workspace" }
 

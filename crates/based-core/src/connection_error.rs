@@ -87,7 +87,9 @@ impl fmt::Display for ConnectionErrorDetail {
 /// Best-effort mapping from driver error strings (sqlx, etc.).
 pub fn categorize_connect_error(err: &str) -> ConnectionErrorDetail {
     let lower = err.to_ascii_lowercase();
-    let category = if lower.contains("password authentication failed")
+    let category = if lower.contains("ssh tunnel") || lower.contains("known_hosts") {
+        ConnectionErrorCategory::SshFailed
+    } else if lower.contains("password authentication failed")
         || lower.contains("authentication failed")
         || lower.contains("invalid password")
     {
@@ -123,5 +125,17 @@ mod tests {
     fn maps_auth_failure() {
         let d = categorize_connect_error("password authentication failed for user \"x\"");
         assert_eq!(d.category, ConnectionErrorCategory::AuthFailed);
+    }
+
+    #[test]
+    fn maps_ssh_tunnel_before_generic_auth() {
+        let d = categorize_connect_error("SSH tunnel: authentication failed");
+        assert_eq!(d.category, ConnectionErrorCategory::SshFailed);
+    }
+
+    #[test]
+    fn maps_unknown_host_key() {
+        let d = categorize_connect_error("SSH tunnel: host is not in known_hosts");
+        assert_eq!(d.category, ConnectionErrorCategory::SshFailed);
     }
 }

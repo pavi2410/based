@@ -37,6 +37,26 @@ tags = ["staging"]
 url = { env = "MONGO_URL" }
 database = "analytics"
 `;
+
+const sshToml = `schema_version = 1
+label = "Prod Postgres"
+engine = "postgres"
+
+host = "mydb.internal"
+port = 5432
+database = "app"
+username = "app"
+password = { env = "BASED_PROD_PASSWORD" }
+ssl = true
+
+[ssh]
+host = "bastion.example.com"
+port = 22
+user = "ec2-user"
+# omit key_path to use ssh-agent
+key_path = "~/.ssh/id_ed25519"
+key_passphrase = { env = "BASED_PROD_SSH_KEY_PASSPHRASE" }
+`;
 ---
 
 <DocsLayout
@@ -147,6 +167,14 @@ database = "analytics"
     Verify CA / Verify Full, use the in-app wizard (session connection) until
     those modes exist on the file format.
   </p>
+  <p>
+    Optional <code>[ssh]</code> adds one hop: Based SSHs to the bastion, then
+    local-forwards to <code>host</code>:<code>port</code> as seen from that
+    machine. Host keys are checked against <code>~/.ssh/known_hosts</code>.
+    Leave <code>key_path</code> out to use the SSH agent. Verify CA / Verify
+    Full are not supported through the tunnel yet — use Require.
+  </p>
+  <CodeSample filename=".based/connections/prod.toml" code={sshToml} />
 
   <h3>SQLite</h3>
   <CodeSample filename=".based/connections/local/northwind.toml" code={sqliteToml} />

@@ -17,6 +17,17 @@ pub struct ProjectConnection {
     pub tags: Vec<String>,
     pub read_only: bool,
     pub spec: ConnectionSpec,
+    pub ssh: Option<SshSettings>,
+}
+
+/// Optional SSH hop persisted as `[ssh]` on a connection file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SshSettings {
+    pub host: String,
+    pub port: u16,
+    pub user: String,
+    pub key_path: Option<String>,
+    pub key_passphrase: Option<EnvOrString>,
 }
 
 #[derive(Debug, Clone)]
@@ -76,6 +87,22 @@ struct RawConnectionFile {
     pragma: Option<PragmaSettings>,
     #[serde(default)]
     read_only: Option<bool>,
+    #[serde(default)]
+    ssh: Option<RawSsh>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct RawSsh {
+    #[serde(default)]
+    host: Option<String>,
+    #[serde(default)]
+    port: Option<u16>,
+    #[serde(default)]
+    user: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    key_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    key_passphrase: Option<EnvOrString>,
 }
 
 pub fn load_connections(project_root: &Path) -> Result<Vec<ProjectConnection>> {
@@ -158,6 +185,8 @@ struct WriteConnectionFile {
     url: Option<EnvOrString>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pragma: Option<PragmaSettings>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ssh: Option<RawSsh>,
 }
 
 impl From<&ProjectConnection> for WriteConnectionFile {
@@ -177,6 +206,13 @@ impl From<&ProjectConnection> for WriteConnectionFile {
             ssl: None,
             url: None,
             pragma: None,
+            ssh: conn.ssh.as_ref().map(|s| RawSsh {
+                host: Some(s.host.clone()),
+                port: Some(s.port),
+                user: Some(s.user.clone()),
+                key_path: s.key_path.clone(),
+                key_passphrase: s.key_passphrase.clone(),
+            }),
         };
         match &conn.spec {
             ConnectionSpec::Sqlite { file, pragma } => {
@@ -271,6 +307,7 @@ fn parse_connection_file(connections_dir: &Path, path: &Path) -> Result<ProjectC
         other => bail!("unknown engine {other:?} in {}", path.display()),
     };
     let read_only = resolve_read_only(file.read_only, &file.tags);
+    let ssh = parse_ssh(file.ssh, &id)?;
     Ok(ProjectConnection {
         id,
         label: file.label,
@@ -278,7 +315,26 @@ fn parse_connection_file(connections_dir: &Path, path: &Path) -> Result<ProjectC
         tags: file.tags,
         read_only,
         spec,
+        ssh,
     })
+}
+
+fn parse_ssh(raw: Option<RawSsh>, connection_id: &str) -> Result<Option<SshSettings>> {
+    let Some(raw) = raw else {
+        return Ok(None);
+    };
+    let host = raw.host.unwrap_or_default();
+    let user = raw.user.unwrap_or_default();
+    if host.trim().is_empty() || user.trim().is_empty() {
+        bail!("connection {connection_id} [ssh] requires `host` and `user`");
+    }
+    Ok(Some(SshSettings {
+        host,
+        port: raw.port.unwrap_or(22),
+        user,
+        key_path: raw.key_path.filter(|p| !p.trim().is_empty()),
+        key_passphrase: raw.key_passphrase,
+    }))
 }
 
 fn resolve_read_only(explicit: Option<bool>, tags: &[String]) -> bool {
@@ -382,6 +438,116 @@ ssl = false
     }
 
     #[test]
+    fn parse_postgres_ssh_table_defaults_port_22() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn_dir = dir.path().join("connections");
+        fs::create_dir_all(&conn_dir).unwrap();
+        let path = conn_dir.join("prod.toml");
+        fs::write(
+            &path,
+            r#"
+schema_version = 1
+label = "Prod"
+engine = "postgres"
+host = "mydb.internal"
+port = 5432
+database = "app"
+username = "app"
+password = ""
+ssl = true
+
+[ssh]
+host = "bastion.example.com"
+user = "ec2-user"
+key_path = "~/.ssh/id_ed25519"
+"#,
+        )
+        .unwrap();
+        let conn = parse_connection_file(&conn_dir, &path).unwrap();
+        let ssh = conn.ssh.expect("ssh table");
+        assert_eq!(ssh.host, "bastion.example.com");
+        assert_eq!(ssh.port, 22);
+        assert_eq!(ssh.user, "ec2-user");
+        assert_eq!(ssh.key_path.as_deref(), Some("~/.ssh/id_ed25519"));
+        assert!(ssh.key_passphrase.is_none());
+    }
+
+    #[test]
+    fn empty_ssh_table_is_invalid() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn_dir = dir.path().join("connections");
+        fs::create_dir_all(&conn_dir).unwrap();
+        let path = conn_dir.join("bad.toml");
+        fs::write(
+            &path,
+            r#"
+schema_version = 1
+label = "Prod"
+engine = "postgres"
+host = "mydb.internal"
+port = 5432
+database = "app"
+username = "app"
+password = ""
+ssl = false
+
+[ssh]
+"#,
+        )
+        .unwrap();
+        let err = parse_connection_file(&conn_dir, &path).unwrap_err();
+        assert!(
+            err.to_string().to_ascii_lowercase().contains("ssh"),
+            "expected ssh validation error, got {err}"
+        );
+    }
+
+    #[test]
+    fn write_then_load_ssh_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let based = dir.path();
+        let conn = ProjectConnection {
+            id: "prod".into(),
+            label: "Prod".into(),
+            engine: "postgres".into(),
+            tags: vec![],
+            read_only: false,
+            spec: ConnectionSpec::Postgres {
+                host: "mydb.internal".into(),
+                port: 5432,
+                database: "app".into(),
+                username: "app".into(),
+                password: EnvOrString::Literal(String::new()),
+                ssl: true,
+            },
+            ssh: Some(SshSettings {
+                host: "bastion.example.com".into(),
+                port: 22,
+                user: "ec2-user".into(),
+                key_path: Some("~/.ssh/id_ed25519".into()),
+                key_passphrase: Some(EnvOrString::FromEnv {
+                    var: "BASED_PROD_SSH_KEY_PASSPHRASE".into(),
+                }),
+            }),
+        };
+        write_connection_file(based, &conn).unwrap();
+        let raw = fs::read_to_string(based.join("connections/prod.toml")).unwrap();
+        assert!(raw.contains("[ssh]"));
+        assert!(raw.contains("bastion.example.com"));
+        assert!(raw.contains("BASED_PROD_SSH_KEY_PASSPHRASE"));
+        assert!(!raw.contains("s3cret"));
+        let loaded = load_connections_from_based_dir(based).unwrap();
+        let ssh = loaded[0].ssh.as_ref().expect("ssh");
+        assert_eq!(ssh.user, "ec2-user");
+        assert_eq!(
+            ssh.key_passphrase,
+            Some(EnvOrString::FromEnv {
+                var: "BASED_PROD_SSH_KEY_PASSPHRASE".into(),
+            })
+        );
+    }
+
+    #[test]
     fn write_then_load_postgres_and_sqlite_round_trip() {
         let dir = tempfile::tempdir().unwrap();
         let based = dir.path();
@@ -401,6 +567,7 @@ ssl = false
                 },
                 ssl: true,
             },
+            ssh: None,
         };
         let sqlite = ProjectConnection {
             id: "northwind".into(),
@@ -412,6 +579,7 @@ ssl = false
                 file: PathBuf::from("/tmp/northwind.db"),
                 pragma: None,
             },
+            ssh: None,
         };
         let pg_path = write_connection_file(based, &postgres).unwrap();
         let sqlite_path = write_connection_file(based, &sqlite).unwrap();

@@ -5,6 +5,7 @@ pub mod connection_error;
 pub mod connection_id;
 pub mod engine;
 pub mod session;
+pub mod ssh;
 pub mod tab;
 
 pub use auth::AuthMethod;
@@ -14,4 +15,5 @@ pub use connection_error::{
 pub use connection_id::ConnectionId;
 pub use engine::EngineKind;
 pub use session::{PersistedConnection, WorkspaceState};
+pub use ssh::SshTunnelConfig;
 pub use tab::{TabId, TabKind};

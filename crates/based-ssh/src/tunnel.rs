@@ -171,38 +171,48 @@ async fn authenticate(
     authenticate_with_agent(session, &ssh.user).await
 }
 
-async fn connect_ssh_agent() -> Result<AgentClient<Box<dyn AgentStream + Send + Unpin>>> {
-    #[cfg(unix)]
-    {
-        AgentClient::connect_env()
-            .await
-            .map(AgentClient::dynamic)
-            .context("SSH tunnel: could not connect to ssh-agent (SSH_AUTH_SOCK)")
-    }
-    #[cfg(windows)]
-    {
-        // `connect_env` is Unix-only (SSH_AUTH_SOCK). On Windows prefer the
-        // OpenSSH agent named pipe, then Pageant.
-        match AgentClient::connect_named_pipe(r"\\.\pipe\openssh-ssh-agent").await {
-            Ok(client) => Ok(client.dynamic()),
-            Err(openssh_err) => AgentClient::connect_pageant()
-                .await
-                .map(AgentClient::dynamic)
-                .with_context(|| {
-                    format!(
-                        "SSH tunnel: could not connect to OpenSSH agent \
-                         (\\\\.\\pipe\\openssh-ssh-agent: {openssh_err}) or Pageant"
-                    )
-                }),
-        }
-    }
-}
-
 async fn authenticate_with_agent(
     session: &mut client::Handle<ClientHandler>,
     user: &str,
 ) -> Result<()> {
-    let mut agent = connect_ssh_agent().await?;
+    // Keep concrete agent stream types (do not `.dynamic()`): boxing breaks the
+    // `'static` bound russh's `Signer` impl needs and surfaces as HRTB errors
+    // inside `Tokio::spawn_result` on the Postgres open/test paths.
+    #[cfg(unix)]
+    {
+        let mut agent = AgentClient::connect_env()
+            .await
+            .context("SSH tunnel: could not connect to ssh-agent (SSH_AUTH_SOCK)")?;
+        try_agent_identities(session, user, &mut agent).await
+    }
+    #[cfg(windows)]
+    {
+        // `connect_env` is Unix-only (SSH_AUTH_SOCK). Prefer OpenSSH's agent
+        // named pipe, then Pageant.
+        match AgentClient::connect_named_pipe(r"\\.\pipe\openssh-ssh-agent").await {
+            Ok(mut agent) => try_agent_identities(session, user, &mut agent).await,
+            Err(openssh_err) => {
+                let mut agent = AgentClient::connect_pageant().await.with_context(|| {
+                    format!(
+                        "SSH tunnel: could not connect to OpenSSH agent \
+                             (\\\\.\\pipe\\openssh-ssh-agent: {openssh_err}) or Pageant"
+                    )
+                })?;
+                try_agent_identities(session, user, &mut agent).await
+            }
+        }
+    }
+}
+
+async fn try_agent_identities<S>(
+    session: &mut client::Handle<ClientHandler>,
+    user: &str,
+    agent: &mut AgentClient<S>,
+) -> Result<()>
+where
+    // Matches russh's `Signer` impl on `AgentClient<R>` (private `auth` module).
+    S: AgentStream + Unpin + Send + 'static,
+{
     let identities = agent
         .request_identities()
         .await
@@ -220,7 +230,7 @@ async fn authenticate_with_agent(
     let mut last_err = None;
     for public in identities {
         match session
-            .authenticate_publickey_with(user, public, hash, &mut agent)
+            .authenticate_publickey_with(user, public, hash, agent)
             .await
         {
             Ok(result) if result.success() => return Ok(()),

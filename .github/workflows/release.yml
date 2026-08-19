@@ -61,6 +61,20 @@ jobs:
         with:
           workspaces: . -> target
 
+      # GitHub-hosted runners default to azure.archive.ubuntu.com, which can
+      # hang indefinitely on apt-get update. Prefer the main Ubuntu archive.
+      - name: Fix Ubuntu archive mirror
+        if: matrix.runner == 'ubuntu-22.04'
+        run: |
+          shopt -s nullglob
+          for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+            [ -f "$f" ] || continue
+            sudo sed -i \
+              's|https\?://azure\.archive\.ubuntu\.com/ubuntu|http://archive.ubuntu.com/ubuntu|g' \
+              "$f"
+          done
+          sudo apt-get update
+
       - name: Install Linux dependencies
         if: matrix.runner == 'ubuntu-22.04'
         run: |

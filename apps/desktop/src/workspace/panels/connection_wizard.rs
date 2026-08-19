@@ -25,7 +25,8 @@ use uuid::Uuid;
 
 use crate::app::prefs;
 use crate::connection::{
-    ConnectionConfig, ConnectionId, EngineKind, OpenedConnection, categorize_connect_error,
+    ConnectionConfig, ConnectionEntry, ConnectionId, EngineKind, OpenedConnection,
+    categorize_connect_error,
     lifecycle::{Connectable, TestReport},
     open_connection,
 };
@@ -34,15 +35,15 @@ use crate::mongodb::{MongoConfig, MongoConnection};
 use crate::postgres::wizard::parse_postgres_uri;
 use crate::postgres::{PgConnection, PostgresConfig, SslMode};
 use crate::project::ProjectRoot;
-use crate::sqlite::{SqliteConfig, SqliteConnection};
+use crate::sqlite::{SqliteConfig, SqliteConnection, SqlitePragma};
 use crate::widgets::{labeled_field, labeled_fixed, new_field, set_field};
 use crate::workspace::WorkspaceRef;
 use crate::workspace::connection_destination::{
     ConnectionDestination, destination_row, resolve_wizard_destination,
 };
 use crate::workspace::wizard_logic::{
-    add_wizard_tag, remove_wizard_tag, save_label_from_config, ssl_mode_from_toggle,
-    ssl_toggle_enabled, wizard_session_id,
+    add_wizard_tag, can_edit_saved_connection, remove_wizard_tag, save_label_from_config,
+    ssl_mode_from_toggle, ssl_toggle_enabled, wizard_engine_label, wizard_session_id,
 };
 
 const ENGINE_LABELS: &[&str] = &["PostgreSQL", "MongoDB", "SQLite"];
@@ -77,6 +78,7 @@ pub struct ConnectionWizardPanel {
     mongo_database: Entity<InputState>,
     sqlite_path: Entity<InputState>,
     sqlite_read_only: bool,
+    sqlite_pragma: Option<SqlitePragma>,
     name: Entity<InputState>,
     tag_input: Entity<InputState>,
     tags: Vec<String>,
@@ -149,6 +151,7 @@ impl ConnectionWizardPanel {
             mongo_database: new_field(window, cx, "", "Database (optional)"),
             sqlite_path: new_field(window, cx, "", "/path/to/database.db"),
             sqlite_read_only: false,
+            sqlite_pragma: None,
             name: new_field(window, cx, "", "Name"),
             tag_input,
             tags: Vec::new(),
@@ -156,6 +159,77 @@ impl ConnectionWizardPanel {
             session_id: None,
             status: WizardStatus::Idle,
             tab_label: "New connection".into(),
+        }
+    }
+
+    pub fn edit(
+        entry: Entity<ConnectionEntry>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let (id, config, tags, origin) = {
+            let e = entry.read(cx);
+            (e.id.clone(), e.config.clone(), e.tags.clone(), e.origin)
+        };
+        let mut panel = Self::new(window, cx);
+        panel.session_id = Some(id);
+        panel.destination = Some(ConnectionDestination::from_origin(origin));
+        panel.tags = tags;
+        panel.tab_label = config.label().to_string().into();
+        panel.apply_config(&config, window, cx);
+        panel
+    }
+
+    pub fn editing_id(&self) -> Option<&ConnectionId> {
+        self.session_id
+            .as_ref()
+            .filter(|id| can_edit_saved_connection(id))
+    }
+
+    fn is_edit(&self) -> bool {
+        self.editing_id().is_some()
+    }
+
+    fn apply_config(
+        &mut self,
+        config: &ConnectionConfig,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let engine_label = wizard_engine_label(config.engine());
+        self.engine.update(cx, |select, cx| {
+            select.set_selected_value(&engine_label, window, cx);
+        });
+        set_field(&self.name, config.label(), window, cx);
+        match config {
+            ConnectionConfig::Postgres(c) => {
+                set_field(&self.host, &c.host, window, cx);
+                set_field(&self.port, &c.port.to_string(), window, cx);
+                set_field(&self.database, &c.database, window, cx);
+                set_field(&self.username, &c.username, window, cx);
+                set_field(&self.password, &c.password, window, cx);
+                self.ssl_enabled = ssl_toggle_enabled(c.ssl_mode);
+                if self.ssl_enabled {
+                    let label = ssl_on_label(c.ssl_mode);
+                    self.ssl_mode.update(cx, |select, cx| {
+                        select.set_selected_value(&label, window, cx);
+                    });
+                }
+            }
+            ConnectionConfig::MongoDB(c) => {
+                set_field(&self.mongo_uri, &c.uri, window, cx);
+                set_field(
+                    &self.mongo_database,
+                    c.database.as_deref().unwrap_or(""),
+                    window,
+                    cx,
+                );
+            }
+            ConnectionConfig::SQLite(c) => {
+                set_field(&self.sqlite_path, &c.path.to_string_lossy(), window, cx);
+                self.sqlite_read_only = c.read_only;
+                self.sqlite_pragma = c.pragma.clone();
+            }
         }
     }
 
@@ -201,7 +275,7 @@ impl ConnectionWizardPanel {
                 label: self.name.read(cx).value().to_string(),
                 path: PathBuf::from(self.sqlite_path.read(cx).value().as_ref()),
                 read_only: self.sqlite_read_only,
-                pragma: None,
+                pragma: self.sqlite_pragma.clone(),
             }),
         }
     }
@@ -304,6 +378,7 @@ impl ConnectionWizardPanel {
     fn connect(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.status = WizardStatus::Connecting;
         let config = self.labeled_config(cx);
+        let tags = self.tags.clone();
         let key = Uuid::new_v4().to_string();
         let session_id = wizard_session_id(self.session_id.as_ref(), &key);
         self.session_id = Some(session_id.clone());
@@ -314,7 +389,8 @@ impl ConnectionWizardPanel {
                 Ok(opened) => {
                     if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
                         ws.update(cx, |workspace, cx| {
-                            workspace.attach_wizard_session(config, opened, session_id, cx);
+                            workspace
+                                .attach_wizard_session(config, opened, session_id, tags, true, cx);
                         });
                         let _ = this.update(cx, |panel, cx| {
                             panel.status = WizardStatus::ConnectOk;
@@ -341,7 +417,7 @@ impl ConnectionWizardPanel {
         .detach();
     }
 
-    fn save(&mut self, cx: &mut Context<Self>) {
+    fn save(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let destination =
             match resolve_wizard_destination(cx.has_global::<ProjectRoot>(), self.destination) {
                 Ok(dest) => dest,
@@ -363,13 +439,66 @@ impl ConnectionWizardPanel {
             workspace.save_wizard_connection(config, destination, session_id, self.tags.clone(), cx)
         });
         match result {
-            Ok(id) => {
+            Ok((id, reconnect)) => {
                 self.session_id = Some(id);
-                self.status = WizardStatus::Saved;
+                self.tab_label = self.labeled_config(cx).label().to_string().into();
+                if reconnect {
+                    self.reconnect_saved(window, cx);
+                } else {
+                    self.status = WizardStatus::Saved;
+                }
             }
             Err(msg) => self.status = WizardStatus::SaveErr(msg),
         }
         cx.notify();
+    }
+
+    fn reconnect_saved(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(session_id) = self.session_id.clone() else {
+            self.status = WizardStatus::Saved;
+            return;
+        };
+        self.status = WizardStatus::Connecting;
+        let config = self.labeled_config(cx);
+        let tags = self.tags.clone();
+        let task = open_connection(config.clone(), cx);
+        cx.spawn_in(window, async move |this, cx| {
+            let result = task.await;
+            let _ = cx.update(|_window, cx| match result {
+                Ok(opened) => {
+                    if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+                        ws.update(cx, |workspace, cx| {
+                            workspace
+                                .attach_wizard_session(config, opened, session_id, tags, false, cx);
+                        });
+                        let _ = this.update(cx, |panel, cx| {
+                            panel.status = WizardStatus::Saved;
+                            cx.notify();
+                        });
+                    } else {
+                        drop_opened(opened);
+                        let _ = this.update(cx, |panel, cx| {
+                            panel.status = WizardStatus::SaveErr("Workspace is not open".into());
+                            cx.notify();
+                        });
+                    }
+                }
+                Err(e) => {
+                    let msg = categorize_connect_error(&e.to_string()).display_message();
+                    if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+                        ws.update(cx, |workspace, cx| {
+                            workspace.fail_reconnect(&session_id, msg.clone(), cx);
+                        });
+                    }
+                    let _ = this.update(cx, |panel, cx| {
+                        panel.status =
+                            WizardStatus::SaveErr(format!("Saved, but reconnect failed: {msg}"));
+                        cx.notify();
+                    });
+                }
+            });
+        })
+        .detach();
     }
 
     fn browse_sqlite(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -495,6 +624,12 @@ impl Render for ConnectionWizardPanel {
         let muted = cx.theme().muted_foreground;
         let engine = self.current_engine(cx);
         let busy = self.busy();
+        let editing = self.is_edit();
+        let heading: SharedString = if editing {
+            "Edit connection".into()
+        } else {
+            "New connection".into()
+        };
         let status: SharedString = match &self.status {
             WizardStatus::Idle => "".into(),
             WizardStatus::Testing => "Testing…".into(),
@@ -558,7 +693,7 @@ impl Render for ConnectionWizardPanel {
                                 div()
                                     .text_sm()
                                     .font_weight(FontWeight::SEMIBOLD)
-                                    .child("New connection"),
+                                    .child(heading),
                             )
                             .when(engine == EngineKind::Postgres, |h| {
                                 h.child(
@@ -574,7 +709,7 @@ impl Render for ConnectionWizardPanel {
                     .child(labeled_field(
                         "Engine",
                         muted,
-                        Select::new(&self.engine).w_full(),
+                        Select::new(&self.engine).disabled(editing).w_full(),
                     ))
                     .when(engine == EngineKind::Postgres, |v| {
                         v.child(
@@ -706,15 +841,17 @@ impl Render for ConnectionWizardPanel {
                                         cx.listener(|panel, _, _, cx| panel.test_connection(cx)),
                                     ),
                             )
-                            .child(
-                                Button::new("wizard-connect")
-                                    .primary()
-                                    .label("Connect")
-                                    .disabled(busy)
-                                    .on_click(cx.listener(|panel, _, window, cx| {
-                                        panel.connect(window, cx)
-                                    })),
-                            ),
+                            .when(!editing, |h| {
+                                h.child(
+                                    Button::new("wizard-connect")
+                                        .primary()
+                                        .label("Connect")
+                                        .disabled(busy)
+                                        .on_click(cx.listener(|panel, _, window, cx| {
+                                            panel.connect(window, cx)
+                                        })),
+                                )
+                            }),
                     )
                     .when(show_status, |v| {
                         v.child(
@@ -743,7 +880,7 @@ impl Render for ConnectionWizardPanel {
                                     .aria_label("Add a tag"),
                             ),
                     )
-                    .when(cx.has_global::<ProjectRoot>(), |v| {
+                    .when(cx.has_global::<ProjectRoot>() && !editing, |v| {
                         v.child(destination_row(
                             self.destination,
                             muted,
@@ -753,9 +890,10 @@ impl Render for ConnectionWizardPanel {
                     })
                     .child(
                         Button::new("wizard-save")
+                            .when(editing, |b| b.primary())
                             .label("Save")
                             .disabled(busy)
-                            .on_click(cx.listener(|panel, _, _, cx| panel.save(cx))),
+                            .on_click(cx.listener(|panel, _, window, cx| panel.save(window, cx))),
                     ),
             )
     }

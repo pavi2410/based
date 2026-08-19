@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use crate::connection::{ConnectionConfig, ConnectionId, ConnectionOrigin};
+use crate::connection::{ConnectionConfig, ConnectionId, ConnectionOrigin, EngineKind};
 use crate::postgres::SslMode;
 
 /// Where a blank Name field should take its save label from.
@@ -78,6 +78,14 @@ pub fn ssl_toggle_enabled(mode: SslMode) -> bool {
     !matches!(mode, SslMode::Disable)
 }
 
+pub fn wizard_engine_label(engine: EngineKind) -> &'static str {
+    match engine {
+        EngineKind::Postgres => "PostgreSQL",
+        EngineKind::MongoDB => "MongoDB",
+        EngineKind::SQLite => "SQLite",
+    }
+}
+
 /// Reuse a saved id; otherwise mint an ephemeral live session id.
 pub fn wizard_session_id(saved_id: Option<&ConnectionId>, unsaved_key: &str) -> ConnectionId {
     saved_id
@@ -89,6 +97,61 @@ pub fn saved_id_for_destination(origin: ConnectionOrigin, relative_id: &str) -> 
     match origin {
         ConnectionOrigin::Personal => ConnectionId::personal(relative_id),
         ConnectionOrigin::Project => ConnectionId::from_key(relative_id),
+    }
+}
+
+/// File stem under `connections/` for a saved project or personal id.
+pub fn relative_id_for_saved(id: &ConnectionId) -> Option<&str> {
+    if id.is_ephemeral() {
+        return None;
+    }
+    Some(
+        id.0.strip_prefix(ConnectionId::USER_PREFIX)
+            .unwrap_or(id.0.as_str()),
+    )
+}
+
+pub fn can_edit_saved_connection(id: &ConnectionId) -> bool {
+    relative_id_for_saved(id).is_some()
+}
+
+/// Whether Save should close and reopen the live session.
+pub fn should_reconnect_after_save(
+    was_connected: bool,
+    old: &ConnectionConfig,
+    new: &ConnectionConfig,
+) -> bool {
+    was_connected && open_params_changed(old, new)
+}
+
+/// Open parameters only — label is display metadata.
+pub fn open_params_changed(old: &ConnectionConfig, new: &ConnectionConfig) -> bool {
+    match (old, new) {
+        (ConnectionConfig::Postgres(a), ConnectionConfig::Postgres(b)) => {
+            a.host != b.host
+                || a.port != b.port
+                || a.database != b.database
+                || a.username != b.username
+                || a.password != b.password
+                || ssl_mode_key(a.ssl_mode) != ssl_mode_key(b.ssl_mode)
+        }
+        (ConnectionConfig::MongoDB(a), ConnectionConfig::MongoDB(b)) => {
+            a.uri != b.uri || a.database != b.database || a.auth_source != b.auth_source
+        }
+        (ConnectionConfig::SQLite(a), ConnectionConfig::SQLite(b)) => {
+            a.path != b.path || a.read_only != b.read_only
+        }
+        _ => true,
+    }
+}
+
+fn ssl_mode_key(mode: SslMode) -> u8 {
+    match mode {
+        SslMode::Disable => 0,
+        SslMode::Prefer => 1,
+        SslMode::Require => 2,
+        SslMode::VerifyCa => 3,
+        SslMode::VerifyFull => 4,
     }
 }
 
@@ -316,5 +379,54 @@ mod tests {
         assert_eq!(tags, vec!["dev"]);
         remove_wizard_tag(&mut tags, "missing");
         assert_eq!(tags, vec!["dev"]);
+    }
+
+    fn pg(label: &str, host: &str) -> ConnectionConfig {
+        ConnectionConfig::Postgres(PostgresConfig {
+            label: label.into(),
+            host: host.into(),
+            port: 5432,
+            database: "postgres".into(),
+            username: "postgres".into(),
+            password: "s3cret".into(),
+            ssl_mode: SslMode::Disable,
+        })
+    }
+
+    #[test]
+    fn relative_id_strips_user_prefix_and_skips_ephemeral() {
+        assert_eq!(
+            relative_id_for_saved(&ConnectionId::from_key("local/pg")),
+            Some("local/pg")
+        );
+        assert_eq!(
+            relative_id_for_saved(&ConnectionId::personal("analytics")),
+            Some("analytics")
+        );
+        assert_eq!(relative_id_for_saved(&ConnectionId::unsaved("aabb")), None);
+        assert!(!can_edit_saved_connection(&ConnectionId::unsaved("aabb")));
+        assert!(can_edit_saved_connection(&ConnectionId::personal(
+            "analytics"
+        )));
+        assert!(can_edit_saved_connection(&ConnectionId::from_key(
+            "northwind"
+        )));
+    }
+
+    #[test]
+    fn open_params_ignore_label() {
+        let old = pg("Northwind", "localhost");
+        let new = pg("Analytics", "localhost");
+        assert!(!open_params_changed(&old, &new));
+        assert!(!should_reconnect_after_save(true, &old, &new));
+    }
+
+    #[test]
+    fn open_params_detect_host_change() {
+        let old = pg("Northwind", "localhost");
+        let new = pg("Northwind", "db.example");
+        assert!(open_params_changed(&old, &new));
+        assert!(should_reconnect_after_save(true, &old, &new));
+        assert!(!should_reconnect_after_save(false, &old, &new));
     }
 }

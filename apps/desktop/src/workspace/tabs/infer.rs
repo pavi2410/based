@@ -8,10 +8,11 @@ use gpui_component::dock::PanelView;
 use crate::mongodb::pipeline_builder::PipelineBuilderPanel;
 use crate::postgres;
 use crate::sqlite;
+use crate::workspace::panels::ConnectionWizardPanel;
 use crate::workspace::panels::object_info::ConnectionDashboardPanel;
+use crate::workspace::panels::release_notes::ReleaseNotesPanel;
 
 use super::spec::TabSpec;
-use crate::workspace::panels::release_notes::ReleaseNotesPanel;
 
 pub(crate) fn infer_tab_spec(panel: &Arc<dyn PanelView>, cx: &App) -> TabSpec {
     match panel.panel_name(cx) {
@@ -47,6 +48,14 @@ pub(crate) fn infer_tab_spec(panel: &Arc<dyn PanelView>, cx: &App) -> TabSpec {
             .downcast::<ReleaseNotesPanel>()
             .map(|ent| TabSpec::ReleaseNotes {
                 version: ent.read(cx).version_label(cx),
+            })
+            .unwrap_or_else(|_| builtin(panel, cx)),
+        "ConnectionWizard" => panel
+            .view()
+            .downcast::<ConnectionWizardPanel>()
+            .map(|ent| TabSpec::Builtin {
+                conn_id: ent.read(cx).editing_id().cloned(),
+                panel: "ConnectionWizard".into(),
             })
             .unwrap_or_else(|_| builtin(panel, cx)),
         _ => builtin(panel, cx),

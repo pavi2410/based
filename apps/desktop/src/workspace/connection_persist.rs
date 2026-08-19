@@ -3,19 +3,24 @@
 use std::path::Path;
 
 use based_project::{
-    ConnectionSpec, EnvOrString, ProjectConnection, secret_env_key, slug_from_label,
-    upsert_env_file, write_connection_file,
+    ConnectionSpec, EnvOrString, PragmaSettings, ProjectConnection, secret_env_key,
+    slug_from_label, upsert_env_file, write_connection_file,
 };
 
 use crate::connection::ConnectionConfig;
 use crate::postgres::SslMode;
+use crate::sqlite::SqlitePragma;
 
 pub fn persist_config_to_based_dir(
     based_dir: &Path,
     config: &ConnectionConfig,
     tags: &[String],
+    relative_id: Option<&str>,
 ) -> anyhow::Result<ProjectConnection> {
-    let relative_id = slug_from_label(config.label());
+    let relative_id = relative_id
+        .filter(|id| !id.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| slug_from_label(config.label()));
     persist_secret(based_dir, &relative_id, config)?;
     let conn = project_connection_from_config(config, relative_id, tags);
     write_connection_file(based_dir, &conn)?;
@@ -103,9 +108,17 @@ fn project_connection_from_config(
             read_only: c.read_only,
             spec: ConnectionSpec::Sqlite {
                 file: c.path.clone(),
-                pragma: None,
+                pragma: c.pragma.as_ref().map(pragma_from_sqlite),
             },
         },
+    }
+}
+
+fn pragma_from_sqlite(p: &SqlitePragma) -> PragmaSettings {
+    PragmaSettings {
+        journal_mode: Some(p.journal_mode.clone()),
+        synchronous: Some(p.synchronous.clone()),
+        foreign_keys: Some(p.foreign_keys),
     }
 }
 
@@ -132,7 +145,7 @@ mod tests {
             password: "s3cret".into(),
             ssl_mode: SslMode::Require,
         });
-        let conn = persist_config_to_based_dir(based, &config, &[]).unwrap();
+        let conn = persist_config_to_based_dir(based, &config, &[], None).unwrap();
         assert_eq!(conn.id, "analytics");
         let loaded = load_connections_from_based_dir(based).unwrap();
         assert_eq!(loaded.len(), 1);
@@ -156,7 +169,7 @@ mod tests {
             read_only: false,
             pragma: None,
         });
-        persist_config_to_based_dir(based, &config, &[]).unwrap();
+        persist_config_to_based_dir(based, &config, &[], None).unwrap();
         assert!(!based.join(".env").exists());
         let loaded = load_connections_from_based_dir(based).unwrap();
         assert_eq!(loaded[0].id, "northwind");
@@ -175,11 +188,44 @@ mod tests {
             password: String::new(),
             ssl_mode: SslMode::Disable,
         });
-        persist_config_to_based_dir(based, &config, &["local".into(), "dev".into()]).unwrap();
+        persist_config_to_based_dir(based, &config, &["local".into(), "dev".into()], None).unwrap();
         let loaded = load_connections_from_based_dir(based).unwrap();
         assert_eq!(loaded[0].tags, vec!["local", "dev"]);
         let raw = fs::read_to_string(based.join("connections/analytics.toml")).unwrap();
         assert!(raw.contains("local"));
         assert!(raw.contains("dev"));
+    }
+
+    #[test]
+    fn persist_keeps_existing_relative_id_when_label_changes() {
+        let dir = tempfile::tempdir().unwrap();
+        let based = dir.path();
+        let original = ConnectionConfig::Postgres(PostgresConfig {
+            label: "Analytics".into(),
+            host: "db.example".into(),
+            port: 5432,
+            database: "analytics".into(),
+            username: "alice".into(),
+            password: String::new(),
+            ssl_mode: SslMode::Disable,
+        });
+        persist_config_to_based_dir(based, &original, &[], None).unwrap();
+        let renamed = ConnectionConfig::Postgres(PostgresConfig {
+            label: "Reporting".into(),
+            host: "db.example".into(),
+            port: 5432,
+            database: "analytics".into(),
+            username: "alice".into(),
+            password: String::new(),
+            ssl_mode: SslMode::Disable,
+        });
+        let conn = persist_config_to_based_dir(based, &renamed, &[], Some("analytics")).unwrap();
+        assert_eq!(conn.id, "analytics");
+        assert_eq!(conn.label, "Reporting");
+        assert!(based.join("connections/analytics.toml").exists());
+        assert!(!based.join("connections/reporting.toml").exists());
+        let loaded = load_connections_from_based_dir(based).unwrap();
+        assert_eq!(loaded[0].id, "analytics");
+        assert_eq!(loaded[0].label, "Reporting");
     }
 }

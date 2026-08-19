@@ -26,6 +26,13 @@ impl ConnectionDestination {
         }
     }
 
+    pub fn from_origin(origin: ConnectionOrigin) -> Self {
+        match origin {
+            ConnectionOrigin::Project => Self::Project,
+            ConnectionOrigin::Personal => Self::Personal,
+        }
+    }
+
     pub fn based_dir(self, project_dir: Option<&Path>) -> anyhow::Result<PathBuf> {
         match self {
             Self::Personal => Ok(personal_root()),

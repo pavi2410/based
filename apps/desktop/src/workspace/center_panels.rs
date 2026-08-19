@@ -6,7 +6,9 @@ use gpui::{App, Context, Entity, EntityId, Focusable, Window, prelude::*};
 use gpui_component::dock::{DockItem, DockPlacement, Panel, PanelView};
 
 use super::Workspace;
+use crate::connection::ConnectionId;
 use crate::workspace::panels::ConnectionWizardPanel;
+use crate::workspace::wizard_logic::can_edit_saved_connection;
 
 use super::dock_utils::{activate_center_panel, active_live_center_panel, wrap_center_root};
 
@@ -15,6 +17,48 @@ impl Workspace {
     pub fn open_connection_picker_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let panel = cx.new(|cx| ConnectionWizardPanel::new(window, cx));
         self.add_center_panel(panel, window, cx);
+    }
+
+    /// Open or focus the edit form for a saved connection.
+    pub fn open_edit_connection_tab(
+        &mut self,
+        conn_id: ConnectionId,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !can_edit_saved_connection(&conn_id) {
+            return;
+        }
+        if let Some(panel) = self.find_edit_wizard_panel(&conn_id, cx) {
+            let center = self.dock_area.read(cx).center().clone();
+            activate_center_panel(&center, panel, window, cx);
+            cx.notify();
+            return;
+        }
+        let Some(entry) = self.registry.read(cx).get(&conn_id, cx).cloned() else {
+            return;
+        };
+        let panel = cx.new(|cx| ConnectionWizardPanel::edit(entry, window, cx));
+        self.add_center_panel(panel, window, cx);
+    }
+
+    fn find_edit_wizard_panel(
+        &self,
+        conn_id: &ConnectionId,
+        cx: &App,
+    ) -> Option<Arc<dyn PanelView>> {
+        for panel in &self.center_panels {
+            if panel.panel_name(cx) != "ConnectionWizard" {
+                continue;
+            }
+            let Ok(ent) = panel.view().downcast::<ConnectionWizardPanel>() else {
+                continue;
+            };
+            if ent.read(cx).editing_id() == Some(conn_id) {
+                return Some(panel.clone());
+            }
+        }
+        None
     }
 
     fn add_center_panel<T: Panel>(

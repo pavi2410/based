@@ -8,6 +8,8 @@ use crate::mongodb::{mongo_uri, mongosh_command};
 use crate::postgres::{postgres_uri, psql_command};
 use crate::sqlite::{resolve_sqlite_path, sqlite_uri, sqlite3_command};
 use crate::workspace::notify;
+use crate::workspace::tabs::WorkspaceRef;
+use crate::workspace::wizard_logic::can_edit_saved_connection;
 
 use super::ConnectionTree;
 use super::types::{ObjectKind, SchemaObject};
@@ -195,6 +197,17 @@ pub(crate) fn connection_actions_menu(
             }
         }
     }));
+
+    if can_edit_saved_connection(&conn_id) {
+        let edit_id = conn_id.clone();
+        menu = menu.item(PopupMenuItem::new("Edit…").on_click(move |_, window, cx| {
+            if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+                ws.update(cx, |ws, cx| {
+                    ws.open_edit_connection_tab(edit_id.clone(), window, cx);
+                });
+            }
+        }));
+    }
 
     if is_connected {
         menu = menu.item(PopupMenuItem::new("Refresh").on_click({

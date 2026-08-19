@@ -2,6 +2,7 @@
 
 use std::mem;
 use std::path::PathBuf;
+use std::time::Instant;
 
 use based_project::{ProjectQuery, load_env_file};
 use gpui::Context;
@@ -91,11 +92,16 @@ impl Workspace {
     }
 
     /// Attach a live wizard session without writing files or closing the form.
+    ///
+    /// `open_catalog` queues the connection workspace (dashboard) — use on first Connect,
+    /// not when replacing a live session after Edit → Save.
     pub fn attach_wizard_session(
         &mut self,
         config: ConnectionConfig,
         opened: OpenedConnection,
         session_id: ConnectionId,
+        tags: Vec<String>,
+        open_catalog: bool,
         cx: &mut Context<Self>,
     ) {
         let origin = if session_id.is_personal() || session_id.is_ephemeral() {
@@ -103,15 +109,41 @@ impl Workspace {
         } else {
             ConnectionOrigin::Project
         };
-        let mut entry = ConnectionEntry::with_origin(config, &session_id.0, vec![], origin);
+        let mut entry = ConnectionEntry::with_origin(config, &session_id.0, tags, origin);
         entry.state = ConnectionState::Connected(opened_into_any(opened, cx));
         self.upsert_registry_entry(entry, true, cx);
-        self.connection_tree.update(cx, |tree, cx| {
-            tree.queue_open_connected(&session_id, cx);
+        if open_catalog {
+            self.connection_tree.update(cx, |tree, cx| {
+                tree.queue_open_connected(&session_id, cx);
+            });
+        }
+    }
+
+    /// Persist succeeded but reconnect failed — drop the stale live session.
+    pub fn fail_reconnect(&mut self, id: &ConnectionId, reason: String, cx: &mut Context<Self>) {
+        self.registry.update(cx, |reg, cx| {
+            let Some(existing) = reg.get(id, cx).cloned() else {
+                return;
+            };
+            existing.update(cx, |e, cx| {
+                if let ConnectionState::Connected(ac) =
+                    mem::replace(&mut e.state, ConnectionState::Disconnected)
+                {
+                    close_any_connection(ac, cx);
+                }
+                e.state = ConnectionState::Failed {
+                    reason: reason.clone(),
+                    attempted_at: Instant::now(),
+                };
+                e.last_error = Some(reason);
+                cx.notify();
+            });
         });
     }
 
     /// Persist the wizard config to the chosen based-dir. Migrates a live unsaved session.
+    /// Returns `(saved_id, reconnect)` — reconnect when a saved connection's open params changed
+    /// while it was connected.
     pub fn save_wizard_connection(
         &mut self,
         config: ConnectionConfig,
@@ -119,12 +151,37 @@ impl Workspace {
         session_id: Option<ConnectionId>,
         tags: Vec<String>,
         cx: &mut Context<Self>,
-    ) -> Result<ConnectionId, String> {
+    ) -> Result<(ConnectionId, bool), String> {
         let based_dir = destination
             .based_dir(self.project_dir.as_deref())
             .map_err(|err| format!("{err:#}"))?;
         let origin = destination.origin();
-        let mut entry = match persist_config_to_based_dir(&based_dir, &config, &tags) {
+        let editing = session_id
+            .as_ref()
+            .and_then(super::wizard_logic::relative_id_for_saved)
+            .is_some();
+        let (was_connected, old_config) = session_id
+            .as_ref()
+            .and_then(|id| {
+                self.registry.read(cx).get(id, cx).map(|entry| {
+                    let e = entry.read(cx);
+                    (
+                        matches!(e.state, ConnectionState::Connected(_)),
+                        e.config.clone(),
+                    )
+                })
+            })
+            .unwrap_or((false, config.clone()));
+        let reconnect = editing
+            && super::wizard_logic::should_reconnect_after_save(
+                was_connected,
+                &old_config,
+                &config,
+            );
+        let keep_id = session_id
+            .as_ref()
+            .and_then(super::wizard_logic::relative_id_for_saved);
+        let mut entry = match persist_config_to_based_dir(&based_dir, &config, &tags, keep_id) {
             Ok(conn) => {
                 let vars = load_env_file(&based_dir.join(".env")).unwrap_or_default();
                 entry_from_tree(&conn, origin, &vars).unwrap_or_else(|err| {
@@ -150,7 +207,7 @@ impl Workspace {
                 tree.queue_open_connected(&saved_id, cx);
             });
         }
-        Ok(saved_id)
+        Ok((saved_id, reconnect))
     }
 
     fn upsert_registry_entry(

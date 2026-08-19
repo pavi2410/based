@@ -103,7 +103,9 @@ jobs:
           MNT=$(mktemp -d)
           cleanup() { hdiutil detach "$MNT" -quiet 2>/dev/null || true; rmdir "$MNT" 2>/dev/null || true; }
           trap cleanup EXIT
-          hdiutil attach "$DMG" -mountpoint "$MNT" -nobrowse
+          # packager `license-file` is passed as --eula; without Agree on stdin,
+          # hdiutil prints the license and exits with "attach canceled".
+          hdiutil attach "$DMG" -mountpoint "$MNT" -nobrowse <<<'Y'
           APP="$MNT/Based.app"
           if [ ! -d "$APP" ]; then
             echo "::error::Based.app not found at $APP"

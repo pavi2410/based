@@ -9,7 +9,7 @@ use based_core::SshTunnelConfig;
 use russh::keys::{HashAlg, PrivateKeyWithHashAlg, PublicKey, load_secret_key};
 use russh::{
     Channel, client,
-    keys::agent::client::AgentClient,
+    keys::agent::client::{AgentClient, AgentStream},
     keys::known_hosts::{check_known_hosts, check_known_hosts_path},
 };
 use tokio::io::{AsyncWriteExt, copy_bidirectional};
@@ -171,13 +171,38 @@ async fn authenticate(
     authenticate_with_agent(session, &ssh.user).await
 }
 
+async fn connect_ssh_agent() -> Result<AgentClient<Box<dyn AgentStream + Send + Unpin>>> {
+    #[cfg(unix)]
+    {
+        AgentClient::connect_env()
+            .await
+            .map(AgentClient::dynamic)
+            .context("SSH tunnel: could not connect to ssh-agent (SSH_AUTH_SOCK)")
+    }
+    #[cfg(windows)]
+    {
+        // `connect_env` is Unix-only (SSH_AUTH_SOCK). On Windows prefer the
+        // OpenSSH agent named pipe, then Pageant.
+        match AgentClient::connect_named_pipe(r"\\.\pipe\openssh-ssh-agent").await {
+            Ok(client) => Ok(client.dynamic()),
+            Err(openssh_err) => AgentClient::connect_pageant()
+                .await
+                .map(AgentClient::dynamic)
+                .with_context(|| {
+                    format!(
+                        "SSH tunnel: could not connect to OpenSSH agent \
+                         (\\\\.\\pipe\\openssh-ssh-agent: {openssh_err}) or Pageant"
+                    )
+                }),
+        }
+    }
+}
+
 async fn authenticate_with_agent(
     session: &mut client::Handle<ClientHandler>,
     user: &str,
 ) -> Result<()> {
-    let mut agent = AgentClient::connect_env()
-        .await
-        .context("SSH tunnel: could not connect to ssh-agent (SSH_AUTH_SOCK)")?;
+    let mut agent = connect_ssh_agent().await?;
     let identities = agent
         .request_identities()
         .await

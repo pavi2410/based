@@ -7,6 +7,7 @@ members = [
     "crates/based-project",
     "crates/based-query",
     "crates/based-sqlite",
+    "crates/based-ssh",
     "crates/based-storage",
     "crates/based-workspace",
 ]
@@ -50,6 +51,7 @@ dirs = "6"
 tempfile = "3"
 rfd = "0.15"
 mongodb = { version = "2", features = ["tokio-runtime"] }
+russh = "0.54"
 
 [workspace.lints.clippy]
 # Upgrade all default-warn groups to errors.

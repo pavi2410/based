@@ -116,6 +116,7 @@ pub fn resolve_template_entry(
                 username: resolved.username,
                 password: resolved.password,
                 ssl_mode,
+                ssh: None,
             })
         }
         EngineKind::MongoDB => ConnectionConfig::MongoDB(MongoConfig {
@@ -198,6 +199,7 @@ mod tests {
             username: "alice".into(),
             password: "s3cret".into(),
             ssl_mode: SslMode::Require,
+            ssh: None,
         });
         let template = template_from_config(&config, None);
         assert_eq!(template.engine, EngineKind::Postgres);
@@ -252,6 +254,7 @@ mod tests {
             username: "postgres".into(),
             password: String::new(),
             ssl_mode: SslMode::Prefer,
+            ssh: None,
         });
         let existing = template_from_config(&config, None);
         ws.connection_templates.push(existing.clone());

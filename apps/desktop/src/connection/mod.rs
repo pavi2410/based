@@ -8,6 +8,7 @@ pub mod descriptor;
 pub mod lifecycle;
 pub mod open;
 pub mod registry;
+pub mod tunnel;
 
 pub use descriptor::EngineRegistry;
 

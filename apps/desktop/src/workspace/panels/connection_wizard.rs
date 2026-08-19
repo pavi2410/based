@@ -23,6 +23,8 @@ use gpui_component::{
 use tokio::task::spawn_blocking;
 use uuid::Uuid;
 
+use based_core::SshTunnelConfig;
+
 use crate::app::prefs;
 use crate::connection::{
     ConnectionConfig, ConnectionEntry, ConnectionId, EngineKind, OpenedConnection,
@@ -73,6 +75,12 @@ pub struct ConnectionWizardPanel {
     password: Entity<InputState>,
     ssl_enabled: bool,
     ssl_mode: Entity<SelectState<Vec<&'static str>>>,
+    ssh_enabled: bool,
+    ssh_host: Entity<InputState>,
+    ssh_port: Entity<InputState>,
+    ssh_user: Entity<InputState>,
+    ssh_key_path: Entity<InputState>,
+    ssh_key_passphrase: Entity<InputState>,
     uri: Entity<InputState>,
     mongo_uri: Entity<InputState>,
     mongo_database: Entity<InputState>,
@@ -140,6 +148,16 @@ impl ConnectionWizardPanel {
             ssl_enabled: false,
             ssl_mode: cx.new(|cx| {
                 SelectState::new(SSL_ON_LABELS.to_vec(), Some(IndexPath::new(0)), window, cx)
+            }),
+            ssh_enabled: false,
+            ssh_host: new_field(window, cx, "", "bastion.example.com"),
+            ssh_port: new_field(window, cx, "22", "22"),
+            ssh_user: new_field(window, cx, "", "ec2-user"),
+            ssh_key_path: new_field(window, cx, "", "~/.ssh/id_ed25519"),
+            ssh_key_passphrase: cx.new(|cx| {
+                InputState::new(window, cx)
+                    .placeholder("Key passphrase (optional)")
+                    .masked(true)
             }),
             uri,
             mongo_uri: new_field(
@@ -215,6 +233,7 @@ impl ConnectionWizardPanel {
                         select.set_selected_value(&label, window, cx);
                     });
                 }
+                self.apply_ssh(c.ssh.as_ref(), window, cx);
             }
             ConnectionConfig::MongoDB(c) => {
                 set_field(&self.mongo_uri, &c.uri, window, cx);
@@ -241,6 +260,52 @@ impl ConnectionWizardPanel {
         }
     }
 
+    fn apply_ssh(
+        &mut self,
+        ssh: Option<&SshTunnelConfig>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match ssh {
+            Some(ssh) => {
+                self.ssh_enabled = true;
+                set_field(&self.ssh_host, &ssh.host, window, cx);
+                set_field(&self.ssh_port, &ssh.port.to_string(), window, cx);
+                set_field(&self.ssh_user, &ssh.user, window, cx);
+                set_field(
+                    &self.ssh_key_path,
+                    ssh.key_path.as_deref().unwrap_or(""),
+                    window,
+                    cx,
+                );
+                set_field(
+                    &self.ssh_key_passphrase,
+                    ssh.key_passphrase.as_deref().unwrap_or(""),
+                    window,
+                    cx,
+                );
+            }
+            None => {
+                self.ssh_enabled = false;
+            }
+        }
+    }
+
+    fn current_ssh(&self, cx: &App) -> Option<SshTunnelConfig> {
+        if !self.ssh_enabled {
+            return None;
+        }
+        let key_path = self.ssh_key_path.read(cx).value().to_string();
+        let key_passphrase = self.ssh_key_passphrase.read(cx).value().to_string();
+        Some(SshTunnelConfig {
+            host: self.ssh_host.read(cx).value().to_string(),
+            port: self.ssh_port.read(cx).value().parse().unwrap_or(22),
+            user: self.ssh_user.read(cx).value().to_string(),
+            key_path: nonempty_opt(&key_path),
+            key_passphrase: nonempty_opt(&key_passphrase),
+        })
+    }
+
     fn current_ssl_mode(&self, cx: &App) -> SslMode {
         let selected = self
             .ssl_mode
@@ -261,6 +326,7 @@ impl ConnectionWizardPanel {
                 username: self.username.read(cx).value().to_string(),
                 password: self.password.read(cx).value().to_string(),
                 ssl_mode: self.current_ssl_mode(cx),
+                ssh: self.current_ssh(cx),
             }),
             EngineKind::MongoDB => {
                 let database = self.mongo_database.read(cx).value().to_string();
@@ -533,6 +599,37 @@ impl ConnectionWizardPanel {
         .detach();
     }
 
+    fn browse_ssh_key(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let path_field = self.ssh_key_path.clone();
+        cx.spawn_in(window, async move |this, cx| {
+            let picked = db::run_infallible(cx, async {
+                spawn_blocking(|| {
+                    rfd::FileDialog::new()
+                        .set_title("Choose SSH private key")
+                        .pick_file()
+                })
+                .await
+                .ok()
+                .flatten()
+            })
+            .await
+            .ok()
+            .flatten();
+
+            let Some(path) = picked else {
+                return;
+            };
+            let _ = cx.update(|window, cx| {
+                this.update(cx, |panel, cx| {
+                    set_field(&path_field, &path.display().to_string(), window, cx);
+                    panel.status = WizardStatus::Idle;
+                    cx.notify();
+                })
+            });
+        })
+        .detach();
+    }
+
     fn busy(&self) -> bool {
         matches!(
             self.status,
@@ -775,6 +872,90 @@ impl Render for ConnectionWizardPanel {
                                 "SSL mode",
                                 muted,
                                 Select::new(&self.ssl_mode).w_full(),
+                            ))
+                        })
+                        .child(
+                            h_flex()
+                                .w_full()
+                                .items_center()
+                                .justify_between()
+                                .child(div().text_sm().child("SSH tunnel"))
+                                .child(
+                                    Switch::new("wizard-ssh")
+                                        .with_size(Size::Small)
+                                        .checked(self.ssh_enabled)
+                                        .on_click(cx.listener(|panel, checked, _, cx| {
+                                            panel.ssh_enabled = *checked;
+                                            cx.notify();
+                                        })),
+                                ),
+                        )
+                        .when(self.ssh_enabled, |v| {
+                            v.child(
+                                h_flex()
+                                    .gap_2()
+                                    .child(labeled_field(
+                                        "SSH host",
+                                        muted,
+                                        Input::new(&self.ssh_host)
+                                            .cleanable(true)
+                                            .aria_label("SSH host"),
+                                    ))
+                                    .child(labeled_fixed(
+                                        "SSH port",
+                                        muted,
+                                        96.0,
+                                        Input::new(&self.ssh_port)
+                                            .cleanable(true)
+                                            .aria_label("SSH port"),
+                                    )),
+                            )
+                            .child(labeled_field(
+                                "SSH user",
+                                muted,
+                                Input::new(&self.ssh_user)
+                                    .content_type(InputContentType::Username)
+                                    .cleanable(true)
+                                    .aria_label("SSH user"),
+                            ))
+                            .child(
+                                v_flex()
+                                    .gap_1()
+                                    .child(div().text_xs().text_color(muted).child("Key path"))
+                                    .child(
+                                        h_flex()
+                                            .gap_2()
+                                            .items_center()
+                                            .child(
+                                                Input::new(&self.ssh_key_path)
+                                                    .cleanable(true)
+                                                    .aria_label("SSH key path")
+                                                    .flex_1(),
+                                            )
+                                            .child(
+                                                Button::new("wizard-ssh-browse")
+                                                    .label("Browse…")
+                                                    .on_click(cx.listener(
+                                                        |panel, _, window, cx| {
+                                                            panel.browse_ssh_key(window, cx);
+                                                        },
+                                                    )),
+                                            ),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .text_color(muted)
+                                            .child("Leave empty to use ssh-agent."),
+                                    ),
+                            )
+                            .child(labeled_field(
+                                "Key passphrase",
+                                muted,
+                                Input::new(&self.ssh_key_passphrase)
+                                    .content_type(InputContentType::Password)
+                                    .mask_toggle()
+                                    .aria_label("SSH key passphrase"),
                             ))
                         })
                     })

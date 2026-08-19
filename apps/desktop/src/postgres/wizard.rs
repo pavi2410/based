@@ -55,6 +55,7 @@ pub(crate) fn parse_postgres_uri(input: &str) -> Option<PostgresConfig> {
         username,
         password,
         ssl_mode,
+        ssh: None,
     })
 }
 

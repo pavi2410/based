@@ -1,0 +1,23 @@
+[package]
+name = "based-ssh"
+version = "0.0.0-dev"
+edition = "2024"
+description = "SSH local-forward tunnel for Based connections"
+license = "MIT"
+publish = false
+
+[dependencies]
+anyhow = { workspace = true }
+based-core = { path = "../based-core" }
+dirs = { workspace = true }
+log = { workspace = true }
+russh = { workspace = true }
+tokio = { workspace = true, features = ["io-util", "macros", "net", "rt", "sync", "time"] }
+
+[dev-dependencies]
+rand_core = { version = "0.6", features = ["getrandom"] }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "io-util"] }
+
+[lints]
+workspace = true

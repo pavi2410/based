@@ -4,7 +4,7 @@ use gpui::{App, Context, Entity, EntityId, Window};
 use gpui_component::Placement;
 use gpui_component::dock::{
     BasePanelView, DockArea, DockLayout, DockPlacement, InsertTarget, NodeId, PaneNode, PaneRef,
-    PanelHandle, PanelId, PanelView,
+    PaneTree, PanelHandle, PanelId, PanelView,
 };
 
 use crate::mongodb::change_stream::ChangeStreamPanel;
@@ -52,7 +52,7 @@ fn presentation_of(panel: &Arc<dyn BasePanelView>) -> Option<Arc<dyn PanelView>>
     PanelHandle::of(panel).map(PanelHandle::panel)
 }
 
-fn center_tree(dock: &DockArea) -> Option<&gpui_component::dock::PaneTree> {
+fn center_tree(dock: &DockArea) -> Option<&PaneTree> {
     dock.layout(DockPlacement::Center)
 }
 

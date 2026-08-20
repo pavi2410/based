@@ -18,6 +18,7 @@ use crate::workspace::Workspace;
 use crate::workspace::dock_utils::{
     activate_center_panel, active_live_center_panel, center_panel_by_id, center_tab_group_count,
     panel_entity_id, remove_presentation_panel, split_center_with_panel, tab_group_panel_ids,
+    to_panel_id,
 };
 
 impl Workspace {
@@ -129,11 +130,7 @@ impl Workspace {
             let group_ids = tab_group_panel_ids(dock, node);
             self.center_panels
                 .iter()
-                .filter(|p| {
-                    group_ids.contains(&crate::workspace::dock_utils::to_panel_id(panel_entity_id(
-                        p,
-                    )))
-                })
+                .filter(|p| group_ids.contains(&to_panel_id(panel_entity_id(p))))
                 .map(panel_entity_id)
                 .collect::<Vec<EntityId>>()
         };

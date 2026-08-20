@@ -5,13 +5,14 @@
 
 use std::fs;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process;
 use std::sync::OnceLock;
 
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::EnvFilter;
+use tracing_subscriber::fmt;
 use tracing_subscriber::prelude::*;
 
 const LOG_FILE_PREFIX: &str = "based";
@@ -64,7 +65,7 @@ pub fn init() {
             let (writer, guard) = tracing_appender::non_blocking(appender);
             let _ = FILE_GUARD.set(guard);
             Some(
-                tracing_subscriber::fmt::layer()
+                fmt::layer()
                     .with_ansi(false)
                     .with_target(true)
                     .with_writer(writer),
@@ -84,7 +85,7 @@ pub fn init() {
 
     tracing_subscriber::registry()
         .with(filter)
-        .with(tracing_subscriber::fmt::layer().with_target(true))
+        .with(fmt::layer().with_target(true))
         .with(file_layer)
         .init();
 
@@ -103,7 +104,7 @@ pub fn open_logs() {
     }
 }
 
-fn open_dir(dir: &std::path::Path) -> io::Result<()> {
+fn open_dir(dir: &Path) -> io::Result<()> {
     #[cfg(target_os = "macos")]
     {
         drop(process::Command::new("open").arg(dir).spawn()?);

@@ -1,5 +1,6 @@
 //! Center dock panel registry — tracks live panels, manages Home tab, and keeps TabManager in sync.
 
+use std::slice;
 use std::sync::Arc;
 
 use gpui::{App, Context, Entity, EntityId, Focusable, Window, prelude::*};
@@ -121,7 +122,7 @@ impl Workspace {
         let home_arc: Arc<dyn PanelView> = Arc::new(self.home_panel.clone());
         self.dock_area.update(cx, |dock, ecx| {
             dock.set_center(
-                super::dock_utils::tabs_layout(std::slice::from_ref(&home_arc), ecx),
+                super::dock_utils::tabs_layout(slice::from_ref(&home_arc), ecx),
                 window,
                 ecx,
             );

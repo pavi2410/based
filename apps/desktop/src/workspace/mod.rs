@@ -30,11 +30,11 @@ mod pending_ops;
 mod project_integration;
 mod render;
 
+use std::path::PathBuf;
+use std::slice;
 use std::sync::Arc;
 
 use dock_utils::tabs_layout;
-
-use std::path::PathBuf;
 
 use gpui::{App, Context, Entity, FocusHandle, Focusable, SharedString, Window, prelude::*};
 use gpui_component::dock::{DockArea, DockEvent, DockSkin, PanelStyle, PanelView};
@@ -140,7 +140,7 @@ impl Workspace {
         let home_panel = home.clone();
         let home_arc: Arc<dyn PanelView> = Arc::new(home.clone());
         dock_area.update(cx, |area, cx| {
-            area.set_center(tabs_layout(std::slice::from_ref(&home_arc), cx), window, cx);
+            area.set_center(tabs_layout(slice::from_ref(&home_arc), cx), window, cx);
         });
 
         let connection_tree =

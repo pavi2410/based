@@ -267,6 +267,13 @@ impl RenderOnce for TopbarRight {
                                         open_release_notes_for_current(cx);
                                     }),
                             )
+                            .item(
+                                PopupMenuItem::new("Open Logs")
+                                    .icon(IconName::FolderOpen)
+                                    .on_click(|_, _window, _cx| {
+                                        crate::app::logging::open_logs();
+                                    }),
+                            )
                     }),
             )
     }

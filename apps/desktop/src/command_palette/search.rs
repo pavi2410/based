@@ -52,6 +52,10 @@ fn include_close_project_command(q: &str, has_open_project: bool) -> bool {
     has_open_project && wants_project_commands(q)
 }
 
+fn wants_open_logs_command(q: &str) -> bool {
+    q.is_empty() || q == "log" || q.contains("logs") || q.contains("open log")
+}
+
 fn push_workspace_commands(results: &mut Vec<PaletteResult>, q: &str, cx: &App) {
     if q.is_empty() || q.contains("workspace") || q.contains("loose") || q.contains("collection") {
         results.push(blank_command(
@@ -84,6 +88,13 @@ fn push_workspace_commands(results: &mut Vec<PaletteResult>, q: &str, cx: &App) 
             WorkspacePaletteAction::OpenOnboarding,
             "Open Onboarding",
             "navigation",
+        ));
+    }
+    if wants_open_logs_command(q) {
+        results.push(blank_command(
+            WorkspacePaletteAction::OpenLogs,
+            "Open Logs",
+            "application",
         ));
     }
     if wants_project_commands(q) {
@@ -226,5 +237,15 @@ mod tests {
         assert!(include_close_project_command("close", true));
         assert!(!include_close_project_command("close", false));
         assert!(!include_close_project_command("update", true));
+    }
+
+    #[test]
+    fn open_logs_matches_log_queries_not_catalog() {
+        assert!(wants_open_logs_command(""));
+        assert!(wants_open_logs_command("log"));
+        assert!(wants_open_logs_command("logs"));
+        assert!(wants_open_logs_command("open logs"));
+        assert!(!wants_open_logs_command("catalog"));
+        assert!(!wants_open_logs_command("onboarding"));
     }
 }

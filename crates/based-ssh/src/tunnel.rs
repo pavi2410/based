@@ -189,16 +189,21 @@ async fn authenticate_with_agent(
     {
         // `connect_env` is Unix-only (SSH_AUTH_SOCK). Prefer OpenSSH's agent
         // named pipe, then Pageant.
+        //
+        // russh 0.54: `connect_named_pipe` returns Result, but `connect_pageant`
+        // returns `AgentClient` (not Result) — do not call `with_context` on it.
         match AgentClient::connect_named_pipe(r"\\.\pipe\openssh-ssh-agent").await {
             Ok(mut agent) => try_agent_identities(session, user, &mut agent).await,
             Err(openssh_err) => {
-                let mut agent = AgentClient::connect_pageant().await.with_context(|| {
-                    format!(
-                        "SSH tunnel: could not connect to OpenSSH agent \
-                             (\\\\.\\pipe\\openssh-ssh-agent: {openssh_err}) or Pageant"
-                    )
-                })?;
-                try_agent_identities(session, user, &mut agent).await
+                let mut agent = AgentClient::connect_pageant().await;
+                try_agent_identities(session, user, &mut agent)
+                    .await
+                    .with_context(|| {
+                        format!(
+                            "SSH tunnel: OpenSSH agent unavailable ({openssh_err}); \
+                             Pageant authentication failed"
+                        )
+                    })
             }
         }
     }

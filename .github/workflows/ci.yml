@@ -60,3 +60,22 @@ jobs:
 
       - name: Build desktop
         run: cargo build -p desktop
+
+  # Linux CI never type-checks `#[cfg(windows)]`. The release matrix does, so
+  # SSH-agent Windows APIs have to be checked here or they only fail on Release.
+  windows:
+    name: rust (windows check)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cargo cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+
+      - name: Check desktop
+        run: cargo check -p desktop

@@ -6,7 +6,7 @@ use gpui::{
 };
 use gpui_component::{
     ActiveTheme, Icon, IconName, Sizable as _,
-    dock::{Panel, PanelEvent},
+    dock::{BasePanel, Panel, PanelEvent},
     h_flex,
     kbd::Kbd,
     menu::PopupMenu,
@@ -48,11 +48,11 @@ impl Focusable for HomePanel {
     }
 }
 
-impl Panel for HomePanel {
-    fn panel_name(&self) -> &'static str {
-        "HomePanel"
-    }
+impl BasePanel for HomePanel {
+    crate::based_panel_behavior!("HomePanel");
+}
 
+impl Panel for HomePanel {
     fn dropdown_menu(
         &mut self,
         menu: PopupMenu,

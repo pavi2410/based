@@ -4,7 +4,7 @@ use gpui::{prelude::*, *};
 use gpui_component::{
     ActiveTheme,
     button::{Button, ButtonVariants},
-    dock::{Panel, PanelEvent},
+    dock::{BasePanel, Panel, PanelEvent},
     h_flex,
     input::{Editor, EditorState},
     menu::PopupMenu,
@@ -168,11 +168,11 @@ impl Focusable for DocumentEditorPanel {
     }
 }
 
-impl Panel for DocumentEditorPanel {
-    fn panel_name(&self) -> &'static str {
-        "MongoDocumentEditor"
-    }
+impl BasePanel for DocumentEditorPanel {
+    crate::based_panel_behavior!("MongoDocumentEditor");
+}
 
+impl Panel for DocumentEditorPanel {
     fn dropdown_menu(
         &mut self,
         menu: PopupMenu,

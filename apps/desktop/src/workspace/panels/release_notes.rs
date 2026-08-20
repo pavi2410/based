@@ -10,7 +10,7 @@ use gpui::{
 };
 use gpui_component::{
     ActiveTheme,
-    dock::{Panel, PanelEvent},
+    dock::{BasePanel, Panel, PanelEvent},
     menu::PopupMenu,
     scroll::ScrollableElement,
     text::markdown,
@@ -66,11 +66,11 @@ impl Focusable for ReleaseNotesPanel {
     }
 }
 
-impl Panel for ReleaseNotesPanel {
-    fn panel_name(&self) -> &'static str {
-        "ReleaseNotesPanel"
-    }
+impl BasePanel for ReleaseNotesPanel {
+    crate::based_panel_behavior!("ReleaseNotesPanel");
+}
 
+impl Panel for ReleaseNotesPanel {
     fn dropdown_menu(
         &mut self,
         menu: PopupMenu,

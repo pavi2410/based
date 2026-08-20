@@ -8,7 +8,7 @@ use crate::widgets::list_row::{SchemaRowStyle, schema_object_row};
 use crate::widgets::{metadata_pill, panel_header, sidebar_row_inner_gap, sidebar_row_padding_y};
 use gpui_component::{
     ActiveTheme, IconName,
-    dock::{Panel, PanelEvent},
+    dock::{BasePanel, Panel, PanelEvent},
     h_flex,
     menu::PopupMenu,
     v_flex,
@@ -124,11 +124,11 @@ impl Focusable for SchemaTreePanel {
     }
 }
 
-impl Panel for SchemaTreePanel {
-    fn panel_name(&self) -> &'static str {
-        "SqliteSchemaTree"
-    }
+impl BasePanel for SchemaTreePanel {
+    crate::based_panel_behavior!("SqliteSchemaTree");
+}
 
+impl Panel for SchemaTreePanel {
     fn dropdown_menu(
         &mut self,
         menu: PopupMenu,

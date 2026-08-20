@@ -7,7 +7,7 @@ use gpui::{App, prelude::*, *};
 use gpui_component::{
     ActiveTheme, IconName, Sizable as _,
     button::{Button, ButtonVariants},
-    dock::{Panel, PanelEvent},
+    dock::{BasePanel, Panel, PanelEvent},
     h_flex,
     input::{EditorState, InputEvent},
     menu::PopupMenu,
@@ -355,11 +355,11 @@ impl Focusable for QueryEditorPanel {
     }
 }
 
-impl Panel for QueryEditorPanel {
-    fn panel_name(&self) -> &'static str {
-        "SqliteQueryEditor"
-    }
+impl BasePanel for QueryEditorPanel {
+    crate::based_panel_behavior!("SqliteQueryEditor");
+}
 
+impl Panel for QueryEditorPanel {
     fn dropdown_menu(
         &mut self,
         menu: PopupMenu,

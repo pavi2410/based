@@ -32,12 +32,12 @@ mod render;
 
 use std::sync::Arc;
 
-use dock_utils::wrap_center_root;
+use dock_utils::tabs_layout;
 
 use std::path::PathBuf;
 
 use gpui::{App, Context, Entity, FocusHandle, Focusable, SharedString, Window, prelude::*};
-use gpui_component::dock::{DockArea, DockEvent, DockItem, PanelStyle, PanelView};
+use gpui_component::dock::{DockArea, DockEvent, DockSkin, PanelStyle, PanelView};
 
 use crate::app::prefs::{collapsed_from, set_sidebar};
 use crate::app::quit::confirm_before_close_window;
@@ -92,8 +92,7 @@ pub struct Workspace {
     /// Queued Close Project; confirm dialog on next [`Render`].
     pub(crate) pending_project_close_confirm: bool,
     tab_navigation: TabNavigationHistory,
-    /// Live center tab panels. gpui-component `DockItem.items` can desync from `TabPanel.panels`
-    /// (split add and tab remove do not always update the snapshot `items` vec).
+    /// Live center tab panels, kept as styled handles for TabManager downcasts.
     center_panels: Vec<Arc<dyn PanelView>>,
 }
 
@@ -134,18 +133,14 @@ impl Workspace {
             log::info!("no connections loaded; open a folder with .based/connections/");
         }
 
-        let dock_area = cx.new(|cx| {
-            DockArea::new("workspace", Some(1), window, cx).panel_style(PanelStyle::TabBar)
-        });
+        let (dock_area, skin) = DockSkin::dock_area("workspace", Some(1), window, cx);
+        skin.set_panel_style(PanelStyle::TabBar, cx);
 
         let home = cx.new(|cx| HomePanel::new(window, cx));
         let home_panel = home.clone();
         let home_arc: Arc<dyn PanelView> = Arc::new(home.clone());
-        let weak_dock = dock_area.downgrade();
-        let tabs = DockItem::tab(home, &weak_dock, window, cx);
-        let center = wrap_center_root(tabs, &weak_dock, window, cx);
         dock_area.update(cx, |area, cx| {
-            area.set_center(center, window, cx);
+            area.set_center(tabs_layout(std::slice::from_ref(&home_arc), cx), window, cx);
         });
 
         let connection_tree =

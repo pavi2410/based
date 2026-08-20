@@ -8,7 +8,7 @@ use gpui_component::{
     button::{Button, ButtonVariants},
     checkbox::Checkbox,
     dialog::{DialogAction, DialogClose, DialogFooter},
-    dock::{Panel, PanelEvent},
+    dock::{BasePanel, Panel, PanelEvent},
     h_flex,
     input::{Input, InputContentType, InputEvent, InputState},
     menu::PopupMenu,
@@ -699,11 +699,11 @@ impl Focusable for ConnectionWizardPanel {
     }
 }
 
-impl Panel for ConnectionWizardPanel {
-    fn panel_name(&self) -> &'static str {
-        "ConnectionWizard"
-    }
+impl BasePanel for ConnectionWizardPanel {
+    crate::based_panel_behavior!("ConnectionWizard");
+}
 
+impl Panel for ConnectionWizardPanel {
     fn dropdown_menu(
         &mut self,
         menu: PopupMenu,

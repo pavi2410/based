@@ -4,7 +4,7 @@ use gpui::{prelude::*, *};
 use gpui_component::{
     ActiveTheme,
     button::Button,
-    dock::{Panel, PanelEvent},
+    dock::{BasePanel, Panel, PanelEvent},
     h_flex,
     menu::PopupMenu,
     table::TableState,
@@ -201,11 +201,11 @@ impl Focusable for CollectionInspectorPanel {
     }
 }
 
-impl Panel for CollectionInspectorPanel {
-    fn panel_name(&self) -> &'static str {
-        "MongoCollectionInspector"
-    }
+impl BasePanel for CollectionInspectorPanel {
+    crate::based_panel_behavior!("MongoCollectionInspector");
+}
 
+impl Panel for CollectionInspectorPanel {
     fn dropdown_menu(
         &mut self,
         menu: PopupMenu,

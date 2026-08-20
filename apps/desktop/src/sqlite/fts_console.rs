@@ -4,7 +4,7 @@ use gpui::{prelude::*, *};
 use gpui_component::{
     ActiveTheme,
     button::Button,
-    dock::{Panel, PanelEvent},
+    dock::{BasePanel, Panel, PanelEvent},
     h_flex,
     menu::PopupMenu,
     v_flex,
@@ -128,11 +128,11 @@ impl Focusable for FtsConsolePanel {
     }
 }
 
-impl Panel for FtsConsolePanel {
-    fn panel_name(&self) -> &'static str {
-        "SqliteFtsConsole"
-    }
+impl BasePanel for FtsConsolePanel {
+    crate::based_panel_behavior!("SqliteFtsConsole");
+}
 
+impl Panel for FtsConsolePanel {
     fn dropdown_menu(
         &mut self,
         menu: PopupMenu,

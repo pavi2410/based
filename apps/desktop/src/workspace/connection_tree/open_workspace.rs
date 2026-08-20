@@ -2,14 +2,14 @@ use std::sync::Arc;
 
 use ::mongodb::bson::Document;
 use gpui::{Context, Window, prelude::*};
-use gpui_component::dock::{DockItem, PanelView};
+use gpui_component::dock::PanelView;
 
 use crate::connection::AnyConnection;
 use crate::postgres;
 use crate::sqlite;
 use crate::workspace::WorkspaceRef;
 
-use super::super::dock_utils::wrap_center_root;
+use super::super::dock_utils::tabs_layout;
 use super::ConnectionTree;
 use crate::mongodb::change_stream::ChangeStreamPanel;
 use crate::mongodb::pipeline_builder::PipelineBuilderPanel;
@@ -40,25 +40,15 @@ impl ConnectionTree {
         self.set_connection_expanded(idx, true, cx);
         self.load_objects_for_connection(idx, ac.clone(), cx);
 
-        let weak = self.dock_area.downgrade();
         let dashboard = cx.new(|cx| ConnectionDashboardPanel::new(conn_ent.clone(), window, cx));
 
-        let (center, panel_arcs): (DockItem, Vec<Arc<dyn PanelView>>) = match ac {
+        let panel_arcs: Vec<Arc<dyn PanelView>> = match ac {
             AnyConnection::SQLite(ent) => {
                 let pool = ent.read(cx).pool.clone();
                 let query = cx.new(|cx| {
                     sqlite::query_editor::QueryEditorPanel::new(pool, conn_id.clone(), window, cx)
                 });
-                let panels = vec![Arc::new(dashboard) as Arc<dyn PanelView>, Arc::new(query)];
-                (
-                    wrap_center_root(
-                        DockItem::tabs(panels.clone(), &weak, window, cx),
-                        &weak,
-                        window,
-                        cx,
-                    ),
-                    panels,
-                )
+                vec![Arc::new(dashboard) as Arc<dyn PanelView>, Arc::new(query)]
             }
             AnyConnection::Postgres(ent) => {
                 let pool = ent.read(cx).pool.clone();
@@ -70,16 +60,7 @@ impl ConnectionTree {
                         cx,
                     )
                 });
-                let panels = vec![Arc::new(dashboard) as Arc<dyn PanelView>, Arc::new(query)];
-                (
-                    wrap_center_root(
-                        DockItem::tabs(panels.clone(), &weak, window, cx),
-                        &weak,
-                        window,
-                        cx,
-                    ),
-                    panels,
-                )
+                vec![Arc::new(dashboard) as Arc<dyn PanelView>, Arc::new(query)]
             }
             AnyConnection::MongoDB(ent) => {
                 let db = ent.read(cx).database().clone();
@@ -87,26 +68,17 @@ impl ConnectionTree {
                 let builder = cx
                     .new(|cx| PipelineBuilderPanel::new(coll.clone(), conn_id.clone(), window, cx));
                 let stream = cx.new(|cx| ChangeStreamPanel::new(coll, window, cx));
-                let panels = vec![
+                vec![
                     Arc::new(dashboard) as Arc<dyn PanelView>,
                     Arc::new(builder),
                     Arc::new(stream),
-                ];
-                (
-                    wrap_center_root(
-                        DockItem::tabs(panels.clone(), &weak, window, cx),
-                        &weak,
-                        window,
-                        cx,
-                    ),
-                    panels,
-                )
+                ]
             }
         };
 
         // Replaces the Home tab with connection dashboards; Home returns when all DB tabs close.
         self.dock_area.update(cx, |dock, cx| {
-            dock.set_center(center, window, cx);
+            dock.set_center(tabs_layout(&panel_arcs, cx), window, cx);
         });
 
         if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {

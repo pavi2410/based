@@ -3,36 +3,31 @@
 //! Dependency rule: may use `connection/`, `query_store/`, `workspace/{connection_tree, tab_spec,
 //! project_query}`, and `widgets/`. Must not depend on engine modules or dock internals.
 
-mod actions;
+mod entries;
 mod format;
 mod render;
 mod search;
 mod selection;
 mod types;
 
-pub use actions::init;
-pub use types::{PaletteEvent, PaletteResult, WorkspacePaletteAction};
+pub use types::{PaletteEvent, WorkspacePaletteAction};
 
-use gpui::{
-    App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, ScrollHandle,
-    Subscription, Window, point, px,
-};
-use gpui_component::input::{InputEvent, InputState};
+use gpui::{App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, Window};
+use gpui_component::IndexPath;
+use gpui_component::command::CommandState;
 
 use crate::connection::registry::ConnectionRegistry;
 use crate::workspace::connection_tree::ConnectionTree;
 
+use types::PaletteSection;
+
 pub struct CommandPalette {
     registry: Entity<ConnectionRegistry>,
     connection_tree: Entity<ConnectionTree>,
-    search_input: Entity<InputState>,
-    results: Vec<PaletteResult>,
-    selected: usize,
+    command_state: Entity<CommandState>,
+    sections: Vec<PaletteSection>,
     visible: bool,
     focus_handle: FocusHandle,
-    results_scroll: ScrollHandle,
-    pending_scroll_to: Option<usize>,
-    _search_subscription: Subscription,
 }
 
 impl CommandPalette {
@@ -42,27 +37,15 @@ impl CommandPalette {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let search_input = cx
-            .new(|cx| InputState::new(window, cx).placeholder("Search tables, queries, history…"));
-        let _search_subscription =
-            cx.subscribe_in(&search_input, window, Self::on_search_input_event);
-
+        let command_state = cx.new(|cx| CommandState::new(window, cx));
         Self {
             registry,
             connection_tree,
-            search_input,
-            results: vec![],
-            selected: 0,
+            command_state,
+            sections: vec![],
             visible: false,
             focus_handle: cx.focus_handle(),
-            results_scroll: ScrollHandle::new(),
-            pending_scroll_to: None,
-            _search_subscription,
         }
-    }
-
-    fn query(&self, cx: &App) -> String {
-        self.search_input.read(cx).value().trim().to_string()
     }
 
     pub fn is_visible(&self) -> bool {
@@ -72,16 +55,12 @@ impl CommandPalette {
     pub fn toggle(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.visible = !self.visible;
         if self.visible {
-            self.search_input.update(cx, |input, cx| {
-                input.set_value("", window, cx);
+            self.command_state.update(cx, |state, cx| {
+                state.set_query("", window, cx);
             });
-            self.selected = 0;
-            self.results_scroll.set_offset(point(px(0.0), px(0.0)));
             self.refresh_results(cx);
-            self.search_input
-                .read(cx)
-                .focus_handle(cx)
-                .focus(window, cx);
+            let focus = self.command_state.read(cx).focus_handle(cx);
+            focus.focus(window, cx);
         }
         cx.notify();
     }
@@ -91,61 +70,32 @@ impl CommandPalette {
         cx.notify();
     }
 
-    fn open_selected(&mut self, secondary: bool, cx: &mut Context<Self>) {
-        let Some(entry) = self.results.get(self.selected).cloned() else {
+    fn on_query(&mut self, query: &str, cx: &mut Context<Self>) {
+        self.replace_sections(query, cx);
+    }
+
+    fn confirm(&mut self, index: IndexPath, cx: &mut Context<Self>) {
+        let Some(entry) = search::item_at(&self.sections, index.section, index.row).cloned() else {
             return;
         };
-        selection::emit_selection(&entry, secondary, cx);
+        selection::emit_selection(&entry, cx);
         self.dismiss(cx);
     }
 
-    fn on_search_input_event(
-        &mut self,
-        _input: &Entity<InputState>,
-        event: &InputEvent,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if let InputEvent::Change = event {
-            self.selected = 0;
-            self.results_scroll.set_offset(point(px(0.0), px(0.0)));
-            self.refresh_results(cx);
-        }
-    }
-
-    fn select_prev(&mut self, cx: &mut Context<Self>) {
-        if self.results.is_empty() {
-            return;
-        }
-        self.selected = self.selected.saturating_sub(1);
-        self.pending_scroll_to = Some(self.selected);
-        cx.notify();
-    }
-
-    fn select_next(&mut self, cx: &mut Context<Self>) {
-        if self.results.is_empty() {
-            return;
-        }
-        let max = self.results.len() - 1;
-        self.selected = (self.selected + 1).min(max);
-        self.pending_scroll_to = Some(self.selected);
-        cx.notify();
-    }
-
-    pub(crate) fn take_pending_scroll(&mut self) -> Option<usize> {
-        self.pending_scroll_to.take()
-    }
-
     fn refresh_results(&mut self, cx: &mut Context<Self>) {
-        self.results = search::collect_results(
+        let query = self.command_state.read(cx).query(cx);
+        self.replace_sections(query.trim(), cx);
+    }
+
+    fn replace_sections(&mut self, query: &str, cx: &mut Context<Self>) {
+        self.sections = search::collect_sections(
             search::SearchContext {
                 registry: &self.registry,
                 connection_tree: &self.connection_tree,
             },
-            &self.query(cx),
+            query,
             cx,
         );
-        self.selected = self.selected.min(self.results.len().saturating_sub(1));
         cx.notify();
     }
 }
@@ -155,7 +105,7 @@ impl EventEmitter<PaletteEvent> for CommandPalette {}
 impl Focusable for CommandPalette {
     fn focus_handle(&self, cx: &App) -> FocusHandle {
         if self.visible {
-            self.search_input.read(cx).focus_handle(cx)
+            self.command_state.read(cx).focus_handle(cx)
         } else {
             self.focus_handle.clone()
         }

@@ -18,7 +18,7 @@ use gpui_component::{
     menu::{PopupMenu, PopupMenuItem},
 };
 
-use super::dock_utils::{center_panel_by_id, center_tab_panel_count};
+use super::dock_utils::{center_panel_by_id, center_tab_group_count};
 use crate::app::aux_windows::AuxWindows;
 use crate::app::shell::{APP_NAME, identified_window_options, titled_titlebar};
 use crate::bindings::{
@@ -99,11 +99,10 @@ fn can_close_center_pane(panel_id: EntityId, cx: &App) -> bool {
         return false;
     };
     let dock = dock_ref.0.read(cx);
-    let center = dock.center();
-    if center_tab_panel_count(center) <= 1 {
+    if center_tab_group_count(dock) <= 1 {
         return false;
     }
-    center_panel_by_id(center, panel_id, cx).is_some()
+    center_panel_by_id(dock, panel_id, cx).is_some()
 }
 
 /// Append tab commands and "Open in new window" to the tab ⋮ menu.
@@ -349,7 +348,25 @@ macro_rules! based_panel_dropdown {
     };
 }
 
-/// Dock tab label (via `title`) and no zoom control in the tab-strip suffix.
+/// Behavior half of a Based dock panel (`BasePanel`): stable name, no close, no zoom.
+#[macro_export]
+macro_rules! based_panel_behavior {
+    ($name:expr) => {
+        fn panel_name(&self) -> &'static str {
+            $name
+        }
+
+        fn closable(&self, _: &gpui::App) -> bool {
+            false
+        }
+
+        fn zoomable(&self, _: &gpui::App) -> bool {
+            false
+        }
+    };
+}
+
+/// Presentation half: dock tab label (via `title`) and no zoom control.
 #[macro_export]
 macro_rules! based_panel_tab_chrome {
     () => {
@@ -366,11 +383,7 @@ macro_rules! based_panel_tab_chrome {
             )
         }
 
-        fn closable(&self, _: &gpui::App) -> bool {
-            false
-        }
-
-        fn zoomable(&self, _: &gpui::App) -> Option<gpui_component::dock::PanelControl> {
+        fn zoom_control(&self, _: &gpui::App) -> Option<gpui_component::dock::PanelControl> {
             None
         }
     };
@@ -388,11 +401,7 @@ macro_rules! based_panel_tab_chrome {
             )
         }
 
-        fn closable(&self, _: &gpui::App) -> bool {
-            false
-        }
-
-        fn zoomable(&self, _: &gpui::App) -> Option<gpui_component::dock::PanelControl> {
+        fn zoom_control(&self, _: &gpui::App) -> Option<gpui_component::dock::PanelControl> {
             None
         }
     };

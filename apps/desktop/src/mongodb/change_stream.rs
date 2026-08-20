@@ -4,7 +4,7 @@ use gpui::{prelude::*, *};
 use gpui_component::{
     Disableable,
     button::{Button, ButtonVariants},
-    dock::{Panel, PanelEvent},
+    dock::{BasePanel, Panel, PanelEvent},
     h_flex,
     menu::PopupMenu,
     v_flex,
@@ -108,11 +108,11 @@ impl Focusable for ChangeStreamPanel {
     }
 }
 
-impl Panel for ChangeStreamPanel {
-    fn panel_name(&self) -> &'static str {
-        "MongoChangeStream"
-    }
+impl BasePanel for ChangeStreamPanel {
+    crate::based_panel_behavior!("MongoChangeStream");
+}
 
+impl Panel for ChangeStreamPanel {
     fn dropdown_menu(
         &mut self,
         menu: PopupMenu,

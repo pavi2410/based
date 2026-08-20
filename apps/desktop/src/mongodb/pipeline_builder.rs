@@ -6,7 +6,7 @@ use gpui::{prelude::*, *};
 use gpui_component::{
     Sizable as _,
     button::{Button, ButtonVariants},
-    dock::{Panel, PanelEvent},
+    dock::{BasePanel, Panel, PanelEvent},
     h_flex,
     input::EditorState,
     menu::PopupMenu,
@@ -203,11 +203,11 @@ impl Focusable for PipelineBuilderPanel {
     }
 }
 
-impl Panel for PipelineBuilderPanel {
-    fn panel_name(&self) -> &'static str {
-        "MongoPipelineBuilder"
-    }
+impl BasePanel for PipelineBuilderPanel {
+    crate::based_panel_behavior!("MongoPipelineBuilder");
+}
 
+impl Panel for PipelineBuilderPanel {
     fn dropdown_menu(
         &mut self,
         menu: PopupMenu,

@@ -3,7 +3,7 @@
 use gpui::{prelude::*, *};
 use gpui_component::{
     button::Button,
-    dock::{Panel, PanelEvent},
+    dock::{BasePanel, Panel, PanelEvent},
     h_flex,
     input::EditorState,
     menu::PopupMenu,
@@ -264,11 +264,11 @@ impl Focusable for TableInspectorPanel {
     }
 }
 
-impl Panel for TableInspectorPanel {
-    fn panel_name(&self) -> &'static str {
-        "SqliteTableInspector"
-    }
+impl BasePanel for TableInspectorPanel {
+    crate::based_panel_behavior!("SqliteTableInspector");
+}
 
+impl Panel for TableInspectorPanel {
     fn dropdown_menu(
         &mut self,
         menu: PopupMenu,

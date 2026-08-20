@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use gpui::{AnyView, App, Context, Entity, Window, prelude::*};
-use gpui_component::dock::{DockPlacement, PanelView};
+use gpui::{App, Context, Entity, Window, prelude::*};
+use gpui_component::dock::PanelView;
 
 use crate::connection::{AnyConnection, ConnectionEntry, ConnectionId, ConnectionState};
 
@@ -11,6 +11,7 @@ use crate::mongodb::tab_dispatch as mongo_tab_dispatch;
 use crate::postgres::tab_dispatch as pg_tab_dispatch;
 use crate::sqlite::tab_dispatch as sqlite_tab_dispatch;
 use crate::workspace::Workspace;
+use crate::workspace::dock_utils::add_center_panel_view;
 use crate::workspace::panels::object_info::ObjectInfoPanel;
 use crate::workspace::panels::release_notes::ReleaseNotesPanel;
 
@@ -109,11 +110,9 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.dock_area.update(cx, |dock, ecx| {
-            dock.add_panel(panel.clone(), DockPlacement::Center, None, window, ecx);
-        });
+        add_center_panel_view(&self.dock_area, panel.clone(), window, cx);
         self.register_center_panel(panel.clone(), cx);
-        let view: AnyView = panel.as_ref().into();
+        let view = panel.view();
         self.tab_manager.update(cx, |tm, ecx| {
             tm.open_or_focus(spec, view, ecx);
         });

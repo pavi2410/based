@@ -6,7 +6,7 @@ use gpui::{prelude::*, *};
 use gpui_component::{
     ActiveTheme, Sizable as _,
     button::Button,
-    dock::{Panel, PanelEvent},
+    dock::{BasePanel, Panel, PanelEvent},
     menu::PopupMenu,
     table::{Column, TableState},
     v_flex,
@@ -189,11 +189,11 @@ impl Focusable for DocumentViewerPanel {
     }
 }
 
-impl Panel for DocumentViewerPanel {
-    fn panel_name(&self) -> &'static str {
-        "MongoDocumentViewer"
-    }
+impl BasePanel for DocumentViewerPanel {
+    crate::based_panel_behavior!("MongoDocumentViewer");
+}
 
+impl Panel for DocumentViewerPanel {
     fn dropdown_menu(
         &mut self,
         menu: PopupMenu,

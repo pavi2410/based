@@ -17,6 +17,7 @@ use gpui_component::{
 
 use super::aux_windows::{AuxKind, AuxWindows};
 use super::launch::open_onboarding_review;
+use super::logging::open_logs;
 use super::prefs::manual_update_checks_enabled;
 use super::quit;
 use super::updater::{check_now, open_release_notes_for_current};
@@ -64,6 +65,7 @@ gpui::actions!(
         OpenSettingsMenu,
         CheckForUpdates,
         OpenReleaseNotes,
+        OpenLogs,
         HideApp,
         HideOthers,
         ShowAll,
@@ -195,6 +197,7 @@ pub fn init(cx: &mut App) {
     cx.on_action(|_: &OpenOnboarding, cx| open_onboarding(cx));
     cx.on_action(|_: &CheckForUpdates, cx| check_now(cx));
     cx.on_action(|_: &OpenReleaseNotes, cx| open_release_notes_for_current(cx));
+    cx.on_action(|_: &OpenLogs, _cx| open_logs());
     cx.on_action(|_: &OpenProject, cx| prompt_open_project_in_window(cx));
     cx.on_action(|_: &OpenProjectInNewWindow, cx| prompt_open_project_in_new_window(cx));
     cx.on_action(|_: &CloseProject, cx| request_close_project_in_window(cx));
@@ -223,6 +226,7 @@ pub fn init(cx: &mut App) {
             MenuItem::action("Onboarding...", OpenOnboarding),
             MenuItem::separator(),
             MenuItem::action("Release Notes", OpenReleaseNotes),
+            MenuItem::action("Open Logs", OpenLogs),
         ]),
     ]);
 }

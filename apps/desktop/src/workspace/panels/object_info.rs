@@ -4,7 +4,7 @@ use gpui::{
 };
 use gpui_component::{
     ActiveTheme,
-    dock::{Panel, PanelControl, PanelEvent},
+    dock::{BasePanel, Panel, PanelControl, PanelEvent},
     menu::PopupMenu,
     scroll::ScrollableElement,
     v_flex,
@@ -110,11 +110,11 @@ impl Focusable for ConnectionDashboardPanel {
     }
 }
 
-impl Panel for ConnectionDashboardPanel {
-    fn panel_name(&self) -> &'static str {
-        "ConnectionDashboard"
-    }
+impl BasePanel for ConnectionDashboardPanel {
+    crate::based_panel_behavior!("ConnectionDashboard");
+}
 
+impl Panel for ConnectionDashboardPanel {
     fn dropdown_menu(
         &mut self,
         menu: PopupMenu,
@@ -133,12 +133,8 @@ impl Panel for ConnectionDashboardPanel {
         render_strip_tab(label, false, cx.entity().entity_id(), cx)
     }
 
-    fn zoomable(&self, _: &gpui::App) -> Option<PanelControl> {
+    fn zoom_control(&self, _: &gpui::App) -> Option<PanelControl> {
         None
-    }
-
-    fn closable(&self, _: &gpui::App) -> bool {
-        false
     }
 }
 
@@ -264,11 +260,11 @@ impl Focusable for ObjectInfoPanel {
     }
 }
 
-impl Panel for ObjectInfoPanel {
-    fn panel_name(&self) -> &'static str {
-        "ObjectInfo"
-    }
+impl BasePanel for ObjectInfoPanel {
+    crate::based_panel_behavior!("ObjectInfo");
+}
 
+impl Panel for ObjectInfoPanel {
     fn dropdown_menu(
         &mut self,
         menu: PopupMenu,

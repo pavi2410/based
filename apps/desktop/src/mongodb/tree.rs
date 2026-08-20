@@ -7,7 +7,7 @@ use crate::widgets::{metadata_pill, panel_header, sidebar_row_inner_gap, sidebar
 use gpui::{InteractiveElement, prelude::*, *};
 use gpui_component::{
     ActiveTheme, IconName,
-    dock::{Panel, PanelEvent},
+    dock::{BasePanel, Panel, PanelEvent},
     h_flex,
     menu::PopupMenu,
     v_flex,
@@ -70,11 +70,11 @@ impl Focusable for CollectionsTreePanel {
     }
 }
 
-impl Panel for CollectionsTreePanel {
-    fn panel_name(&self) -> &'static str {
-        "MongoCollectionsTree"
-    }
+impl BasePanel for CollectionsTreePanel {
+    crate::based_panel_behavior!("MongoCollectionsTree");
+}
 
+impl Panel for CollectionsTreePanel {
     fn dropdown_menu(
         &mut self,
         menu: PopupMenu,

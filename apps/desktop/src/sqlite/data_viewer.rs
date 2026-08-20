@@ -6,7 +6,7 @@ use gpui::{prelude::*, *};
 use gpui_component::{
     ActiveTheme, Sizable as _,
     button::Button,
-    dock::{Panel, PanelEvent},
+    dock::{BasePanel, Panel, PanelEvent},
     menu::PopupMenu,
     table::{Column, TableState},
     v_flex,
@@ -247,11 +247,11 @@ impl Focusable for DataViewerPanel {
     }
 }
 
-impl Panel for DataViewerPanel {
-    fn panel_name(&self) -> &'static str {
-        "SqliteDataViewer"
-    }
+impl BasePanel for DataViewerPanel {
+    crate::based_panel_behavior!("SqliteDataViewer");
+}
 
+impl Panel for DataViewerPanel {
     fn dropdown_menu(
         &mut self,
         menu: PopupMenu,

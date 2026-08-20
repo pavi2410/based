@@ -1,16 +1,20 @@
 //! Center dock panel registry — tracks live panels, manages Home tab, and keeps TabManager in sync.
 
+use std::slice;
 use std::sync::Arc;
 
 use gpui::{App, Context, Entity, EntityId, Focusable, Window, prelude::*};
-use gpui_component::dock::{DockItem, DockPlacement, Panel, PanelView};
+use gpui_component::dock::{Panel, PanelView};
 
 use super::Workspace;
 use crate::connection::ConnectionId;
 use crate::workspace::panels::ConnectionWizardPanel;
 use crate::workspace::wizard_logic::can_edit_saved_connection;
 
-use super::dock_utils::{activate_center_panel, active_live_center_panel, wrap_center_root};
+use super::dock_utils::{
+    activate_center_panel, active_live_center_panel, add_center_panel_view, panel_entity_id,
+    remove_presentation_panel,
+};
 
 impl Workspace {
     /// Open the New connection form in a center tab.
@@ -30,8 +34,7 @@ impl Workspace {
             return;
         }
         if let Some(panel) = self.find_edit_wizard_panel(&conn_id, cx) {
-            let center = self.dock_area.read(cx).center().clone();
-            activate_center_panel(&center, panel, window, cx);
+            activate_center_panel(&self.dock_area, panel, window, cx);
             cx.notify();
             return;
         }
@@ -68,9 +71,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         let arc: Arc<dyn PanelView> = Arc::new(panel);
-        self.dock_area.update(cx, |dock, ecx| {
-            dock.add_panel(arc.clone(), DockPlacement::Center, None, window, ecx);
-        });
+        add_center_panel_view(&self.dock_area, arc.clone(), window, cx);
         self.register_center_panel(arc, cx);
         cx.notify();
     }
@@ -108,22 +109,23 @@ impl Workspace {
     pub(crate) fn find_center_panel(
         &self,
         panel_id: EntityId,
-        cx: &App,
+        _cx: &App,
     ) -> Option<Arc<dyn PanelView>> {
         self.center_panels
             .iter()
-            .find(|p| p.panel_id(cx) == panel_id)
+            .find(|p| panel_entity_id(p) == panel_id)
             .cloned()
     }
 
     /// Rebuild the center dock with a single Home tab (used after the last tab closes).
     fn reset_center_to_home(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let weak = self.dock_area.downgrade();
         let home_arc: Arc<dyn PanelView> = Arc::new(self.home_panel.clone());
-        let tabs = DockItem::tab(self.home_panel.clone(), &weak, window, cx);
-        let center = wrap_center_root(tabs, &weak, window, cx);
         self.dock_area.update(cx, |dock, ecx| {
-            dock.set_center(center, window, ecx);
+            dock.set_center(
+                super::dock_utils::tabs_layout(slice::from_ref(&home_arc), ecx),
+                window,
+                ecx,
+            );
         });
         self.replace_center_panels(vec![home_arc], cx);
         self.home_panel.read(cx).focus_handle(cx).focus(window, cx);
@@ -133,23 +135,24 @@ impl Workspace {
     /// Focus the Home tab, re-adding it to the center strip if it was replaced.
     pub fn show_home(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let home_id = self.home_panel.entity_id();
-        let home_present = self.center_panels.iter().any(|p| p.panel_id(cx) == home_id);
+        let home_present = self
+            .center_panels
+            .iter()
+            .any(|p| panel_entity_id(p) == home_id);
 
         if home_present {
             let home = self
                 .find_center_panel(home_id, cx)
                 .unwrap_or_else(|| Arc::new(self.home_panel.clone()) as Arc<dyn PanelView>);
-            let center = self.dock_area.read(cx).center().clone();
-            activate_center_panel(&center, home, window, cx);
+            activate_center_panel(&self.dock_area, home, window, cx);
         } else {
-            let dock = self.dock_area.read(cx);
-            let has_other_live = active_live_center_panel(dock.center(), cx)
-                .is_some_and(|p| p.panel_id(cx) != home_id);
+            let has_other_live = {
+                let dock = self.dock_area.read(cx);
+                active_live_center_panel(dock, cx).is_some_and(|p| panel_entity_id(&p) != home_id)
+            };
             if has_other_live {
                 let panel: Arc<dyn PanelView> = Arc::new(self.home_panel.clone());
-                self.dock_area.update(cx, |dock, ecx| {
-                    dock.add_panel(panel.clone(), DockPlacement::Center, None, window, ecx);
-                });
+                add_center_panel_view(&self.dock_area, panel.clone(), window, cx);
                 self.register_center_panel(panel, cx);
             } else {
                 self.reset_center_to_home(window, cx);
@@ -163,12 +166,15 @@ impl Workspace {
 
     /// If the center strip has no visible tabs, rebuild Home (Chrome new-tab respawn).
     pub fn ensure_home_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let dock = self.dock_area.read(cx);
-        if let Some(live) = active_live_center_panel(dock.center(), cx) {
+        let live = {
+            let dock = self.dock_area.read(cx);
+            active_live_center_panel(dock, cx)
+        };
+        if let Some(live) = live {
             if !self
                 .center_panels
                 .iter()
-                .any(|p| p.panel_id(cx) == live.panel_id(cx))
+                .any(|p| panel_entity_id(p) == panel_entity_id(&live))
             {
                 self.register_center_panel(live, cx);
             }
@@ -197,7 +203,7 @@ impl Workspace {
             .active_tab()
             .filter(|t| self.center_panels.iter().any(|p| p.view() == t.view))
             .map(|t| t.view.clone())
-            .or_else(|| active_live_center_panel(dock.center(), cx).map(|p| p.view()));
+            .or_else(|| active_live_center_panel(dock, cx).map(|p| p.view()));
         self.tab_manager.update(cx, |tm, ecx| {
             tm.reconcile_dock_tabs(&entries, active, ecx);
         });
@@ -217,7 +223,7 @@ impl Workspace {
         }
         self.center_panels
             .iter()
-            .any(|p| p.panel_id(cx) == panel_id)
+            .any(|p| panel_entity_id(p) == panel_id)
     }
 
     /// Close a specific panel in the center tab strip (tab ⋮ menu).
@@ -234,7 +240,7 @@ impl Workspace {
             return;
         };
         self.dock_area.update(cx, |dock, ecx| {
-            dock.remove_panel(panel, DockPlacement::Center, window, ecx);
+            remove_presentation_panel(dock, &panel, window, ecx);
         });
         self.unregister_center_panel(panel_id);
         self.sync_tab_manager_from_dock(cx);
@@ -244,8 +250,8 @@ impl Workspace {
     /// Close the active center tab (⌘W / CloseTab).
     pub fn close_active_center_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let dock = self.dock_area.read(cx);
-        let active_id = active_live_center_panel(dock.center(), cx)
-            .map(|p| p.panel_id(cx))
+        let active_id = active_live_center_panel(dock, cx)
+            .map(|p| panel_entity_id(&p))
             .or_else(|| {
                 self.tab_manager
                     .read(cx)
@@ -261,6 +267,6 @@ impl Workspace {
 
     pub fn active_center_panel_id(&self, cx: &App) -> Option<EntityId> {
         let dock = self.dock_area.read(cx);
-        active_live_center_panel(dock.center(), cx).map(|p| p.panel_id(cx))
+        active_live_center_panel(dock, cx).map(|p| panel_entity_id(&p))
     }
 }

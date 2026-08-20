@@ -1,3 +1,4 @@
+use crate::app::logging::open_logs;
 use crate::app::prefs::manual_update_checks_enabled;
 use crate::app::quit::request_window_close;
 use crate::app::updater::check_now;
@@ -265,6 +266,13 @@ impl RenderOnce for TopbarRight {
                                     .icon(IconName::BookOpen)
                                     .on_click(|_, _window, cx| {
                                         open_release_notes_for_current(cx);
+                                    }),
+                            )
+                            .item(
+                                PopupMenuItem::new("Open Logs")
+                                    .icon(IconName::FolderOpen)
+                                    .on_click(|_, _window, _cx| {
+                                        open_logs();
                                     }),
                             )
                     }),

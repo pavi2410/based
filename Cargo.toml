@@ -70,20 +70,24 @@ type_complexity = "allow"
 [patch.crates-io]
 psm = { git = "https://github.com/rust-lang/stacker", rev = "1d45da4653e1d6e5d273cf20e215b372d84ade5e" }
 
-# Performance-critical rendering crates benefit from full optimisation even in dev.
+# Fast incremental rebuilds of workspace crates; UI/text/layout deps fully optimized.
 [profile.dev]
-debug = "limited"
+debug = "line-tables-only"
 split-debuginfo = "unpacked"
-incremental = true
 
 [profile.dev.package]
 gpui = { opt-level = 3 }
 gpui_platform = { opt-level = 3 }
 gpui_tokio = { opt-level = 3 }
 gpui_macros = { opt-level = 3 }
-resvg = { opt-level = 3 }
-rustybuzz = { opt-level = 3 }
+"gpui-component" = { opt-level = 3 }
 taffy = { opt-level = 3 }
+resvg = { opt-level = 3 }
+usvg = { opt-level = 3 }
+tiny-skia = { opt-level = 3 }
+rustybuzz = { opt-level = 3 }
+cosmic-text = { opt-level = 3 }
+swash = { opt-level = 3 }
 ttf-parser = { opt-level = 3 }
 tree-sitter = { opt-level = 3 }
 ropey = { opt-level = 3 }
@@ -91,3 +95,4 @@ ropey = { opt-level = 3 }
 [profile.release]
 lto = "thin"
 codegen-units = 1
+strip = true

@@ -11,21 +11,46 @@ use crate::workspace::connection_tree::ConnectionTree;
 use crate::workspace::project_query::target_hint;
 use crate::workspace::{QueryEditorInit, TabSpec};
 
-use super::types::{PaletteResult, ResultKind, WorkspacePaletteAction};
+use super::types::{PaletteResult, PaletteSection, ResultKind, WorkspacePaletteAction};
 
 pub struct SearchContext<'a> {
     pub registry: &'a Entity<ConnectionRegistry>,
     pub connection_tree: &'a Entity<ConnectionTree>,
 }
 
-pub fn collect_results(ctx: SearchContext<'_>, query: &str, cx: &App) -> Vec<PaletteResult> {
+pub fn collect_sections(ctx: SearchContext<'_>, query: &str, cx: &App) -> Vec<PaletteSection> {
     let q = query.to_lowercase();
-    let mut results = vec![];
-    push_workspace_commands(&mut results, &q, cx);
-    push_schema_objects(&mut results, ctx.connection_tree, &q, cx);
-    push_saved_queries(&mut results, &q, cx);
-    push_history(&mut results, ctx.registry, &q, cx);
-    results
+    let mut commands = vec![];
+    let mut schema = vec![];
+    let mut queries = vec![];
+    let mut history = vec![];
+    push_workspace_commands(&mut commands, &q, cx);
+    push_schema_objects(&mut schema, ctx.connection_tree, &q, cx);
+    push_saved_queries(&mut queries, &q, cx);
+    push_history(&mut history, ctx.registry, &q, cx);
+    sections_from_parts(commands, schema, queries, history)
+}
+
+pub fn sections_from_parts(
+    commands: Vec<PaletteResult>,
+    schema: Vec<PaletteResult>,
+    queries: Vec<PaletteResult>,
+    history: Vec<PaletteResult>,
+) -> Vec<PaletteSection> {
+    [
+        ("Commands", commands),
+        ("Schema", schema),
+        ("Queries", queries),
+        ("History", history),
+    ]
+    .into_iter()
+    .filter(|(_, items)| !items.is_empty())
+    .map(|(heading, items)| PaletteSection { heading, items })
+    .collect()
+}
+
+pub fn item_at(sections: &[PaletteSection], section: usize, row: usize) -> Option<&PaletteResult> {
+    sections.get(section)?.items.get(row)
 }
 
 fn blank_command(action: WorkspacePaletteAction, label: &str, sublabel: &str) -> PaletteResult {
@@ -247,5 +272,43 @@ mod tests {
         assert!(wants_open_logs_command("open logs"));
         assert!(!wants_open_logs_command("catalog"));
         assert!(!wants_open_logs_command("onboarding"));
+    }
+
+    fn stub_result(kind: ResultKind, label: &str) -> PaletteResult {
+        PaletteResult {
+            kind,
+            label: label.into(),
+            sublabel: String::new(),
+            conn_label: String::new(),
+            spec: TabSpec::Home,
+            project_query_path: None,
+            command_action: None,
+        }
+    }
+
+    #[test]
+    fn sections_omit_empty_groups_and_keep_index_paths_stable() {
+        let sections = sections_from_parts(
+            vec![stub_result(ResultKind::Command, "Show Home")],
+            vec![],
+            vec![stub_result(ResultKind::SavedQuery, "active")],
+            vec![],
+        );
+        assert_eq!(
+            sections
+                .iter()
+                .map(|section| section.heading)
+                .collect::<Vec<_>>(),
+            ["Commands", "Queries"]
+        );
+        assert_eq!(
+            item_at(&sections, 0, 0).map(|item| item.label.as_str()),
+            Some("Show Home")
+        );
+        assert_eq!(
+            item_at(&sections, 1, 0).map(|item| item.label.as_str()),
+            Some("active")
+        );
+        assert!(item_at(&sections, 2, 0).is_none());
     }
 }

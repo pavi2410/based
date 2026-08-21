@@ -4,7 +4,7 @@ use gpui::{prelude::*, *};
 use gpui_component::{ActiveTheme, StyledExt, h_flex, kbd::Kbd, v_flex};
 
 use crate::app::prefs;
-use crate::bindings::{DismissCommandPalette, ToggleCommandPalette, ToggleSidebarRail};
+use crate::bindings::{ToggleCommandPalette, ToggleSidebarRail};
 
 /// Unbound / literal keys — `Kbd` formats symbols vs labels per platform.
 pub fn kbd(stroke: &str) -> Kbd {
@@ -65,39 +65,4 @@ fn shortcut_row_styled(label: &'static str, kbd_el: Kbd, muted: Hsla) -> impl In
         .items_center()
         .child(div().text_xs().text_color(muted).child(label))
         .child(kbd_el)
-}
-
-fn palette_hint_kbd(k: Kbd, cx: &App) -> Kbd {
-    k.outline().text_color(cx.theme().foreground)
-}
-
-/// Command palette footer key hints.
-pub fn palette_footer_hints(window: &Window, cx: &mut App) -> impl IntoElement {
-    let theme = cx.theme();
-    let muted = theme.muted_foreground;
-    let dismiss = kbd_for_action(&DismissCommandPalette, window).unwrap_or_else(|| kbd("escape"));
-    h_flex()
-        .flex_shrink_0()
-        .w_full()
-        .px_3()
-        .py_2()
-        .gap_2()
-        .items_center()
-        .border_t_1()
-        .border_color(theme.border)
-        .bg(theme.muted.opacity(0.12))
-        .text_xs()
-        .text_color(muted)
-        .child(palette_hint_kbd(kbd("up"), cx))
-        .child(palette_hint_kbd(kbd("down"), cx))
-        .child("navigate")
-        .child("·")
-        .child(palette_hint_kbd(kbd("enter"), cx))
-        .child("open")
-        .child("·")
-        .child(palette_hint_kbd(shortcut_run_kbd(), cx))
-        .child("query")
-        .child("·")
-        .child(palette_hint_kbd(dismiss, cx))
-        .child("dismiss")
 }

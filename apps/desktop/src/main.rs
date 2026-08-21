@@ -54,7 +54,6 @@ fn main() {
             }
             fonts::register_bundled_fonts(cx);
             bindings::init(cx);
-            command_palette::init(cx);
             app::shell::init(cx);
             app::prefs::install(cx);
 

@@ -2,7 +2,7 @@ use crate::connection::ConnectionId;
 use crate::workspace::TabSpec;
 
 /// Emitted when the user picks a palette row — workspace opens the tab.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum PaletteEvent {
     OpenTab(TabSpec),
     OpenProjectQuery(String),
@@ -14,7 +14,7 @@ pub enum PaletteEvent {
     WorkspaceAction(WorkspacePaletteAction),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum WorkspacePaletteAction {
     NewLooseQuery,
     NewCollection,
@@ -47,4 +47,11 @@ pub enum ResultKind {
     SavedQuery,
     History,
     Command,
+}
+
+/// One heading plus its rows, used as a `Command` group / `IndexPath` section.
+#[derive(Clone)]
+pub struct PaletteSection {
+    pub heading: &'static str,
+    pub items: Vec<PaletteResult>,
 }

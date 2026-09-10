@@ -1,16 +1,17 @@
 //! Tokio runtime hosted as a GPUI global. Dropping a spawned GPUI task aborts the Tokio work.
 
 use std::future::Future;
+use std::result::Result as StdResult;
 use std::sync::OnceLock;
 
 use anyhow::Result;
 use gpui_kit::{App, AppContext, Global, ReadGlobal, Task};
-use tokio::runtime::Handle;
-use tokio::task::JoinError;
+use tokio::runtime::{Builder, Handle, Runtime};
+use tokio::task::{AbortHandle, JoinError};
 
 static HANDLE: OnceLock<Handle> = OnceLock::new();
 
-struct AbortOnDrop(tokio::task::AbortHandle);
+struct AbortOnDrop(AbortHandle);
 
 impl Drop for AbortOnDrop {
     fn drop(&mut self) {
@@ -19,7 +20,7 @@ impl Drop for AbortOnDrop {
 }
 
 struct GlobalTokio {
-    owned_runtime: Option<tokio::runtime::Runtime>,
+    owned_runtime: Option<Runtime>,
     handle: Handle,
 }
 
@@ -37,7 +38,7 @@ impl Drop for GlobalTokio {
 pub struct Tokio;
 
 impl Tokio {
-    pub fn spawn<C, Fut, R>(cx: &C, f: Fut) -> Task<std::result::Result<R, JoinError>>
+    pub fn spawn<C, Fut, R>(cx: &C, f: Fut) -> Task<StdResult<R, JoinError>>
     where
         C: AppContext,
         Fut: Future<Output = R> + Send + 'static,
@@ -77,7 +78,7 @@ impl Tokio {
 }
 
 pub fn init(cx: &mut App) {
-    let runtime = tokio::runtime::Builder::new_multi_thread()
+    let runtime = Builder::new_multi_thread()
         .worker_threads(2)
         .enable_all()
         .build()

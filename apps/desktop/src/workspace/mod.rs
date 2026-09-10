@@ -49,6 +49,7 @@ use crate::command_palette::{
 use crate::connection::ConnectionId;
 use crate::connection::ConnectionOrigin;
 use crate::connection::registry::ConnectionRegistry;
+use crate::db::Tokio;
 use based_project::ProjectQuery;
 
 use crate::project::{
@@ -306,7 +307,7 @@ impl Workspace {
                 .collect(),
         };
         let store = storage::store(cx);
-        let handle = crate::db::Tokio::handle(cx);
+        let handle = Tokio::handle(cx);
         if let Err(err) = handle.block_on(snapshot.save(&store)) {
             log::warn!("session save failed: {err:#}");
         }
@@ -314,7 +315,7 @@ impl Workspace {
 
     fn restore_session(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let store = storage::store(cx);
-        let handle = crate::db::Tokio::handle(cx);
+        let handle = Tokio::handle(cx);
         let session = handle.block_on(tabs::SessionSnapshot::load(&store));
 
         let active_spec = session

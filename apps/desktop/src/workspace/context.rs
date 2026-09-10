@@ -7,6 +7,7 @@ use based_storage::{MetadataStore, WorkspaceSummary};
 use based_workspace::WorkspaceModel;
 use gpui_kit::{App, Global};
 
+use crate::db::Tokio;
 use crate::storage;
 
 pub const NO_ENVIRONMENT_LABEL: &str = "No Environment";
@@ -22,7 +23,7 @@ impl Global for WorkspaceContext {}
 impl WorkspaceContext {
     pub fn load_initial(cx: &App) -> Result<Self> {
         let store = storage::try_store(cx).context("metadata store not initialized")?;
-        let handle = crate::db::Tokio::handle(cx);
+        let handle = Tokio::handle(cx);
         handle.block_on(async move {
             let active = store.ensure_default_workspace().await?;
             let summaries = store.list_workspaces().await?;

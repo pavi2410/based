@@ -5,8 +5,8 @@
 //! border, header strip, and width so every pane looks consistent.
 
 use crate::app::prefs::ui_font_family;
-use gpui::{App, FontWeight, IntoElement, ParentElement, Styled, div, px};
-use gpui_component::{ActiveTheme, IconName, h_flex, v_flex};
+use gpui_kit::component::{ActiveTheme, IconName, h_flex, v_flex};
+use gpui_kit::{App, FontWeight, IntoElement, ParentElement, Styled, div, px};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SidePane {

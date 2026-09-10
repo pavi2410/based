@@ -19,8 +19,8 @@ The project model is centered on a committed `.based/` folder:
 
 The desktop app is **pure Rust** and lives in `apps/desktop`.
 
-- UI: `gpui` + `gpui-component`
-- Async runtime bridging: `gpui_tokio`
+- UI: `gpui-kit` (GPUI + styled components)
+- Async runtime bridging: Tokio via `db.rs`
 - Data engines: SQLx-backed SQL engines and MongoDB driver
 - Windowing: native multi-window behavior through GPUI app/window primitives
 

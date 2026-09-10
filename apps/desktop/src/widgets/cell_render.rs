@@ -2,10 +2,10 @@
 
 use std::cmp::Ordering;
 
-use gpui::{App, Div, IntoElement, SharedString, Window, div, prelude::*};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, Icon, IconName, Sizable as _, StyleSized, h_flex, tooltip::Tooltip,
 };
+use gpui_kit::{App, Div, IntoElement, SharedString, Window, div, prelude::*};
 
 use crate::app::prefs;
 

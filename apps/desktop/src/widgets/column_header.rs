@@ -2,8 +2,8 @@
 
 use std::collections::HashMap;
 
-use gpui::{App, Hsla, IntoElement, SharedString, Window, div, prelude::*, px};
-use gpui_component::{ActiveTheme, Icon, Sizable as _, h_flex, tooltip::Tooltip, v_flex};
+use gpui_kit::component::{ActiveTheme, Icon, Sizable as _, h_flex, tooltip::Tooltip, v_flex};
+use gpui_kit::{App, Hsla, IntoElement, SharedString, Window, div, prelude::*, px};
 
 use crate::app::prefs;
 
@@ -11,7 +11,7 @@ pub const KEY_ICON: &str = "icons/key.svg";
 pub const LINK_ICON: &str = "icons/link.svg";
 pub const SHIELD_CHECK_ICON: &str = "icons/shield-check.svg";
 
-/// Per-column metadata for grid headers (parallel to [`gpui_component::table::Column::key`]).
+/// Per-column metadata for grid headers (parallel to [`gpui_kit::component::table::Column::key`]).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct GridColumnMeta {
     pub data_type: Option<String>,

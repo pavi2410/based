@@ -11,8 +11,8 @@ Tracked after GUI Open Project (in-place switch + new-process window). Data mode
 - [ ] **Per-project session restore** — key `SessionSnapshot` in `based-storage` by project path instead of process-global session; restore tabs on in-place switch
 - [ ] **True multi-window single-process** — move `ProjectContext`, `QueryStore`, `WorkspaceRef` off process globals so each window owns a project without spawning a new process
 
-## Tab strip (gpui-component)
+## Tab strip (gpui-kit)
 
 Upstream parity for center editor tabs. Today: Close tab in panel ⋯ menu and ⌘W / Ctrl+W; Home respawns when the last tab closes. See `CLAUDE.md` (Tab strip).
 
-- [ ] **Per-tab × and overflow chevron** — [gpui-component](https://github.com/longbridge/gpui-component) `TabPanel` API (Tabs-demo parity); no fork in this repo. Optional release-note mention until shipped.
+- [ ] **Per-tab × and overflow chevron** — [gpui-kit](https://github.com/longbridge/gpui-kit) `TabPanel` API (Tabs-demo parity); no fork in this repo. Optional release-note mention until shipped.

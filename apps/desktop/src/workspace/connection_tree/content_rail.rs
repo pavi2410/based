@@ -1,10 +1,6 @@
 //! Catalog / Queries split for the focused connection.
 
-use gpui::{
-    App, Entity, FontWeight, IntoElement, MouseButton, ParentElement, SharedString, WeakEntity,
-    div, prelude::*, px,
-};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants},
     h_flex,
@@ -12,6 +8,10 @@ use gpui_component::{
     list::List,
     list::ListState,
     v_flex,
+};
+use gpui_kit::{
+    App, Entity, FontWeight, IntoElement, MouseButton, ParentElement, SharedString, WeakEntity,
+    div, prelude::*, px,
 };
 
 use crate::query_store::QueryStore;

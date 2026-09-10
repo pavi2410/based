@@ -1,13 +1,13 @@
-use gpui::{
-    App, Context, Entity, FocusHandle, Focusable, IntoElement, Render, SharedString, Window, div,
-    prelude::*,
-};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme,
     dock::{BasePanel, Panel, PanelControl, PanelEvent},
     menu::PopupMenu,
     scroll::ScrollableElement,
     v_flex,
+};
+use gpui_kit::{
+    App, Context, Entity, FocusHandle, Focusable, IntoElement, Render, SharedString, Window, div,
+    prelude::*,
 };
 use sqlx::SqlitePool;
 
@@ -102,7 +102,7 @@ impl ConnectionDashboardPanel {
     }
 }
 
-impl gpui::EventEmitter<PanelEvent> for ConnectionDashboardPanel {}
+impl gpui_kit::EventEmitter<PanelEvent> for ConnectionDashboardPanel {}
 
 impl Focusable for ConnectionDashboardPanel {
     fn focus_handle(&self, _: &App) -> FocusHandle {
@@ -124,7 +124,7 @@ impl Panel for ConnectionDashboardPanel {
         based_panel_dropdown!(menu, self, cx)
     }
 
-    fn tab_name(&self, _: &gpui::App) -> Option<gpui::SharedString> {
+    fn tab_name(&self, _: &gpui_kit::App) -> Option<gpui_kit::SharedString> {
         None
     }
 
@@ -133,7 +133,7 @@ impl Panel for ConnectionDashboardPanel {
         render_strip_tab(label, false, cx.entity().entity_id(), cx)
     }
 
-    fn zoom_control(&self, _: &gpui::App) -> Option<PanelControl> {
+    fn zoom_control(&self, _: &gpui_kit::App) -> Option<PanelControl> {
         None
     }
 }
@@ -231,7 +231,7 @@ pub struct ObjectInfoPanel {
     focus_handle: FocusHandle,
     name: String,
     kind: String,
-    pub(crate) tab_label: gpui::SharedString,
+    pub(crate) tab_label: gpui_kit::SharedString,
 }
 
 impl ObjectInfoPanel {
@@ -252,7 +252,7 @@ impl ObjectInfoPanel {
     }
 }
 
-impl gpui::EventEmitter<PanelEvent> for ObjectInfoPanel {}
+impl gpui_kit::EventEmitter<PanelEvent> for ObjectInfoPanel {}
 
 impl Focusable for ObjectInfoPanel {
     fn focus_handle(&self, _: &App) -> FocusHandle {
@@ -313,7 +313,7 @@ fn dashboard_description_section(
         .child(
             div()
                 .text_sm()
-                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .font_weight(gpui_kit::FontWeight::SEMIBOLD)
                 .text_color(cx.theme().foreground)
                 .child(title),
         )
@@ -331,14 +331,14 @@ fn dashboard_card(
         .gap_1()
         .p_3()
         .w_full()
-        .rounded(gpui::px(PANEL_RADIUS))
+        .rounded(gpui_kit::px(PANEL_RADIUS))
         .border_1()
         .border_color(cx.theme().border.opacity(0.85))
         .bg(cx.theme().muted.opacity(0.22))
         .child(
             div()
                 .text_sm()
-                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .font_weight(gpui_kit::FontWeight::SEMIBOLD)
                 .text_color(cx.theme().foreground)
                 .child(title),
         )

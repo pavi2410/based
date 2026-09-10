@@ -1,5 +1,5 @@
-use gpui::{App, AppContext, Task};
-use gpui_tokio::Tokio;
+use crate::db::Tokio;
+use gpui_kit::{App, AppContext, Task};
 
 use super::lifecycle::Connectable;
 use super::{AnyConnection, ConnectionConfig};

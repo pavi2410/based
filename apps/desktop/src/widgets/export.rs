@@ -2,7 +2,7 @@
 // and save them to a user-chosen path via an rfd save-file dialog.
 
 use anyhow::Context as _;
-use gpui::AsyncApp;
+use gpui_kit::AsyncApp;
 use rust_xlsxwriter::{Format, Workbook};
 
 use crate::db;

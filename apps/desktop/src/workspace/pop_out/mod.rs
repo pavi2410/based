@@ -10,13 +10,15 @@ mod impls;
 
 use std::collections::HashMap;
 
-use gpui::prelude::*;
-use gpui::*;
-use gpui_component::{
-    Root, Theme,
+use gpui_kit::component::{
+    Placement, Root, Theme,
     dock::Panel,
     menu::{PopupMenu, PopupMenuItem},
 };
+use gpui_kit::prelude::*;
+use gpui_kit::*;
+
+pub(crate) use gpui_kit::component::dock::PanelControl;
 
 use super::dock_utils::{center_panel_by_id, center_tab_group_count};
 use crate::app::aux_windows::AuxWindows;
@@ -244,7 +246,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
                         return;
                     };
                     workspace.update(app, |ws, cx| {
-                        ws.split_center_pane(gpui_component::Placement::Left, window, cx);
+                        ws.split_center_pane(Placement::Left, window, cx);
                     });
                 }),
         )
@@ -257,7 +259,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
                         return;
                     };
                     workspace.update(app, |ws, cx| {
-                        ws.split_center_pane(gpui_component::Placement::Right, window, cx);
+                        ws.split_center_pane(Placement::Right, window, cx);
                     });
                 }),
         )
@@ -270,7 +272,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
                         return;
                     };
                     workspace.update(app, |ws, cx| {
-                        ws.split_center_pane(gpui_component::Placement::Top, window, cx);
+                        ws.split_center_pane(Placement::Top, window, cx);
                     });
                 }),
         )
@@ -283,7 +285,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
                         return;
                     };
                     workspace.update(app, |ws, cx| {
-                        ws.split_center_pane(gpui_component::Placement::Bottom, window, cx);
+                        ws.split_center_pane(Placement::Bottom, window, cx);
                     });
                 }),
         )
@@ -356,11 +358,11 @@ macro_rules! based_panel_behavior {
             $name
         }
 
-        fn closable(&self, _: &gpui::App) -> bool {
+        fn closable(&self, _: &gpui_kit::App) -> bool {
             false
         }
 
-        fn zoomable(&self, _: &gpui::App) -> bool {
+        fn zoomable(&self, _: &gpui_kit::App) -> bool {
             false
         }
     };
@@ -370,7 +372,7 @@ macro_rules! based_panel_behavior {
 #[macro_export]
 macro_rules! based_panel_tab_chrome {
     () => {
-        fn tab_name(&self, _: &gpui::App) -> Option<gpui::SharedString> {
+        fn tab_name(&self, _: &gpui_kit::App) -> Option<gpui_kit::SharedString> {
             None
         }
 
@@ -383,12 +385,15 @@ macro_rules! based_panel_tab_chrome {
             )
         }
 
-        fn zoom_control(&self, _: &gpui::App) -> Option<gpui_component::dock::PanelControl> {
+        fn zoom_control(
+            &self,
+            _: &gpui_kit::App,
+        ) -> Option<$crate::workspace::pop_out::PanelControl> {
             None
         }
     };
     (dirty) => {
-        fn tab_name(&self, _: &gpui::App) -> Option<gpui::SharedString> {
+        fn tab_name(&self, _: &gpui_kit::App) -> Option<gpui_kit::SharedString> {
             None
         }
 
@@ -401,7 +406,10 @@ macro_rules! based_panel_tab_chrome {
             )
         }
 
-        fn zoom_control(&self, _: &gpui::App) -> Option<gpui_component::dock::PanelControl> {
+        fn zoom_control(
+            &self,
+            _: &gpui_kit::App,
+        ) -> Option<$crate::workspace::pop_out::PanelControl> {
             None
         }
     };

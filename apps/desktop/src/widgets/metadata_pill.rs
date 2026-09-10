@@ -1,7 +1,7 @@
 //! Metadata pill chip — compact label/value badge for panel toolbars.
 
-use gpui::{prelude::*, *};
-use gpui_component::{ActiveTheme, h_flex};
+use gpui_kit::component::{ActiveTheme, h_flex};
+use gpui_kit::{prelude::*, *};
 
 use crate::app::prefs;
 

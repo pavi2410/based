@@ -1,16 +1,16 @@
 //! Separate settings window (theme, typography, query defaults).
 
-use gpui::{
-    App, Context, FocusHandle, Focusable, IntoElement, ParentElement, Render, SharedString,
-    StyleRefinement, Styled, Window, div, prelude::*, px,
-};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, Icon, IconName, Sizable as _, ThemeMode,
     button::Button,
     group_box::GroupBoxVariant,
     searchable_list::SearchableListItem,
     setting::{NumberFieldOptions, SettingField, SettingGroup, SettingItem, SettingPage, Settings},
     v_flex,
+};
+use gpui_kit::{
+    App, Context, FocusHandle, Focusable, IntoElement, ParentElement, Render, SharedString,
+    StyleRefinement, Styled, Window, div, prelude::*, px,
 };
 
 use crate::app::prefs::{
@@ -518,7 +518,7 @@ fn dev_settings_page() -> SettingPage {
 }
 
 impl Focusable for SettingsWindow {
-    fn focus_handle(&self, _: &gpui::App) -> FocusHandle {
+    fn focus_handle(&self, _: &gpui_kit::App) -> FocusHandle {
         self.focus_handle.clone()
     }
 }

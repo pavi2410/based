@@ -4,12 +4,12 @@ use std::env;
 use std::path::{Path, PathBuf};
 use std::process;
 
-use gpui::{App, BorrowAppContext, Entity, SharedString, Window, prelude::*};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, WindowExt,
     button::{Button, ButtonVariants},
     dialog::{DialogAction, DialogClose, DialogFooter},
 };
+use gpui_kit::{App, BorrowAppContext, Entity, SharedString, Window, prelude::*};
 
 use crate::app::prefs;
 use crate::app::quit;
@@ -146,7 +146,7 @@ pub fn open_project_in_new_process(root: PathBuf, cx: &mut App) {
 pub fn maybe_show_pending_project_switch_dialog(
     workspace: &mut Workspace,
     window: &mut Window,
-    cx: &mut gpui::Context<Workspace>,
+    cx: &mut gpui_kit::Context<Workspace>,
 ) {
     if !workspace.pending_project_switch_confirm {
         return;
@@ -168,7 +168,7 @@ pub fn maybe_show_pending_project_switch_dialog(
 pub fn maybe_show_pending_project_close_dialog(
     workspace: &mut Workspace,
     window: &mut Window,
-    cx: &mut gpui::Context<Workspace>,
+    cx: &mut gpui_kit::Context<Workspace>,
 ) {
     if !workspace.pending_project_close_confirm {
         return;
@@ -233,7 +233,7 @@ fn show_switch_project_dialog(
     registry: Entity<ConnectionRegistry>,
     dirty: bool,
     window: &mut Window,
-    cx: &mut gpui::Context<Workspace>,
+    cx: &mut gpui_kit::Context<Workspace>,
 ) {
     let live = live_connection_count(&registry, cx);
     let description =
@@ -273,7 +273,7 @@ fn show_close_project_dialog(
     registry: Entity<ConnectionRegistry>,
     dirty: bool,
     window: &mut Window,
-    cx: &mut gpui::Context<Workspace>,
+    cx: &mut gpui_kit::Context<Workspace>,
 ) {
     let live = live_project_connection_count(&registry, cx);
     let description =
@@ -358,7 +358,7 @@ pub fn complete_close_project_in_window(window: &mut Window, cx: &mut App) {
 fn close_project_in_workspace(
     workspace: &mut Workspace,
     window: &mut Window,
-    cx: &mut gpui::Context<Workspace>,
+    cx: &mut gpui_kit::Context<Workspace>,
 ) {
     if !has_open_project(cx) {
         return;

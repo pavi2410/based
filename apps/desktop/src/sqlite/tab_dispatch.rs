@@ -6,8 +6,8 @@
 
 use std::sync::Arc;
 
-use gpui::{Context, Window, prelude::*};
-use gpui_component::dock::PanelView;
+use gpui_kit::component::dock::PanelView;
+use gpui_kit::{Context, Window, prelude::*};
 use sqlx::SqlitePool;
 
 use crate::connection::ConnectionId;

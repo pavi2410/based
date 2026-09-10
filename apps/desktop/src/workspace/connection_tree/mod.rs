@@ -3,15 +3,15 @@
 use std::collections::HashMap;
 use std::mem;
 
-use gpui::{
-    App, ClipboardItem, Context, Entity, EventEmitter, Focusable, IntoElement, Render, Window,
-    prelude::*,
-};
-use gpui_component::{
+use gpui_kit::component::{
     dock::DockArea,
     h_flex,
     input::{InputEvent, InputState},
     list::ListState,
+};
+use gpui_kit::{
+    App, ClipboardItem, Context, Entity, EventEmitter, Focusable, IntoElement, Render, Window,
+    prelude::*,
 };
 
 use crate::connection::registry::{ConnectionRegistry, RegistryEvent};
@@ -339,7 +339,7 @@ impl ConnectionTree {
         cx.notify();
     }
 
-    pub fn selected_connection_entry(&self, cx: &gpui::App) -> Option<Entity<ConnectionEntry>> {
+    pub fn selected_connection_entry(&self, cx: &gpui_kit::App) -> Option<Entity<ConnectionEntry>> {
         self.selected_connection
             .and_then(|idx| self.registry.read(cx).connections().get(idx).cloned())
     }
@@ -561,7 +561,7 @@ impl ConnectionTree {
     pub fn schema_palette_matches(
         &self,
         query: &str,
-        cx: &gpui::App,
+        cx: &gpui_kit::App,
     ) -> Vec<(ConnectionId, SchemaObject, EngineKind)> {
         let q = query.to_lowercase();
         let mut out = Vec::new();

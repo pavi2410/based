@@ -1,8 +1,9 @@
-//! Embedded app assets (engine brand SVGs) chained before gpui-component defaults.
+//! Embedded app assets (engine brand SVGs) chained before GPUI Kit defaults.
 
 use std::borrow::Cow;
 
-use gpui::{AssetSource, Result, SharedString};
+use gpui_kit::assets::Assets as KitAssets;
+use gpui_kit::{AssetSource, Result, SharedString};
 
 #[derive(rust_embed::RustEmbed)]
 #[folder = "assets"]
@@ -27,17 +28,17 @@ impl AssetSource for BasedEmbeddedSource {
     }
 }
 
-/// Tries Based assets first, then gpui-component bundled icons.
+/// Tries Based assets first, then GPUI Kit bundled icons.
 pub struct ChainedAssets {
     local: BasedEmbeddedSource,
-    fallback: gpui_component_assets::Assets,
+    fallback: KitAssets,
 }
 
 impl ChainedAssets {
     pub fn new() -> Self {
         Self {
             local: BasedEmbeddedSource,
-            fallback: gpui_component_assets::Assets::new(""),
+            fallback: KitAssets,
         }
     }
 }

@@ -1,7 +1,6 @@
 // mongodb::document_editor — insert / replace documents via JSON (multiline editor).
 
-use gpui::{prelude::*, *};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme,
     button::{Button, ButtonVariants},
     dock::{BasePanel, Panel, PanelEvent},
@@ -10,6 +9,7 @@ use gpui_component::{
     menu::PopupMenu,
     v_flex,
 };
+use gpui_kit::{prelude::*, *};
 use mongodb::Collection;
 use mongodb::bson::Document;
 use mongodb::bson::doc;

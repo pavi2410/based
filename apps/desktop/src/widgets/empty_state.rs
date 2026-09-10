@@ -1,7 +1,7 @@
 //! Empty state views — full-panel icon+text and lightweight muted hint variants.
 
-use gpui::{prelude::*, *};
-use gpui_component::{ActiveTheme, Icon, IconName, Sizable, v_flex};
+use gpui_kit::component::{ActiveTheme, Icon, IconName, Sizable, v_flex};
+use gpui_kit::{prelude::*, *};
 
 use crate::app::prefs;
 

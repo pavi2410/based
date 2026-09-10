@@ -1,9 +1,9 @@
 //! Loose queries and collections lane in the left sidebar.
 
-use gpui::{
+use gpui_kit::component::{ActiveTheme, menu::ContextMenuExt, menu::PopupMenuItem, v_flex};
+use gpui_kit::{
     AnyElement, App, FontWeight, MouseButton, ParentElement, SharedString, Styled, div, prelude::*,
 };
-use gpui_component::{ActiveTheme, menu::ContextMenuExt, menu::PopupMenuItem, v_flex};
 use uuid::Uuid;
 
 use crate::connection::ConnectionId;
@@ -239,7 +239,7 @@ fn create_loose_query(cx: &mut App) {
         return;
     };
     let store = storage::store(cx);
-    let handle = gpui_tokio::Tokio::handle(cx);
+    let handle = crate::db::Tokio::handle(cx);
     let name = format!("Query {}", ctx.active.loose_queries.len() + 1);
     let workspace_id = ctx.active.id;
     let result = handle.block_on(async move {
@@ -257,7 +257,7 @@ fn create_collection(cx: &mut App) {
         return;
     };
     let store = storage::store(cx);
-    let handle = gpui_tokio::Tokio::handle(cx);
+    let handle = crate::db::Tokio::handle(cx);
     let name = format!("Collection {}", ctx.active.collections.len() + 1);
     let workspace_id = ctx.active.id;
     let result = handle.block_on(async move { store.create_collection(workspace_id, &name).await });
@@ -279,7 +279,7 @@ fn move_loose_to_collection(query_id: Uuid, collection_name: &str, cx: &mut App)
         return;
     };
     let store = storage::store(cx);
-    let handle = gpui_tokio::Tokio::handle(cx);
+    let handle = crate::db::Tokio::handle(cx);
     let workspace_id = ctx.active.id;
     let collection_id = collection.id;
     let result = handle.block_on(async move {
@@ -297,7 +297,7 @@ fn move_collection_to_loose(query_id: Uuid, cx: &mut App) {
         return;
     };
     let store = storage::store(cx);
-    let handle = gpui_tokio::Tokio::handle(cx);
+    let handle = crate::db::Tokio::handle(cx);
     let workspace_id = ctx.active.id;
     let result =
         handle.block_on(async move { store.move_query_to_loose(workspace_id, query_id).await });
@@ -308,7 +308,7 @@ fn move_collection_to_loose(query_id: Uuid, cx: &mut App) {
 
 pub fn reload_workspace_context(workspace_id: Uuid, cx: &mut App) {
     let store = storage::store(cx);
-    let handle = gpui_tokio::Tokio::handle(cx);
+    let handle = crate::db::Tokio::handle(cx);
     if let Ok(ctx) = handle.block_on(refresh_context(store, workspace_id)) {
         cx.set_global(ctx);
         if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {

@@ -1,7 +1,6 @@
 // postgres::inspector — columns, indexes, constraints, and stats with tabs.
 
-use gpui::{prelude::*, *};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme,
     button::Button,
     dock::{BasePanel, Panel, PanelEvent},
@@ -10,6 +9,7 @@ use gpui_component::{
     table::TableState,
     v_flex,
 };
+use gpui_kit::{prelude::*, *};
 use sqlx::{PgPool, Row};
 
 use crate::connection::ConnectionId;

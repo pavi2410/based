@@ -1,7 +1,6 @@
 // mongodb::change_stream — samples up to 64 change events (requires replica set / CSRS).
 
-use gpui::{prelude::*, *};
-use gpui_component::{
+use gpui_kit::component::{
     Disableable,
     button::{Button, ButtonVariants},
     dock::{BasePanel, Panel, PanelEvent},
@@ -9,6 +8,7 @@ use gpui_component::{
     menu::PopupMenu,
     v_flex,
 };
+use gpui_kit::{prelude::*, *};
 use mongodb::Collection;
 use mongodb::bson::Document;
 

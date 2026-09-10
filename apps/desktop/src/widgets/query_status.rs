@@ -1,12 +1,12 @@
 //! Query status widgets — toolbar indicator and error card for SQL query panels.
 
-use gpui::{prelude::*, *};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, Icon, IconName, Sizable,
     button::{Button, ButtonVariants},
     h_flex,
     spinner::Spinner,
 };
+use gpui_kit::{prelude::*, *};
 
 use crate::widgets::metadata_pill;
 

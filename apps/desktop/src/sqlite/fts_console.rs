@@ -1,7 +1,6 @@
 // sqlite::fts_console — FtsConsolePanel: search across FTS5 tables.
 
-use gpui::{prelude::*, *};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme,
     button::Button,
     dock::{BasePanel, Panel, PanelEvent},
@@ -9,6 +8,7 @@ use gpui_component::{
     menu::PopupMenu,
     v_flex,
 };
+use gpui_kit::{prelude::*, *};
 use sqlx::{AssertSqlSafe, Row, SqlitePool};
 
 use crate::db;

@@ -1,10 +1,10 @@
 //! Shared `DataTable` factory and styling for read-only string grids.
 
-use gpui::{App, Context, Entity, Window};
-use gpui_component::{
+use gpui_kit::component::{
     Sizable,
     table::{DataTable, TableState},
 };
+use gpui_kit::{App, Context, Entity, Window};
 
 use crate::app::prefs;
 use crate::widgets::virtual_table::RowDelegate;

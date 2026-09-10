@@ -1,6 +1,6 @@
 //! Sizing constants and computed layout metrics shared across the widget layer.
 
-use gpui::App;
+use gpui_kit::App;
 
 use crate::app::prefs;
 use crate::app::prefs::{panel_header_h, sidebar_row_gap, sidebar_row_py};

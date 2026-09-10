@@ -1,5 +1,5 @@
-use gpui::{App, SharedString};
-use gpui_component::ActiveTheme;
+use gpui_kit::component::{ActiveTheme, Theme};
+use gpui_kit::{App, Hsla, SharedString};
 
 use crate::connection::{ConnectionOrigin, ConnectionState, EngineKind};
 
@@ -10,7 +10,7 @@ pub(crate) struct ConnectionRow {
     pub(crate) idx: usize,
     pub(crate) conn_label: SharedString,
     pub(crate) engine: EngineKind,
-    pub(crate) state_color: gpui::Hsla,
+    pub(crate) state_color: Hsla,
     pub(crate) is_connected: bool,
     pub(crate) is_connecting: bool,
     pub(crate) is_failed: bool,
@@ -23,7 +23,7 @@ pub(crate) enum RailItem {
     Divider,
 }
 
-fn connection_state_dot(state: &ConnectionState, t: &gpui_component::Theme) -> gpui::Hsla {
+fn connection_state_dot(state: &ConnectionState, t: &Theme) -> Hsla {
     match state {
         ConnectionState::Disconnected => t.muted_foreground.opacity(0.75),
         ConnectionState::Connecting { .. } => t.warning_foreground,

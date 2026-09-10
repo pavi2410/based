@@ -1,31 +1,23 @@
-//! Database I/O runs on Tokio (`sqlx`, `mongodb`). GPUI executors are not Tokio, so we use
-//! [gpui_tokio](https://github.com/zed-industries/zed/blob/main/crates/gpui_tokio/src/gpui_tokio.rs):
-//! `gpui_tokio::init` + `Tokio::spawn` / `spawn_result` bridge Tokio futures to GPUI tasks
-//! without blocking the UI thread the way `Runtime::block_on` from a GPUI task does.
+//! Database I/O on Tokio, surfaced to GPUI via [`Tokio`].
 
 use std::future::Future;
-use std::sync::OnceLock;
 use std::thread;
 
-pub mod column_catalog;
-
 use anyhow::Result;
-use gpui::App;
-use gpui::AsyncApp;
-use gpui_tokio::Tokio;
+use gpui_kit::{App, AsyncApp};
 use sqlx::{PgPool, SqlitePool};
-use tokio::runtime::Handle;
 
-static HANDLE: OnceLock<Handle> = OnceLock::new();
+mod runtime;
 
-/// Register Tokio with GPUI and cache the handle for pool shutdown. Call once from `App::run`
-/// (after `gpui_component::init`, before opening windows).
+pub mod column_catalog;
+pub use runtime::Tokio;
+
+/// Register Tokio with GPUI. Call once from `App::run` after `gpui_kit::init`.
 pub fn init(cx: &mut App) {
-    gpui_tokio::init(cx);
-    let _ = HANDLE.set(Tokio::handle(cx));
+    runtime::init(cx);
 }
 
-/// Run an fallible async closure on Tokio; await from `cx.spawn(async |_, cx| { ... })` where `cx` is `&mut AsyncApp`.
+/// Run a fallible async closure on Tokio; await from `cx.spawn(async |_, cx| { ... })`.
 pub async fn run<R: Send + 'static>(
     cx: &mut AsyncApp,
     f: impl Future<Output = Result<R>> + Send + 'static,
@@ -42,8 +34,7 @@ pub async fn run_infallible<R: Send + 'static>(
 }
 
 pub fn close_sqlite_pool(pool: SqlitePool) {
-    if let Some(h) = HANDLE.get() {
-        let h = h.clone();
+    if let Some(h) = runtime::cached_handle() {
         thread::spawn(move || {
             h.block_on(async move { pool.close().await });
         });
@@ -51,8 +42,7 @@ pub fn close_sqlite_pool(pool: SqlitePool) {
 }
 
 pub fn close_pg_pool(pool: PgPool) {
-    if let Some(h) = HANDLE.get() {
-        let h = h.clone();
+    if let Some(h) = runtime::cached_handle() {
         thread::spawn(move || {
             h.block_on(async move { pool.close().await });
         });

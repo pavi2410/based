@@ -4,9 +4,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use anyhow::Result;
-use gpui::{App, AppContext as _, Task, Window};
-use gpui_component::Rope;
-use gpui_component::input::{CompletionProvider, RopeExt};
+use gpui_kit::component::Rope;
+use gpui_kit::component::input::{CompletionProvider, RopeExt};
+use gpui_kit::{App, AppContext as _, Task, Window};
 use lsp_types::{
     CompletionContext, CompletionItem, CompletionItemKind, CompletionResponse, CompletionTextEdit,
     Range, TextEdit,

@@ -2,8 +2,7 @@
 
 use std::path::PathBuf;
 
-use gpui::{prelude::*, *};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, Disableable as _, IndexPath, Sizable as _, Size, WindowExt,
     button::{Button, ButtonVariants},
     checkbox::Checkbox,
@@ -20,6 +19,7 @@ use gpui_component::{
     tag::Tag,
     v_flex,
 };
+use gpui_kit::{prelude::*, *};
 use tokio::task::spawn_blocking;
 use uuid::Uuid;
 
@@ -639,7 +639,7 @@ impl ConnectionWizardPanel {
 }
 
 fn apply_test_result(
-    this: gpui::WeakEntity<ConnectionWizardPanel>,
+    this: gpui_kit::WeakEntity<ConnectionWizardPanel>,
     result: anyhow::Result<TestReport>,
     cx: &mut App,
 ) {

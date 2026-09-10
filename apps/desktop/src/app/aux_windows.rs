@@ -17,7 +17,7 @@
 
 use std::collections::HashMap;
 
-use gpui::{AnyWindowHandle, App, BorrowAppContext, Global, WindowId};
+use gpui_kit::{AnyWindowHandle, App, BorrowAppContext, Global, WindowId};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum AuxKind {

@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use based_project::{ProjectQuery, load_env_file};
-use gpui::Context;
+use gpui_kit::Context;
 
 use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{
@@ -244,7 +244,7 @@ impl Workspace {
 }
 
 fn take_registry_state(
-    registry: &gpui::Entity<ConnectionRegistry>,
+    registry: &gpui_kit::Entity<ConnectionRegistry>,
     id: &ConnectionId,
     cx: &mut Context<Workspace>,
 ) -> Option<ConnectionState> {

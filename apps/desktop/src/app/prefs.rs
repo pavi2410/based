@@ -2,8 +2,8 @@
 
 use std::path::PathBuf;
 
-use gpui::{App, BorrowAppContext, FontWeight, Global, SharedString};
-use gpui_component::{Size, Theme, ThemeMode};
+use gpui_kit::component::{Size, Theme, ThemeMode};
+use gpui_kit::{App, BorrowAppContext, FontWeight, Global, SharedString};
 use serde::{Deserialize, Serialize};
 
 pub use super::chrome::{
@@ -36,7 +36,7 @@ fn default_query_timeout_secs() -> u32 {
     DEFAULT_QUERY_TIMEOUT_SECS
 }
 
-/// Interaction and chrome toggles for data grids (gpui-component DataTable).
+/// Interaction and chrome toggles for data grids (gpui-kit DataTable).
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TablePreferences {
     #[serde(default = "default_true")]
@@ -698,7 +698,7 @@ pub fn theme_preset_id(cx: &App) -> &str {
     preset_id_for_pair(light_theme_name(cx), dark_theme_name(cx)).unwrap_or(DEFAULT_PRESET_ID)
 }
 
-pub fn apply_appearance(mode: AppearanceMode, window: Option<&mut gpui::Window>, cx: &mut App) {
+pub fn apply_appearance(mode: AppearanceMode, window: Option<&mut gpui_kit::Window>, cx: &mut App) {
     match mode {
         AppearanceMode::Light => Theme::change(ThemeMode::Light, window, cx),
         AppearanceMode::Dark => Theme::change(ThemeMode::Dark, window, cx),
@@ -713,13 +713,13 @@ pub fn apply_appearance(mode: AppearanceMode, window: Option<&mut gpui::Window>,
     cx.refresh_windows();
 }
 
-pub fn reapply_appearance(window: Option<&mut gpui::Window>, cx: &mut App) {
+pub fn reapply_appearance(window: Option<&mut gpui_kit::Window>, cx: &mut App) {
     let mode = appearance_mode(cx);
     apply_appearance(mode, window, cx);
 }
 
 /// Temporarily apply a light theme for dropdown preview (does not persist).
-pub fn preview_light_theme(name: &str, window: Option<&mut gpui::Window>, cx: &mut App) {
+pub fn preview_light_theme(name: &str, window: Option<&mut gpui_kit::Window>, cx: &mut App) {
     let dark = dark_theme_name(cx).to_string();
     if let Err(err) = apply_theme_names(name, &dark, cx) {
         log::warn!("preview light theme {name:?}: {err:#}");
@@ -729,7 +729,7 @@ pub fn preview_light_theme(name: &str, window: Option<&mut gpui::Window>, cx: &m
 }
 
 /// Temporarily apply a dark theme for dropdown preview (does not persist).
-pub fn preview_dark_theme(name: &str, window: Option<&mut gpui::Window>, cx: &mut App) {
+pub fn preview_dark_theme(name: &str, window: Option<&mut gpui_kit::Window>, cx: &mut App) {
     let light = light_theme_name(cx).to_string();
     if let Err(err) = apply_theme_names(&light, name, cx) {
         log::warn!("preview dark theme {name:?}: {err:#}");
@@ -738,17 +738,22 @@ pub fn preview_dark_theme(name: &str, window: Option<&mut gpui::Window>, cx: &mu
     reapply_appearance(window, cx);
 }
 
-pub fn revert_light_theme_preview(window: Option<&mut gpui::Window>, cx: &mut App) {
+pub fn revert_light_theme_preview(window: Option<&mut gpui_kit::Window>, cx: &mut App) {
     let name = light_theme_name(cx).to_string();
     preview_light_theme(&name, window, cx);
 }
 
-pub fn revert_dark_theme_preview(window: Option<&mut gpui::Window>, cx: &mut App) {
+pub fn revert_dark_theme_preview(window: Option<&mut gpui_kit::Window>, cx: &mut App) {
     let name = dark_theme_name(cx).to_string();
     preview_dark_theme(&name, window, cx);
 }
 
-pub fn apply_theme_pair(light: &str, dark: &str, window: Option<&mut gpui::Window>, cx: &mut App) {
+pub fn apply_theme_pair(
+    light: &str,
+    dark: &str,
+    window: Option<&mut gpui_kit::Window>,
+    cx: &mut App,
+) {
     if let Err(err) = apply_theme_names(light, dark, cx) {
         log::warn!("apply theme pair ({light:?}, {dark:?}): {err:#}");
         return;
@@ -770,18 +775,18 @@ pub fn apply_theme_pair(light: &str, dark: &str, window: Option<&mut gpui::Windo
     reapply_appearance(window, cx);
 }
 
-pub fn apply_light_theme(name: &str, window: Option<&mut gpui::Window>, cx: &mut App) {
+pub fn apply_light_theme(name: &str, window: Option<&mut gpui_kit::Window>, cx: &mut App) {
     let dark = dark_theme_name(cx).to_string();
     apply_theme_pair(name, &dark, window, cx);
 }
 
-pub fn apply_dark_theme(name: &str, window: Option<&mut gpui::Window>, cx: &mut App) {
+pub fn apply_dark_theme(name: &str, window: Option<&mut gpui_kit::Window>, cx: &mut App) {
     let light = light_theme_name(cx).to_string();
     apply_theme_pair(&light, name, window, cx);
 }
 
 /// Apply a paired preset (onboarding): sets both light and dark registry themes.
-pub fn apply_theme_preset(preset_id: &str, window: Option<&mut gpui::Window>, cx: &mut App) {
+pub fn apply_theme_preset(preset_id: &str, window: Option<&mut gpui_kit::Window>, cx: &mut App) {
     let Some(preset) = preset_by_id(preset_id) else {
         log::warn!("apply theme preset: unknown preset {preset_id:?}");
         return;

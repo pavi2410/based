@@ -1,13 +1,13 @@
 //! Cross-engine query history pane shown in the workspace right-hand column.
 
-use gpui::{
-    AnyElement, App, Entity, IntoElement, MouseButton, ParentElement, SharedString, Styled, div,
-    prelude::*,
-};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, Sizable as _,
     button::{Button, ButtonVariants},
     h_flex, v_flex,
+};
+use gpui_kit::{
+    AnyElement, App, Entity, IntoElement, MouseButton, ParentElement, SharedString, Styled, div,
+    prelude::*,
 };
 
 use crate::app::prefs::code_font_family;

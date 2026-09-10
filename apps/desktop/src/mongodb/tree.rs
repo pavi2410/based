@@ -4,14 +4,14 @@ use crate::app::prefs;
 use crate::db;
 use crate::widgets::list_row::{SchemaRowStyle, schema_object_row};
 use crate::widgets::{metadata_pill, panel_header, sidebar_row_inner_gap, sidebar_row_padding_y};
-use gpui::{InteractiveElement, prelude::*, *};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, IconName,
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
     menu::PopupMenu,
     v_flex,
 };
+use gpui_kit::{InteractiveElement, prelude::*, *};
 use mongodb::Database;
 
 pub enum CollectionTreeEvent {

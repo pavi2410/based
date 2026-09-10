@@ -21,9 +21,9 @@ pub use variables::*;
 
 use std::collections::HashMap;
 
-use gpui::Global;
+use gpui_kit::Global;
 
-/// Loaded `$VAR` map from `.based/vars.toml`, available to query panels via [`gpui::App::global`].
+/// Loaded `$VAR` map from `.based/vars.toml`, available to query panels via [`gpui_kit::App::global`].
 #[derive(Default)]
 pub struct ProjectVars {
     pub vars: HashMap<String, String>,

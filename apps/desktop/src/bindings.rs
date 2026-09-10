@@ -1,8 +1,8 @@
 //! Global key bindings for the native shell.
 
-use gpui::{App, KeyBinding};
+use gpui_kit::{App, KeyBinding};
 
-gpui::actions!([
+gpui_kit::actions!([
     ToggleSidebarRail,
     CycleAppearance,
     ToggleCommandPalette,

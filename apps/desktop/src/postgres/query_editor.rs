@@ -2,8 +2,7 @@
 
 use std::rc::Rc;
 
-use gpui::{App, prelude::*, *};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, IconName, Sizable as _,
     button::{Button, ButtonVariants},
     dock::{BasePanel, Panel, PanelEvent},
@@ -15,6 +14,7 @@ use gpui_component::{
     table::{Column, TableState},
     v_flex,
 };
+use gpui_kit::{App, prelude::*, *};
 use sqlx::{AssertSqlSafe, PgPool, Row};
 
 use crate::connection::ConnectionId;
@@ -42,7 +42,7 @@ use crate::widgets::virtual_table::{
 };
 use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::{mark_query_tab_dirty, tabs::take_sql_inject};
-use gpui::Entity;
+use gpui_kit::Entity;
 
 use std::time::Instant;
 

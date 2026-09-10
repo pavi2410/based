@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use ::mongodb::bson::Document;
-use gpui::{Context, Window, prelude::*};
-use gpui_component::dock::PanelView;
+use gpui_kit::component::dock::PanelView;
+use gpui_kit::{Context, Window, prelude::*};
 
 use crate::connection::AnyConnection;
 use crate::postgres;

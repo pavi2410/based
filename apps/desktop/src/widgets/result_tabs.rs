@@ -3,12 +3,12 @@
 
 use std::rc::Rc;
 
-use gpui::{App, ElementId, IntoElement, ParentElement, Styled, Window, div, prelude::*, px};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, Selectable as _, Sizable as _,
     button::{Button, ButtonVariants},
     h_flex,
 };
+use gpui_kit::{App, ElementId, IntoElement, ParentElement, Styled, Window, div, prelude::*, px};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum BottomTab {

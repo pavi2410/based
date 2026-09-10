@@ -1,6 +1,6 @@
 //! Curated light/dark theme pairs available in Based.
 
-/// A selectable theme family (light + dark variant names in [`ThemeRegistry`](gpui_component::ThemeRegistry)).
+/// A selectable theme family (light + dark variant names in [`ThemeRegistry`](gpui_kit::component::ThemeRegistry)).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ThemePreset {
     pub id: &'static str,

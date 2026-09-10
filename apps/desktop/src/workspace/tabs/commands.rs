@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use gpui::{App, AppContext, Context, EntityId, Window};
-use gpui_component::Placement;
-use gpui_component::dock::PanelView;
+use gpui_kit::component::Placement;
+use gpui_kit::component::dock::PanelView;
+use gpui_kit::{App, AppContext, Context, EntityId, Window};
 
 use super::spec::TabSpec;
 use crate::connection::{
@@ -217,7 +217,7 @@ impl Workspace {
         &self,
         conn_id: &ConnectionId,
         cx: &App,
-    ) -> Option<gpui::Entity<ConnectionEntry>> {
+    ) -> Option<gpui_kit::Entity<ConnectionEntry>> {
         self.registry
             .read(cx)
             .connections()

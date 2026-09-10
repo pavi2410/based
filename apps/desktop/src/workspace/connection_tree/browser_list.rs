@@ -3,16 +3,16 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use gpui::{
-    App, Context, ElementId, Entity, IntoElement, MouseButton, ParentElement, RenderOnce,
-    SharedString, Task, WeakEntity, Window, div, prelude::*, px,
-};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, IconName, IndexPath, Selectable, Sizable as _,
     button::{Button, ButtonVariants},
     h_flex,
     list::{ListDelegate, ListState},
     menu::ContextMenuExt,
+};
+use gpui_kit::{
+    App, Context, ElementId, Entity, IntoElement, MouseButton, ParentElement, RenderOnce,
+    SharedString, Task, WeakEntity, Window, div, prelude::*, px,
 };
 
 use crate::app::prefs;

@@ -9,8 +9,8 @@ pub use presets::{
 };
 
 use anyhow::Context as _;
-use gpui::{App, SharedString};
-use gpui_component::{Theme, ThemeRegistry};
+use gpui_kit::component::{Theme, ThemeRegistry};
+use gpui_kit::{App, SharedString};
 
 /// Load bundled theme presets into the registry (does not apply active pair).
 pub fn register_themes(cx: &mut App) -> anyhow::Result<()> {

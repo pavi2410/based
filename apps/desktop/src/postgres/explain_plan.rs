@@ -1,7 +1,7 @@
 //! EXPLAIN plan parsing (`based-postgres`) and GPUI rendering.
 
-use gpui::{AnyElement, IntoElement, ParentElement, Styled, div, prelude::*, px};
-use gpui_component::{Theme, v_flex};
+use gpui_kit::component::{Theme, v_flex};
+use gpui_kit::{AnyElement, IntoElement, ParentElement, Styled, div, prelude::*, px};
 
 pub use based_postgres::explain::{PlanNode, parse_pg_explain_json};
 

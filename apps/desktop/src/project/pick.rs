@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use gpui::AsyncApp;
+use gpui_kit::AsyncApp;
 use tokio::task::spawn_blocking;
 
 use crate::db;

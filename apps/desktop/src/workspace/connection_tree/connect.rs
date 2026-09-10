@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use gpui::{App, Context, Entity, Window};
+use gpui_kit::{App, Context, Entity, Window};
 
 use crate::connection::{
     ConnectionEntry, ConnectionState, EngineKind, OpenedConnection, open_connection,

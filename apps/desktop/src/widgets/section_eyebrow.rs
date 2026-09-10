@@ -1,7 +1,7 @@
 //! Section eyebrow — muted bold xs label used as a list section header.
 
-use gpui::{prelude::*, *};
-use gpui_component::{ActiveTheme, StyledExt, h_flex};
+use gpui_kit::component::{ActiveTheme, StyledExt, h_flex};
+use gpui_kit::{prelude::*, *};
 
 use crate::app::prefs;
 use crate::widgets::layout::SIDEBAR_INSET;

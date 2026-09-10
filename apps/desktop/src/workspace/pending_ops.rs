@@ -2,7 +2,7 @@
 //!
 //! These are called from `render()` on every frame; see the comment in `render.rs` for why.
 
-use gpui::{BorrowAppContext, Context};
+use gpui_kit::{BorrowAppContext, Context};
 
 use super::Workspace;
 use super::tabs::{TabOpenQueue, TabSpec, WorkspaceNavQueue, enqueue_open_tab, enqueue_show_home};
@@ -52,7 +52,7 @@ impl Workspace {
 
     pub(crate) fn flush_pending_open_tab(
         &mut self,
-        window: &mut gpui::Window,
+        window: &mut gpui_kit::Window,
         cx: &mut Context<Self>,
     ) {
         self.drain_tab_open_queue(cx);
@@ -61,7 +61,11 @@ impl Workspace {
         }
     }
 
-    pub(crate) fn flush_nav_queue(&mut self, window: &mut gpui::Window, cx: &mut Context<Self>) {
+    pub(crate) fn flush_nav_queue(
+        &mut self,
+        window: &mut gpui_kit::Window,
+        cx: &mut Context<Self>,
+    ) {
         let (show_home, open_wizard, toggle_side, toggle_left, open_notes, notes_version) = cx
             .update_global(|q: &mut WorkspaceNavQueue, _| {
                 let home = q.show_home;

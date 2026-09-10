@@ -1,11 +1,11 @@
 //! Panel chrome — shell, headers, and toolbar components for boxed content panels.
 
-use gpui::{prelude::*, *};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, Disableable, IconName, Sizable,
     button::{Button, ButtonVariants},
     h_flex, v_flex,
 };
+use gpui_kit::{prelude::*, *};
 
 use crate::app::prefs;
 use crate::connection::{ConnectionId, EngineKind};

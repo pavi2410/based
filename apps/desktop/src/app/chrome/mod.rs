@@ -11,7 +11,7 @@ pub use typography::{
     apply_fonts,
 };
 
-use gpui::App;
+use gpui_kit::App;
 use serde::{Deserialize, Serialize};
 
 /// Persisted UI chrome: density preset + UI / editor / table profiles.

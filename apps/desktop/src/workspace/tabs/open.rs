@@ -1,13 +1,13 @@
 //! Cross-panel tab open requests (query editor → workspace).
 
-use gpui::{App, BorrowAppContext, Entity, Global};
+use gpui_kit::{App, BorrowAppContext, Entity, Global};
 
 use crate::connection::ConnectionId;
 use crate::workspace::chrome::{left_pane::LeftPane, side_pane::SidePane};
 
 use super::{TabManager, TabSpec};
 use crate::workspace::Workspace;
-use gpui_component::dock::DockArea;
+use gpui_kit::component::dock::DockArea;
 
 #[derive(Clone)]
 pub struct TabManagerRef(pub Entity<TabManager>);

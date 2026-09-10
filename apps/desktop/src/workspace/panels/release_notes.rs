@@ -4,17 +4,17 @@ use crate::app::updater::fetch_release_body;
 use crate::based_panel_dropdown;
 use crate::based_panel_tab_chrome;
 use crate::db::run;
-use gpui::{
-    App, Context, FocusHandle, Focusable, IntoElement, ParentElement, Render, SharedString, Styled,
-    Window, div, px,
-};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme,
     dock::{BasePanel, Panel, PanelEvent},
     menu::PopupMenu,
     scroll::ScrollableElement,
     text::markdown,
     v_flex,
+};
+use gpui_kit::{
+    App, Context, FocusHandle, Focusable, IntoElement, ParentElement, Render, SharedString, Styled,
+    Window, div, px,
 };
 
 pub struct ReleaseNotesPanel {
@@ -58,7 +58,7 @@ impl ReleaseNotesPanel {
     }
 }
 
-impl gpui::EventEmitter<PanelEvent> for ReleaseNotesPanel {}
+impl gpui_kit::EventEmitter<PanelEvent> for ReleaseNotesPanel {}
 
 impl Focusable for ReleaseNotesPanel {
     fn focus_handle(&self, _: &App) -> FocusHandle {
@@ -108,7 +108,7 @@ impl Render for ReleaseNotesPanel {
                 div().px(px(24.0)).pt(px(20.0)).pb(px(8.0)).child(
                     div()
                         .text_size(px(18.0))
-                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                        .font_weight(gpui_kit::FontWeight::SEMIBOLD)
                         .child(format!("What's New in v{}", self.version)),
                 ),
             )

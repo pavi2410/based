@@ -36,8 +36,8 @@ use std::sync::Arc;
 
 use dock_utils::tabs_layout;
 
-use gpui::{App, Context, Entity, FocusHandle, Focusable, SharedString, Window, prelude::*};
-use gpui_component::dock::{DockArea, DockEvent, DockSkin, PanelStyle, PanelView};
+use gpui_kit::component::dock::{DockArea, DockEvent, DockSkin, PanelStyle, PanelView};
+use gpui_kit::{App, Context, Entity, FocusHandle, Focusable, SharedString, Window, prelude::*};
 
 use crate::app::prefs::{collapsed_from, set_sidebar};
 use crate::app::quit::confirm_before_close_window;
@@ -306,7 +306,7 @@ impl Workspace {
                 .collect(),
         };
         let store = storage::store(cx);
-        let handle = gpui_tokio::Tokio::handle(cx);
+        let handle = crate::db::Tokio::handle(cx);
         if let Err(err) = handle.block_on(snapshot.save(&store)) {
             log::warn!("session save failed: {err:#}");
         }
@@ -314,7 +314,7 @@ impl Workspace {
 
     fn restore_session(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let store = storage::store(cx);
-        let handle = gpui_tokio::Tokio::handle(cx);
+        let handle = crate::db::Tokio::handle(cx);
         let session = handle.block_on(tabs::SessionSnapshot::load(&store));
 
         let active_spec = session
@@ -419,7 +419,7 @@ impl Workspace {
 }
 
 impl Focusable for Workspace {
-    fn focus_handle(&self, _: &gpui::App) -> FocusHandle {
+    fn focus_handle(&self, _: &gpui_kit::App) -> FocusHandle {
         self.focus_handle.clone()
     }
 }

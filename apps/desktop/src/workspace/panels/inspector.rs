@@ -1,5 +1,5 @@
-use gpui::{AnyElement, Context, Entity, FontWeight, IntoElement, Window, div, prelude::*};
-use gpui_component::{ActiveTheme, h_flex, v_flex};
+use gpui_kit::component::{ActiveTheme, h_flex, v_flex};
+use gpui_kit::{AnyElement, Context, Entity, FontWeight, IntoElement, Window, div, prelude::*};
 
 use crate::connection::{ConnectionEntry, ConnectionState};
 use crate::widgets::{
@@ -92,7 +92,7 @@ fn inspector_note(
     v_flex()
         .gap_1()
         .p_2()
-        .rounded(gpui::px(PANEL_RADIUS))
+        .rounded(gpui_kit::px(PANEL_RADIUS))
         .border_1()
         .border_color(cx.theme().border.opacity(0.85))
         .bg(cx.theme().muted.opacity(0.28))

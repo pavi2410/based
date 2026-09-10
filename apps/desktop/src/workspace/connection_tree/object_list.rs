@@ -1,4 +1,4 @@
-use gpui::SharedString;
+use gpui_kit::SharedString;
 
 use super::types::SchemaObject;
 

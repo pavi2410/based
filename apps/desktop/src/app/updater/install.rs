@@ -1,6 +1,6 @@
 use anyhow::{Context as _, Result};
 use cargo_packager_updater::Update;
-use gpui::App;
+use gpui_kit::App;
 
 use super::config::{current_version_string, supports_in_app_install};
 use super::log::info as uinfo;

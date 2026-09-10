@@ -1,7 +1,7 @@
 //! Font families, weights, and theme application for UI and code editors.
 
-use gpui::{App, FontWeight, SharedString, px};
-use gpui_component::Theme;
+use gpui_kit::component::Theme;
+use gpui_kit::{App, FontWeight, SharedString, px};
 use serde::{Deserialize, Serialize};
 
 use super::density::SizeToken;

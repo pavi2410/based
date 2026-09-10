@@ -1,16 +1,16 @@
 //! Chrome-style Home tab: logo + quick actions when no other editors are open.
 
-use gpui::{
-    App, Context, FocusHandle, Focusable, FontWeight, IntoElement, MouseButton, ParentElement,
-    Render, SharedString, Styled, Window, div, prelude::*, px,
-};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, Icon, IconName, Sizable as _,
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
     kbd::Kbd,
     menu::PopupMenu,
     v_flex,
+};
+use gpui_kit::{
+    App, Context, FocusHandle, Focusable, FontWeight, IntoElement, MouseButton, ParentElement,
+    Render, SharedString, Styled, Window, div, prelude::*, px,
 };
 
 use crate::app::prefs::ui_component_size;
@@ -40,7 +40,7 @@ impl HomePanel {
     }
 }
 
-impl gpui::EventEmitter<PanelEvent> for HomePanel {}
+impl gpui_kit::EventEmitter<PanelEvent> for HomePanel {}
 
 impl Focusable for HomePanel {
     fn focus_handle(&self, _: &App) -> FocusHandle {
@@ -173,7 +173,7 @@ fn home_row(
     icon: IconName,
     label: &'static str,
     shortcut: Option<Kbd>,
-    on_click: impl Fn(&gpui::MouseDownEvent, &mut Window, &mut App) + 'static,
+    on_click: impl Fn(&gpui_kit::MouseDownEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
     let fg = cx.theme().foreground;
     let muted = cx.theme().muted_foreground;

@@ -1,4 +1,4 @@
-use gpui::SharedString;
+use gpui_kit::SharedString;
 
 /// High-level updater UI / coordinator phase.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]

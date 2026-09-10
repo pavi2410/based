@@ -5,14 +5,14 @@
 //! window; closes when the main workspace window closes (see
 //! [`crate::workspace::pop_out::PopOutManager::on_any_window_closed`]).
 
-use gpui::{
-    ClipboardItem, Context, FocusHandle, Focusable, FontWeight, Hsla, IntoElement, MouseButton,
-    ParentElement, Render, SharedString, Styled, Window, div, img, prelude::*, px,
-};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants},
     h_flex, v_flex,
+};
+use gpui_kit::{
+    ClipboardItem, Context, FocusHandle, Focusable, FontWeight, Hsla, IntoElement, MouseButton,
+    ParentElement, Render, SharedString, Styled, Window, div, img, prelude::*, px,
 };
 use std::sync::LazyLock;
 use time::OffsetDateTime;
@@ -49,14 +49,7 @@ const SPONSORS_URL: &str = "https://github.com/sponsors/pavi2410";
 /// Short curated list. Kept in sync manually with the workspace `Cargo.toml`;
 /// transitive dep changes don't need to be reflected here.
 const TECH_STACK: &[&str] = &[
-    "Rust",
-    "GPUI",
-    "gpui-component",
-    "tokio",
-    "sqlx",
-    "mongodb",
-    "serde",
-    "toml",
+    "Rust", "GPUI", "gpui-kit", "tokio", "sqlx", "mongodb", "serde", "toml",
 ];
 
 pub struct AboutWindow {
@@ -72,7 +65,7 @@ impl AboutWindow {
 }
 
 impl Focusable for AboutWindow {
-    fn focus_handle(&self, _cx: &gpui::App) -> FocusHandle {
+    fn focus_handle(&self, _cx: &gpui_kit::App) -> FocusHandle {
         self.focus_handle.clone()
     }
 }
@@ -155,7 +148,7 @@ fn version_row(muted: Hsla) -> impl IntoElement {
         )
 }
 
-fn update_card(muted: Hsla, border: Hsla, accent: Hsla, cx: &gpui::App) -> impl IntoElement {
+fn update_card(muted: Hsla, border: Hsla, accent: Hsla, cx: &gpui_kit::App) -> impl IntoElement {
     let checks_locked = update_check_settings_locked();
     let snapshot = coordinator_snapshot(cx);
     let status: SharedString = if checks_locked {

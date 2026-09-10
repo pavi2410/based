@@ -5,7 +5,7 @@
 
 use std::collections::HashSet;
 
-use gpui::{App, AppContext as _, Context, Entity, EventEmitter};
+use gpui_kit::{App, AppContext as _, Context, Entity, EventEmitter};
 
 use super::{ConnectionEntry, ConnectionId, ConnectionOrigin, ConnectionState};
 

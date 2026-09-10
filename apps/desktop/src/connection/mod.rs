@@ -83,9 +83,9 @@ impl ConnectionConfig {
 
 #[derive(Clone)]
 pub enum AnyConnection {
-    Postgres(gpui::Entity<PgConnection>),
-    MongoDB(gpui::Entity<MongoConnection>),
-    SQLite(gpui::Entity<SqliteConnection>),
+    Postgres(gpui_kit::Entity<PgConnection>),
+    MongoDB(gpui_kit::Entity<MongoConnection>),
+    SQLite(gpui_kit::Entity<SqliteConnection>),
 }
 
 // ── Connection state machine ──────────────────────────────────────────────────
@@ -171,19 +171,19 @@ impl ConnectionEntry {
 
 pub enum ConnectionEntryEvent {}
 
-impl gpui::EventEmitter<ConnectionEntryEvent> for ConnectionEntry {}
+impl gpui_kit::EventEmitter<ConnectionEntryEvent> for ConnectionEntry {}
 
 /// A connected entry in the registry (for quit / switch-project prompts).
 #[derive(Clone)]
 pub struct LiveConnection {
-    pub label: gpui::SharedString,
+    pub label: gpui_kit::SharedString,
     pub engine: EngineKind,
 }
 
 /// List connections in [`ConnectionState::Connected`].
 pub fn live_connections(
-    registry: &gpui::Entity<registry::ConnectionRegistry>,
-    cx: &gpui::App,
+    registry: &gpui_kit::Entity<registry::ConnectionRegistry>,
+    cx: &gpui_kit::App,
 ) -> Vec<LiveConnection> {
     registry
         .read(cx)
@@ -201,8 +201,8 @@ pub fn live_connections(
 
 /// Count connections in [`ConnectionState::Connected`].
 pub fn live_connection_count(
-    registry: &gpui::Entity<registry::ConnectionRegistry>,
-    cx: &gpui::App,
+    registry: &gpui_kit::Entity<registry::ConnectionRegistry>,
+    cx: &gpui_kit::App,
 ) -> usize {
     live_connections(registry, cx).len()
 }
@@ -210,8 +210,8 @@ pub fn live_connection_count(
 /// Count project-owned connections in [`ConnectionState::Connected`].
 /// Workspace-local wizard templates are excluded.
 pub fn live_project_connection_count(
-    registry: &gpui::Entity<registry::ConnectionRegistry>,
-    cx: &gpui::App,
+    registry: &gpui_kit::Entity<registry::ConnectionRegistry>,
+    cx: &gpui_kit::App,
 ) -> usize {
     registry
         .read(cx)
@@ -230,7 +230,7 @@ pub fn live_project_connection_count(
 pub fn is_connection_read_only(
     id: &ConnectionId,
     registry: &registry::ConnectionRegistry,
-    cx: &gpui::App,
+    cx: &gpui_kit::App,
 ) -> bool {
     registry
         .get(id, cx)
@@ -238,7 +238,7 @@ pub fn is_connection_read_only(
 }
 
 /// Close pools / clients held by a live connection handle.
-pub fn close_any_connection(ac: AnyConnection, cx: &gpui::App) {
+pub fn close_any_connection(ac: AnyConnection, cx: &gpui_kit::App) {
     match ac {
         AnyConnection::Postgres(ent) => {
             let pool = ent.read(cx).pool.clone();

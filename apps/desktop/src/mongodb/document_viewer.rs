@@ -2,8 +2,7 @@
 
 use std::collections::HashMap;
 
-use gpui::{prelude::*, *};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, Sizable as _,
     button::Button,
     dock::{BasePanel, Panel, PanelEvent},
@@ -11,11 +10,12 @@ use gpui_component::{
     table::{Column, TableState},
     v_flex,
 };
+use gpui_kit::{prelude::*, *};
 use mongodb::Collection;
 use mongodb::bson::{Document, doc, to_document};
 use mongodb::options::FindOptions;
 
-use gpui_component::table::TableEvent;
+use gpui_kit::component::table::TableEvent;
 
 use crate::db;
 use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_with_meta};

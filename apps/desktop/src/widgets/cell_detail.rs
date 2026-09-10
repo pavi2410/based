@@ -1,7 +1,7 @@
 //! Floating cell inspector: column, inferred type label, monospace body.
 
-use gpui::{Context, IntoElement, MouseButton, Render, Window, div, prelude::*, px};
-use gpui_component::{ActiveTheme, h_flex, scroll::ScrollableElement, v_flex};
+use gpui_kit::component::{ActiveTheme, h_flex, scroll::ScrollableElement, v_flex};
+use gpui_kit::{Context, IntoElement, MouseButton, Render, Window, div, prelude::*, px};
 
 use crate::app::prefs;
 use crate::widgets::cell_render::{ColumnValueKind, column_value_kind, parse_bool_display};

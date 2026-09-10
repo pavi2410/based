@@ -54,22 +54,22 @@ apps/desktop/src/
 ### Key patterns
 
 - **Engine abstraction**: `AnyConnection` enum + `Connectable` trait unify all database engines. Each engine implements open/test/close; query execution is engine-specific.
-- **Async bridging**: `db.rs` uses `gpui_tokio` to bridge Tokio async tasks into GPUI's sync render cycle. All blocking I/O must go through this bridge to keep the UI responsive.
+- **Async bridging**: `db.rs` bridges Tokio futures to GPUI tasks. All blocking I/O must go through this bridge to keep the UI responsive.
 - **Tab system**: `TabId` encodes (connection id, tab kind, payload) — tabs are the primary navigation unit in the workspace.
 - **PopOutManager**: Tracks detached child windows and their lifecycle; consult before creating new window types.
 - **Project format**: `.based/project.toml` holds the manifest; `.based/connections/` and `.based/queries/` hold per-file connections and queries; `.based/.env` holds secrets (git-ignored); `.based/state/` holds per-user workspace state.
 
 ### Tab strip (dock)
 
-Center editor tabs use gpui-component `DockArea` + `DockSkin` (`PanelStyle::TabBar`), not the standalone Tabs story component. Layout is a `DockLayout` / `PaneTree` in gpui-base; wrap panels with `panel_handle` / `PanelHandle::from_view` so tab titles and menus survive. Labels come from `Panel::title` (short plain text via [`tab_label_for_spec`](apps/desktop/src/workspace/tab_label.rs)); panel chrome uses `based_panel_behavior!` + `based_panel_tab_chrome!` (no zoom control).
+Center editor tabs use gpui-kit `DockArea` + `DockSkin` (`PanelStyle::TabBar`), not the standalone Tabs story component. Layout is a `DockLayout` / `PaneTree` in gpui-base; wrap panels with `panel_handle` / `PanelHandle::from_view` so tab titles and menus survive. Labels come from `Panel::title` (short plain text via [`tab_label_for_spec`](apps/desktop/src/workspace/tab_label.rs)); panel chrome uses `based_panel_behavior!` + `based_panel_tab_chrome!` (no zoom control).
 
 **Close tabs:** Based keeps `BasePanel::closable` false and closes via **Close tab** in the panel ⋯ menu and **⌘W / Ctrl+W** (`CloseTab` → `Workspace::close_active_center_tab`) so pin, dirty, and Home-respawn rules stay in-app. Closing the last tab respawns **Home** via `ensure_home_tab`. Home is closable like any other tab when others are open; pinned tabs stay non-closable.
 
-Full Tabs-demo parity (per-tab ×, overflow chevron menu) needs upstream `TabGroup` API changes in [gpui-component](https://github.com/longbridge/gpui-component)—no fork in this repo.
+Full Tabs-demo parity (per-tab ×, overflow chevron menu) needs upstream `TabGroup` API changes in [gpui-kit](https://github.com/longbridge/gpui-kit)—no fork in this repo.
 
 ### Clippy overrides
 
-The workspace allows `arc_with_non_send_sync` and `type_complexity` to match gpui-component conventions. Don't suppress other lints without justification.
+The workspace allows `arc_with_non_send_sync` and `type_complexity` to match gpui-kit conventions. Don't suppress other lints without justification.
 
 ### Performance profiles
 

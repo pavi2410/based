@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use gpui::{App, Task};
+use gpui_kit::{App, Task};
 // mongodb/ — GPUI panels + connection lifecycle; driver logic in `based-mongo`.
 
 pub mod change_stream;
@@ -20,7 +20,7 @@ use mongodb::{Client, Database};
 use based_mongo::{apply_auth_source, resolve_database_name, test_database_name};
 
 use crate::connection::lifecycle::{Connectable, TestReport};
-use gpui_tokio::Tokio;
+use crate::db::Tokio;
 
 /// Live MongoDB connection: client + selected database.
 pub struct MongoConnection {

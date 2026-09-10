@@ -12,9 +12,11 @@ mod types;
 
 pub use types::{PaletteEvent, WorkspacePaletteAction};
 
-use gpui::{App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, Window};
-use gpui_component::IndexPath;
-use gpui_component::command::CommandState;
+use gpui_kit::component::IndexPath;
+use gpui_kit::component::command::CommandState;
+use gpui_kit::{
+    App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, Window,
+};
 
 use crate::connection::registry::ConnectionRegistry;
 use crate::workspace::connection_tree::ConnectionTree;

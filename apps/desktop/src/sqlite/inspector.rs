@@ -1,7 +1,6 @@
 // sqlite::inspector — TableInspectorPanel: columns, indexes, constraints, DDL.
 
-use gpui::{prelude::*, *};
-use gpui_component::{
+use gpui_kit::component::{
     button::Button,
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
@@ -10,6 +9,7 @@ use gpui_component::{
     table::TableState,
     v_flex,
 };
+use gpui_kit::{prelude::*, *};
 use sqlx::{AssertSqlSafe, Row, SqlitePool};
 
 use crate::connection::ConnectionId;

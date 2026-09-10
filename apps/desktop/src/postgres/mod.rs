@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use gpui::{App, Task};
+use gpui_kit::{App, Task};
 // postgres/ — GPUI panels + connection lifecycle; driver logic in `based-postgres`.
 
 pub mod data_viewer;
@@ -22,8 +22,8 @@ use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use crate::connection::lifecycle::{Connectable, TestReport};
 use crate::connection::tunnel::{open_optional_tunnel, rewrite_tcp_endpoint};
 use crate::db;
+use crate::db::Tokio;
 use based_ssh::SshTunnel;
-use gpui_tokio::Tokio;
 
 /// Live Postgres connection wrapping a sqlx pool.
 pub struct PgConnection {

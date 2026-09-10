@@ -1,11 +1,11 @@
 //! Compact description list helpers for inspectors, dashboards, and schema stats.
 
-use gpui::{prelude::*, *};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, Sizable, StyledExt,
     description_list::{DescriptionItem, DescriptionList},
     v_flex,
 };
+use gpui_kit::{prelude::*, *};
 
 use crate::app::prefs;
 

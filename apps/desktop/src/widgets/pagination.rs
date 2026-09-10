@@ -1,7 +1,7 @@
-//! SQL offset/limit paging helpers and gpui-component `Pagination` builder.
+//! SQL offset/limit paging helpers and gpui-kit `Pagination` builder.
 
-use gpui::{ElementId, Styled, px};
-use gpui_component::{Disableable, Sizable, pagination::Pagination};
+use gpui_kit::component::{Disableable, Sizable, pagination::Pagination};
+use gpui_kit::{ElementId, Styled, px};
 
 /// 1-based current page and total page count for offset/limit SQL paging.
 pub fn sql_page_state(total: u64, offset: u64, page_size: u64) -> (usize, usize) {

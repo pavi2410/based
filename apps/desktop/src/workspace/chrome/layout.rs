@@ -1,7 +1,7 @@
 //! Main workspace shell layout: connection rail | center dock | optional side pane.
 
-use gpui::{AnyElement, App, Entity, IntoElement, ParentElement, div, prelude::*, px};
-use gpui_component::{ActiveTheme, dock::DockArea, h_flex, v_flex};
+use gpui_kit::component::{ActiveTheme, dock::DockArea, h_flex, v_flex};
+use gpui_kit::{AnyElement, App, Entity, IntoElement, ParentElement, div, prelude::*, px};
 
 /// Expanded browser sidebar (icon rail + catalog).
 pub const SIDEBAR_EXPANDED_WIDTH: f32 = 296.0;

@@ -1,7 +1,7 @@
 //! Global command shell / omnibar widget for the title bar.
 
-use gpui::{prelude::*, *};
-use gpui_component::{ActiveTheme, Icon, IconName, Sizable, h_flex};
+use gpui_kit::component::{ActiveTheme, Icon, IconName, Sizable, h_flex};
+use gpui_kit::{prelude::*, *};
 
 use crate::app::prefs;
 use crate::bindings::ToggleCommandPalette;

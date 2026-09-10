@@ -1,13 +1,13 @@
-//! SQL/JSON editors via gpui-component `InputState::code_editor` (tree-sitter highlighting).
+//! SQL/JSON editors via gpui-kit `InputState::code_editor` (tree-sitter highlighting).
 
 use std::rc::Rc;
 use std::sync::Arc;
 
-use gpui::{App, Entity, IntoElement, ParentElement, Window, div, prelude::*, px};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme,
     input::{CompletionProvider, Editor, EditorState},
 };
+use gpui_kit::{App, Entity, IntoElement, ParentElement, Window, div, prelude::*, px};
 
 use crate::app::prefs;
 use crate::editor::{SchemaCache, sql_completion::SqlCompletionProvider};

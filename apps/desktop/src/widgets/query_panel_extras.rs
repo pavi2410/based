@@ -5,16 +5,16 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process;
 
-use gpui::{
-    Anchor, App, ElementId, FontWeight, IntoElement, ParentElement, SharedString, Styled, div,
-    prelude::*, px,
-};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, Sizable as _,
     button::{Button, ButtonVariants},
     h_flex,
     popover::Popover,
     v_flex,
+};
+use gpui_kit::{
+    Anchor, App, ElementId, FontWeight, IntoElement, ParentElement, SharedString, Styled, div,
+    prelude::*, px,
 };
 use time::{Date, OffsetDateTime};
 

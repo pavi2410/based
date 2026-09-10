@@ -1,7 +1,7 @@
 //! Engine identity — labels, colors, icons, and chips for each database engine.
 
-use gpui::{img, prelude::*, *};
-use gpui_component::h_flex;
+use gpui_kit::component::h_flex;
+use gpui_kit::{img, prelude::*, *};
 
 use crate::app::prefs;
 use crate::connection::EngineKind;

@@ -1,10 +1,10 @@
 //! Application window launch: onboarding gate before the main workspace.
 
-use gpui::{
+use gpui_kit::component::{Root, TITLE_BAR_HEIGHT};
+use gpui_kit::{
     AnyWindowHandle, App, AppContext, BorrowAppContext, Global, WindowBounds, WindowId,
     WindowOptions, px, size,
 };
-use gpui_component::{Root, TITLE_BAR_HEIGHT};
 
 use super::prefs;
 use super::shell::{self, APP_NAME};

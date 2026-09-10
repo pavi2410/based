@@ -1,6 +1,6 @@
 //! Left sidebar mode: schema browser vs workspace query lane.
 
-use gpui_component::IconName;
+use gpui_kit::component::IconName;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum LeftPane {

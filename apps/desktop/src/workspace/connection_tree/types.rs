@@ -2,8 +2,8 @@ use std::collections::HashSet;
 
 use crate::connection::EngineKind;
 use crate::workspace::TabSpec;
-use gpui::Hsla;
-use gpui_component::{IconName, Theme};
+use gpui_kit::Hsla;
+use gpui_kit::component::{IconName, Theme};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ObjectKind {
@@ -54,7 +54,7 @@ impl ObjectKind {
         }
     }
 
-    /// Sidebar list icon (gpui-component bundled SVG).
+    /// Sidebar list icon (gpui-kit bundled SVG).
     pub(crate) fn list_icon(&self) -> IconName {
         match self {
             Self::Table => IconName::LayoutDashboard,

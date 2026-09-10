@@ -3,8 +3,7 @@
 use std::rc::Rc;
 use std::time::Duration;
 
-use gpui::{App, prelude::*, *};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, IconName, Sizable as _,
     button::{Button, ButtonVariants},
     dock::{BasePanel, Panel, PanelEvent},
@@ -15,6 +14,7 @@ use gpui_component::{
     table::{Column, TableState},
     v_flex,
 };
+use gpui_kit::{App, prelude::*, *};
 use sqlx::{AssertSqlSafe, Column as SqlxColumn, Row, SqlitePool, TypeInfo};
 
 use super::eqp_parse::{EqpNode, parse_eqp};
@@ -51,7 +51,7 @@ use crate::widgets::virtual_table::{
 use crate::workspace::WorkspaceRef;
 use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::tabs::take_sql_inject;
-use gpui::Entity;
+use gpui_kit::Entity;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::time::timeout as run_with_timeout;

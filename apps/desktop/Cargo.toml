@@ -64,12 +64,8 @@ based-ssh = { path = "../../crates/based-ssh" }
 based-storage = { path = "../../crates/based-storage" }
 based-workspace = { path = "../../crates/based-workspace" }
 
-# GPUI ecosystem — versions flow from workspace Cargo.toml
-gpui.workspace = true
-gpui_platform.workspace = true
-gpui-component.workspace = true
-gpui-component-assets.workspace = true
-gpui_tokio.workspace = true
+# GPUI Kit — versions flow from workspace Cargo.toml
+gpui-kit.workspace = true
 
 # General utilities
 anyhow.workspace = true
@@ -102,11 +98,8 @@ rust_xlsxwriter = "0"
 sqlx.workspace = true
 mongodb.workspace = true
 
-# SQL editor LSP completions (gpui-component uses the same crate)
+# SQL editor LSP completions (gpui-kit / gpui-component uses the same crate)
 lsp-types = { version = "0.97.0", features = ["proposed"] }
-
-[target.'cfg(target_os = "linux")'.dependencies]
-gpui_platform = { workspace = true, features = ["x11", "wayland"] }
 
 [lints]
 workspace = true

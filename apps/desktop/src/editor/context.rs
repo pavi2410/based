@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use based_core::EngineKind;
-use gpui::EventEmitter;
+use gpui_kit::EventEmitter;
 
 use crate::connection::ConnectionId;
 

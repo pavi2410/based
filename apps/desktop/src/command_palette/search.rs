@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use gpui::{App, Entity};
+use gpui_kit::{App, Entity};
 
 use crate::app::prefs::manual_update_checks_enabled;
 use crate::connection::registry::ConnectionRegistry;

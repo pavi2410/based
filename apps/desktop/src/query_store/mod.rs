@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 pub mod history;
 
 use based_project::{ProjectQuery, ProjectSnapshot, persist_favorites};
-use gpui::{App, Global};
+use gpui_kit::{App, Global};
 
 pub use history::{HistoryEntry, QueryHistory};
 

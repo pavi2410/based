@@ -1,7 +1,7 @@
 //! Right-click context menus for the connection browser tree.
 
-use gpui::{App, ClipboardItem, WeakEntity};
-use gpui_component::menu::{PopupMenu, PopupMenuItem};
+use gpui_kit::component::menu::{PopupMenu, PopupMenuItem};
+use gpui_kit::{App, ClipboardItem, WeakEntity};
 
 use crate::connection::{ConnectionConfig, ConnectionId, ConnectionState, EngineKind};
 use crate::mongodb::{mongo_uri, mongosh_command};

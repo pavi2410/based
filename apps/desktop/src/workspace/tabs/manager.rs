@@ -1,4 +1,4 @@
-use gpui::{AnyView, Context, EntityId, EventEmitter};
+use gpui_kit::{AnyView, Context, EntityId, EventEmitter};
 
 use crate::connection::ConnectionId;
 
@@ -135,8 +135,8 @@ impl TabManager {
     /// Drop tabs whose panel views are no longer in the dock; register any center tabs missing from the manager.
     pub fn reconcile_dock_tabs(
         &mut self,
-        dock: &[(gpui::AnyView, TabSpec)],
-        active: Option<gpui::AnyView>,
+        dock: &[(gpui_kit::AnyView, TabSpec)],
+        active: Option<gpui_kit::AnyView>,
         cx: &mut Context<Self>,
     ) {
         let dock_views: Vec<_> = dock.iter().map(|(v, _)| v.clone()).collect();

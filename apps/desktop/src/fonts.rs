@@ -2,7 +2,7 @@
 
 use std::borrow::Cow;
 
-use gpui::App;
+use gpui_kit::App;
 
 /// Register bundled monospace faces with the GPUI text system.
 pub fn register_bundled_fonts(cx: &App) {

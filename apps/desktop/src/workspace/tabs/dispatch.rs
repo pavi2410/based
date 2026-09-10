@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use gpui::{App, Context, Entity, Window, prelude::*};
-use gpui_component::dock::PanelView;
+use gpui_kit::component::dock::PanelView;
+use gpui_kit::{App, Context, Entity, Window, prelude::*};
 
 use crate::connection::{AnyConnection, ConnectionEntry, ConnectionId, ConnectionState};
 

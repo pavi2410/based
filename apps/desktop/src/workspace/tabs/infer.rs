@@ -2,8 +2,8 @@
 
 use std::sync::Arc;
 
-use gpui::App;
-use gpui_component::dock::PanelView;
+use gpui_kit::App;
+use gpui_kit::component::dock::PanelView;
 
 use crate::mongodb::pipeline_builder::PipelineBuilderPanel;
 use crate::postgres;

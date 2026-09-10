@@ -1,7 +1,7 @@
 //! Inline EXPLAIN QUERY PLAN renderer shared by the SQLite query editor.
 
-use gpui::{AnyElement, ElementId, IntoElement, ParentElement, Styled, div, prelude::*, px};
-use gpui_component::{Theme, scroll::ScrollableElement, v_flex};
+use gpui_kit::component::{Theme, scroll::ScrollableElement, v_flex};
+use gpui_kit::{AnyElement, ElementId, IntoElement, ParentElement, Styled, div, prelude::*, px};
 
 use super::eqp_parse::EqpNode;
 

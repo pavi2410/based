@@ -1,4 +1,4 @@
-use gpui::EntityId;
+use gpui_kit::EntityId;
 
 /// Visit-order stacks for Go Back / Go Forward (tab strip UI deferred — logic-only phase).
 #[derive(Debug, Default)]

@@ -5,7 +5,7 @@
 //! without touching any central dispatch file.
 
 use based_core::EngineKind;
-use gpui::Global;
+use gpui_kit::Global;
 
 /// Metadata describing a database engine family.
 pub trait EngineDescriptor: Send + Sync + 'static {

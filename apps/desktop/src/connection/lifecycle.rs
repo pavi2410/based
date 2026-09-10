@@ -2,7 +2,7 @@
 // Covers open / test / close lifecycle ONLY.
 // Tab content reaches into engine-specific APIs directly.
 
-use gpui::{App, Task};
+use gpui_kit::{App, Task};
 use serde::de::DeserializeOwned;
 use std::future::Future;
 

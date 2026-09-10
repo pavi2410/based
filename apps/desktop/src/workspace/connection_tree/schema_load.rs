@@ -1,4 +1,4 @@
-use gpui::Context;
+use gpui_kit::Context;
 use mongodb::Database;
 use sqlx::{PgPool, Row, SqlitePool};
 

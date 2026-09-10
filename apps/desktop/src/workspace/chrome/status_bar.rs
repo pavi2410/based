@@ -1,10 +1,10 @@
-use gpui::{App, Entity, IntoElement, RenderOnce, SharedString, div, prelude::*, px};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants},
     h_flex,
     menu::{DropdownMenu, PopupMenuItem},
 };
+use gpui_kit::{App, Entity, IntoElement, RenderOnce, SharedString, div, prelude::*, px};
 
 use crate::app::updater::UpdateBarSnapshot;
 use crate::app::updater::{self, UpdatePhase};
@@ -25,7 +25,7 @@ pub struct StatusBarConnection {
     pub label: SharedString,
     pub engine: EngineKind,
     pub is_connected: bool,
-    pub state_color: gpui::Hsla,
+    pub state_color: gpui_kit::Hsla,
     pub muted: bool,
 }
 
@@ -60,7 +60,7 @@ pub struct StatusBarModel {
 pub struct StatusBar {
     model: StatusBarModel,
     active_side_pane: Option<SidePane>,
-    registry: gpui::Entity<ConnectionRegistry>,
+    registry: gpui_kit::Entity<ConnectionRegistry>,
     connection_tree: Entity<ConnectionTree>,
 }
 
@@ -68,7 +68,7 @@ impl StatusBar {
     pub fn new(
         model: StatusBarModel,
         active_side_pane: Option<SidePane>,
-        registry: gpui::Entity<ConnectionRegistry>,
+        registry: gpui_kit::Entity<ConnectionRegistry>,
         connection_tree: Entity<ConnectionTree>,
     ) -> Self {
         Self {
@@ -93,9 +93,12 @@ fn side_pane_button(pane: SidePane, active: Option<SidePane>, cx: &App) -> impl 
         SidePane::Saved => "status-saved",
     };
     let (action, tooltip_text) = match pane {
-        SidePane::Inspector => (&ToggleInspectorPane as &dyn gpui::Action, pane.tooltip()),
-        SidePane::History => (&ToggleHistoryPane as &dyn gpui::Action, pane.tooltip()),
-        SidePane::Saved => (&ToggleSavedPane as &dyn gpui::Action, pane.tooltip()),
+        SidePane::Inspector => (
+            &ToggleInspectorPane as &dyn gpui_kit::Action,
+            pane.tooltip(),
+        ),
+        SidePane::History => (&ToggleHistoryPane as &dyn gpui_kit::Action, pane.tooltip()),
+        SidePane::Saved => (&ToggleSavedPane as &dyn gpui_kit::Action, pane.tooltip()),
     };
 
     Button::new(id)
@@ -169,7 +172,7 @@ fn connection_chip(
 
 fn update_widget(
     snapshot: &UpdateBarSnapshot,
-    registry: gpui::Entity<ConnectionRegistry>,
+    registry: gpui_kit::Entity<ConnectionRegistry>,
     cx: &App,
 ) -> Option<impl IntoElement> {
     let phase = snapshot.phase;
@@ -272,7 +275,7 @@ fn update_widget(
 }
 
 impl RenderOnce for StatusBar {
-    fn render(self, _window: &mut gpui::Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, _window: &mut gpui_kit::Window, cx: &mut App) -> impl IntoElement {
         let muted = cx.theme().muted_foreground;
         let fg = cx.theme().foreground;
 

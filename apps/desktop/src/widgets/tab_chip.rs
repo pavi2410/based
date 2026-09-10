@@ -1,9 +1,9 @@
 //! Tab label: engine-colored prefix + title + optional dirty dot.
 
-use gpui::{
+use gpui_kit::component::ActiveTheme;
+use gpui_kit::{
     App, FontWeight, IntoElement, ParentElement, SharedString, Styled, div, prelude::*, px,
 };
-use gpui_component::ActiveTheme;
 
 use crate::app::prefs;
 use crate::connection::EngineKind;

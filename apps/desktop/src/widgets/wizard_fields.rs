@@ -1,10 +1,10 @@
 //! Shared labeled inputs for connection wizards.
 
-use gpui::{
+use gpui_kit::component::{input::InputState, v_flex};
+use gpui_kit::{
     App, Context, Entity, Hsla, IntoElement, ParentElement, SharedString, Styled, Window, div,
     prelude::*,
 };
-use gpui_component::{input::InputState, v_flex};
 
 pub fn new_field<T: 'static>(
     window: &mut Window,
@@ -37,10 +37,10 @@ pub fn labeled_fixed(
     width: f32,
     input: impl IntoElement,
 ) -> impl IntoElement {
-    labeled_field_inner(title, muted, input).w(gpui::px(width))
+    labeled_field_inner(title, muted, input).w(gpui_kit::px(width))
 }
 
-fn labeled_field_inner(title: &str, muted: Hsla, input: impl IntoElement) -> gpui::Div {
+fn labeled_field_inner(title: &str, muted: Hsla, input: impl IntoElement) -> gpui_kit::Div {
     v_flex()
         .gap_1()
         .child(

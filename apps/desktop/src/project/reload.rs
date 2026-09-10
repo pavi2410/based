@@ -4,7 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender, channel};
 
-use gpui::{App, BorrowAppContext, Entity, Global};
+use gpui_kit::{App, BorrowAppContext, Entity, Global};
 
 use crate::connection::ConnectionOrigin;
 use crate::connection::registry::ConnectionRegistry;

@@ -1,5 +1,5 @@
-use gpui::{Context, IntoElement, MouseButton, Render, Window, div, prelude::*, px};
-use gpui_component::v_flex;
+use gpui_kit::component::v_flex;
+use gpui_kit::{Context, IntoElement, MouseButton, Render, Window, div, prelude::*, px};
 
 use super::CommandPalette;
 
@@ -17,7 +17,7 @@ impl Render for CommandPalette {
         div()
             .absolute()
             .inset_0()
-            .bg(gpui::rgba(0x00000088))
+            .bg(gpui_kit::rgba(0x00000088))
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|this, _, _, cx| {

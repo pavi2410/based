@@ -1,9 +1,9 @@
 // VirtualTable: a DataTable<RowDelegate> for displaying generic string-valued rows.
-// The DataTable widget in gpui-component already virtualizes rows internally,
+// The DataTable widget in gpui-kit already virtualizes rows internally,
 // so this is a thin wrapper / type alias for the RowDelegate-based table.
 
-use gpui::{prelude::*, *};
-use gpui_component::table::{Column, ColumnSort, TableDelegate, TableState};
+use gpui_kit::component::table::{Column, ColumnSort, TableDelegate, TableState};
+use gpui_kit::{prelude::*, *};
 
 use crate::app::prefs;
 use crate::widgets::cell_render::{column_value_kind, compare_cells, render_grid_cell};
@@ -138,7 +138,7 @@ impl TableDelegate for RowDelegate {
 
 pub type VirtualTable = Entity<TableState<RowDelegate>>;
 
-/// Replace delegate data and rebuild gpui-component column layout.
+/// Replace delegate data and rebuild gpui-kit column layout.
 ///
 /// [`TableState::refresh`] must run after columns change; otherwise `col_groups` stays
 /// empty from the initial delegate and body cells never render.

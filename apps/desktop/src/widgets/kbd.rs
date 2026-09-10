@@ -1,7 +1,7 @@
 //! Keyboard shortcut helpers — unbound literal keys and bound action lookups.
 
-use gpui::{prelude::*, *};
-use gpui_component::{ActiveTheme, StyledExt, h_flex, kbd::Kbd, v_flex};
+use gpui_kit::component::{ActiveTheme, StyledExt, h_flex, kbd::Kbd, v_flex};
+use gpui_kit::{prelude::*, *};
 
 use crate::app::prefs;
 use crate::bindings::{ToggleCommandPalette, ToggleSidebarRail};

@@ -4,17 +4,17 @@
 //! closing the window completes onboarding and opens the workspace with a Welcome tab.
 //! Help → Onboarding reopens the same UI as a non-blocking aux window.
 
-use gpui::{
-    App, Context, FocusHandle, Focusable, FontWeight, IntoElement, ParentElement, Render, Styled,
-    Window, div, prelude::FluentBuilder, px,
-};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, StyledExt,
     button::{Button, ButtonVariants},
     h_flex,
     kbd::Kbd,
     scroll::ScrollableElement,
     v_flex,
+};
+use gpui_kit::{
+    App, Context, FocusHandle, Focusable, FontWeight, IntoElement, ParentElement, Render, Styled,
+    Window, div, prelude::FluentBuilder, px,
 };
 
 use crate::app::launch;

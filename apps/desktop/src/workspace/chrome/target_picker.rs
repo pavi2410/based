@@ -1,16 +1,16 @@
 //! Modal overlay when a project query target matches multiple connections.
 
 use based_project::ProjectQuery;
-use gpui::{
-    App, Entity, FontWeight, InteractiveElement, IntoElement, MouseButton, ParentElement,
-    SharedString, Styled, div, px,
-};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, Sizable as _,
     button::{Button, ButtonVariants},
     h_flex,
     scroll::ScrollableElement,
     v_flex,
+};
+use gpui_kit::{
+    App, Entity, FontWeight, InteractiveElement, IntoElement, MouseButton, ParentElement,
+    SharedString, Styled, div, px,
 };
 
 use crate::connection::ConnectionId;

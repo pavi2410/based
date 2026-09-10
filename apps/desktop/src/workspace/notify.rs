@@ -1,12 +1,12 @@
 //! VS Code–style tray notifications via `WindowExt::push_notification` (see Phase 7 UI feedback doc).
 
-use gpui::{App, IntoElement, SharedString, prelude::*, px};
-use gpui_component::{
+use gpui_kit::component::{
     Sizable as _, WindowExt,
     button::{Button, ButtonVariants as _},
     h_flex,
     notification::Notification,
 };
+use gpui_kit::{App, IntoElement, SharedString, prelude::*, px};
 use std::path::Path;
 use std::process;
 

@@ -1,10 +1,10 @@
 //! Workspace-level saved project queries pane.
 
-use gpui::{
+use gpui_kit::component::{ActiveTheme, h_flex, v_flex};
+use gpui_kit::{
     AnyElement, App, Entity, FontWeight, IntoElement, MouseButton, ParentElement, SharedString,
     Styled, div, prelude::*,
 };
-use gpui_component::{ActiveTheme, h_flex, v_flex};
 
 use crate::connection::ConnectionId;
 use crate::connection::registry::ConnectionRegistry;

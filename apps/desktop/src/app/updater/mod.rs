@@ -14,8 +14,10 @@ pub use install::{open_releases_page, relaunch_app};
 pub use release_notes::fetch_release_body;
 pub use state::{UpdateBarSnapshot, UpdatePhase};
 
-use gpui::{App, AsyncApp, BorrowAppContext, Global, ParentElement, SharedString, Styled, Window};
-use gpui_component::{ActiveTheme, WindowExt};
+use gpui_kit::component::{ActiveTheme, WindowExt};
+use gpui_kit::{
+    App, AsyncApp, BorrowAppContext, Global, ParentElement, SharedString, Styled, Window,
+};
 
 use crate::connection::live_connection_count;
 use crate::connection::registry::ConnectionRegistry;
@@ -217,7 +219,7 @@ pub fn start_download(cx: &mut App) {
 }
 
 pub fn install_and_restart(
-    registry: &gpui::Entity<ConnectionRegistry>,
+    registry: &gpui_kit::Entity<ConnectionRegistry>,
     window: &mut Window,
     cx: &mut App,
 ) {
@@ -237,8 +239,8 @@ pub fn install_and_restart(
     };
     let registry = registry.clone();
     window.open_alert_dialog(cx, move |alert, _window, cx| {
-        use gpui_component::button::{Button, ButtonVariants};
-        use gpui_component::dialog::{DialogAction, DialogClose, DialogFooter};
+        use gpui_kit::component::button::{Button, ButtonVariants};
+        use gpui_kit::component::dialog::{DialogAction, DialogClose, DialogFooter};
         let registry = registry.clone();
         let theme = cx.theme();
         let update_btn = Button::new("update-restart-confirm")

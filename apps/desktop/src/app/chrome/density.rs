@@ -1,6 +1,6 @@
 //! UI density: size tokens, presets, and layout scale helpers.
 
-use gpui_component::Size;
+use gpui_kit::component::Size;
 use serde::{Deserialize, Serialize};
 
 /// UI / editor / table size token.

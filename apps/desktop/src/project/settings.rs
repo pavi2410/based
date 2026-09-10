@@ -1,5 +1,5 @@
 use based_project::ProjectManifest;
-use gpui::App;
+use gpui_kit::App;
 
 use crate::app::prefs::set_query_timeout_secs;
 

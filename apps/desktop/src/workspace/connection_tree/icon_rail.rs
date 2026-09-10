@@ -1,14 +1,14 @@
 //! Slack-style icon strip: one button per connection.
 
-use gpui::{
-    AnyElement, App, IntoElement, MouseButton, ParentElement, WeakEntity, div, prelude::*, px,
-};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants},
     menu::ContextMenuExt,
     tooltip::Tooltip,
     v_flex,
+};
+use gpui_kit::{
+    AnyElement, App, IntoElement, MouseButton, ParentElement, WeakEntity, div, prelude::*, px,
 };
 
 use crate::widgets::engine_icon;

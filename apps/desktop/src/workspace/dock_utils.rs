@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use gpui::{App, Context, Entity, EntityId, Window};
-use gpui_component::Placement;
-use gpui_component::dock::{
+use gpui_kit::component::Placement;
+use gpui_kit::component::dock::{
     BasePanelView, DockArea, DockLayout, DockPlacement, InsertTarget, NodeId, PaneNode, PaneRef,
     PaneTree, PanelHandle, PanelId, PanelView,
 };
+use gpui_kit::{App, Context, Entity, EntityId, Window};
 
 use crate::mongodb::change_stream::ChangeStreamPanel;
 use crate::mongodb::document_editor::DocumentEditorPanel;

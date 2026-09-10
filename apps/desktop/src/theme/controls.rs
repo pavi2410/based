@@ -1,16 +1,16 @@
 //! Shared appearance + theme controls (onboarding, settings).
 
-use gpui::{
-    App, Entity, Hsla, InteractiveElement, IntoElement, ParentElement, SharedString, Styled,
-    Window, div, prelude::FluentBuilder, px,
-};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, Selectable, ThemeConfig, ThemeMode, ThemeRegistry,
     button::{Button, ButtonGroup},
     h_flex,
     searchable_list::SearchableListItem,
     select::{Select, SelectState},
-    v_flex,
+    try_parse_color, v_flex,
+};
+use gpui_kit::{
+    App, Entity, Hsla, InteractiveElement, IntoElement, ParentElement, SharedString, Styled,
+    Window, div, prelude::FluentBuilder, px,
 };
 
 use crate::app::prefs::{self, AppearanceMode};
@@ -202,7 +202,7 @@ pub fn theme_onboarding_picker(id_prefix: &'static str, cx: &App) -> impl IntoEl
                 .child(
                     div()
                         .text_sm()
-                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                        .font_weight(gpui_kit::FontWeight::SEMIBOLD)
                         .child("Theme"),
                 )
                 .child(appearance_segmented(id_prefix, appearance)),
@@ -232,14 +232,14 @@ pub fn theme_onboarding_picker(id_prefix: &'static str, cx: &App) -> impl IntoEl
 
 #[allow(clippy::too_many_arguments)]
 fn onboarding_preset_card(
-    id: impl Into<gpui::ElementId>,
+    id: impl Into<gpui_kit::ElementId>,
     preset: &ThemePreset,
     selected: bool,
     preview_theme: Option<ThemeConfig>,
     border: Hsla,
     accent_fg: Hsla,
     label_fg: Hsla,
-    on_click: impl Fn(&gpui::MouseDownEvent, &mut Window, &mut App) + 'static,
+    on_click: impl Fn(&gpui_kit::MouseDownEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
     v_flex()
         .id(id.into())
@@ -247,7 +247,7 @@ fn onboarding_preset_card(
         .min_w_0()
         .gap(px(8.0))
         .cursor_pointer()
-        .on_mouse_down(gpui::MouseButton::Left, on_click)
+        .on_mouse_down(gpui_kit::MouseButton::Left, on_click)
         .child(
             div()
                 .w_full()
@@ -355,5 +355,5 @@ fn optional_color(value: Option<&SharedString>) -> Option<Hsla> {
 }
 
 fn parse_color(hex: &str) -> Hsla {
-    gpui_component::try_parse_color(hex).unwrap_or(gpui::Hsla::white())
+    try_parse_color(hex).unwrap_or(Hsla::white())
 }

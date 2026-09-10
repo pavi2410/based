@@ -3,8 +3,8 @@
 use std::slice;
 use std::sync::Arc;
 
-use gpui::{App, Context, Entity, EntityId, Focusable, Window, prelude::*};
-use gpui_component::dock::{Panel, PanelView};
+use gpui_kit::component::dock::{Panel, PanelView};
+use gpui_kit::{App, Context, Entity, EntityId, Focusable, Window, prelude::*};
 
 use super::Workspace;
 use crate::connection::ConnectionId;
@@ -216,7 +216,7 @@ impl Workspace {
         self.center_panels.len()
     }
 
-    /// Whether the given center-dock panel may be closed (gpui-component hides Close for center tabs).
+    /// Whether the given center-dock panel may be closed (gpui-kit hides Close for center tabs).
     pub fn can_close_center_panel(&self, panel_id: EntityId, cx: &App) -> bool {
         if self.is_tab_pinned(panel_id, cx) {
             return false;

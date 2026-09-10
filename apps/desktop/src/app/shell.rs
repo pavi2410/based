@@ -5,14 +5,14 @@
 //! Non-macOS platforms get app/help items via the topbar overflow menu in
 //! [`crate::workspace::chrome::topbar`].
 
-use gpui::{
+use gpui_kit::component::{
+    Root, TITLE_BAR_HEIGHT, TitleBar,
+    input::{Copy, Cut, Paste, Redo, SelectAll, Undo},
+};
+use gpui_kit::{
     AnyWindowHandle, App, AppContext, Bounds, KeyBinding, Menu, MenuItem, OsAction, ParentElement,
     Pixels, SharedString, Size, Styled, SystemMenuType, TitlebarOptions, WindowBounds,
     WindowOptions, div, point, px, size,
-};
-use gpui_component::{
-    Root, TITLE_BAR_HEIGHT, TitleBar,
-    input::{Copy, Cut, Paste, Redo, SelectAll, Undo},
 };
 
 use super::aux_windows::{AuxKind, AuxWindows};
@@ -57,7 +57,7 @@ pub fn identified_window_options() -> WindowOptions {
     }
 }
 
-gpui::actions!(
+gpui_kit::actions!(
     app_shell,
     [
         QuitApp,

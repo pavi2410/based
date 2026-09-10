@@ -2,8 +2,7 @@
 
 use std::collections::HashMap;
 
-use gpui::{prelude::*, *};
-use gpui_component::{
+use gpui_kit::component::{
     Sizable as _,
     button::{Button, ButtonVariants},
     dock::{BasePanel, Panel, PanelEvent},
@@ -13,6 +12,7 @@ use gpui_component::{
     table::{Column, TableState},
     v_flex,
 };
+use gpui_kit::{prelude::*, *};
 use mongodb::Collection;
 use mongodb::bson::{Document, to_document};
 

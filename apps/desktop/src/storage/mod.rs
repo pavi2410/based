@@ -2,10 +2,10 @@
 
 use std::sync::Arc;
 
+use crate::db::Tokio;
 use anyhow::Result;
 use based_storage::MetadataStore;
-use gpui::{App, Global};
-use gpui_tokio::Tokio;
+use gpui_kit::{App, Global};
 
 pub struct AppStorage {
     pub store: Arc<MetadataStore>,

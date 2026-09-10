@@ -19,7 +19,7 @@ pub enum OpenQueryResult {
 pub fn open_project_query(
     query: &ProjectQuery,
     registry: &ConnectionRegistry,
-    cx: &gpui::App,
+    cx: &gpui_kit::App,
     focused: Option<&ConnectionId>,
 ) -> OpenQueryResult {
     let refs: Vec<ConnectionRef> = project_target_refs(registry, cx);
@@ -74,7 +74,7 @@ pub fn query_targets_connection(
     query: &ProjectQuery,
     conn_id: &ConnectionId,
     registry: &ConnectionRegistry,
-    cx: &gpui::App,
+    cx: &gpui_kit::App,
 ) -> bool {
     let refs: Vec<ConnectionRef> = project_target_refs(registry, cx);
 
@@ -85,7 +85,7 @@ pub fn query_targets_connection(
     }
 }
 
-fn project_target_refs(registry: &ConnectionRegistry, cx: &gpui::App) -> Vec<ConnectionRef> {
+fn project_target_refs(registry: &ConnectionRegistry, cx: &gpui_kit::App) -> Vec<ConnectionRef> {
     registry
         .connections()
         .iter()

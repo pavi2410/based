@@ -6,14 +6,14 @@ use crate::app::updater::open_release_notes_for_current;
 use crate::project::prompt_open_project_in_new_window;
 use crate::project::prompt_open_project_in_window;
 use crate::project::request_close_project_in_window;
-use gpui::{
-    App, Entity, IntoElement, ParentElement, RenderOnce, SharedString, Styled, div, prelude::*, px,
-};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme as _, Icon, IconName, Sizable as _, TitleBar,
     button::{Button, ButtonVariants},
     h_flex,
     menu::{DropdownMenu, PopupMenuItem},
+};
+use gpui_kit::{
+    App, Entity, IntoElement, ParentElement, RenderOnce, SharedString, Styled, div, prelude::*, px,
 };
 
 const GIT_BRANCH_ICON_PATH: &str = "icons/git-branch.svg";
@@ -37,7 +37,7 @@ impl Topbar {
 }
 
 impl RenderOnce for Topbar {
-    fn render(self, _window: &mut gpui::Window, _cx: &mut App) -> impl IntoElement {
+    fn render(self, _window: &mut gpui_kit::Window, _cx: &mut App) -> impl IntoElement {
         let registry = self.registry;
 
         TitleBar::new()
@@ -64,7 +64,7 @@ impl RenderOnce for Topbar {
 struct ContextRail;
 
 impl RenderOnce for ContextRail {
-    fn render(self, _: &mut gpui::Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, _: &mut gpui_kit::Window, cx: &mut App) -> impl IntoElement {
         let muted = cx.theme().muted_foreground;
         let (project_name, project_path, branch, env) = cx
             .try_global::<ProjectContext>()
@@ -104,7 +104,7 @@ impl RenderOnce for ContextRail {
                         h_flex().items_center().gap_1().child(
                             div()
                                 .text_xs()
-                                .font_weight(gpui::FontWeight::SEMIBOLD)
+                                .font_weight(gpui_kit::FontWeight::SEMIBOLD)
                                 .text_color(cx.theme().foreground)
                                 .child(SharedString::from(project_name)),
                         ),
@@ -190,7 +190,7 @@ impl RenderOnce for ContextRail {
 struct TopbarCenter;
 
 impl RenderOnce for TopbarCenter {
-    fn render(self, window: &mut gpui::Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut gpui_kit::Window, cx: &mut App) -> impl IntoElement {
         command_shell(window, cx, "Search tables, queries, history…")
     }
 }
@@ -200,7 +200,7 @@ impl RenderOnce for TopbarCenter {
 struct TopbarRight;
 
 impl RenderOnce for TopbarRight {
-    fn render(self, _window: &mut gpui::Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, _window: &mut gpui_kit::Window, cx: &mut App) -> impl IntoElement {
         let is_dark = cx.theme().is_dark();
 
         h_flex()

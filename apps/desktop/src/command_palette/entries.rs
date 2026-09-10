@@ -1,6 +1,6 @@
-use gpui::{AnyElement, App, Entity, SharedString, Window, div, prelude::*, px};
-use gpui_component::command::{Command, CommandGroup, CommandItem, CommandState};
-use gpui_component::{ActiveTheme, IndexPath, h_flex, v_flex};
+use gpui_kit::component::command::{Command, CommandGroup, CommandItem, CommandState};
+use gpui_kit::component::{ActiveTheme, IndexPath, h_flex, v_flex};
+use gpui_kit::{AnyElement, App, Entity, SharedString, Window, div, prelude::*, px};
 
 use crate::widgets::kbd;
 

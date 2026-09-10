@@ -1,12 +1,12 @@
 //! Filter bar: pick column, op, and value; build SQL or Mongo filter strings.
 
-use gpui::{App, Context, Entity, IntoElement, Render, Styled, Window, div, prelude::*, px};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, Sizable,
     button::{Button, ButtonVariants},
     h_flex,
     input::{Input, InputState},
 };
+use gpui_kit::{App, Context, Entity, IntoElement, Render, Styled, Window, div, prelude::*, px};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FilterOp {

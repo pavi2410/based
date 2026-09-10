@@ -1,12 +1,12 @@
 //! Export popover — CSV / Excel download trigger for any tabular data view.
 
-use gpui::{prelude::*, *};
-use gpui_component::{
+use gpui_kit::component::{
     Sizable,
     button::{Button, ButtonVariants},
     popover::Popover,
     v_flex,
 };
+use gpui_kit::{prelude::*, *};
 
 use crate::widgets::export;
 use crate::workspace::notify::push_export_success;

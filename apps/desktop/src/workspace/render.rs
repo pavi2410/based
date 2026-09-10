@@ -4,8 +4,8 @@
 //! intentional: GPUI has no reliable post-init hook, so the first render frame is used as a
 //! deferred executor.
 
-use gpui::{Context, IntoElement, Render, Window, div, prelude::*};
-use gpui_component::{ActiveTheme, Placement, v_flex};
+use gpui_kit::component::{ActiveTheme, Placement, v_flex};
+use gpui_kit::{Context, IntoElement, Render, Window, div, prelude::*};
 
 use crate::bindings::{
     CloseAllTabs, CloseCleanTabs, CloseOtherTabs, CloseTab, CloseTabsLeft, CloseTabsRight,
@@ -63,8 +63,8 @@ impl Render for Workspace {
         let workspace_for_panes = this.clone();
         let target_pick = self.pending_target_pick.clone();
 
-        let side_pane: Option<gpui::AnyElement> = active_pane.map(|pane| {
-            let body: gpui::AnyElement = match pane {
+        let side_pane: Option<gpui_kit::AnyElement> = active_pane.map(|pane| {
+            let body: gpui_kit::AnyElement = match pane {
                 SidePane::Inspector => {
                     render_inspector_body(selected_connection.clone(), window, cx)
                         .into_any_element()

@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use gpui::{App, Task};
+use gpui_kit::{App, Task};
 // sqlite/ — GPUI panels + connection lifecycle; driver logic in `based-sqlite`.
 
 pub mod attach_workspace;
@@ -25,8 +25,8 @@ use sqlx::{AssertSqlSafe, SqlitePool};
 
 use crate::connection::lifecycle::{Connectable, TestReport};
 use crate::db;
+use crate::db::Tokio;
 use crate::project::ProjectRoot;
-use gpui_tokio::Tokio;
 
 /// Resolve relative DB paths using the active Based project root when available.
 pub fn resolve_sqlite_path(path: &Path, cx: &App) -> PathBuf {

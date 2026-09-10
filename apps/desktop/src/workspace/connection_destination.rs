@@ -2,11 +2,11 @@
 
 use std::path::{Path, PathBuf};
 
-use gpui::{Context, Hsla, IntoElement, ParentElement, prelude::*};
-use gpui_component::{
+use gpui_kit::component::{
     button::{Button, ButtonVariants},
     h_flex,
 };
+use gpui_kit::{Context, Hsla, IntoElement, ParentElement, prelude::*};
 
 use crate::connection::ConnectionOrigin;
 use crate::project::personal::personal_root;

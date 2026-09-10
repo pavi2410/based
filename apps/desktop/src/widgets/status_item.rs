@@ -1,7 +1,7 @@
 //! Flat status bar segments — IDE-style label/value pairs without chip chrome.
 
-use gpui::{FontWeight, Hsla, IntoElement, ParentElement, SharedString, div, prelude::*, px};
-use gpui_component::h_flex;
+use gpui_kit::component::h_flex;
+use gpui_kit::{FontWeight, Hsla, IntoElement, ParentElement, SharedString, div, prelude::*, px};
 
 pub const STATUS_BAR_HEIGHT: f32 = 26.0;
 const STATUS_DIVIDER_HEIGHT: f32 = 14.0;

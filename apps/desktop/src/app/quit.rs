@@ -1,7 +1,6 @@
 //! Quit / window-close confirmation when live database connections are open.
 
-use gpui::{App, Context, Entity, Window, div, prelude::*, px};
-use gpui_component::{
+use gpui_kit::component::{
     ActiveTheme, WindowExt,
     button::{Button, ButtonVariants},
     dialog::{DialogAction, DialogClose, DialogFooter},
@@ -9,6 +8,7 @@ use gpui_component::{
     scroll::ScrollableElement,
     v_flex,
 };
+use gpui_kit::{App, Context, Entity, Window, div, prelude::*, px};
 
 use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{

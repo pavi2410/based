@@ -27,16 +27,11 @@ pub fn match_from_cell(row_ix: usize, col_ix: usize, raw: &str) -> Option<SameVa
     })
 }
 
-pub fn cell_is_match(
-    row_ix: usize,
-    col_ix: usize,
-    raw: &str,
-    needle: Option<&SameValueMatch>,
-) -> bool {
+pub fn cell_is_match(col_ix: usize, raw: &str, needle: Option<&SameValueMatch>) -> bool {
     let Some(needle) = needle else {
         return false;
     };
-    if col_ix != needle.col_ix || row_ix == needle.row_ix || is_null_cell(raw) {
+    if col_ix != needle.col_ix || is_null_cell(raw) {
         return false;
     }
     raw == needle.value.as_ref()

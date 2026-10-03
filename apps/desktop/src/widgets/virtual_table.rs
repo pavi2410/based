@@ -2,7 +2,10 @@
 // The DataTable widget in gpui-kit already virtualizes rows internally,
 // so this is a thin wrapper / type alias for the RowDelegate-based table.
 
-use gpui_kit::component::table::{Column, ColumnSort, TableDelegate, TableState};
+use gpui_kit::component::{
+    StyleSized,
+    table::{Column, ColumnSort, TableDelegate, TableState},
+};
 use gpui_kit::{prelude::*, *};
 
 use crate::app::prefs;
@@ -70,12 +73,8 @@ impl TableDelegate for RowDelegate {
             .and_then(|row| row.get(col_ix))
             .cloned()
             .unwrap_or_default();
-        let highlight = same_value::cell_is_match(
-            row_ix,
-            col_ix,
-            cell.as_ref(),
-            self.same_value_match.as_ref(),
-        );
+        let highlight =
+            same_value::cell_is_match(col_ix, cell.as_ref(), self.same_value_match.as_ref());
         let is_null = cell.is_empty() || cell.as_ref() == NULL_CELL_DISPLAY;
         let display: SharedString = if cell.is_empty() {
             NULL_CELL_DISPLAY.into()
@@ -84,18 +83,22 @@ impl TableDelegate for RowDelegate {
         };
         let meta = self.column_meta.get(col_ix).cloned().unwrap_or_default();
         let kind = cell_value_kind(meta.data_type.as_deref(), display.as_ref());
+        let cell_size = prefs::table_cell_size(cx);
         let cell = render_grid_cell(kind, display, is_null, row_ix, col_ix, window, cx);
-        // In-flow fill, same as column headers (`flex_1` + `min_w_0` +
-        // `size_full`). `cell_chrome` shrinks to the glyphs; gpui-kit's
-        // `absolute().inset_0()` selection overlay then sizes to that
-        // content, not the cell's `.w(col_width)`. A full-size td box
-        // makes both the wash and the blue ring cover the cell.
+        // Fill the kit cell (`relative` + `w(col_width)`). In-flow `bg` chips
+        // to the glyphs and drops the kit left pad. Wash sits on this
+        // unpadded fill; an inner `table_cell_size` keeps label inset. The
+        // kit draws the blue ring after this node.
         div()
-            .flex_1()
-            .min_w_0()
-            .size_full()
+            .absolute()
+            .inset_0()
             .when(highlight, |this| this.bg(same_value::wash_color()))
-            .child(cell)
+            .child(
+                div()
+                    .size_full()
+                    .table_cell_size(cell_size)
+                    .child(cell),
+            )
     }
 
     fn cell_text(&self, row_ix: usize, col_ix: usize, _: &App) -> String {

@@ -85,19 +85,17 @@ impl TableDelegate for RowDelegate {
         let meta = self.column_meta.get(col_ix).cloned().unwrap_or_default();
         let kind = cell_value_kind(meta.data_type.as_deref(), display.as_ref());
         let cell = render_grid_cell(kind, display, is_null, row_ix, col_ix, window, cx);
-        // Pin to the table cell's relative box (column width × row height),
-        // same as gpui-kit's selection overlay. A sized wrapper shrinks to
-        // the glyphs and paints a chip. Wash is 1/3 #57524f so zebra shows.
-        if highlight {
-            div()
-                .absolute()
-                .inset_0()
-                .bg(same_value::wash_color())
-                .child(cell)
-                .into_any_element()
-        } else {
-            cell.into_any_element()
-        }
+        // In-flow fill, same as column headers (`flex_1` + `min_w_0` +
+        // `size_full`). `cell_chrome` shrinks to the glyphs; gpui-kit's
+        // `absolute().inset_0()` selection overlay then sizes to that
+        // content, not the cell's `.w(col_width)`. A full-size td box
+        // makes both the wash and the blue ring cover the cell.
+        div()
+            .flex_1()
+            .min_w_0()
+            .size_full()
+            .when(highlight, |this| this.bg(same_value::wash_color()))
+            .child(cell)
     }
 
     fn cell_text(&self, row_ix: usize, col_ix: usize, _: &App) -> String {

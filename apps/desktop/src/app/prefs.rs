@@ -50,6 +50,8 @@ pub struct TablePreferences {
     pub cell_selectable: bool,
     #[serde(default = "default_true")]
     pub loop_selection: bool,
+    #[serde(default = "default_true")]
+    pub highlight_same_value: bool,
 }
 
 fn default_true() -> bool {
@@ -141,6 +143,7 @@ impl Default for TablePreferences {
             row_selectable: true,
             cell_selectable: true,
             loop_selection: true,
+            highlight_same_value: true,
         }
     }
 }
@@ -510,6 +513,19 @@ pub fn set_table_loop_selection(loop_selection: bool, cx: &mut App) {
                 return false;
             }
             p.loop_selection = loop_selection;
+            true
+        },
+        cx,
+    );
+}
+
+pub fn set_table_highlight_same_value(highlight_same_value: bool, cx: &mut App) {
+    update_table_prefs(
+        |p| {
+            if p.highlight_same_value == highlight_same_value {
+                return false;
+            }
+            p.highlight_same_value = highlight_same_value;
             true
         },
         cx,

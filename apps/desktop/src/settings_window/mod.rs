@@ -469,6 +469,16 @@ impl SettingsWindow {
                         )
                         .description("Select individual cells; enables keyboard navigation."),
                         SettingItem::new(
+                            "Highlight same values",
+                            SettingField::switch(
+                                |cx| prefs::table_prefs(cx).highlight_same_value,
+                                prefs::set_table_highlight_same_value,
+                            ),
+                        )
+                        .description(
+                            "Highlight other cells in the same column that match the focused cell. Empty and NULL are ignored.",
+                        ),
+                        SettingItem::new(
                             "Loop selection",
                             SettingField::switch(
                                 |cx| prefs::table_prefs(cx).loop_selection,

@@ -2,7 +2,10 @@
 // The DataTable widget in gpui-kit already virtualizes rows internally,
 // so this is a thin wrapper / type alias for the RowDelegate-based table.
 
-use gpui_kit::component::table::{Column, ColumnSort, TableDelegate, TableState};
+use gpui_kit::component::{
+    StyleSized,
+    table::{Column, ColumnSort, TableDelegate, TableState},
+};
 use gpui_kit::{prelude::*, *};
 
 use crate::app::prefs;
@@ -10,6 +13,7 @@ use crate::widgets::cell_render::{
     cell_value_kind, column_value_kind, compare_cells, render_grid_cell,
 };
 use crate::widgets::column_header::{GridColumnMeta, render_column_header, reorder_column_meta};
+use crate::widgets::same_value::{self, SameValueMatch};
 
 pub use crate::widgets::column_header::{align_meta_to_columns, meta_from_query_type};
 
@@ -28,6 +32,8 @@ pub struct RowDelegate {
     pub rows: Vec<Vec<SharedString>>,
     pub sort_col: Option<usize>,
     pub sort_asc: bool,
+    pub same_value_match: Option<SameValueMatch>,
+    pub cell_focused: bool,
 }
 
 impl TableDelegate for RowDelegate {
@@ -67,6 +73,8 @@ impl TableDelegate for RowDelegate {
             .and_then(|row| row.get(col_ix))
             .cloned()
             .unwrap_or_default();
+        let highlight =
+            same_value::cell_is_match(col_ix, cell.as_ref(), self.same_value_match.as_ref());
         let is_null = cell.is_empty() || cell.as_ref() == NULL_CELL_DISPLAY;
         let display: SharedString = if cell.is_empty() {
             NULL_CELL_DISPLAY.into()
@@ -75,7 +83,17 @@ impl TableDelegate for RowDelegate {
         };
         let meta = self.column_meta.get(col_ix).cloned().unwrap_or_default();
         let kind = cell_value_kind(meta.data_type.as_deref(), display.as_ref());
-        render_grid_cell(kind, display, is_null, row_ix, col_ix, window, cx)
+        let cell_size = prefs::table_cell_size(cx);
+        let cell = render_grid_cell(kind, display, is_null, row_ix, col_ix, window, cx);
+        // Fill the kit cell (`relative` + `w(col_width)`). In-flow `bg` chips
+        // to the glyphs and drops the kit left pad. Wash sits on this
+        // unpadded fill; an inner `table_cell_size` keeps label inset. The
+        // kit draws the blue ring after this node.
+        div()
+            .absolute()
+            .inset_0()
+            .when(highlight, |this| this.bg(same_value::wash_color()))
+            .child(div().size_full().table_cell_size(cell_size).child(cell))
     }
 
     fn cell_text(&self, row_ix: usize, col_ix: usize, _: &App) -> String {
@@ -114,6 +132,9 @@ impl TableDelegate for RowDelegate {
                 c => c,
             });
         }
+        if let Some(needle) = &mut self.same_value_match {
+            needle.col_ix = same_value::remap_column(needle.col_ix, col_ix, to_ix);
+        }
     }
 
     fn perform_sort(
@@ -135,6 +156,15 @@ impl TableDelegate for RowDelegate {
             let ord = compare_cells(kind, a[col_ix].as_ref(), b[col_ix].as_ref());
             if asc { ord } else { ord.reverse() }
         });
+        if let Some(needle) = self.same_value_match.take()
+            && let Some(raw) = self
+                .rows
+                .get(needle.row_ix)
+                .and_then(|row| row.get(needle.col_ix))
+        {
+            self.same_value_match =
+                same_value::match_from_cell(needle.row_ix, needle.col_ix, raw.as_ref());
+        }
     }
 }
 
@@ -155,15 +185,18 @@ pub fn replace_table_data(
     column_meta: Vec<GridColumnMeta>,
     cx: &mut Context<TableState<RowDelegate>>,
 ) {
-    let delegate = state.delegate_mut();
-    delegate.columns = columns;
-    delegate.column_meta = if column_meta.len() == delegate.columns.len() {
-        column_meta
-    } else {
-        empty_column_meta(delegate.columns.len())
-    };
-    delegate.rows = rows;
-    delegate.sort_col = None;
+    {
+        let delegate = state.delegate_mut();
+        delegate.columns = columns;
+        delegate.column_meta = if column_meta.len() == delegate.columns.len() {
+            column_meta
+        } else {
+            empty_column_meta(delegate.columns.len())
+        };
+        delegate.rows = rows;
+        delegate.sort_col = None;
+    }
+    refresh_same_value_highlight(state, None, cx);
     state.refresh(cx);
     cx.notify();
 }
@@ -176,5 +209,26 @@ pub fn replace_table_rows(
 ) {
     state.delegate_mut().rows = rows;
     state.delegate_mut().sort_col = None;
+    refresh_same_value_highlight(state, None, cx);
     cx.notify();
+}
+
+pub fn refresh_same_value_highlight(
+    state: &mut TableState<RowDelegate>,
+    cell: Option<(usize, usize)>,
+    cx: &App,
+) {
+    let prefs = prefs::table_prefs(cx);
+    let enabled = prefs.highlight_same_value && prefs.cell_selectable;
+    let focused = state.delegate().cell_focused;
+    let cell = cell.or_else(|| state.selected_cell());
+    let needle = if enabled && focused {
+        cell.and_then(|(row, col)| {
+            let raw = state.delegate().rows.get(row)?.get(col)?;
+            same_value::match_from_cell(row, col, raw.as_ref())
+        })
+    } else {
+        None
+    };
+    state.delegate_mut().same_value_match = needle;
 }

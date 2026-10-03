@@ -1,81 +1,7 @@
-//! Shared appearance + theme controls for settings.
+//! Theme registry loading and settings dropdown rows.
 
-use gpui_kit::component::{
-    ThemeMode, ThemeRegistry,
-    searchable_list::SearchableListItem,
-    select::{Select, SelectState},
-};
-use gpui_kit::{App, Entity, IntoElement, SharedString, Window};
-
-use crate::app::prefs;
-
-/// Which settings dropdown axis a preview session tracks.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ThemePreviewAxis {
-    Light,
-    Dark,
-}
-
-/// Tracks a non-persisted theme preview while browsing a settings dropdown.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ThemePreviewSession {
-    pub axis: ThemePreviewAxis,
-    active: bool,
-    last_name: Option<String>,
-}
-
-impl ThemePreviewSession {
-    pub fn new(axis: ThemePreviewAxis) -> Self {
-        Self {
-            axis,
-            active: false,
-            last_name: None,
-        }
-    }
-
-    pub fn preview(&mut self, name: &str, window: Option<&mut Window>, cx: &mut App) {
-        let committed = match self.axis {
-            ThemePreviewAxis::Light => prefs::light_theme_name(cx),
-            ThemePreviewAxis::Dark => prefs::dark_theme_name(cx),
-        };
-        if name == committed {
-            if self.active {
-                self.revert(window, cx);
-            }
-            return;
-        }
-        if self.last_name.as_deref() == Some(name) {
-            return;
-        }
-        match self.axis {
-            ThemePreviewAxis::Light => prefs::preview_light_theme(name, window, cx),
-            ThemePreviewAxis::Dark => prefs::preview_dark_theme(name, window, cx),
-        }
-        self.active = true;
-        self.last_name = Some(name.to_string());
-    }
-
-    pub fn revert(&mut self, window: Option<&mut Window>, cx: &mut App) {
-        if !self.active {
-            return;
-        }
-        match self.axis {
-            ThemePreviewAxis::Light => prefs::revert_light_theme_preview(window, cx),
-            ThemePreviewAxis::Dark => prefs::revert_dark_theme_preview(window, cx),
-        }
-        self.active = false;
-        self.last_name = None;
-    }
-
-    pub fn clear_after_commit(&mut self) {
-        self.active = false;
-        self.last_name = None;
-    }
-
-    pub fn is_active(&self) -> bool {
-        self.active
-    }
-}
+use gpui_kit::component::{ThemeMode, ThemeRegistry, searchable_list::SearchableListItem};
+use gpui_kit::{App, SharedString};
 
 /// Registry theme name row for settings dropdowns.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -134,9 +60,4 @@ pub fn load_bundled_themes(cx: &mut App) {
             log::warn!("theme bundle load: {err:#}");
         }
     }
-}
-
-/// Theme name picker for settings (dropdown).
-pub fn theme_name_select(select: Entity<SelectState<Vec<ThemeNameItem>>>) -> impl IntoElement {
-    Select::new(&select).w_full()
 }

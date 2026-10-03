@@ -73,6 +73,7 @@ serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 time.workspace = true
+iana-time-zone = "0.1"
 uuid.workspace = true
 futures.workspace = true
 log.workspace = true

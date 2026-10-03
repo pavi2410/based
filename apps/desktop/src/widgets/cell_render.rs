@@ -3,16 +3,18 @@
 use std::cmp::Ordering;
 
 use gpui_kit::component::{
-    ActiveTheme, Icon, IconName, Sizable as _, StyleSized, h_flex, tooltip::Tooltip,
+    ActiveTheme, Icon, IconName, Sizable as _, StyleSized, h_flex, tooltip::Tooltip, v_flex,
 };
-use gpui_kit::{App, Div, IntoElement, SharedString, Window, div, prelude::*};
+use gpui_kit::{App, Div, IntoElement, SharedString, Window, div, prelude::*, px};
 
 use crate::app::prefs;
+use crate::widgets::datetime;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ColumnValueKind {
     Numeric,
     Boolean,
+    DateTime,
     Text,
     Unknown,
 }
@@ -38,6 +40,9 @@ pub fn column_value_kind(data_type: Option<&str>) -> ColumnValueKind {
     }
     if is_boolean_type(&base) {
         return ColumnValueKind::Boolean;
+    }
+    if is_datetime_type(&base) {
+        return ColumnValueKind::DateTime;
     }
     if is_text_type(&base) {
         return ColumnValueKind::Text;
@@ -73,6 +78,17 @@ fn is_boolean_type(base: &str) -> bool {
     matches!(base, "bool" | "boolean")
 }
 
+fn is_datetime_type(base: &str) -> bool {
+    matches!(
+        base,
+        "timestamp"
+            | "timestamptz"
+            | "datetime"
+            | "timestamp without time zone"
+            | "timestamp with time zone"
+    )
+}
+
 fn is_text_type(base: &str) -> bool {
     matches!(
         base,
@@ -88,12 +104,7 @@ fn is_text_type(base: &str) -> bool {
             | "bytea"
             | "blob"
             | "date"
-            | "timestamp"
-            | "timestamptz"
             | "time"
-            | "datetime"
-            | "timestamp without time zone"
-            | "timestamp with time zone"
             | "time without time zone"
             | "time with time zone"
     )
@@ -229,7 +240,7 @@ pub fn compare_cells(kind: ColumnValueKind, a: &str, b: &str) -> Ordering {
             (Some(av), Some(bv)) => av.cmp(&bv),
             _ => a.cmp(b),
         },
-        ColumnValueKind::Text | ColumnValueKind::Unknown => a.cmp(b),
+        ColumnValueKind::DateTime | ColumnValueKind::Text | ColumnValueKind::Unknown => a.cmp(b),
     }
 }
 
@@ -321,11 +332,58 @@ pub fn render_grid_cell(
                     .into_any_element()
             }
         }
+        ColumnValueKind::DateTime => {
+            let raw = display.to_string();
+            let cell_id = row_ix.saturating_mul(10_000).saturating_add(col_ix);
+            let mut cell = cell_chrome(cx)
+                .id(("grid-cell-dt", cell_id))
+                .w_full()
+                .text_color(theme.foreground)
+                .child(display);
+            if datetime::parse_datetime_cell(&raw).is_some() {
+                cell = cell.hoverable_tooltip(move |window, app| {
+                    datetime_hover_tooltip(&raw, window, app)
+                });
+            }
+            cell.into_any_element()
+        }
         ColumnValueKind::Text | ColumnValueKind::Unknown => cell_chrome(cx)
             .text_color(theme.foreground)
             .child(display)
             .into_any_element(),
     }
+}
+
+fn datetime_hover_tooltip(raw: &str, window: &mut Window, app: &mut App) -> gpui_kit::AnyView {
+    let rows = datetime::hover_card(raw)
+        .map(|card| card.rows().to_vec())
+        .unwrap_or_default();
+    Tooltip::element({
+        let rows = rows.clone();
+        move |_w, tip_cx| {
+            let fg = tip_cx.theme().foreground;
+            let subtle = tip_cx.theme().muted_foreground;
+            let mono = prefs::code_font_family(tip_cx);
+            let mut col = v_flex().gap_1().min_w(px(260.0));
+            for (label, value) in &rows {
+                col = col.child(
+                    h_flex()
+                        .gap_6()
+                        .justify_between()
+                        .child(div().text_xs().text_color(subtle).child(label.clone()))
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(fg)
+                                .font_family(mono.clone())
+                                .child(value.clone()),
+                        ),
+                );
+            }
+            col
+        }
+    })
+    .build(window, app)
 }
 
 #[cfg(test)]
@@ -364,6 +422,25 @@ mod tests {
     fn boolean_types() {
         assert_eq!(column_value_kind(Some("bool")), ColumnValueKind::Boolean);
         assert_eq!(column_value_kind(Some("BOOL")), ColumnValueKind::Boolean);
+    }
+
+    #[test]
+    fn datetime_types() {
+        for ty in [
+            "timestamp",
+            "timestamptz",
+            "DATETIME",
+            "timestamp without time zone",
+            "timestamp with time zone(6)",
+        ] {
+            assert_eq!(
+                column_value_kind(Some(ty)),
+                ColumnValueKind::DateTime,
+                "expected DateTime for {ty}"
+            );
+        }
+        assert_eq!(column_value_kind(Some("date")), ColumnValueKind::Text);
+        assert_eq!(column_value_kind(Some("time")), ColumnValueKind::Text);
     }
 
     #[test]

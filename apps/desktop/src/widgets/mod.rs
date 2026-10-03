@@ -6,6 +6,7 @@ pub mod cell_render;
 pub mod column_header;
 pub mod command_shell;
 pub mod data_table;
+pub mod datetime;
 pub mod description_list;
 pub mod empty_state;
 pub mod engine;

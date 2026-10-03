@@ -20,7 +20,9 @@ pub(crate) fn infer_tab_spec(panel: &Arc<dyn PanelView>, cx: &App) -> TabSpec {
         "ConnectionDashboard" => panel
             .view()
             .downcast::<ConnectionDashboardPanel>()
-            .map(|ent| TabSpec::Dashboard(ent.read(cx).connection_id(cx)))
+            .map(|ent| TabSpec::Dashboard {
+                conn_id: ent.read(cx).connection_id(cx),
+            })
             .unwrap_or_else(|_| builtin(panel, cx)),
         "PgQueryEditor" => panel
             .view()

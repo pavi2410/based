@@ -58,7 +58,7 @@ impl Workspace {
                 self.dock_add_and_register_tab(spec, Arc::new(panel), window, cx);
                 return;
             }
-            TabSpec::Dashboard(conn_id) => {
+            TabSpec::Dashboard { conn_id } => {
                 self.connection_tree.update(cx, |tree, ecx| {
                     tree.focus_connection_by_id(conn_id, ecx);
                 });

@@ -57,6 +57,40 @@ impl Workspace {
         if let Some(spec) = self.pending_open_tab.take() {
             self.dispatch_open_tab(spec, window, cx);
         }
+        self.flush_pending_session_tabs(window, cx);
+    }
+
+    pub(crate) fn flush_pending_session_tabs(
+        &mut self,
+        window: &mut gpui_kit::Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.prune_opened_session_tabs(cx);
+        let pending = self.pending_session_tabs.clone();
+        for spec in pending {
+            if self
+                .tab_manager
+                .read(cx)
+                .tabs
+                .iter()
+                .any(|t| t.spec == spec)
+            {
+                continue;
+            }
+            self.dispatch_open_tab(spec, window, cx);
+        }
+    }
+
+    fn prune_opened_session_tabs(&mut self, cx: &gpui_kit::App) {
+        let live: Vec<TabSpec> = self
+            .tab_manager
+            .read(cx)
+            .tabs
+            .iter()
+            .map(|t| t.spec.clone())
+            .collect();
+        self.pending_session_tabs
+            .retain(|spec| !live.iter().any(|open| open == spec));
     }
 
     pub(crate) fn flush_nav_queue(

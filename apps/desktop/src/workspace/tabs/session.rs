@@ -76,3 +76,39 @@ impl SessionSnapshot {
         Ok(())
     }
 }
+
+/// Live dock tabs plus session tabs that have not opened yet (connection still down).
+pub fn merge_live_and_pending(live: Vec<TabSpec>, pending: &[TabSpec]) -> Vec<TabSpec> {
+    let mut tabs = live;
+    for spec in pending {
+        if spec.persist_in_session() && !tabs.iter().any(|open| open == spec) {
+            tabs.push(spec.clone());
+        }
+    }
+    tabs
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::connection::ConnectionId;
+
+    #[test]
+    fn pending_session_tabs_survive_home_only_live_set() {
+        let live = vec![TabSpec::Home];
+        let pending = vec![
+            TabSpec::Dashboard {
+                conn_id: ConnectionId("events".into()),
+            },
+            TabSpec::DataViewer {
+                conn_id: ConnectionId("events".into()),
+                object: "events".into(),
+            },
+        ];
+        let tabs = merge_live_and_pending(live, &pending);
+        assert_eq!(tabs.len(), 3);
+        assert!(matches!(tabs[0], TabSpec::Home));
+        assert!(matches!(tabs[1], TabSpec::Dashboard { .. }));
+        assert!(matches!(tabs[2], TabSpec::DataViewer { .. }));
+    }
+}

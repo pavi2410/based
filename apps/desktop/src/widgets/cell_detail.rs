@@ -80,7 +80,9 @@ pub fn interpret_cell_with_meta(s: &str, meta: &GridColumnMeta) -> CellValue {
         ColumnValueKind::Boolean => parse_bool_display(t)
             .map(CellValue::Boolean)
             .unwrap_or_else(|| CellValue::Text(t.to_string())),
-        ColumnValueKind::Text | ColumnValueKind::Unknown => CellValue::Text(t.to_string()),
+        ColumnValueKind::DateTime | ColumnValueKind::Text | ColumnValueKind::Unknown => {
+            CellValue::Text(t.to_string())
+        }
     }
 }
 

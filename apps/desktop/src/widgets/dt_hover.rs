@@ -1,13 +1,12 @@
 //! Read-only datetime card placed beside the hovered grid cell.
 
 use std::cell::Cell;
-use std::rc::Rc;
 
 use gpui_kit::base::{Align, ElementExt, Positioner};
 use gpui_kit::component::{ActiveTheme, Placement, ThemeStyled, h_flex, v_flex};
 use gpui_kit::{
-    AnyElement, App, Bounds, ElementId, IntoElement, ParentElement, RenderOnce, Styled, Window,
-    deferred, div, prelude::*, px,
+    AnyElement, App, Bounds, ElementId, IntoElement, ParentElement, Pixels, RenderOnce, Styled,
+    Window, deferred, div, prelude::*, px,
 };
 
 use crate::app::prefs;
@@ -15,6 +14,8 @@ use crate::widgets::datetime;
 
 struct HoverOpen {
     open: bool,
+    bounds: Cell<Bounds<Pixels>>,
+    captured: Cell<bool>,
 }
 
 /// Wrap a datetime cell so its hover card sits to the right, not over the next row.
@@ -39,19 +40,37 @@ struct BesideCard {
 
 impl RenderOnce for BesideCard {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let state = window.use_keyed_state(self.id.clone(), cx, |_, _| HoverOpen { open: false });
+        let state = window.use_keyed_state(self.id.clone(), cx, |_, _| HoverOpen {
+            open: false,
+            bounds: Cell::new(Bounds::default()),
+            captured: Cell::new(false),
+        });
         let open = state.read(cx).open;
-        let bounds = Rc::new(Cell::new(Bounds::default()));
-        let capture = bounds.clone();
+        let trigger_bounds = state.read(cx).bounds.get();
+        let captured = state.read(cx).captured.get() && usable_bounds(trigger_bounds);
 
         let trigger = div()
-            .id("dt-cell")
+            .id((self.id.clone(), "trigger"))
             .w_full()
-            .on_prepaint(move |b, _, _| capture.set(b))
-            .on_hover(window.listener_for(&state, |state, hovered, _, cx| {
+            .h_full()
+            .on_prepaint({
+                let state = state.clone();
+                move |bounds, window, cx| {
+                    let first = !state.read(cx).captured.get();
+                    state.read(cx).bounds.set(bounds);
+                    state.read(cx).captured.set(true);
+                    if first {
+                        window.request_animation_frame();
+                    }
+                }
+            })
+            .on_hover(window.listener_for(&state, |state, hovered, window, cx| {
                 if state.open != *hovered {
                     state.open = *hovered;
                     cx.notify();
+                    if *hovered && !usable_bounds(state.bounds.get()) {
+                        window.request_animation_frame();
+                    }
                 }
             }))
             .child(self.trigger);
@@ -59,11 +78,12 @@ impl RenderOnce for BesideCard {
         div()
             .id(self.id)
             .w_full()
+            .h_full()
             .child(trigger)
-            .when(open, |this| {
+            .when(open && captured, |this| {
                 this.child(
                     deferred(
-                        Positioner::side(bounds.get())
+                        Positioner::side(trigger_bounds)
                             .placement(Placement::Right)
                             .align(Align::Start)
                             .offset(px(8.))
@@ -74,6 +94,10 @@ impl RenderOnce for BesideCard {
                 )
             })
     }
+}
+
+fn usable_bounds(bounds: Bounds<Pixels>) -> bool {
+    bounds.size.width > px(0.) && bounds.size.height > px(0.)
 }
 
 fn card_surface(rows: &[(String, String)], cx: &App) -> impl IntoElement {

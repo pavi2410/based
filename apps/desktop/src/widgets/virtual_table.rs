@@ -93,12 +93,7 @@ impl TableDelegate for RowDelegate {
             .absolute()
             .inset_0()
             .when(highlight, |this| this.bg(same_value::wash_color()))
-            .child(
-                div()
-                    .size_full()
-                    .table_cell_size(cell_size)
-                    .child(cell),
-            )
+            .child(div().size_full().table_cell_size(cell_size).child(cell))
     }
 
     fn cell_text(&self, row_ix: usize, col_ix: usize, _: &App) -> String {

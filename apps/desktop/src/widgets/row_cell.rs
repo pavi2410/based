@@ -36,25 +36,5 @@ pub fn sqlite_cell_display(row: &SqliteRow, col: usize) -> String {
 
 /// Format a column from a Postgres row.
 pub fn pg_cell_display(row: &PgRow, col: usize) -> String {
-    if let Ok(v) = row.try_get::<Option<i64>, _>(col) {
-        return format_optional(v);
-    }
-    if let Ok(v) = row.try_get::<Option<i32>, _>(col) {
-        return format_optional(v);
-    }
-    if let Ok(v) = row.try_get::<Option<f64>, _>(col) {
-        return format_optional(v);
-    }
-    if let Ok(v) = row.try_get::<Option<bool>, _>(col) {
-        return format_optional(v);
-    }
-    if let Ok(v) = row.try_get::<Option<String>, _>(col) {
-        return v.unwrap_or_else(|| NULL_DISPLAY.into());
-    }
-    if let Ok(v) = row.try_get::<Option<Vec<u8>>, _>(col) {
-        return v
-            .map(|b| format!("<{} bytes>", b.len()))
-            .unwrap_or_else(|| NULL_DISPLAY.into());
-    }
-    NULL_DISPLAY.into()
+    based_postgres::pg_cell_display(row, col)
 }

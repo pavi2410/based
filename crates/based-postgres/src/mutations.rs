@@ -1,6 +1,8 @@
 use anyhow::Result;
 use sqlx::{AssertSqlSafe, Column as SqlxColumn, PgPool, Row, TypeInfo};
 
+use crate::decode::pg_cell_display;
+
 #[derive(Debug, Clone)]
 pub struct QueryColumn {
     pub name: String,
@@ -75,14 +77,7 @@ pub async fn execute_sql(
             .unwrap_or_default();
         let data: Vec<Vec<String>> = rows
             .iter()
-            .map(|row| {
-                (0..row.len())
-                    .map(|i| {
-                        row.try_get::<String, _>(i)
-                            .unwrap_or_else(|_| "".to_string())
-                    })
-                    .collect()
-            })
+            .map(|row| (0..row.len()).map(|i| pg_cell_display(row, i)).collect())
             .collect();
         Ok((columns, data, 0))
     } else {

@@ -15,7 +15,7 @@ pub struct DateTimeHover {
 impl DateTimeHover {
     pub fn rows(&self) -> [(String, String); 4] {
         [
-            ("Timestamp".into(), self.timestamp.clone()),
+            ("Unix ms".into(), self.timestamp.clone()),
             ("UTC".into(), self.utc.clone()),
             (self.local_label.clone(), self.local.clone()),
             ("Relative".into(), self.relative.clone()),
@@ -222,7 +222,7 @@ mod tests {
         assert_eq!(card.relative, "2 hours ago");
         assert_eq!(
             card.rows().map(|(k, _)| k),
-            ["Timestamp", "UTC", "Asia/Calcutta", "Relative"]
+            ["Unix ms", "UTC", "Asia/Calcutta", "Relative"]
         );
     }
 

@@ -259,4 +259,10 @@ mod tests {
         assert!(parse_datetime_cell("infinity").is_none());
         assert!(parse_datetime_cell("not a date").is_none());
     }
+
+    #[test]
+    fn parse_rejects_date_only_and_time_only() {
+        assert!(parse_datetime_cell("2020-01-15").is_none());
+        assert!(parse_datetime_cell("12:30:00").is_none());
+    }
 }

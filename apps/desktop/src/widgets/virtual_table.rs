@@ -6,7 +6,9 @@ use gpui_kit::component::table::{Column, ColumnSort, TableDelegate, TableState};
 use gpui_kit::{prelude::*, *};
 
 use crate::app::prefs;
-use crate::widgets::cell_render::{column_value_kind, compare_cells, render_grid_cell};
+use crate::widgets::cell_render::{
+    cell_value_kind, column_value_kind, compare_cells, render_grid_cell,
+};
 use crate::widgets::column_header::{GridColumnMeta, render_column_header, reorder_column_meta};
 
 pub use crate::widgets::column_header::{align_meta_to_columns, meta_from_query_type};
@@ -72,7 +74,7 @@ impl TableDelegate for RowDelegate {
             cell
         };
         let meta = self.column_meta.get(col_ix).cloned().unwrap_or_default();
-        let kind = column_value_kind(meta.data_type.as_deref());
+        let kind = cell_value_kind(meta.data_type.as_deref(), display.as_ref());
         render_grid_cell(kind, display, is_null, row_ix, col_ix, window, cx)
     }
 

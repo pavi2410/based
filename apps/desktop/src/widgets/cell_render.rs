@@ -3,12 +3,13 @@
 use std::cmp::Ordering;
 
 use gpui_kit::component::{
-    ActiveTheme, Icon, IconName, Sizable as _, StyleSized, h_flex, tooltip::Tooltip, v_flex,
+    ActiveTheme, Icon, IconName, Sizable as _, StyleSized, h_flex, tooltip::Tooltip,
 };
-use gpui_kit::{App, Div, IntoElement, SharedString, Window, div, prelude::*, px};
+use gpui_kit::{App, Div, IntoElement, SharedString, Window, div, prelude::*};
 
 use crate::app::prefs;
 use crate::widgets::datetime;
+use crate::widgets::dt_hover;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ColumnValueKind {
@@ -35,19 +36,34 @@ pub fn column_value_kind(data_type: Option<&str>) -> ColumnValueKind {
     }
 
     let base = normalize_type_name(raw);
+    // Datetime before numeric: sqlx-sqlite maps any declared type whose name
+    // contains "int" (including `timestamptz`) to INTEGER.
+    if is_datetime_type(&base) {
+        return ColumnValueKind::DateTime;
+    }
     if is_numeric_type(&base) {
         return ColumnValueKind::Numeric;
     }
     if is_boolean_type(&base) {
         return ColumnValueKind::Boolean;
     }
-    if is_datetime_type(&base) {
-        return ColumnValueKind::DateTime;
-    }
     if is_text_type(&base) {
         return ColumnValueKind::Text;
     }
     ColumnValueKind::Unknown
+}
+
+/// Kind for one grid cell. Recovers `DateTime` when sqlx remapped `timestamptz`
+/// (and similar) to `INTEGER` but the cell is still a parseable instant.
+pub fn cell_value_kind(data_type: Option<&str>, cell: &str) -> ColumnValueKind {
+    let kind = column_value_kind(data_type);
+    if matches!(kind, ColumnValueKind::DateTime) || is_date_or_time_only(data_type) {
+        return kind;
+    }
+    if datetime::parse_datetime_cell(cell).is_some() {
+        return ColumnValueKind::DateTime;
+    }
+    kind
 }
 
 fn is_numeric_type(base: &str) -> bool {
@@ -79,13 +95,17 @@ fn is_boolean_type(base: &str) -> bool {
 }
 
 fn is_datetime_type(base: &str) -> bool {
+    let compact = base.replace([' ', '_'], "");
+    compact.contains("timestamp") || compact.contains("datetime")
+}
+
+fn is_date_or_time_only(data_type: Option<&str>) -> bool {
+    let Some(raw) = data_type else {
+        return false;
+    };
     matches!(
-        base,
-        "timestamp"
-            | "timestamptz"
-            | "datetime"
-            | "timestamp without time zone"
-            | "timestamp with time zone"
+        normalize_type_name(raw).as_str(),
+        "date" | "time" | "time without time zone" | "time with time zone"
     )
 }
 
@@ -335,55 +355,18 @@ pub fn render_grid_cell(
         ColumnValueKind::DateTime => {
             let raw = display.to_string();
             let cell_id = row_ix.saturating_mul(10_000).saturating_add(col_ix);
-            let mut cell = cell_chrome(cx)
+            let cell = cell_chrome(cx)
                 .id(("grid-cell-dt", cell_id))
                 .w_full()
                 .text_color(theme.foreground)
                 .child(display);
-            if datetime::parse_datetime_cell(&raw).is_some() {
-                cell = cell.hoverable_tooltip(move |window, app| {
-                    datetime_hover_tooltip(&raw, window, app)
-                });
-            }
-            cell.into_any_element()
+            dt_hover::wrap(("grid-dt-hover", cell_id), cell, &raw)
         }
         ColumnValueKind::Text | ColumnValueKind::Unknown => cell_chrome(cx)
             .text_color(theme.foreground)
             .child(display)
             .into_any_element(),
     }
-}
-
-fn datetime_hover_tooltip(raw: &str, window: &mut Window, app: &mut App) -> gpui_kit::AnyView {
-    let rows = datetime::hover_card(raw)
-        .map(|card| card.rows().to_vec())
-        .unwrap_or_default();
-    Tooltip::element({
-        let rows = rows.clone();
-        move |_w, tip_cx| {
-            let fg = tip_cx.theme().foreground;
-            let subtle = tip_cx.theme().muted_foreground;
-            let mono = prefs::code_font_family(tip_cx);
-            let mut col = v_flex().gap_1().min_w(px(260.0));
-            for (label, value) in &rows {
-                col = col.child(
-                    h_flex()
-                        .gap_6()
-                        .justify_between()
-                        .child(div().text_xs().text_color(subtle).child(label.clone()))
-                        .child(
-                            div()
-                                .text_xs()
-                                .text_color(fg)
-                                .font_family(mono.clone())
-                                .child(value.clone()),
-                        ),
-                );
-            }
-            col
-        }
-    })
-    .build(window, app)
 }
 
 #[cfg(test)]
@@ -441,6 +424,52 @@ mod tests {
         }
         assert_eq!(column_value_kind(Some("date")), ColumnValueKind::Text);
         assert_eq!(column_value_kind(Some("time")), ColumnValueKind::Text);
+        assert_eq!(
+            column_value_kind(Some("time with time zone")),
+            ColumnValueKind::Text
+        );
+    }
+
+    #[test]
+    fn sqlx_sqlite_timestamptz_remap_recovers_from_cell() {
+        // sqlx-sqlite: `_ if s.contains("int") => Integer`, so TIMESTAMPTZ → INTEGER.
+        assert_eq!(column_value_kind(Some("INTEGER")), ColumnValueKind::Numeric);
+        assert_eq!(
+            cell_value_kind(Some("INTEGER"), "2020-01-15 12:30:00+00"),
+            ColumnValueKind::DateTime
+        );
+        assert_eq!(
+            cell_value_kind(Some("INTEGER"), "42"),
+            ColumnValueKind::Numeric
+        );
+        assert_eq!(
+            cell_value_kind(Some("timestamptz"), "2020-01-15 12:30:00+00"),
+            ColumnValueKind::DateTime
+        );
+        assert_eq!(
+            cell_value_kind(Some("timestamp with time zone"), "2020-01-15 12:30:00+00"),
+            ColumnValueKind::DateTime
+        );
+    }
+
+    #[test]
+    fn date_and_time_only_cells_stay_plain() {
+        assert_eq!(
+            cell_value_kind(Some("date"), "2020-01-15"),
+            ColumnValueKind::Text
+        );
+        assert_eq!(
+            cell_value_kind(Some("time"), "12:30:00"),
+            ColumnValueKind::Text
+        );
+        assert_eq!(
+            cell_value_kind(Some("DATE"), "2020-01-15"),
+            ColumnValueKind::Text
+        );
+        assert_eq!(
+            cell_value_kind(Some("INTEGER"), "2020-01-15"),
+            ColumnValueKind::Numeric
+        );
     }
 
     #[test]

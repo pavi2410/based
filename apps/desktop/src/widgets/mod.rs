@@ -8,6 +8,7 @@ pub mod command_shell;
 pub mod data_table;
 pub mod datetime;
 pub mod description_list;
+pub mod dt_hover;
 pub mod empty_state;
 pub mod engine;
 pub mod export;

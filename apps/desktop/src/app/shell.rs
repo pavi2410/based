@@ -16,7 +16,6 @@ use gpui_kit::{
 };
 
 use super::aux_windows::{AuxKind, AuxWindows};
-use super::launch::open_onboarding_review;
 use super::logging::open_logs;
 use super::prefs::manual_update_checks_enabled;
 use super::quit;
@@ -24,9 +23,9 @@ use super::updater::{check_now, open_release_notes_for_current};
 use crate::about_window::AboutWindow;
 use crate::bindings::{
     CloseAllTabs, CloseCleanTabs, CloseOtherTabs, CloseTab, CycleAppearance, GoBackTab,
-    GoForwardTab, NewQuery, OpenHome, OpenOnboarding, SplitPaneBottom, SplitPaneLeft,
-    SplitPaneRight, SplitPaneTop, ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane,
-    ToggleSavedPane, ToggleSidebarRail,
+    GoForwardTab, NewQuery, OpenHome, SplitPaneBottom, SplitPaneLeft, SplitPaneRight, SplitPaneTop,
+    ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane,
+    ToggleSidebarRail,
 };
 use crate::project::{
     prompt_open_project_in_new_window, prompt_open_project_in_window,
@@ -194,7 +193,6 @@ pub fn init(cx: &mut App) {
     cx.on_action(|_: &AboutApp, cx| open_about(cx));
     cx.on_action(|_: &OpenSettingsMenu, cx| open_settings(cx));
     cx.on_action(|_: &OpenHome, cx| open_home(cx));
-    cx.on_action(|_: &OpenOnboarding, cx| open_onboarding(cx));
     cx.on_action(|_: &CheckForUpdates, cx| check_now(cx));
     cx.on_action(|_: &OpenReleaseNotes, cx| open_release_notes_for_current(cx));
     cx.on_action(|_: &OpenLogs, _cx| open_logs());
@@ -223,7 +221,6 @@ pub fn init(cx: &mut App) {
         Menu::new("Window").items([]),
         Menu::new("Help").items([
             MenuItem::action("Show Home", OpenHome),
-            MenuItem::action("Onboarding...", OpenOnboarding),
             MenuItem::separator(),
             MenuItem::action("Release Notes", OpenReleaseNotes),
             MenuItem::action("Open Logs", OpenLogs),
@@ -238,17 +235,6 @@ pub fn open_home(cx: &mut App) {
     }
     enqueue_show_home(cx);
     request_workspace_flush(cx);
-}
-
-/// Open the onboarding review window (Help menu and topbar overflow).
-pub fn open_onboarding(cx: &mut App) {
-    if AuxWindows::focus_existing(AuxKind::Onboarding, cx) {
-        return;
-    }
-    match open_onboarding_review(cx) {
-        Ok(handle) => AuxWindows::insert(AuxKind::Onboarding, handle, cx),
-        Err(err) => log::warn!("onboarding window: {err:#}"),
-    }
 }
 
 /// Open the About window, or focus the existing one if already open.

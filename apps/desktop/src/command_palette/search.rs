@@ -108,13 +108,6 @@ fn push_workspace_commands(results: &mut Vec<PaletteResult>, q: &str, cx: &App) 
             "navigation",
         ));
     }
-    if q.is_empty() || q.contains("onboarding") || q.contains("setup") {
-        results.push(blank_command(
-            WorkspacePaletteAction::OpenOnboarding,
-            "Open Onboarding",
-            "navigation",
-        ));
-    }
     if wants_open_logs_command(q) {
         results.push(blank_command(
             WorkspacePaletteAction::OpenLogs,

@@ -7,7 +7,6 @@ use gpui_kit::{BorrowAppContext, Context};
 use super::Workspace;
 use super::tabs::{TabOpenQueue, TabSpec, WorkspaceNavQueue, enqueue_open_tab, enqueue_show_home};
 use crate::app::logging::open_logs;
-use crate::app::shell::open_onboarding;
 use crate::app::updater::check_now;
 use crate::command_palette::WorkspacePaletteAction;
 use crate::project::prompt_open_project_in_new_window;
@@ -29,7 +28,6 @@ impl Workspace {
             }
             WorkspacePaletteAction::SelectNoEnvironment => {}
             WorkspacePaletteAction::OpenHome => enqueue_show_home(cx),
-            WorkspacePaletteAction::OpenOnboarding => open_onboarding(cx),
             WorkspacePaletteAction::OpenLogs => open_logs(),
             WorkspacePaletteAction::CheckForUpdates => check_now(cx),
             WorkspacePaletteAction::OpenProject => {

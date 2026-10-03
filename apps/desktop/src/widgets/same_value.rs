@@ -1,8 +1,13 @@
 //! Focus-driven same-value highlight, scoped to one column.
 
-use gpui_kit::SharedString;
+use gpui_kit::{Hsla, SharedString, rgb};
 
 use crate::widgets::cell_render::is_null_cell;
+
+/// Warm gray `#57524f` at ~1/3 so the row / zebra color still shows through.
+pub fn wash_color() -> Hsla {
+    Hsla::from(rgb(0x57524f)).opacity(1.0 / 3.0)
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SameValueMatch {

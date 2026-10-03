@@ -2,10 +2,7 @@
 // The DataTable widget in gpui-kit already virtualizes rows internally,
 // so this is a thin wrapper / type alias for the RowDelegate-based table.
 
-use gpui_kit::component::{
-    ActiveTheme,
-    table::{Column, ColumnSort, TableDelegate, TableState},
-};
+use gpui_kit::component::table::{Column, ColumnSort, TableDelegate, TableState};
 use gpui_kit::{prelude::*, *};
 
 use crate::app::prefs;
@@ -87,13 +84,20 @@ impl TableDelegate for RowDelegate {
         };
         let meta = self.column_meta.get(col_ix).cloned().unwrap_or_default();
         let kind = cell_value_kind(meta.data_type.as_deref(), display.as_ref());
-        let match_bg = highlight.then(|| cx.theme().warning.opacity(0.28));
         let cell = render_grid_cell(kind, display, is_null, row_ix, col_ix, window, cx);
-        div()
-            .w_full()
-            .h_full()
-            .when_some(match_bg, |this, bg| this.bg(bg))
-            .child(cell)
+        // Pin to the table cell's relative box (column width × row height),
+        // same as gpui-kit's selection overlay. A sized wrapper shrinks to
+        // the glyphs and paints a chip. Wash is 1/3 #57524f so zebra shows.
+        if highlight {
+            div()
+                .absolute()
+                .inset_0()
+                .bg(same_value::wash_color())
+                .child(cell)
+                .into_any_element()
+        } else {
+            cell.into_any_element()
+        }
     }
 
     fn cell_text(&self, row_ix: usize, col_ix: usize, _: &App) -> String {

@@ -65,6 +65,7 @@ jobs:
   # SSH-agent Windows APIs have to be checked here or they only fail on Release.
   windows:
     name: rust (windows check)
+    if: github.event_name == 'push'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6

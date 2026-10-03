@@ -23,7 +23,6 @@ use gpui_kit::{AnyWindowHandle, App, BorrowAppContext, Global, WindowId};
 pub enum AuxKind {
     Settings,
     About,
-    Onboarding,
 }
 
 #[derive(Default)]

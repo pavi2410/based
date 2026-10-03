@@ -19,7 +19,6 @@ gpui_kit::actions!([
     NewQuery,
     OpenSettings,
     OpenHome,
-    OpenOnboarding,
     SplitPaneTop,
     SplitPaneBottom,
     SplitPaneLeft,

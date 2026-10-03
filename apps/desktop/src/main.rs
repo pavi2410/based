@@ -19,7 +19,6 @@ mod db;
 mod editor;
 mod fonts;
 mod mongodb;
-mod onboarding_window;
 mod postgres;
 mod project;
 mod query_store;
@@ -77,7 +76,6 @@ fn main() {
             }
             PopOutManager::init(cx);
             app::aux_windows::AuxWindows::init(cx);
-            app::launch::AppLaunch::init(cx);
 
             let project_root = find_project_root();
             let project_context = project_root
@@ -110,9 +108,6 @@ fn main() {
             cx.on_window_closed(|cx, id| {
                 PopOutManager::on_any_window_closed(cx, id);
                 app::aux_windows::AuxWindows::on_window_closed(id, cx);
-                if app::launch::AppLaunch::is_gate_window(id, cx) {
-                    app::launch::AppLaunch::clear_gate(cx);
-                }
             })
             .detach();
 

@@ -257,11 +257,6 @@ impl RenderOnce for TopbarRight {
                                     .on_click(|_, _window, cx| shell::open_home(cx)),
                             )
                             .item(
-                                PopupMenuItem::new("Onboarding...")
-                                    .icon(IconName::Settings2)
-                                    .on_click(|_, _window, cx| shell::open_onboarding(cx)),
-                            )
-                            .item(
                                 PopupMenuItem::new("Release Notes")
                                     .icon(IconName::BookOpen)
                                     .on_click(|_, _window, cx| {

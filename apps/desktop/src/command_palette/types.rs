@@ -20,7 +20,6 @@ pub enum WorkspacePaletteAction {
     NewCollection,
     SelectNoEnvironment,
     OpenHome,
-    OpenOnboarding,
     OpenLogs,
     CheckForUpdates,
     OpenProject,

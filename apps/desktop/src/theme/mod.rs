@@ -3,10 +3,8 @@
 mod controls;
 mod presets;
 
-pub use controls::{ThemeNameItem, load_bundled_themes, theme_onboarding_picker};
-pub use presets::{
-    DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME, DEFAULT_PRESET_ID, preset_by_id, preset_id_for_pair,
-};
+pub use controls::{ThemeNameItem, load_bundled_themes};
+pub use presets::{DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME, preset_by_id};
 
 use anyhow::Context as _;
 use gpui_kit::component::{Theme, ThemeRegistry};
@@ -35,11 +33,4 @@ pub fn apply_theme_names(light: &str, dark: &str, cx: &mut App) -> anyhow::Resul
     Theme::global_mut(cx).light_theme = light;
     Theme::global_mut(cx).dark_theme = dark;
     Ok(())
-}
-
-/// Apply a paired preset id to the global theme pair (onboarding).
-pub fn apply_preset_pair(preset_id: &str, cx: &mut App) -> anyhow::Result<()> {
-    let preset =
-        preset_by_id(preset_id).with_context(|| format!("unknown theme preset {preset_id:?}"))?;
-    apply_theme_names(preset.light_name, preset.dark_name, cx)
 }

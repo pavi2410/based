@@ -12,10 +12,7 @@ pub use super::chrome::{
 };
 
 use super::chrome::ChromePrefs as Chrome;
-use crate::theme::{
-    DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME, DEFAULT_PRESET_ID, apply_theme_names, preset_by_id,
-    preset_id_for_pair,
-};
+use crate::theme::{DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME, apply_theme_names, preset_by_id};
 use std::fs;
 
 /// Default SQL data viewer page size (rows per fetch).
@@ -205,8 +202,6 @@ pub struct NativePreferences {
     #[serde(default)]
     pub table_prefs: TablePreferences,
     #[serde(default)]
-    pub onboarding_completed: bool,
-    #[serde(default)]
     pub update: UpdatePreferences,
     #[serde(default)]
     pub last_opened_project: Option<PathBuf>,
@@ -225,7 +220,6 @@ impl Default for NativePreferences {
             page_size: DEFAULT_PAGE_SIZE,
             query_timeout_secs: DEFAULT_QUERY_TIMEOUT_SECS,
             table_prefs: TablePreferences::default(),
-            onboarding_completed: false,
             update: UpdatePreferences::default(),
             last_opened_project: None,
             recent_projects: Vec::new(),
@@ -693,11 +687,6 @@ pub fn dark_theme_name(cx: &App) -> &str {
     &cx.global::<NativePreferences>().dark_theme
 }
 
-/// Preset id when light+dark match a known pair (onboarding selection state).
-pub fn theme_preset_id(cx: &App) -> &str {
-    preset_id_for_pair(light_theme_name(cx), dark_theme_name(cx)).unwrap_or(DEFAULT_PRESET_ID)
-}
-
 pub fn apply_appearance(mode: AppearanceMode, window: Option<&mut gpui_kit::Window>, cx: &mut App) {
     match mode {
         AppearanceMode::Light => Theme::change(ThemeMode::Light, window, cx),
@@ -716,36 +705,6 @@ pub fn apply_appearance(mode: AppearanceMode, window: Option<&mut gpui_kit::Wind
 pub fn reapply_appearance(window: Option<&mut gpui_kit::Window>, cx: &mut App) {
     let mode = appearance_mode(cx);
     apply_appearance(mode, window, cx);
-}
-
-/// Temporarily apply a light theme for dropdown preview (does not persist).
-pub fn preview_light_theme(name: &str, window: Option<&mut gpui_kit::Window>, cx: &mut App) {
-    let dark = dark_theme_name(cx).to_string();
-    if let Err(err) = apply_theme_names(name, &dark, cx) {
-        log::warn!("preview light theme {name:?}: {err:#}");
-        return;
-    }
-    reapply_appearance(window, cx);
-}
-
-/// Temporarily apply a dark theme for dropdown preview (does not persist).
-pub fn preview_dark_theme(name: &str, window: Option<&mut gpui_kit::Window>, cx: &mut App) {
-    let light = light_theme_name(cx).to_string();
-    if let Err(err) = apply_theme_names(&light, name, cx) {
-        log::warn!("preview dark theme {name:?}: {err:#}");
-        return;
-    }
-    reapply_appearance(window, cx);
-}
-
-pub fn revert_light_theme_preview(window: Option<&mut gpui_kit::Window>, cx: &mut App) {
-    let name = light_theme_name(cx).to_string();
-    preview_light_theme(&name, window, cx);
-}
-
-pub fn revert_dark_theme_preview(window: Option<&mut gpui_kit::Window>, cx: &mut App) {
-    let name = dark_theme_name(cx).to_string();
-    preview_dark_theme(&name, window, cx);
 }
 
 pub fn apply_theme_pair(
@@ -785,15 +744,6 @@ pub fn apply_dark_theme(name: &str, window: Option<&mut gpui_kit::Window>, cx: &
     apply_theme_pair(&light, name, window, cx);
 }
 
-/// Apply a paired preset (onboarding): sets both light and dark registry themes.
-pub fn apply_theme_preset(preset_id: &str, window: Option<&mut gpui_kit::Window>, cx: &mut App) {
-    let Some(preset) = preset_by_id(preset_id) else {
-        log::warn!("apply theme preset: unknown preset {preset_id:?}");
-        return;
-    };
-    apply_theme_pair(preset.light_name, preset.dark_name, window, cx);
-}
-
 pub fn cycle_theme(cx: &mut App) {
     let next = match appearance_mode(cx) {
         AppearanceMode::Light => AppearanceMode::Dark,
@@ -801,20 +751,6 @@ pub fn cycle_theme(cx: &mut App) {
         AppearanceMode::System => AppearanceMode::Light,
     };
     apply_appearance(next, None, cx);
-}
-
-pub fn onboarding_completed(cx: &App) -> bool {
-    cx.global::<NativePreferences>().onboarding_completed
-}
-
-pub fn set_onboarding_completed(completed: bool, cx: &mut App) {
-    cx.update_global(|p: &mut NativePreferences, _| {
-        if p.onboarding_completed == completed {
-            return;
-        }
-        p.onboarding_completed = completed;
-        p.save_best_effort();
-    });
 }
 
 pub fn update_prefs(cx: &App) -> UpdatePreferences {

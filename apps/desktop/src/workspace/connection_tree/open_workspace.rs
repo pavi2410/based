@@ -40,6 +40,16 @@ impl ConnectionTree {
         self.set_connection_expanded(idx, true, cx);
         self.load_objects_for_connection(idx, ac.clone(), cx);
 
+        let preserve = cx
+            .try_global::<WorkspaceRef>()
+            .is_some_and(|ws| ws.0.read(cx).should_preserve_restored_tabs(&conn_id));
+        if preserve {
+            if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+                ws.update(cx, |_, cx| cx.notify());
+            }
+            return;
+        }
+
         let dashboard = cx.new(|cx| ConnectionDashboardPanel::new(conn_ent.clone(), window, cx));
 
         let panel_arcs: Vec<Arc<dyn PanelView>> = match ac {

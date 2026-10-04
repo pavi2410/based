@@ -84,6 +84,10 @@ pub struct Workspace {
     project_dir: Option<PathBuf>,
     session_restored: bool,
     pending_open_tab: Option<TabSpec>,
+    /// Session tabs waiting for their connection to come up. Kept until the user closes them.
+    pending_session_tabs: Vec<TabSpec>,
+    /// Restore specs already dispatched this session so infer/SQL edits do not spawn duplicates.
+    session_tabs_opened: Vec<TabSpec>,
     pending_target_pick: Option<(ProjectQuery, Vec<ConnectionId>)>,
     /// Set by platform close; dialog is shown on the next [`Render`] (see `app::quit`).
     pub(crate) pending_close_confirm: bool,
@@ -183,6 +187,8 @@ impl Workspace {
             project_dir,
             session_restored: false,
             pending_open_tab: None,
+            pending_session_tabs: Vec::new(),
+            session_tabs_opened: Vec::new(),
             pending_target_pick: None,
             pending_close_confirm: false,
             pending_project_switch: None,
@@ -282,9 +288,6 @@ impl Workspace {
 
     fn save_session(&self, cx: &Context<Self>) {
         let tm = self.tab_manager.read(cx);
-        if tm.tabs.is_empty() {
-            return;
-        }
         let mut tabs = Vec::new();
         let mut active = None;
         for (i, t) in tm.tabs.iter().enumerate() {
@@ -295,6 +298,10 @@ impl Workspace {
                 active = Some(tabs.len());
             }
             tabs.push(t.spec.clone());
+        }
+        tabs = tabs::merge_live_and_pending(tabs, &self.pending_session_tabs);
+        if tabs.is_empty() {
+            return;
         }
         let snapshot = tabs::SessionSnapshot {
             tabs,
@@ -321,13 +328,12 @@ impl Workspace {
         let active_spec = session
             .active
             .and_then(|idx| session.tabs.get(idx).cloned());
-        for spec in session.tabs {
-            if matches!(spec, TabSpec::Home) || !spec.persist_in_session() {
-                continue;
-            }
-            self.pending_open_tab = Some(spec);
-            self.flush_pending_open_tab(window, cx);
-        }
+        self.pending_session_tabs = session
+            .tabs
+            .into_iter()
+            .filter(|spec| !matches!(spec, TabSpec::Home) && spec.persist_in_session())
+            .collect();
+        self.flush_pending_session_tabs(window, cx);
         if let Some(spec) = active_spec.filter(TabSpec::persist_in_session) {
             self.tab_manager.update(cx, |tm, ecx| {
                 if let Some(idx) = tm.tabs.iter().position(|t| t.spec == spec) {

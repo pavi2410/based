@@ -5,6 +5,7 @@ use std::sync::Arc;
 use gpui_kit::App;
 use gpui_kit::component::dock::PanelView;
 
+use crate::connection::ConnectionId;
 use crate::mongodb::pipeline_builder::PipelineBuilderPanel;
 use crate::postgres;
 use crate::sqlite;
@@ -12,7 +13,7 @@ use crate::workspace::panels::ConnectionWizardPanel;
 use crate::workspace::panels::object_info::ConnectionDashboardPanel;
 use crate::workspace::panels::release_notes::ReleaseNotesPanel;
 
-use super::spec::TabSpec;
+use super::spec::{QueryEditorInit, TabSpec};
 
 pub(crate) fn infer_tab_spec(panel: &Arc<dyn PanelView>, cx: &App) -> TabSpec {
     match panel.panel_name(cx) {
@@ -20,17 +21,25 @@ pub(crate) fn infer_tab_spec(panel: &Arc<dyn PanelView>, cx: &App) -> TabSpec {
         "ConnectionDashboard" => panel
             .view()
             .downcast::<ConnectionDashboardPanel>()
-            .map(|ent| TabSpec::Dashboard(ent.read(cx).connection_id(cx)))
+            .map(|ent| TabSpec::Dashboard {
+                conn_id: ent.read(cx).connection_id(cx),
+            })
             .unwrap_or_else(|_| builtin(panel, cx)),
         "PgQueryEditor" => panel
             .view()
             .downcast::<postgres::query_editor::QueryEditorPanel>()
-            .map(|ent| TabSpec::blank_query_editor(ent.read(cx).connection_id().clone()))
+            .map(|ent| {
+                let panel = ent.read(cx);
+                query_editor_spec(panel.connection_id().clone(), panel.current_sql(cx))
+            })
             .unwrap_or_else(|_| builtin(panel, cx)),
         "SqliteQueryEditor" => panel
             .view()
             .downcast::<sqlite::query_editor::QueryEditorPanel>()
-            .map(|ent| TabSpec::blank_query_editor(ent.read(cx).connection_id().clone()))
+            .map(|ent| {
+                let panel = ent.read(cx);
+                query_editor_spec(panel.connection_id().clone(), panel.current_sql(cx))
+            })
             .unwrap_or_else(|_| builtin(panel, cx)),
         "MongoPipelineBuilder" => panel
             .view()
@@ -59,6 +68,16 @@ pub(crate) fn infer_tab_spec(panel: &Arc<dyn PanelView>, cx: &App) -> TabSpec {
             })
             .unwrap_or_else(|_| builtin(panel, cx)),
         _ => builtin(panel, cx),
+    }
+}
+
+fn query_editor_spec(conn_id: ConnectionId, sql: String) -> TabSpec {
+    TabSpec::QueryEditor {
+        conn_id,
+        init: QueryEditorInit::Sql {
+            sql: (!sql.is_empty()).then_some(sql),
+            auto_run: false,
+        },
     }
 }
 

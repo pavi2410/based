@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use based_storage::{ACTIVE_CONNECTION_ID, ACTIVE_TAB_INDEX, MetadataStore, OPEN_TABS};
 
-use super::spec::TabSpec;
+use super::spec::{QueryEditorInit, TabSpec};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SessionSnapshot {
@@ -74,5 +74,89 @@ impl SessionSnapshot {
             .set_session_json("pinned_tabs", &self.pinned_tabs)
             .await?;
         Ok(())
+    }
+}
+
+/// Live dock tabs plus session tabs that have not opened yet (connection still down).
+pub fn merge_live_and_pending(live: Vec<TabSpec>, pending: &[TabSpec]) -> Vec<TabSpec> {
+    let mut tabs = live;
+    for spec in pending {
+        if spec.persist_in_session() && !tabs.iter().any(|open| open == spec) {
+            tabs.push(spec.clone());
+        }
+    }
+    tabs
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::connection::ConnectionId;
+
+    #[test]
+    fn pending_session_tabs_survive_home_only_live_set() {
+        let live = vec![TabSpec::Home];
+        let pending = vec![
+            TabSpec::Dashboard {
+                conn_id: ConnectionId("events".into()),
+            },
+            TabSpec::DataViewer {
+                conn_id: ConnectionId("events".into()),
+                object: "events".into(),
+            },
+        ];
+        let tabs = merge_live_and_pending(live, &pending);
+        assert_eq!(tabs.len(), 3);
+        assert!(matches!(tabs[0], TabSpec::Home));
+        assert!(matches!(tabs[1], TabSpec::Dashboard { .. }));
+        assert!(matches!(tabs[2], TabSpec::DataViewer { .. }));
+    }
+
+    #[test]
+    fn dashboard_plus_blank_query_does_not_drop_restored_sql_or_viewer() {
+        let conn = ConnectionId("events".into());
+        let live = vec![
+            TabSpec::Dashboard {
+                conn_id: conn.clone(),
+            },
+            TabSpec::blank_query_editor(conn.clone()),
+        ];
+        let pending = vec![
+            TabSpec::Dashboard {
+                conn_id: conn.clone(),
+            },
+            TabSpec::QueryEditor {
+                conn_id: conn.clone(),
+                init: QueryEditorInit::Sql {
+                    sql: Some("SELECT * FROM txns".into()),
+                    auto_run: false,
+                },
+            },
+            TabSpec::DataViewer {
+                conn_id: conn,
+                object: "txns".into(),
+            },
+        ];
+        let tabs = merge_live_and_pending(live, &pending);
+        assert!(
+            tabs.iter().any(|t| matches!(
+                t,
+                TabSpec::QueryEditor {
+                    init: QueryEditorInit::Sql {
+                        sql: Some(sql),
+                        ..
+                    },
+                    ..
+                } if sql == "SELECT * FROM txns"
+            )),
+            "saved SQL must survive a live blank query: {tabs:?}"
+        );
+        assert!(
+            tabs.iter().any(|t| matches!(
+                t,
+                TabSpec::DataViewer { object, .. } if object == "txns"
+            )),
+            "data viewer must survive dashboard+blank snapshot: {tabs:?}"
+        );
     }
 }

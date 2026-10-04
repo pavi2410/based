@@ -9,6 +9,7 @@ use super::tabs::{TabOpenQueue, TabSpec, WorkspaceNavQueue, enqueue_open_tab, en
 use crate::app::logging::open_logs;
 use crate::app::updater::check_now;
 use crate::command_palette::WorkspacePaletteAction;
+use crate::connection::ConnectionId;
 use crate::project::prompt_open_project_in_new_window;
 use crate::project::prompt_open_project_in_window;
 use crate::project::request_close_project_in_window;
@@ -65,9 +66,11 @@ impl Workspace {
         window: &mut gpui_kit::Window,
         cx: &mut Context<Self>,
     ) {
-        self.prune_opened_session_tabs(cx);
         let pending = self.pending_session_tabs.clone();
         for spec in pending {
+            if self.session_tabs_opened.iter().any(|open| open == &spec) {
+                continue;
+            }
             if self
                 .tab_manager
                 .read(cx)
@@ -75,22 +78,24 @@ impl Workspace {
                 .iter()
                 .any(|t| t.spec == spec)
             {
+                self.session_tabs_opened.push(spec);
                 continue;
             }
-            self.dispatch_open_tab(spec, window, cx);
+            if self.dispatch_open_tab(spec.clone(), window, cx) {
+                self.session_tabs_opened.push(spec);
+            }
         }
     }
 
-    fn prune_opened_session_tabs(&mut self, cx: &gpui_kit::App) {
-        let live: Vec<TabSpec> = self
-            .tab_manager
-            .read(cx)
-            .tabs
-            .iter()
-            .map(|t| t.spec.clone())
-            .collect();
+    pub(crate) fn forget_session_tab(&mut self, spec: &TabSpec) {
+        self.pending_session_tabs.retain(|open| open != spec);
+        self.session_tabs_opened.retain(|open| open != spec);
+    }
+
+    pub(crate) fn should_preserve_restored_tabs(&self, conn_id: &ConnectionId) -> bool {
         self.pending_session_tabs
-            .retain(|spec| !live.iter().any(|open| open == spec));
+            .iter()
+            .any(|spec| spec.conn_id() == Some(conn_id))
     }
 
     pub(crate) fn flush_nav_queue(

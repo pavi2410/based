@@ -84,8 +84,10 @@ pub struct Workspace {
     project_dir: Option<PathBuf>,
     session_restored: bool,
     pending_open_tab: Option<TabSpec>,
-    /// Session tabs waiting for their connection to come up. Kept until they appear in TabManager.
+    /// Session tabs waiting for their connection to come up. Kept until the user closes them.
     pending_session_tabs: Vec<TabSpec>,
+    /// Restore specs already dispatched this session so infer/SQL edits do not spawn duplicates.
+    session_tabs_opened: Vec<TabSpec>,
     pending_target_pick: Option<(ProjectQuery, Vec<ConnectionId>)>,
     /// Set by platform close; dialog is shown on the next [`Render`] (see `app::quit`).
     pub(crate) pending_close_confirm: bool,
@@ -186,6 +188,7 @@ impl Workspace {
             session_restored: false,
             pending_open_tab: None,
             pending_session_tabs: Vec::new(),
+            session_tabs_opened: Vec::new(),
             pending_target_pick: None,
             pending_close_confirm: false,
             pending_project_switch: None,

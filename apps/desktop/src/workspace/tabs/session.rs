@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use based_storage::{ACTIVE_CONNECTION_ID, ACTIVE_TAB_INDEX, MetadataStore, OPEN_TABS};
 
-use super::spec::TabSpec;
+use super::spec::{QueryEditorInit, TabSpec};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SessionSnapshot {
@@ -110,5 +110,53 @@ mod tests {
         assert!(matches!(tabs[0], TabSpec::Home));
         assert!(matches!(tabs[1], TabSpec::Dashboard { .. }));
         assert!(matches!(tabs[2], TabSpec::DataViewer { .. }));
+    }
+
+    #[test]
+    fn dashboard_plus_blank_query_does_not_drop_restored_sql_or_viewer() {
+        let conn = ConnectionId("events".into());
+        let live = vec![
+            TabSpec::Dashboard {
+                conn_id: conn.clone(),
+            },
+            TabSpec::blank_query_editor(conn.clone()),
+        ];
+        let pending = vec![
+            TabSpec::Dashboard {
+                conn_id: conn.clone(),
+            },
+            TabSpec::QueryEditor {
+                conn_id: conn.clone(),
+                init: QueryEditorInit::Sql {
+                    sql: Some("SELECT * FROM txns".into()),
+                    auto_run: false,
+                },
+            },
+            TabSpec::DataViewer {
+                conn_id: conn,
+                object: "txns".into(),
+            },
+        ];
+        let tabs = merge_live_and_pending(live, &pending);
+        assert!(
+            tabs.iter().any(|t| matches!(
+                t,
+                TabSpec::QueryEditor {
+                    init: QueryEditorInit::Sql {
+                        sql: Some(sql),
+                        ..
+                    },
+                    ..
+                } if sql == "SELECT * FROM txns"
+            )),
+            "saved SQL must survive a live blank query: {tabs:?}"
+        );
+        assert!(
+            tabs.iter().any(|t| matches!(
+                t,
+                TabSpec::DataViewer { object, .. } if object == "txns"
+            )),
+            "data viewer must survive dashboard+blank snapshot: {tabs:?}"
+        );
     }
 }

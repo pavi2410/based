@@ -54,6 +54,7 @@ impl Render for Workspace {
         }
         self.flush_nav_queue(window, cx);
         self.flush_pending_open_tab(window, cx);
+        self.flush_pending_session_tabs(window, cx);
         self.ensure_home_tab(window, cx);
         let this = cx.entity().clone();
         let selected_connection = self.connection_tree.read(cx).selected_connection_entry(cx);

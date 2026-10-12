@@ -167,6 +167,13 @@ impl TabManager {
         self.active_idx = new_active.or_else(|| self.tabs.len().checked_sub(1));
         if changed {
             cx.notify();
+            if self.tabs.len() > before_len {
+                cx.emit(TabEvent::TabOpened(self.tabs.len() - 1));
+            } else if before_len != self.tabs.len() {
+                cx.emit(TabEvent::TabClosed(0));
+            } else if let Some(idx) = self.active_idx {
+                cx.emit(TabEvent::ActiveChanged(idx));
+            }
         }
     }
 

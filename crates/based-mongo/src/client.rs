@@ -1,4 +1,4 @@
-use mongodb::options::{ClientOptions, Credential};
+use mongodb::options::{ClientOptions, Credential, ResolverConfig};
 
 pub fn apply_auth_source(opts: &mut ClientOptions, src: &str) {
     match opts.credential.as_mut() {
@@ -23,4 +23,17 @@ pub fn resolve_database_name(config: &super::MongoConfig, opts: &ClientOptions) 
 /// Database used for connectivity tests (ping/buildInfo).
 pub fn test_database_name(config: &super::MongoConfig) -> &str {
     config.database.as_deref().unwrap_or("admin")
+}
+
+/// Parse a connection URI. For `mongodb+srv://` URIs the system DNS config is tried first; if it
+/// can't be used (e.g. macOS scoped IPv6 nameservers like `fe80::1%en0`, which hickory fails to
+/// parse), retry with public resolvers.
+pub async fn parse_client_options(uri: &str) -> mongodb::error::Result<ClientOptions> {
+    match ClientOptions::parse(uri).await {
+        Err(e) if uri.starts_with("mongodb+srv://") => ClientOptions::parse(uri)
+            .resolver_config(ResolverConfig::cloudflare())
+            .await
+            .map_err(|_| e),
+        r => r,
+    }
 }

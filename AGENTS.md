@@ -15,12 +15,9 @@ mise run test     # Run all tests
 mise run clean    # Remove build artifacts
 
 # Direct cargo equivalents
-cargo run -p desktop          # GUI binary: based-desktop
-cargo run -p cli -- doctor    # CLI binary: based
+cargo run -p desktop          # GUI binary: based
 cargo build -p desktop --release
-cargo build -p cli --release
 cargo check -p desktop
-cargo check -p cli
 cargo clippy --workspace --all-targets
 cargo fmt --all
 cargo test --workspace
@@ -38,8 +35,7 @@ docker compose up -d          # PostgreSQL 18 → localhost:15432, MongoDB 8 →
 ### Workspace layout
 
 ```
-apps/cli/                # Headless CLI (`based`) — .based/ project files only
-apps/desktop/src/        # GPUI app (`based-desktop`)
+apps/desktop/src/        # GPUI app (package `desktop`, binary `based`)
 ├── main.rs              # Entry: GPUI app/window setup
 ├── app/                 # Global state, actions, preferences
 ├── connection/          # Engine-agnostic connection registry & lifecycle
@@ -48,12 +44,28 @@ apps/desktop/src/        # GPUI app (`based-desktop`)
 ├── sqlite/              # SQLite engine
 ├── postgres/            # PostgreSQL engine
 ├── mongodb/             # MongoDB engine
-├── project/             # .based/ folder loading and file watching
+├── project/             # .based/ I/O glue: discovery, file watching, variables (parsing lives in crates/based-project)
 ├── widgets/             # Reusable UI components
 ├── theme/               # Visual theming
 ├── settings_window/     # Preferences UI
 └── db.rs                # Tokio ↔ GPUI async bridge
 ```
+
+A headless CLI is planned but does not exist yet; don't reference `apps/cli` or `-p cli`.
+
+UI-free logic lives in `crates/` (no GPUI dependency):
+
+| Crate | Role |
+|-------|------|
+| `based-core` | Shared types, session persistence, connection error taxonomy |
+| `based-project` | Parse/load/validate the `.based/` format (connections, queries, env, favorites) |
+| `based-query` | Query history, saved queries, variables, SQL helpers |
+| `based-workspace` | Workspace/collection/environment models, template resolution |
+| `based-storage` | Local SQLite metadata store (WAL) + keychain secret boundary |
+| `based-postgres` / `based-sqlite` / `based-mongo` | Per-engine driver logic |
+| `based-ssh` | SSH local-forward tunnel used in front of an engine |
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for dependency rules between layers.
 
 ### Key patterns
 
@@ -65,7 +77,7 @@ apps/desktop/src/        # GPUI app (`based-desktop`)
 
 ### Tab strip (dock)
 
-Center editor tabs use gpui-kit `DockArea` + `DockSkin` (`PanelStyle::TabBar`), not the standalone Tabs story component. Layout is a `DockLayout` / `PaneTree` in gpui-base; wrap panels with `panel_handle` / `PanelHandle::from_view` so tab titles and menus survive. Labels come from `Panel::title` (short plain text via [`tab_label_for_spec`](apps/desktop/src/workspace/tab_label.rs)); panel chrome uses `based_panel_behavior!` + `based_panel_tab_chrome!` (no zoom control).
+Center editor tabs use gpui-kit `DockArea` + `DockSkin` (`PanelStyle::TabBar`), not the standalone Tabs story component. Layout is a `DockLayout` / `PaneTree` in gpui-base; wrap panels with `panel_handle` / `PanelHandle::from_view` so tab titles and menus survive. Labels come from `Panel::title` (short plain text via [`tab_label_for_spec`](apps/desktop/src/workspace/tabs/label.rs)); panel chrome uses `based_panel_behavior!` + `based_panel_tab_chrome!` (no zoom control).
 
 **Close tabs:** Based keeps `BasePanel::closable` false and closes via **Close tab** in the panel ⋯ menu and **⌘W / Ctrl+W** (`CloseTab` → `Workspace::close_active_center_tab`) so pin, dirty, and Home-respawn rules stay in-app. Closing the last tab respawns **Home** via `ensure_home_tab`. Home is closable like any other tab when others are open; pinned tabs stay non-closable.
 

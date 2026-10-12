@@ -54,7 +54,7 @@ impl ChangeStreamPanel {
             let result = db::run(cx, async move {
                 use futures::StreamExt;
                 let mut stream = coll
-                    .watch(None, None)
+                    .watch()
                     .await
                     .map_err(|e| anyhow::anyhow!("watch() failed: {e}"))?;
                 let mut out_lines = Vec::<String>::new();

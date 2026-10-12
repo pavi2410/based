@@ -13,7 +13,6 @@ use gpui_kit::component::{
 use gpui_kit::{prelude::*, *};
 use mongodb::Collection;
 use mongodb::bson::{Document, doc, to_document};
-use mongodb::options::FindOptions;
 
 use gpui_kit::component::table::TableEvent;
 
@@ -109,8 +108,7 @@ impl DocumentViewerPanel {
 
         cx.spawn(async move |this, cx| {
             let docs = match db::run(cx, async move {
-                let opts = FindOptions::builder().limit(lim).build();
-                let mut cursor = coll.find(filter_doc, opts).await?;
+                let mut cursor = coll.find(filter_doc).limit(lim).await?;
                 let mut docs: Vec<Document> = Vec::new();
                 use futures::TryStreamExt;
                 while let Some(d) = cursor.try_next().await? {

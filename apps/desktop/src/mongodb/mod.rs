@@ -14,10 +14,11 @@ pub mod tree;
 pub use based_mongo::{MongoConfig, document_from_json, mongo_uri, mongosh_command};
 
 use mongodb::bson::doc;
-use mongodb::options::ClientOptions;
 use mongodb::{Client, Database};
 
-use based_mongo::{apply_auth_source, resolve_database_name, test_database_name};
+use based_mongo::{
+    apply_auth_source, parse_client_options, resolve_database_name, test_database_name,
+};
 
 use crate::connection::lifecycle::{Connectable, TestReport};
 use crate::db::Tokio;
@@ -45,7 +46,7 @@ impl Connectable for MongoConnection {
 
     fn open(config: Self::Config, cx: &mut App) -> Task<anyhow::Result<Self>> {
         Tokio::spawn_result(cx, async move {
-            let mut opts = ClientOptions::parse(&config.uri).await?;
+            let mut opts = parse_client_options(&config.uri).await?;
             if let Some(ref src) = config.auth_source {
                 apply_auth_source(&mut opts, src);
             }
@@ -55,7 +56,7 @@ impl Connectable for MongoConnection {
             let database = client.database(&db_name);
 
             let server_version = database
-                .run_command(doc! { "buildInfo": 1 }, None)
+                .run_command(doc! { "buildInfo": 1 })
                 .await
                 .ok()
                 .and_then(|info| info.get_str("version").ok().map(ToString::to_string));
@@ -73,16 +74,16 @@ impl Connectable for MongoConnection {
         let config = config.clone();
         Tokio::spawn_result(cx, async move {
             let start = Instant::now();
-            let mut opts = ClientOptions::parse(&config.uri).await?;
+            let mut opts = parse_client_options(&config.uri).await?;
             if let Some(ref src) = config.auth_source {
                 apply_auth_source(&mut opts, src);
             }
             let client = Client::with_options(opts)?;
             let db = test_database_name(&config);
             let database = client.database(db);
-            database.run_command(doc! { "ping": 1 }, None).await?;
+            database.run_command(doc! { "ping": 1 }).await?;
             let server_version = database
-                .run_command(doc! { "buildInfo": 1 }, None)
+                .run_command(doc! { "buildInfo": 1 })
                 .await
                 .ok()
                 .and_then(|info| info.get_str("version").ok().map(ToString::to_string));

@@ -122,9 +122,7 @@ impl DocumentEditorPanel {
             let outcome = db::run(cx, async move {
                 match mode {
                     EditorMode::Insert => {
-                        coll.insert_one(doc, None)
-                            .await
-                            .map_err(|e| anyhow::anyhow!(e))?;
+                        coll.insert_one(doc).await.map_err(|e| anyhow::anyhow!(e))?;
                     }
                     EditorMode::Edit => {
                         let id = original
@@ -133,7 +131,7 @@ impl DocumentEditorPanel {
                             .cloned()
                             .ok_or_else(|| anyhow::anyhow!("missing _id on original document"))?;
                         doc.insert("_id", id.clone());
-                        coll.replace_one(doc! { "_id": id }, doc, None)
+                        coll.replace_one(doc! { "_id": id }, doc)
                             .await
                             .map_err(|e| anyhow::anyhow!(e))?;
                     }

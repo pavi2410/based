@@ -43,7 +43,7 @@ impl CollectionsTreePanel {
         let db = self.database.clone();
         cx.spawn(async move |this, cx| {
             let names = match db::run_infallible(cx, async move {
-                db.list_collection_names(None).await.unwrap_or_default()
+                db.list_collection_names().await.unwrap_or_default()
             })
             .await
             {

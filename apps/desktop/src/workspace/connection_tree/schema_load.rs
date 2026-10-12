@@ -161,7 +161,7 @@ impl ConnectionTree {
     ) {
         cx.spawn(async move |this, cx| {
             let result = run(cx, async move {
-                let names = db.list_collection_names(None).await?;
+                let names = db.list_collection_names().await?;
                 let objects = names
                     .into_iter()
                     .map(|name| SchemaObject {

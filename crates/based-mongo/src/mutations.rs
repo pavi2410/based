@@ -7,7 +7,7 @@ pub async fn delete_by_id(coll: &Collection<Document>, id: &str) -> Result<u64> 
     let oid = ObjectId::parse_str(id)
         .map(Bson::ObjectId)
         .unwrap_or(Bson::String(id.to_string()));
-    let r = coll.delete_one(doc! { "_id": oid }, None).await?;
+    let r = coll.delete_one(doc! { "_id": oid }).await?;
     Ok(r.deleted_count)
 }
 
@@ -20,7 +20,7 @@ pub async fn replace_by_id(
         .map(Bson::ObjectId)
         .unwrap_or(Bson::String(id.to_string()));
     let filter = doc! { "_id": oid };
-    let r = coll.replace_one(filter, replacement, None).await?;
+    let r = coll.replace_one(filter, replacement).await?;
     Ok(r.modified_count)
 }
 
@@ -33,7 +33,7 @@ pub async fn update_fields_by_id(
         .map(Bson::ObjectId)
         .unwrap_or(Bson::String(id.to_string()));
     let r = coll
-        .update_one(doc! { "_id": oid }, doc! { "$set": set }, None)
+        .update_one(doc! { "_id": oid }, doc! { "$set": set })
         .await?;
     Ok(r.modified_count)
 }

@@ -72,7 +72,7 @@ impl CollectionInspectorPanel {
                 let stats_doc = coll
                     .client()
                     .database(&ns.db)
-                    .run_command(doc! { "collStats": &ns.coll, "scale": 1_i32 }, None)
+                    .run_command(doc! { "collStats": &ns.coll, "scale": 1_i32 })
                     .await
                     .ok();
 
@@ -99,7 +99,7 @@ impl CollectionInspectorPanel {
                     ]);
                 }
 
-                let mut cursor = coll.list_indexes(None).await?;
+                let mut cursor = coll.list_indexes().await?;
                 let mut ix_rows = Vec::<Vec<String>>::new();
                 use futures::TryStreamExt;
                 while let Ok(Some(idx)) = cursor.try_next().await {

@@ -40,7 +40,7 @@ rand = "0.9"
 dirs = "6"
 tempfile = "3"
 rfd = "0.15"
-mongodb = { version = "2", features = ["tokio-runtime"] }
+mongodb = "3"
 russh = "0.54"
 
 [workspace.lints.clippy]

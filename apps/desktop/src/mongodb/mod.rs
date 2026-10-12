@@ -55,7 +55,7 @@ impl Connectable for MongoConnection {
             let database = client.database(&db_name);
 
             let server_version = database
-                .run_command(doc! { "buildInfo": 1 }, None)
+                .run_command(doc! { "buildInfo": 1 })
                 .await
                 .ok()
                 .and_then(|info| info.get_str("version").ok().map(ToString::to_string));
@@ -80,9 +80,9 @@ impl Connectable for MongoConnection {
             let client = Client::with_options(opts)?;
             let db = test_database_name(&config);
             let database = client.database(db);
-            database.run_command(doc! { "ping": 1 }, None).await?;
+            database.run_command(doc! { "ping": 1 }).await?;
             let server_version = database
-                .run_command(doc! { "buildInfo": 1 }, None)
+                .run_command(doc! { "buildInfo": 1 })
                 .await
                 .ok()
                 .and_then(|info| info.get_str("version").ok().map(ToString::to_string));

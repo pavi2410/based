@@ -117,7 +117,7 @@ impl PipelineBuilderPanel {
             let pipeline_for_history = raw.clone();
             let start = Instant::now();
             let docs_result = db::run(cx, async move {
-                let mut cursor = coll.aggregate(stages, None).await?;
+                let mut cursor = coll.aggregate(stages).await?;
                 let mut docs = Vec::<Document>::new();
                 use futures::TryStreamExt;
                 while let Some(d) = cursor.try_next().await.unwrap_or(None) {

@@ -252,11 +252,10 @@ impl Render for Workspace {
             ))
             .child(self.command_palette.clone());
 
-        let stacked = super::chrome::overlays::stack_gpui_overlays(main, window, cx);
         div()
             .size_full()
             .relative()
-            .child(stacked)
+            .child(main)
             .when_some(target_pick, |layer, pick| {
                 layer.child(render_target_picker(
                     &pick.0,

@@ -16,7 +16,7 @@ resolver = "3"
 # GPUI Kit pins matching GPUI (`gpui-pre`) + component/base/assets. Desktop lists
 # this crate only — never GPUI itself. See https://gpui-kit.com/docs/installation/
 [workspace.dependencies]
-gpui-kit = { version = "0.6", features = ["tree-sitter-sql"] }
+gpui-kit = { version = "0.7", features = ["tree-sitter-sql"] }
 
 # Common third-party
 anyhow = "1"

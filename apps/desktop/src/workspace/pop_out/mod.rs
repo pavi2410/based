@@ -11,7 +11,7 @@ mod impls;
 use std::collections::HashMap;
 
 use gpui_kit::component::{
-    Placement, Root, Theme,
+    Placement, Theme,
     dock::Panel,
     menu::{PopupMenu, PopupMenuItem},
 };
@@ -318,21 +318,20 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
                     origin,
                     size: size(px(960.0), px(640.0)),
                 };
-                match app.open_window(
+                match gpui_kit::open_window(
                     WindowOptions {
                         window_bounds: Some(WindowBounds::Windowed(pop_bounds)),
                         titlebar: Some(titled_titlebar(title_for_window.clone())),
                         ..identified_window_options()
                     },
+                    app,
                     move |win, cx| {
                         Theme::change(Theme::global(cx).mode, Some(win), cx);
                         win.set_window_title(&title_for_window);
-                        let v: AnyView = ent.clone().into();
-                        cx.new(|cx| Root::new(v, win, cx))
+                        ent.clone()
                     },
                 ) {
-                    Ok(handle) => {
-                        let any: AnyWindowHandle = handle.into();
+                    Ok((any, _)) => {
                         PopOutManager::update_global(app, |m, _| {
                             m.windows.insert(panel_id, any);
                         });

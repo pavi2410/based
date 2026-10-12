@@ -6,13 +6,13 @@
 //! [`crate::workspace::chrome::topbar`].
 
 use gpui_kit::component::{
-    Root, TITLE_BAR_HEIGHT, TitleBar,
+    TITLE_BAR_HEIGHT, TitleBar,
     input::{Copy, Cut, Paste, Redo, SelectAll, Undo},
 };
 use gpui_kit::{
-    AnyWindowHandle, App, AppContext, Bounds, KeyBinding, Menu, MenuItem, OsAction, ParentElement,
-    Pixels, SharedString, Size, Styled, SystemMenuType, TitlebarOptions, WindowBounds,
-    WindowOptions, div, point, px, size,
+    App, AppContext, Bounds, KeyBinding, Menu, MenuItem, OsAction, ParentElement, Pixels,
+    SharedString, Size, Styled, SystemMenuType, TitlebarOptions, WindowBounds, WindowOptions, div,
+    point, px, size,
 };
 
 use super::aux_windows::{AuxKind, AuxWindows};
@@ -242,7 +242,7 @@ pub fn open_about(cx: &mut App) {
     if AuxWindows::focus_existing(AuxKind::About, cx) {
         return;
     }
-    let opened = cx.open_window(
+    let opened = gpui_kit::open_window(
         WindowOptions {
             window_bounds: Some(WindowBounds::centered(about_window_size(), cx)),
             titlebar: Some(titled_titlebar("About Based")),
@@ -252,15 +252,14 @@ pub fn open_about(cx: &mut App) {
             app_owns_titlebar_drag: true,
             ..identified_window_options()
         },
+        cx,
         |win, cx| {
             win.set_window_title("About Based");
-            let about = cx.new(AboutWindow::new);
-            cx.new(|cx| Root::new(about, win, cx))
+            cx.new(AboutWindow::new)
         },
     );
     match opened {
-        Ok(handle) => {
-            let any: AnyWindowHandle = handle.into();
+        Ok((any, _)) => {
             AuxWindows::insert(AuxKind::About, any, cx);
         }
         Err(err) => log::warn!("about window: {err:#}"),
@@ -278,7 +277,7 @@ pub fn open_settings(cx: &mut App) {
     if AuxWindows::focus_existing(AuxKind::Settings, cx) {
         return;
     }
-    let opened = cx.open_window(
+    let opened = gpui_kit::open_window(
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(Bounds {
                 origin: point(px(120.0), px(120.0)),
@@ -289,15 +288,14 @@ pub fn open_settings(cx: &mut App) {
             app_owns_titlebar_drag: true,
             ..identified_window_options()
         },
+        cx,
         |win, cx| {
             win.set_window_title("Based — Settings");
-            let settings = cx.new(SettingsWindow::new);
-            cx.new(|cx| Root::new(settings, win, cx))
+            cx.new(SettingsWindow::new)
         },
     );
     match opened {
-        Ok(handle) => {
-            let any: AnyWindowHandle = handle.into();
+        Ok((any, _)) => {
             AuxWindows::insert(AuxKind::Settings, any, cx);
         }
         Err(err) => log::warn!("settings window: {err:#}"),

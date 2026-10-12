@@ -64,7 +64,6 @@ fn walk_tab_groups(node: &PaneNode, f: &mut impl FnMut(NodeId, &[PanelId], usize
                 walk_tab_groups(child, f);
             }
         }
-        PaneRef::Tiles { .. } => {}
     }
 }
 

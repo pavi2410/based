@@ -7,7 +7,6 @@
 pub mod env;
 pub mod layout;
 pub mod left_pane;
-pub mod overlays;
 pub mod panes;
 pub mod side_pane;
 pub mod status_bar;

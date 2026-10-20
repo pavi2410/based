@@ -12,13 +12,12 @@ use crate::mongodb::document_editor::DocumentEditorPanel;
 use crate::mongodb::document_viewer::DocumentViewerPanel;
 use crate::mongodb::inspector::CollectionInspectorPanel;
 use crate::mongodb::pipeline_builder::PipelineBuilderPanel;
-use crate::postgres::data_viewer::DataViewerPanel as PgDataViewerPanel;
 use crate::postgres::inspector::TableInspectorPanel as PgInspectorPanel;
 use crate::postgres::query_editor::QueryEditorPanel as PgQueryEditorPanel;
-use crate::sqlite::data_viewer::DataViewerPanel as SqliteDataViewerPanel;
 use crate::sqlite::inspector::TableInspectorPanel as SqliteInspectorPanel;
 use crate::sqlite::query_editor::QueryEditorPanel as SqliteQueryEditorPanel;
 use crate::workspace::panels::connection_wizard::ConnectionWizardPanel;
+use crate::workspace::panels::data_viewer::DataViewerPanel;
 use crate::workspace::panels::home::HomePanel;
 use crate::workspace::panels::object_info::{ConnectionDashboardPanel, ObjectInfoPanel};
 use crate::workspace::panels::release_notes::ReleaseNotesPanel;
@@ -223,10 +222,9 @@ pub(crate) fn remove_presentation_panel(
         CollectionInspectorPanel,
         PipelineBuilderPanel,
         PgQueryEditorPanel,
-        PgDataViewerPanel,
+        DataViewerPanel,
         PgInspectorPanel,
         SqliteQueryEditorPanel,
-        SqliteDataViewerPanel,
         SqliteInspectorPanel,
     );
     log::error!(

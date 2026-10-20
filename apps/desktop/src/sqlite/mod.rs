@@ -6,12 +6,12 @@ use gpui_kit::{App, Task};
 
 pub mod attach_workspace;
 mod constraints;
-pub mod data_viewer;
 mod eqp_parse;
 pub mod eqp_viewer;
 pub mod inspector;
 pub mod pragmas;
 pub mod query_editor;
+pub mod source;
 pub mod tab_dispatch;
 
 pub use based_sqlite::{

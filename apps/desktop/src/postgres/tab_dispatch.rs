@@ -10,8 +10,10 @@ use gpui_kit::component::dock::PanelView;
 use gpui_kit::{Context, Window, prelude::*};
 use sqlx::PgPool;
 
+use super::source::PgSource;
 use crate::connection::ConnectionId;
 use crate::workspace::Workspace;
+use crate::workspace::panels::data_viewer::DataViewerPanel;
 use crate::workspace::tabs::label::tab_label_for_spec;
 use crate::workspace::tabs::spec::{QueryEditorInit, TabSpec};
 
@@ -33,11 +35,13 @@ pub fn build_panel(
             };
             let label = tab_label_for_spec(spec, false);
             let panel = cx.new(|cx| {
-                super::data_viewer::DataViewerPanel::new(
-                    pool,
+                DataViewerPanel::new(
+                    Arc::new(PgSource {
+                        pool,
+                        schema,
+                        table: name,
+                    }),
                     conn_id.clone(),
-                    schema,
-                    name,
                     window,
                     cx,
                 )

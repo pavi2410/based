@@ -1,7 +1,11 @@
-// postgres::data_viewer — paginated table reader (schema-qualified).
+// Paginated table viewer shared by SQL engines; engines plug in via [`DataSource`].
 
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Instant;
 
+use futures::future::BoxFuture;
+use gpui_kit::component::table::TableEvent;
 use gpui_kit::component::{
     ActiveTheme, Sizable as _,
     button::Button,
@@ -11,39 +15,91 @@ use gpui_kit::component::{
     v_flex,
 };
 use gpui_kit::{prelude::*, *};
-use sqlx::{AssertSqlSafe, Column as SqlxColumn, PgPool, Row, postgres::PgRow};
-
-use gpui_kit::component::table::TableEvent;
 
 use crate::app::prefs;
 use crate::connection::ConnectionId;
 use crate::connection::is_connection_read_only;
 use crate::db;
-use crate::db::column_catalog;
 use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_with_meta};
 use crate::widgets::column_header::GridColumnMeta;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export_popover::export_popover;
-use crate::widgets::filter_bar::FilterBar;
-use crate::widgets::pagination::{offset_for_page, sql_pagination_controls, sql_row_range_label};
+use crate::widgets::filter_bar::{FilterBar, FilterExpr};
+use crate::widgets::metadata_pill;
+use crate::widgets::pagination::{
+    offset_for_page, sql_page_state, sql_pagination_controls, sql_row_range_label,
+};
 use crate::widgets::panel::{
     data_viewer_toolbar, panel_tab_content, tab_breadcrumb_data_viewer_trailing,
     tab_breadcrumb_footer, tab_breadcrumb_for_connection,
 };
-use crate::widgets::row_cell::pg_cell_display;
 use crate::widgets::virtual_table::{
     RowDelegate, align_meta_to_columns, data_column, replace_table_data,
 };
 use crate::workspace::WorkspaceRef;
 use crate::workspace::pop_out::PopOutWindowTitle;
-use std::time::Instant;
+
+pub type Fut<T> = BoxFuture<'static, anyhow::Result<T>>;
+
+/// One page of table rows, already formatted for display.
+pub struct PageData {
+    pub total: i64,
+    pub columns: Vec<Column>,
+    pub rows: Vec<Vec<SharedString>>,
+}
+
+impl PageData {
+    /// `names` are the result-set column names; when the page is empty, fall back to the catalog.
+    pub fn new(
+        total: i64,
+        names: Option<Vec<String>>,
+        rows: Vec<Vec<SharedString>>,
+        catalog: &HashMap<String, GridColumnMeta>,
+    ) -> Self {
+        let names = names.unwrap_or_else(|| {
+            let mut keys: Vec<_> = catalog.keys().cloned().collect();
+            keys.sort();
+            keys
+        });
+        let columns = names
+            .into_iter()
+            .map(|n| data_column(n.clone(), n))
+            .collect();
+        Self {
+            total,
+            columns,
+            rows,
+        }
+    }
+}
+
+/// Double-quote a SQL identifier.
+pub fn quote_ident(ident: &str) -> String {
+    format!("\"{}\"", ident.replace('"', "\"\""))
+}
+
+/// Engine-specific data access for [`DataViewerPanel`].
+pub trait DataSource: Send + Sync + 'static {
+    /// Dock panel name, e.g. `"PgDataViewer"`.
+    fn panel_name(&self) -> &'static str;
+    /// Widget id prefix, e.g. `"pg-dv"`.
+    fn id(&self) -> &'static str;
+    /// Object path shown in breadcrumbs and titles, e.g. `["public", "users"]`.
+    fn path(&self) -> Vec<String>;
+    fn catalog(&self) -> Fut<HashMap<String, GridColumnMeta>>;
+    fn page(
+        &self,
+        filter: Option<FilterExpr>,
+        offset: u64,
+        limit: u64,
+        catalog: HashMap<String, GridColumnMeta>,
+    ) -> Fut<PageData>;
+}
 
 pub struct DataViewerPanel {
     focus_handle: FocusHandle,
-    pool: PgPool,
+    source: Arc<dyn DataSource>,
     conn_id: ConnectionId,
-    schema: String,
-    table_name: String,
     table: Entity<TableState<RowDelegate>>,
     cell_detail: Entity<CellDetail>,
     filter_bar: Entity<FilterBar>,
@@ -56,46 +112,21 @@ pub struct DataViewerPanel {
     pub(crate) tab_label: SharedString,
 }
 
-fn columns_from_rows_or_catalog(
-    rows: &[PgRow],
-    catalog: &HashMap<String, GridColumnMeta>,
-) -> Vec<Column> {
-    if let Some(first) = rows.first() {
-        return first
-            .columns()
-            .iter()
-            .map(|c| data_column(c.name().to_string(), c.name().to_string()))
-            .collect();
-    }
-    let mut names: Vec<_> = catalog.keys().cloned().collect();
-    names.sort();
-    names
-        .into_iter()
-        .map(|n| data_column(n.clone(), n))
-        .collect()
-}
-
 impl DataViewerPanel {
     pub fn new(
-        pool: PgPool,
+        source: Arc<dyn DataSource>,
         conn_id: ConnectionId,
-        schema: String,
-        table_name: String,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let delegate = RowDelegate::default();
-        let table = cx.new(|cx| configure_row_table(delegate, window, cx));
+        let table = cx.new(|cx| configure_row_table(RowDelegate::default(), window, cx));
         let filter_bar = cx.new(|cx| FilterBar::new(window, cx, vec![]));
         let cell_detail = cx.new(|_| CellDetail::new());
-
-        let tab_label = format!("{schema}.{table_name}").into();
+        let tab_label = source.path().join(".").into();
         let mut panel = Self {
             focus_handle: cx.focus_handle(),
-            pool,
+            source,
             conn_id,
-            schema,
-            table_name,
             table,
             cell_detail,
             filter_bar,
@@ -108,10 +139,8 @@ impl DataViewerPanel {
             tab_label,
         };
         cx.subscribe(&panel.table, |panel, _, event, cx| {
-            if let TableEvent::DoubleClickedCell(row_ix, col_ix) = event {
-                let row = *row_ix;
-                let col = *col_ix;
-                let Some((col_name, val)) = panel.cell_snapshot(row, col, cx) else {
+            if let TableEvent::DoubleClickedCell(row, col) = event {
+                let Some((col_name, val)) = panel.cell_snapshot(*row, *col, cx) else {
                     return;
                 };
                 panel.cell_detail.update(cx, |d, cx| {
@@ -135,103 +164,45 @@ impl DataViewerPanel {
         Some((col_name, interpret_cell_with_meta(&txt, &meta)))
     }
 
-    fn sql_identifier(ident: &str) -> String {
-        ident.replace('"', "\"\"")
-    }
-
     fn load_page(&mut self, offset: u64, cx: &mut Context<Self>) {
         self.loading = true;
         self.offset = offset;
-        let pool = self.pool.clone();
-        let schema_raw = self.schema.clone();
-        let table_raw = self.table_name.clone();
-        let schema = Self::sql_identifier(&schema_raw);
-        let table = Self::sql_identifier(&table_raw);
+        let source = self.source.clone();
         let page_size = self.page_size;
-        let where_sql = self
-            .filter_bar
-            .read(cx)
-            .current_expr(cx)
-            .map(|e| e.to_sql_postgres());
-        let cached_catalog = self.column_catalog.clone();
+        let filter = self.filter_bar.read(cx).current_expr(cx);
+        let cached = self.column_catalog.clone();
 
         cx.spawn(async move |this, cx| {
-            let catalog = if cached_catalog.is_empty() {
-                let pool_for_catalog = pool.clone();
-                db::run(cx, async move {
-                    column_catalog::load_postgres_column_catalog(
-                        &pool_for_catalog,
-                        &schema_raw,
-                        &table_raw,
-                    )
-                    .await
-                })
-                .await
-                .unwrap_or_default()
+            let catalog = if cached.is_empty() {
+                db::run(cx, source.catalog()).await.unwrap_or_default()
             } else {
-                cached_catalog
+                cached
             };
-
-            let catalog_for_rows = catalog.clone();
+            let fetch = source.page(filter, offset, page_size, catalog.clone());
             let res = db::run(cx, async move {
                 let start = Instant::now();
-                let where_clause = where_sql
-                    .as_ref()
-                    .map(|w| format!(" WHERE {w}"))
-                    .unwrap_or_default();
-
-                let count_sql =
-                    format!(r#"SELECT COUNT(*) FROM "{schema}"."{table}"{where_clause}"#);
-                let total: i64 = sqlx::query_scalar(AssertSqlSafe(count_sql))
-                    .fetch_one(&pool)
-                    .await
-                    .unwrap_or(0);
-
-                let fetch_sql = format!(
-                    r#"SELECT * FROM "{schema}"."{table}"{where_clause} LIMIT {page_size} OFFSET {offset}"#
-                );
-                let rows = sqlx::query(AssertSqlSafe(fetch_sql)).fetch_all(&pool).await?;
-
-                let columns: Vec<Column> =
-                    columns_from_rows_or_catalog(&rows, &catalog_for_rows);
-
-                let data_rows: Vec<Vec<SharedString>> = rows
-                    .iter()
-                    .map(|row| {
-                        (0..row.len())
-                            .map(|i| SharedString::from(pg_cell_display(row, i)))
-                            .collect()
-                    })
-                    .collect();
-
-                let elapsed_ms = start.elapsed().as_millis() as u64;
-                Ok((total, columns, data_rows, elapsed_ms))
+                let page = fetch.await?;
+                Ok((page, start.elapsed().as_millis() as u64))
             })
             .await;
 
-            let _ = this.update(cx, |panel, cx| match res {
-                Ok((total, columns, data_rows, elapsed_ms)) => {
-                    panel.total_rows = total as u64;
-                    panel.loading = false;
+            let _ = this.update(cx, |panel, cx| {
+                panel.loading = false;
+                if let Ok((page, elapsed_ms)) = res {
+                    panel.total_rows = page.total as u64;
                     panel.last_load_ms = Some(elapsed_ms);
-                    panel.column_catalog = catalog.clone();
-                    let names: Vec<String> = columns.iter().map(|c| c.key.to_string()).collect();
+                    let names: Vec<String> =
+                        page.columns.iter().map(|c| c.key.to_string()).collect();
+                    let meta = align_meta_to_columns(names.iter().cloned(), &catalog);
+                    panel.column_catalog = catalog;
                     panel.filter_bar.update(cx, |fb, cx| {
                         fb.set_columns_if_empty(names, cx);
                     });
-                    let column_meta = align_meta_to_columns(
-                        columns.iter().map(|c| c.key.to_string()),
-                        &catalog,
-                    );
                     panel.table.update(cx, |state, cx| {
-                        replace_table_data(state, columns, data_rows, column_meta, cx);
+                        replace_table_data(state, page.columns, page.rows, meta, cx);
                     });
-                    cx.notify();
                 }
-                Err(_) => {
-                    panel.loading = false;
-                    cx.notify();
-                }
+                cx.notify();
             });
         })
         .detach();
@@ -251,7 +222,17 @@ impl Focusable for DataViewerPanel {
 }
 
 impl BasePanel for DataViewerPanel {
-    crate::based_panel_behavior!("PgDataViewer");
+    fn panel_name(&self) -> &'static str {
+        self.source.panel_name()
+    }
+
+    fn closable(&self, _: &App) -> bool {
+        false
+    }
+
+    fn zoomable(&self, _: &App) -> bool {
+        false
+    }
 }
 
 impl Panel for DataViewerPanel {
@@ -269,55 +250,51 @@ impl Panel for DataViewerPanel {
 
 impl PopOutWindowTitle for DataViewerPanel {
     fn pop_out_window_title(&mut self, _: &mut Window, _: &mut App) -> String {
-        format!("{}.{}", self.schema, self.table_name)
+        self.source.path().join(".")
     }
 }
 
 impl Render for DataViewerPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let total = self.total_rows;
-        let offset = self.offset;
-        let page_size = self.page_size;
-        let loading = self.loading;
+        let (total, offset, page_size, loading) =
+            (self.total_rows, self.offset, self.page_size, self.loading);
+        let id = self.source.id();
+
         let row_info: SharedString = sql_row_range_label(total, offset, page_size).into();
+        let (current_page, total_pages) = sql_page_state(total, offset, page_size);
+        let page_info: SharedString = format!("{current_page} / {total_pages}").into();
         let panel = cx.entity().downgrade();
         let muted = cx.theme().muted_foreground;
 
         let (export_headers, export_rows) = {
             let st = self.table.read(cx);
             let d = st.delegate();
-            let h = d
-                .columns
-                .iter()
-                .map(|c| c.key.to_string())
-                .collect::<Vec<_>>();
+            let h = d.columns.iter().map(|c| c.key.to_string()).collect();
             let r = d
                 .rows
                 .iter()
                 .map(|row| row.iter().map(|c| c.to_string()).collect())
-                .collect::<Vec<Vec<String>>>();
+                .collect();
             (h, r)
         };
-        let export_popover = export_popover("pg-dv", export_headers, export_rows);
 
         let toolbar = data_viewer_toolbar(cx)
+            .child(metadata_pill("page", page_info, cx))
             .child(self.filter_bar.clone())
             .child(
-                Button::new("pg-filter-apply")
+                Button::new(SharedString::from(format!("{id}-filter-apply")))
                     .small()
                     .outline()
                     .label("Apply filter")
                     .on_click(cx.listener(|panel, _, _, cx| panel.load_page(0, cx))),
             )
             .child(
-                Button::new("pg-filter-clear")
+                Button::new(SharedString::from(format!("{id}-filter-clear")))
                     .small()
                     .outline()
                     .label("Clear filter")
                     .on_click(cx.listener(|panel, _, window, cx| {
-                        panel.filter_bar.update(cx, |fb, cx| {
-                            fb.clear(window, cx);
-                        });
+                        panel.filter_bar.update(cx, |fb, cx| fb.clear(window, cx));
                         panel.load_page(0, cx);
                     })),
             )
@@ -325,15 +302,20 @@ impl Render for DataViewerPanel {
             .when(loading, |d| {
                 d.child(div().text_sm().text_color(muted).child("Loading…"))
             })
-            .child(export_popover)
+            .child(export_popover(id, export_headers, export_rows))
             .child(
-                sql_pagination_controls("pg-pager", total, offset, page_size, loading).on_click(
-                    move |page, _, cx| {
-                        if let Some(ent) = panel.upgrade() {
-                            ent.update(cx, |panel, cx| panel.go_to_page(*page, cx));
-                        }
-                    },
-                ),
+                sql_pagination_controls(
+                    SharedString::from(format!("{id}-pager")),
+                    total,
+                    offset,
+                    page_size,
+                    loading,
+                )
+                .on_click(move |page, _, cx| {
+                    if let Some(ent) = panel.upgrade() {
+                        ent.update(cx, |panel, cx| panel.go_to_page(*page, cx));
+                    }
+                }),
             );
 
         let body = v_flex()
@@ -351,19 +333,15 @@ impl Render for DataViewerPanel {
             .try_global::<WorkspaceRef>()
             .map(|ws| is_connection_read_only(&self.conn_id, ws.0.read(cx).registry().read(cx), cx))
             .unwrap_or(false);
-        let crumbs = tab_breadcrumb_for_connection(
-            &self.conn_id,
-            [self.schema.clone(), self.table_name.clone()],
-            cx,
-        );
+        let crumbs = tab_breadcrumb_for_connection(&self.conn_id, self.source.path(), cx);
         let footer = tab_breadcrumb_footer(
-            "pg-dv-breadcrumb",
+            SharedString::from(format!("{id}-breadcrumb")),
             crumbs,
             Some(tab_breadcrumb_data_viewer_trailing(
                 row_info,
                 self.last_load_ms,
                 read_only,
-                "pg-dv-read-only",
+                "dv-read-only",
                 cx,
             )),
             cx,

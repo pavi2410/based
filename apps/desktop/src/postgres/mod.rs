@@ -3,11 +3,11 @@ use std::time::Instant;
 use gpui_kit::{App, Task};
 // postgres/ — GPUI panels + connection lifecycle; driver logic in `based-postgres`.
 
-pub mod data_viewer;
 pub mod explain_plan;
 pub mod grammar;
 pub mod inspector;
 pub mod query_editor;
+pub mod source;
 pub mod tab_dispatch;
 pub mod wizard;
 

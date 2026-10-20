@@ -29,7 +29,7 @@ enum QuitMode {
 }
 
 fn trace(msg: &str) {
-    log::warn!(target: LOG_TARGET, "{msg}");
+    log::debug!(target: LOG_TARGET, "{msg}");
 }
 
 fn trace_connections(registry: &Entity<ConnectionRegistry>, cx: &App, context: &str) {
@@ -175,7 +175,6 @@ fn show_quit_dialog(
     let registry_for_ok = registry.clone();
 
     window.open_alert_dialog(cx, move |alert, _window, cx| {
-        trace("show_quit_dialog: open_alert_dialog builder invoked");
         let registry = registry_for_ok.clone();
         let theme = cx.theme();
         let quit_btn = Button::new("quit-confirm")

@@ -26,6 +26,7 @@ pub async fn load_schema(pool: &SqlitePool) -> anyhow::Result<SchemaCache> {
         objects.push(SchemaObject {
             full_name: name.clone(),
             label: name,
+            schema: None,
             kind,
             columns,
         });
@@ -39,7 +40,7 @@ pub async fn load_schema(pool: &SqlitePool) -> anyhow::Result<SchemaCache> {
 }
 
 async fn load_columns(pool: &SqlitePool, table_name: &str) -> anyhow::Result<Vec<ColumnInfo>> {
-    let sql = format!("PRAGMA table_info(\"{table_name}\")");
+    let sql = format!("PRAGMA table_info(\"{}\")", table_name.replace('"', "\"\""));
     let rows = sqlx::query(AssertSqlSafe(sql)).fetch_all(pool).await?;
     Ok(rows
         .iter()

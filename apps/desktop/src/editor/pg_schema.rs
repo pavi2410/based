@@ -33,11 +33,8 @@ pub async fn load_schema(pool: &PgPool) -> anyhow::Result<SchemaCache> {
             let (sch, tbl) = &key;
             objects.push(SchemaObject {
                 full_name: format!("{sch}.{tbl}"),
-                label: if sch == "public" {
-                    tbl.clone()
-                } else {
-                    format!("{sch}.{tbl}")
-                },
+                label: tbl.clone(),
+                schema: Some(sch.clone()),
                 kind: if kind == "VIEW" {
                     ObjectKind::View
                 } else {

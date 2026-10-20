@@ -12,7 +12,7 @@ use lsp_types::{
     Range, TextEdit,
 };
 
-use super::schema_cache::{ObjectKind, SchemaCache, SchemaObject};
+use super::schema_cache::{ObjectKind, SchemaCache, quote_ident};
 
 const SQL_KEYWORDS: &[&str] = &[
     "SELECT",
@@ -125,85 +125,125 @@ impl SqlCompletionProvider {
     }
 }
 
+/// Identifier token ending at `end` (byte offset into `text`): returns its start.
+/// Quoted segments (`"my table"`) may contain spaces and dots.
+fn token_start(text: &str, end: usize) -> usize {
+    let line_start = text[..end].rfind('\n').map_or(0, |i| i + 1);
+    let (mut start, mut inq) = (line_start, false);
+    for (i, c) in text[line_start..end].char_indices() {
+        match c {
+            '"' => inq = !inq,
+            _ if inq => {}
+            c if c.is_alphanumeric() || matches!(c, '_' | '.' | '$') => {}
+            c => start = line_start + i + c.len_utf8(),
+        }
+    }
+    start
+}
+
+/// Byte index of the last `.` outside quotes.
+fn last_dot(token: &str) -> Option<usize> {
+    let (mut dot, mut inq) = (None, false);
+    for (i, c) in token.char_indices() {
+        match c {
+            '"' => inq = !inq,
+            '.' if !inq => dot = Some(i),
+            _ => {}
+        }
+    }
+    dot
+}
+
 impl CompletionProvider for SqlCompletionProvider {
     fn completions(
         &self,
         rope: &Rope,
         offset: usize,
-        trigger: CompletionContext,
+        _: CompletionContext,
         _: &mut Window,
         cx: &mut App,
     ) -> Task<Result<CompletionResponse>> {
-        let query = trigger.trigger_character.unwrap_or_default();
-        if query.is_empty() {
+        let text = rope.to_string();
+        let mut end = offset.min(text.len());
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        let start = token_start(&text, end);
+        let token = text[start..end].to_string();
+        if token.is_empty() {
             return Task::ready(Ok(CompletionResponse::Array(vec![])));
         }
 
-        let start = offset.saturating_sub(query.len());
-        let replace_range = Range::new(
-            rope.offset_to_position(start),
-            rope.offset_to_position(offset),
-        );
+        // Replace only the part being typed (after the last dot, if any).
+        let (qualifier, prefix, from) = match last_dot(&token) {
+            Some(d) => (
+                Some(token[..d].to_string()),
+                token[d + 1..].to_string(),
+                start + d + 1,
+            ),
+            None => (None, token, start),
+        };
+        let range = Range::new(rope.offset_to_position(from), rope.offset_to_position(end));
 
         let cache = self.cache.clone();
         cx.background_spawn(async move {
-            let items = if let Some((table, col_prefix)) = query.rsplit_once('.') {
-                column_items(&cache, table, col_prefix, &query, &replace_range)
-            } else {
-                schema_and_keyword_items(&cache, &query, &replace_range)
+            let items = match qualifier {
+                Some(table) => column_items(&cache, &table, &prefix, &range),
+                None => schema_and_keyword_items(&cache, &prefix, &range),
             };
             Ok(CompletionResponse::Array(items))
         })
     }
 
-    fn is_completion_trigger(&self, _offset: usize, new_text: &str, _cx: &mut App) -> bool {
+    fn is_completion_trigger(&self, _: usize, new_text: &str, _: &mut App) -> bool {
         !new_text.is_empty()
             && new_text
                 .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')
+                .all(|c| c.is_alphanumeric() || matches!(c, '_' | '.' | '"' | ' ' | '$'))
     }
 }
 
 fn schema_and_keyword_items(
     cache: &SchemaCache,
     query: &str,
-    replace_range: &Range,
+    range: &Range,
 ) -> Vec<CompletionItem> {
-    let lower = query.to_lowercase();
-    let mut items = Vec::new();
+    let mut items: Vec<CompletionItem> = cache
+        .complete(query)
+        .into_iter()
+        .map(|obj| {
+            let kind = if obj.kind == ObjectKind::View {
+                "view"
+            } else {
+                "table"
+            };
+            item(
+                &obj.display(),
+                CompletionItemKind::CLASS,
+                Some(kind),
+                range,
+                obj.insert_text(),
+            )
+        })
+        .collect();
 
-    for obj in cache.complete(query) {
-        items.push(completion_item(
-            obj.label.as_str(),
-            CompletionItemKind::CLASS,
-            Some(obj.kind_label()),
-            replace_range,
-        ));
-    }
-
-    for kw in SQL_KEYWORDS {
-        if kw.to_lowercase().starts_with(&lower)
-            && !items.iter().any(|i| i.label.eq_ignore_ascii_case(kw))
-        {
-            items.push(completion_item(
-                kw,
-                CompletionItemKind::KEYWORD,
-                None,
-                replace_range,
-            ));
-        }
-    }
-
-    for func in SQL_FUNCTIONS {
-        if func.to_lowercase().starts_with(&lower)
-            && !items.iter().any(|i| i.label.eq_ignore_ascii_case(func))
-        {
-            items.push(completion_item(
-                func,
-                CompletionItemKind::FUNCTION,
-                Some("()"),
-                replace_range,
-            ));
+    // Keywords and functions are never quoted, so a leading `"` means identifiers only.
+    if !query.starts_with('"') {
+        let lower = query.to_lowercase();
+        let words = SQL_KEYWORDS
+            .iter()
+            .map(|k| (k, CompletionItemKind::KEYWORD, None))
+            .chain(
+                SQL_FUNCTIONS
+                    .iter()
+                    .map(|f| (f, CompletionItemKind::FUNCTION, Some("()"))),
+            );
+        for (w, kind, detail) in words {
+            if w.to_lowercase().starts_with(&lower)
+                && !items.iter().any(|i| i.label.eq_ignore_ascii_case(w))
+            {
+                items.push(item(w, kind, detail, range, (*w).to_string()));
+            }
         }
     }
 
@@ -216,44 +256,28 @@ fn column_items(
     cache: &SchemaCache,
     table: &str,
     col_prefix: &str,
-    full_query: &str,
-    replace_range: &Range,
+    range: &Range,
 ) -> Vec<CompletionItem> {
-    let table_prefix = table.trim();
     cache
-        .complete_columns(table_prefix, col_prefix)
+        .complete_columns(table, col_prefix)
         .into_iter()
         .map(|col| {
-            let insert = format!("{table_prefix}.{}", col.name);
-            completion_item_with_text(
-                col.name.as_str(),
+            item(
+                &col.name,
                 CompletionItemKind::FIELD,
-                Some(col.data_type.as_str()),
-                replace_range,
-                if col_prefix.is_empty() {
-                    insert
-                } else {
-                    full_query.replacen(col_prefix, &col.name, 1)
-                },
+                Some(&col.data_type),
+                range,
+                quote_ident(&col.name),
             )
         })
         .collect()
 }
 
-fn completion_item(
+fn item(
     label: &str,
     kind: CompletionItemKind,
     detail: Option<&str>,
-    replace_range: &Range,
-) -> CompletionItem {
-    completion_item_with_text(label, kind, detail, replace_range, label.to_string())
-}
-
-fn completion_item_with_text(
-    label: &str,
-    kind: CompletionItemKind,
-    detail: Option<&str>,
-    replace_range: &Range,
+    range: &Range,
     new_text: String,
 ) -> CompletionItem {
     CompletionItem {
@@ -261,22 +285,28 @@ fn completion_item_with_text(
         kind: Some(kind),
         detail: detail.map(str::to_string),
         text_edit: Some(CompletionTextEdit::Edit(TextEdit {
-            range: *replace_range,
+            range: *range,
             new_text,
         })),
         ..Default::default()
     }
 }
 
-trait SchemaObjectExt {
-    fn kind_label(&self) -> &'static str;
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-impl SchemaObjectExt for SchemaObject {
-    fn kind_label(&self) -> &'static str {
-        match self.kind {
-            ObjectKind::View => "view",
-            _ => "table",
-        }
+    #[test]
+    fn token_spans_quoted_spaces() {
+        let t = "select * from \"my ta";
+        assert_eq!(&t[token_start(t, t.len())..], "\"my ta");
+        let t = "select a ";
+        assert_eq!(token_start(t, t.len()), t.len());
+    }
+
+    #[test]
+    fn last_dot_ignores_quoted() {
+        assert_eq!(last_dot("\"a.b\".c"), Some(5));
+        assert_eq!(last_dot("\"a.b"), None);
     }
 }

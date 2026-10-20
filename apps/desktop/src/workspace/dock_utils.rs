@@ -12,6 +12,8 @@ use crate::mongodb::document_editor::DocumentEditorPanel;
 use crate::mongodb::document_viewer::DocumentViewerPanel;
 use crate::mongodb::inspector::CollectionInspectorPanel;
 use crate::mongodb::pipeline_builder::PipelineBuilderPanel;
+use crate::redis::console::ConsolePanel as RedisConsolePanel;
+use crate::redis::key_view::KeyViewPanel as RedisKeyViewPanel;
 use crate::workspace::panels::connection_wizard::ConnectionWizardPanel;
 use crate::workspace::panels::data_viewer::DataViewerPanel;
 use crate::workspace::panels::home::HomePanel;
@@ -222,6 +224,8 @@ pub(crate) fn remove_presentation_panel(
         DataViewerPanel,
         TableInspectorPanel,
         QueryEditorPanel,
+        RedisConsolePanel,
+        RedisKeyViewPanel,
     );
     log::error!(
         "unrecognized center panel type for remove: {}",

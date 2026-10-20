@@ -1,5 +1,10 @@
 //! Loose queries and collections lane in the left sidebar.
 
+use std::future::Future;
+use std::sync::Arc;
+
+use anyhow::Result;
+use based_storage::MetadataStore;
 use gpui_kit::component::{ActiveTheme, menu::ContextMenuExt, menu::PopupMenuItem, v_flex};
 use gpui_kit::{
     AnyElement, App, FontWeight, MouseButton, ParentElement, SharedString, Styled, div, prelude::*,
@@ -8,7 +13,7 @@ use uuid::Uuid;
 
 use crate::connection::ConnectionId;
 use crate::connection::ConnectionState::Connected;
-use crate::db::Tokio;
+use crate::db;
 use crate::storage;
 use crate::widgets::section_eyebrow::section_eyebrow;
 use crate::workspace::WorkspaceRef;
@@ -225,85 +230,69 @@ pub fn create_collection_from_palette(cx: &mut App) {
     create_collection(cx);
 }
 
-fn create_loose_query(cx: &mut App) {
+/// Run a store mutation on Tokio, then refresh the workspace context without blocking the UI.
+fn mutate<F, Fut>(cx: &mut App, op: F)
+where
+    F: FnOnce(Arc<MetadataStore>, WorkspaceContext) -> Fut + Send + 'static,
+    Fut: Future<Output = Result<()>> + Send + 'static,
+{
     let Some(ctx) = cx.try_global::<WorkspaceContext>().cloned() else {
         return;
     };
     let store = storage::store(cx);
-    let handle = Tokio::handle(cx);
-    let name = format!("Query {}", ctx.active.loose_queries.len() + 1);
     let workspace_id = ctx.active.id;
-    let result = handle.block_on(async move {
+    cx.spawn(async move |cx| {
+        let refreshed = db::run(cx, async move {
+            op(store.clone(), ctx).await?;
+            refresh_context(store, workspace_id).await
+        })
+        .await;
+        if let Ok(ctx) = refreshed {
+            cx.update(|cx| {
+                cx.set_global(ctx);
+                if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+                    ws.update(cx, |_, cx| cx.notify());
+                }
+            });
+        }
+    })
+    .detach();
+}
+
+fn create_loose_query(cx: &mut App) {
+    mutate(cx, |store, ctx| async move {
+        let name = format!("Query {}", ctx.active.loose_queries.len() + 1);
         store
-            .create_loose_query(workspace_id, &name, "SELECT 1;", None)
-            .await
+            .create_loose_query(ctx.active.id, &name, "SELECT 1;", None)
+            .await?;
+        Ok(())
     });
-    if let Ok(_q) = result {
-        reload_workspace_context(workspace_id, cx);
-    }
 }
 
 fn create_collection(cx: &mut App) {
-    let Some(ctx) = cx.try_global::<WorkspaceContext>().cloned() else {
-        return;
-    };
-    let store = storage::store(cx);
-    let handle = Tokio::handle(cx);
-    let name = format!("Collection {}", ctx.active.collections.len() + 1);
-    let workspace_id = ctx.active.id;
-    let result = handle.block_on(async move { store.create_collection(workspace_id, &name).await });
-    if result.is_ok() {
-        reload_workspace_context(workspace_id, cx);
-    }
+    mutate(cx, |store, ctx| async move {
+        let name = format!("Collection {}", ctx.active.collections.len() + 1);
+        store.create_collection(ctx.active.id, &name).await?;
+        Ok(())
+    });
 }
 
 fn move_loose_to_collection(query_id: Uuid, collection_name: &str, cx: &mut App) {
-    let Some(ctx) = cx.try_global::<WorkspaceContext>().cloned() else {
-        return;
-    };
-    let Some(collection) = ctx
-        .active
-        .collections
-        .iter()
-        .find(|c| c.name == collection_name)
-    else {
-        return;
-    };
-    let store = storage::store(cx);
-    let handle = Tokio::handle(cx);
-    let workspace_id = ctx.active.id;
-    let collection_id = collection.id;
-    let result = handle.block_on(async move {
+    let name = collection_name.to_string();
+    mutate(cx, move |store, ctx| async move {
+        let Some(c) = ctx.active.collections.iter().find(|c| c.name == name) else {
+            return Ok(());
+        };
         store
-            .move_query_to_collection(workspace_id, query_id, collection_id)
-            .await
+            .move_query_to_collection(ctx.active.id, query_id, c.id)
+            .await?;
+        Ok(())
     });
-    if result.is_ok() {
-        reload_workspace_context(workspace_id, cx);
-    }
 }
 
 fn move_collection_to_loose(query_id: Uuid, cx: &mut App) {
-    let Some(ctx) = cx.try_global::<WorkspaceContext>().cloned() else {
-        return;
-    };
-    let store = storage::store(cx);
-    let handle = Tokio::handle(cx);
-    let workspace_id = ctx.active.id;
-    let result =
-        handle.block_on(async move { store.move_query_to_loose(workspace_id, query_id).await });
-    if result.is_ok() {
-        reload_workspace_context(workspace_id, cx);
-    }
-}
-
-pub fn reload_workspace_context(workspace_id: Uuid, cx: &mut App) {
-    let store = storage::store(cx);
-    let handle = Tokio::handle(cx);
-    if let Ok(ctx) = handle.block_on(refresh_context(store, workspace_id)) {
-        cx.set_global(ctx);
-        if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
-            ws.update(cx, |_, cx| cx.notify());
-        }
-    }
+    mutate(cx, move |store, ctx| async move {
+        store.move_query_to_loose(ctx.active.id, query_id).await?;
+        Ok(())
+    });
 }

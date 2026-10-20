@@ -116,7 +116,9 @@ impl Render for Workspace {
             .track_focus(&self.focus_handle)
             .on_action(
                 window.listener_for(&this, |ws, _: &ToggleSidebarRail, _, cx| {
-                    ws.toggle_sidebar_rail(cx);
+                    // Hide only the catalog pane; the icon rail stays.
+                    ws.connection_tree
+                        .update(cx, |tree, cx| tree.toggle_content_rail(cx));
                 }),
             )
             .on_action(window.listener_for(&this, |_, _: &CycleAppearance, _, cx| {

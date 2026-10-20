@@ -46,7 +46,6 @@ pub async fn fetch_release_body(version: &str) -> Result<String> {
 pub struct LatestReleaseInfo {
     pub version: semver::Version,
     pub version_label: String,
-    pub prerelease: bool,
 }
 
 /// Query `/releases/latest` for version discovery (complements packager manifest check).
@@ -83,6 +82,5 @@ pub async fn fetch_latest_release(include_prereleases: bool) -> Result<Option<La
     Ok(Some(LatestReleaseInfo {
         version,
         version_label,
-        prerelease: release.prerelease,
     }))
 }

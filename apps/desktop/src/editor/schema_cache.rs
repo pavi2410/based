@@ -18,18 +18,12 @@ pub struct SchemaObject {
 pub enum ObjectKind {
     Table,
     View,
-    MaterializedView,
-    Collection,
-    Function,
-    Procedure,
 }
 
 #[derive(Debug, Clone)]
 pub struct ColumnInfo {
     pub name: String,
     pub data_type: String,
-    pub nullable: bool,
-    pub is_primary_key: bool,
 }
 
 /// Lazily-populated cache of schema objects for a single connection.
@@ -97,14 +91,10 @@ mod tests {
                 ColumnInfo {
                     name: "id".into(),
                     data_type: "INTEGER".into(),
-                    nullable: false,
-                    is_primary_key: true,
                 },
                 ColumnInfo {
                     name: "title".into(),
                     data_type: "TEXT".into(),
-                    nullable: true,
-                    is_primary_key: false,
                 },
             ],
         });

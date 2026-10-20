@@ -15,7 +15,6 @@ use gpui_kit::{
     SharedString, Task, WeakEntity, Window, div, prelude::*, px,
 };
 
-use crate::app::prefs;
 use crate::connection::EngineKind;
 use crate::widgets::empty_state::empty_state;
 use crate::widgets::list_row::{SchemaRowStyle, schema_object_row};
@@ -445,13 +444,11 @@ fn object_row_element(
     indent: &BrowserTreeIndent,
     cx: &App,
 ) -> impl IntoElement {
-    let muted = cx.theme().muted_foreground;
+    let _muted = cx.theme().muted_foreground;
     let fg = cx.theme().foreground;
     let style = SchemaRowStyle {
-        muted,
         fg,
         icon_color: object.kind.accent_color(cx.theme()),
-        mono_family: prefs::code_font_family(cx),
         row_py: sidebar_row_padding_y(cx),
         row_gap: sidebar_row_inner_gap(cx),
     };

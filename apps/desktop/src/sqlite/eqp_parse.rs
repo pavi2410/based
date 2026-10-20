@@ -4,7 +4,6 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct EqpNode {
-    pub id: i64,
     pub detail: String,
     pub children: Vec<EqpNode>,
     pub is_table_scan: bool,
@@ -18,7 +17,6 @@ pub fn parse_eqp(rows: &[(i64, i64, String)]) -> Vec<EqpNode> {
             (
                 *id,
                 EqpNode {
-                    id: *id,
                     detail: detail.clone(),
                     children: vec![],
                     is_table_scan,

@@ -46,8 +46,6 @@ async fn load_columns(pool: &SqlitePool, table_name: &str) -> anyhow::Result<Vec
         .map(|row| ColumnInfo {
             name: row.try_get::<String, _>("name").unwrap_or_default(),
             data_type: row.try_get::<String, _>("type").unwrap_or_default(),
-            nullable: !row.try_get::<bool, _>("notnull").unwrap_or(false),
-            is_primary_key: row.try_get::<i64, _>("pk").unwrap_or(0) != 0,
         })
         .collect())
 }

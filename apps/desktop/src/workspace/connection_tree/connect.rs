@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use gpui_kit::{App, Context, Entity, Window};
 
 use crate::connection::{
@@ -27,7 +25,7 @@ impl ConnectionTree {
         };
 
         match conn_ent.read(cx).state {
-            ConnectionState::Connecting { .. } => return,
+            ConnectionState::Connecting => return,
             ConnectionState::Connected(_) => {
                 self.set_connection_expanded(idx, true, cx);
                 self.pending_open_connection = Some(idx);
@@ -44,9 +42,7 @@ impl ConnectionTree {
         };
         self.bump_object_list_epoch(cx);
         conn_ent.update(cx, |e, cx| {
-            e.state = ConnectionState::Connecting {
-                since: Instant::now(),
-            };
+            e.state = ConnectionState::Connecting;
             e.last_error = None;
             cx.notify();
         });
@@ -100,7 +96,6 @@ fn finish_connection_open(
                 );
                 entry.state = ConnectionState::Failed {
                     reason: err.to_string(),
-                    attempted_at: Instant::now(),
                 };
                 entry.last_error = Some(err.to_string());
                 tray_fail = Some((

@@ -12,7 +12,6 @@ use super::{ConnectionEntry, ConnectionId, ConnectionOrigin, ConnectionState};
 pub enum RegistryEvent {
     Added(ConnectionId),
     Removed(ConnectionId),
-    StateChanged(ConnectionId),
 }
 
 pub struct ConnectionRegistry {

@@ -105,7 +105,6 @@ impl ConnectionTree {
                 this.content_rail_expanded = false;
                 cx.notify();
             }
-            RegistryEvent::StateChanged(_) => cx.notify(),
         })
         .detach();
 

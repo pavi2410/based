@@ -2,23 +2,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::connection::ConnectionId;
 
-/// Classifies a tab by the number and kind of connections it operates on.
-///
-/// Use this to decide whether a tab survives connection disconnect, appears
-/// in connection-scoped menus, or is surfaced in workspace-level views
-/// (e.g. ER diagrams, agent chat, chart builder).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TabScope {
-    /// Tab operates on exactly one connection.
-    Connection(ConnectionId),
-    /// Tab spans multiple connections (ER diagrams, cross-DB joins).
-    MultiConnection(Vec<ConnectionId>),
-    /// Workspace-scoped but not connection-specific (agent chat, chart builder).
-    Workspace,
-    /// Fully global — not tied to any project or connection (Home, ReleaseNotes).
-    Global,
-}
-
 /// Typed initialization payload for a query editor tab.
 ///
 /// This replaces the old flat fields on `TabSpec::QueryEditor`

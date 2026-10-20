@@ -2,7 +2,6 @@
 
 use std::mem;
 use std::path::PathBuf;
-use std::time::Instant;
 
 use based_project::{ProjectQuery, load_env_file};
 use gpui_kit::Context;
@@ -115,7 +114,6 @@ impl Workspace {
                 }
                 e.state = ConnectionState::Failed {
                     reason: reason.clone(),
-                    attempted_at: Instant::now(),
                 };
                 e.last_error = Some(reason);
                 cx.notify();

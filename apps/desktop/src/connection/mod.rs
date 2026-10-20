@@ -11,10 +11,7 @@ pub mod tunnel;
 
 pub use open::{OpenedConnection, open_connection, opened_into_any};
 
-use std::time::Instant;
-
 use serde::{Deserialize, Serialize};
-use time::OffsetDateTime;
 
 use crate::db::{close_pg_pool, close_sqlite_pool};
 use crate::mongodb::{MongoConfig, MongoConnection};
@@ -96,13 +93,10 @@ pub enum AnyConnection {
 pub enum ConnectionState {
     Disconnected,
     /// In-flight connect is tracked by `Workspace` spawn; this state is UX-only.
-    Connecting {
-        since: Instant,
-    },
+    Connecting,
     Connected(AnyConnection),
     Failed {
         reason: String,
-        attempted_at: Instant,
     },
 }
 
@@ -125,7 +119,6 @@ pub struct ConnectionEntry {
     pub tags: Vec<String>,
     pub origin: ConnectionOrigin,
     pub state: ConnectionState,
-    pub last_connected_at: Option<OffsetDateTime>,
     pub last_error: Option<String>,
 }
 
@@ -143,7 +136,6 @@ impl ConnectionEntry {
             tags,
             origin,
             state: ConnectionState::Disconnected,
-            last_connected_at: None,
             last_error: None,
         }
     }

@@ -19,8 +19,6 @@ use sqlx::{AssertSqlSafe, PgPool, Row};
 
 use crate::connection::ConnectionId;
 use crate::db;
-use crate::editor::EditorContext;
-use crate::editor::VariableScope;
 use crate::postgres::execute_sql;
 use crate::postgres::explain_plan::{PlanNode, parse_pg_explain_json, render_plan_node};
 use crate::project::{ProjectRoot, ProjectVars, substitute};
@@ -81,7 +79,6 @@ pub struct QueryEditorPanel {
     explain: ExplainView,
     dirty: bool,
     pub(crate) tab_label: SharedString,
-    pub editor_ctx: Entity<EditorContext>,
 }
 
 impl QueryEditorPanel {
@@ -107,13 +104,6 @@ impl QueryEditorPanel {
         let sql_text = initial_sql.unwrap_or_else(|| "SELECT 1 AS one;".to_string());
         let sql_input = new_sql_input(&sql_text, window, cx);
         let split_state = cx.new(|_| ResizableState::default());
-        let variables = cx
-            .try_global::<ProjectVars>()
-            .map(|pv| VariableScope::from_string_map(&pv.vars))
-            .unwrap_or_default();
-        let editor_ctx = cx.new(|_| {
-            EditorContext::new(conn_id.clone(), based_core::EngineKind::Postgres, variables)
-        });
         let panel = Self {
             focus_handle: cx.focus_handle(),
             pool,
@@ -126,7 +116,6 @@ impl QueryEditorPanel {
             explain: ExplainView::Empty,
             dirty: false,
             tab_label: "Query".into(),
-            editor_ctx,
         };
         let conn_for_dirty = panel.conn_id.clone();
         cx.observe(&sql_input, move |panel, _, cx| {

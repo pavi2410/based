@@ -24,9 +24,7 @@ use crate::app::prefs;
 use crate::connection::ConnectionId;
 use crate::connection::is_connection_read_only;
 use crate::db;
-use crate::editor::EditorContext;
-use crate::editor::VariableScope;
-use crate::editor::context::EditorContextEvent;
+use crate::editor::SchemaCache;
 use crate::editor::sqlite_schema;
 use crate::project::{ProjectRoot, ProjectVars, substitute};
 use crate::query_store::{HistoryEntry, QueryStore};
@@ -82,7 +80,6 @@ pub struct QueryEditorPanel {
     bottom_tab: BottomTab,
     explain: ExplainView,
     pub(crate) tab_label: SharedString,
-    pub editor_ctx: Entity<EditorContext>,
 }
 
 impl QueryEditorPanel {
@@ -108,14 +105,7 @@ impl QueryEditorPanel {
         let delegate = RowDelegate::default();
         let result = cx.new(|cx| configure_row_table(delegate, window, cx));
         let split_state = cx.new(|_| ResizableState::default());
-        let variables = cx
-            .try_global::<ProjectVars>()
-            .map(|pv| VariableScope::from_string_map(&pv.vars))
-            .unwrap_or_default();
-        let editor_ctx = cx.new(|_| {
-            EditorContext::new(conn_id.clone(), based_core::EngineKind::SQLite, variables)
-        });
-        let schema_cache = editor_ctx.read(cx).schema_cache.clone();
+        let schema_cache = Arc::new(SchemaCache::new(based_core::EngineKind::SQLite));
         sql_editor::attach_sql_completion(&sql_input, schema_cache, cx);
         let mut panel = Self {
             focus_handle: cx.focus_handle(),
@@ -128,7 +118,6 @@ impl QueryEditorPanel {
             bottom_tab: BottomTab::Results,
             explain: ExplainView::Empty,
             tab_label: "Query".into(),
-            editor_ctx,
         };
         cx.subscribe_in(&sql_input, window, |panel, _, event, window, cx| {
             if let InputEvent::PressEnter {
@@ -151,7 +140,6 @@ impl QueryEditorPanel {
 
     fn load_schema_cache(&mut self, cx: &mut Context<Self>) {
         let pool = self.pool.clone();
-        let editor_ctx = self.editor_ctx.clone();
         let sql_input = self.sql_input.clone();
         cx.spawn(async move |_, cx| {
             let loaded = db::run(cx, async move { sqlite_schema::load_schema(&pool).await }).await;
@@ -162,10 +150,6 @@ impl QueryEditorPanel {
 
             let cache = Arc::new(cache);
             cx.update(|cx| {
-                editor_ctx.update(cx, |ctx, cx| {
-                    ctx.set_schema_cache((*cache).clone());
-                    cx.emit(EditorContextEvent::SchemaCacheRefreshed);
-                });
                 sql_editor::attach_sql_completion(&sql_input, cache, cx);
             });
         })

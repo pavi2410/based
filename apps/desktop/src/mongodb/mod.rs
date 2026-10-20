@@ -9,7 +9,6 @@ pub mod document_viewer;
 pub mod inspector;
 pub mod pipeline_builder;
 pub mod tab_dispatch;
-pub mod tree;
 
 pub use based_mongo::{MongoConfig, document_from_json, mongo_uri, mongosh_command};
 

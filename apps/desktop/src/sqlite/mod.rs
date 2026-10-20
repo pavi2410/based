@@ -9,12 +9,10 @@ mod constraints;
 pub mod data_viewer;
 mod eqp_parse;
 pub mod eqp_viewer;
-pub mod fts_console;
 pub mod inspector;
 pub mod pragmas;
 pub mod query_editor;
 pub mod tab_dispatch;
-pub mod tree;
 
 pub use based_sqlite::{
     SqliteConfig, SqliteOpenOptions, SqlitePathContext, SqlitePragma, sqlite_connect_options,

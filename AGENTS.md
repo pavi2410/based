@@ -81,7 +81,7 @@ Center editor tabs use gpui-kit `DockArea` + `DockSkin` (`PanelStyle::TabBar`), 
 
 **Close tabs:** Based keeps `BasePanel::closable` false and closes via **Close tab** in the panel ⋯ menu and **⌘W / Ctrl+W** (`CloseTab` → `Workspace::close_active_center_tab`) so pin, dirty, and Home-respawn rules stay in-app. Closing the last tab respawns **Home** via `ensure_home_tab`. Home is closable like any other tab when others are open; pinned tabs stay non-closable.
 
-Full Tabs-demo parity (per-tab ×, overflow chevron menu) needs upstream `TabGroup` API changes in [gpui-kit](https://github.com/longbridge/gpui-kit)—no fork in this repo.
+Each unpinned tab draws its own × inside the tab title ([`render_strip_tab`](apps/desktop/src/workspace/tabs/label.rs)) and closes via `Workspace::close_center_panel`, not gpui-kit's built-in close button (`set_close_button_visible`), which would bypass the pin/Home rules. The overflow chevron menu still needs upstream `TabGroup` API changes in [gpui-kit](https://github.com/longbridge/gpui-kit)—no fork in this repo.
 
 ### Clippy overrides
 

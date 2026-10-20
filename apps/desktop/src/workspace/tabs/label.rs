@@ -1,10 +1,19 @@
 //! Tab strip labels (`Panel::title` when `tab_name` is unset).
 
-use gpui_kit::component::{ActiveTheme, Icon, Sizable as _, h_flex};
-use gpui_kit::{App, EntityId, IntoElement, SharedString, prelude::*, px};
+use gpui_kit::component::{
+    ActiveTheme, Icon, IconName, Sizable as _,
+    button::{Button, ButtonVariants as _},
+    h_flex,
+};
+use gpui_kit::{App, EntityId, IntoElement, SharedString, div, prelude::*, px};
+
+use crate::workspace::WorkspaceRef;
 
 use super::open::TabManagerRef;
 use super::spec::TabSpec;
+
+/// Longest a tab may grow before its label is truncated.
+pub const TAB_MAX_WIDTH: f32 = 120.0;
 
 pub const PIN_ICON_PATH: &str = "icons/pin.svg";
 
@@ -25,6 +34,7 @@ pub fn render_strip_tab(
     let color = cx.theme().tab_foreground;
 
     h_flex()
+        .max_w(px(TAB_MAX_WIDTH))
         .gap(px(4.0))
         .items_center()
         .when(pinned, |this| {
@@ -35,7 +45,23 @@ pub fn render_strip_tab(
                     .text_color(color.opacity(0.75)),
             )
         })
-        .child(text)
+        .child(div().min_w_0().truncate().child(text))
+        .when(!pinned, |this| this.child(close_button(panel_id, color)))
+}
+
+/// Per-tab × that closes through the workspace so pin and Home rules still apply.
+fn close_button(panel_id: EntityId, color: gpui_kit::Hsla) -> impl IntoElement {
+    Button::new(("tab-close", panel_id.as_u64()))
+        .ghost()
+        .xsmall()
+        .icon(Icon::new(IconName::Close).text_color(color.opacity(0.6)))
+        .tooltip("Close tab")
+        .on_click(move |_, window, cx| {
+            cx.stop_propagation();
+            if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+                ws.update(cx, |ws, cx| ws.close_center_panel(panel_id, window, cx));
+            }
+        })
 }
 
 pub fn tab_label_for_spec(spec: &TabSpec, dirty: bool) -> SharedString {

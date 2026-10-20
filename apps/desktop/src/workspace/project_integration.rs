@@ -161,6 +161,24 @@ impl Workspace {
         let keep_id = session_id
             .as_ref()
             .and_then(super::wizard_logic::relative_id_for_saved);
+        let target_id = super::wizard_logic::saved_id_for_destination(
+            origin,
+            &keep_id
+                .map(str::to_string)
+                .unwrap_or_else(|| based_project::slug_from_label(config.label())),
+        );
+        let label = config.label().trim().to_lowercase();
+        let name_taken = self.registry.read(cx).connections().iter().any(|e| {
+            let e = e.read(cx);
+            Some(&e.id) != session_id.as_ref()
+                && (e.id == target_id || e.config.label().trim().to_lowercase() == label)
+        });
+        if name_taken {
+            return Err(format!(
+                "A connection named “{}” already exists. Choose a different name.",
+                config.label()
+            ));
+        }
         let mut entry = match persist_config_to_based_dir(&based_dir, &config, &tags, keep_id) {
             Ok(conn) => {
                 let vars = load_env_file(&based_dir.join(".env")).unwrap_or_default();

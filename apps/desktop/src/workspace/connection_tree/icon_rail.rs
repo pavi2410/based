@@ -12,6 +12,7 @@ use gpui_kit::{
 };
 
 use crate::widgets::engine_icon;
+use crate::workspace::WorkspaceRef;
 
 use super::ConnectionTree;
 use super::connection_list::{ConnectionRow, RailItem};
@@ -48,7 +49,19 @@ pub(crate) fn render_icon_rail(
                     RailItem::Connection(row) => {
                         rail_icon(row, selected, tree.clone(), cx).into_any_element()
                     }
-                })),
+                }))
+                .child(
+                    Button::new("rail-new-connection")
+                        .ghost()
+                        .small()
+                        .icon(Icon::new(IconName::Plus).text_color(muted))
+                        .tooltip("New connection")
+                        .on_click(|_, window, cx| {
+                            if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+                                ws.update(cx, |ws, cx| ws.open_connection_picker_tab(window, cx));
+                            }
+                        }),
+                ),
         )
         .child(
             Button::new("content-rail-toggle")
@@ -127,16 +140,18 @@ fn rail_icon(
             connection_context_menu(idx, engine, is_connected, tree_menu.clone(), menu, cx)
         })
         .child(engine_icon(engine))
-        .child(
-            div()
-                .absolute()
-                .bottom(px(3.0))
-                .right(px(3.0))
-                .w(px(7.0))
-                .h(px(7.0))
-                .rounded_full()
-                .bg(row.state_color)
-                .border_1()
-                .border_color(sidebar),
-        )
+        .when(is_connected, |d| {
+            d.child(
+                div()
+                    .absolute()
+                    .bottom(px(3.0))
+                    .right(px(3.0))
+                    .w(px(7.0))
+                    .h(px(7.0))
+                    .rounded_full()
+                    .bg(row.state_color)
+                    .border_1()
+                    .border_color(sidebar),
+            )
+        })
 }

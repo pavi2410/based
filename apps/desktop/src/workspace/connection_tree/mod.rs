@@ -83,15 +83,7 @@ impl ConnectionTree {
     ) -> Self {
         cx.subscribe(&registry, |this, _, event, cx| match event {
             RegistryEvent::Added(id) => {
-                let engine = this
-                    .registry
-                    .read(cx)
-                    .get(id, cx)
-                    .map(|e| e.read(cx).config.engine())
-                    .unwrap_or(EngineKind::Postgres);
-                this.conn_states
-                    .entry(id.clone())
-                    .or_insert_with(|| ConnState::new(engine));
+                this.conn_states.entry(id.clone()).or_default();
                 cx.notify();
             }
             RegistryEvent::Removed(id) => {
@@ -106,11 +98,12 @@ impl ConnectionTree {
         })
         .detach();
 
-        let mut conn_states = HashMap::new();
-        for ent in registry.read(cx).connections().iter() {
-            let entry = ent.read(cx);
-            conn_states.insert(entry.id.clone(), ConnState::new(entry.config.engine()));
-        }
+        let conn_states = registry
+            .read(cx)
+            .connections()
+            .iter()
+            .map(|ent| (ent.read(cx).id.clone(), ConnState::default()))
+            .collect();
 
         Self {
             registry,
@@ -152,11 +145,8 @@ impl ConnectionTree {
         else {
             return;
         };
-        if let Some(st) = self.conn_states.get_mut(&conn_id) {
-            st.set_expanded(expanded);
-            if expanded {
-                self.maybe_load_schema_for_connection(idx, cx);
-            }
+        if expanded && self.conn_states.contains_key(&conn_id) {
+            self.maybe_load_schema_for_connection(idx, cx);
         }
     }
 
@@ -187,13 +177,8 @@ impl ConnectionTree {
         let Some(st) = self.conn_states.get_mut(&conn_id) else {
             return;
         };
-        let Some(schemas) = st.postgres_schemas() else {
-            return;
-        };
-        if schemas.contains(&schema) {
-            schemas.remove(&schema);
-        } else {
-            schemas.insert(schema);
+        if !st.expanded_schemas.remove(&schema) {
+            st.expanded_schemas.insert(schema);
         }
         self.bump_object_list_epoch(cx);
     }

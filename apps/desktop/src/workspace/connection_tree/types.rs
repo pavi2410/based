@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 
-use crate::connection::EngineKind;
 use crate::workspace::TabSpec;
 use gpui_kit::Hsla;
 use gpui_kit::component::{IconName, Theme};
@@ -117,98 +116,30 @@ impl ConnCache {
     }
 }
 
-/// Per-connection explorer expansion and cached schema objects.
-pub(crate) enum ConnState {
-    Postgres {
-        expanded: bool,
-        expanded_schemas: HashSet<String>,
-        cache: ConnCache,
-    },
-    Sqlite {
-        expanded: bool,
-        cache: ConnCache,
-    },
-    MongoDB {
-        expanded: bool,
-        cache: ConnCache,
-    },
-    Redis {
-        expanded: bool,
-        cache: ConnCache,
-    },
+/// Per-connection explorer state: expanded Postgres schemas and cached objects.
+#[derive(Default)]
+pub(crate) struct ConnState {
+    pub(crate) expanded_schemas: HashSet<String>,
+    pub(crate) cache: ConnCache,
 }
 
 impl ConnState {
-    pub(crate) fn new(engine: EngineKind) -> Self {
-        match engine {
-            EngineKind::Postgres => Self::Postgres {
-                expanded: false,
-                expanded_schemas: HashSet::new(),
-                cache: ConnCache::default(),
-            },
-            EngineKind::SQLite => Self::Sqlite {
-                expanded: false,
-                cache: ConnCache::default(),
-            },
-            EngineKind::MongoDB => Self::MongoDB {
-                expanded: false,
-                cache: ConnCache::default(),
-            },
-            EngineKind::Redis => Self::Redis {
-                expanded: false,
-                cache: ConnCache::default(),
-            },
-        }
-    }
-
-    pub(crate) fn set_expanded(&mut self, value: bool) {
-        match self {
-            Self::Postgres { expanded, .. }
-            | Self::Sqlite { expanded, .. }
-            | Self::MongoDB { expanded, .. }
-            | Self::Redis { expanded, .. } => *expanded = value,
-        }
-    }
-
     pub(crate) fn cache(&self) -> &ConnCache {
-        match self {
-            Self::Postgres { cache, .. }
-            | Self::Sqlite { cache, .. }
-            | Self::MongoDB { cache, .. }
-            | Self::Redis { cache, .. } => cache,
-        }
+        &self.cache
     }
 
     pub(crate) fn cache_mut(&mut self) -> &mut ConnCache {
-        match self {
-            Self::Postgres { cache, .. }
-            | Self::Sqlite { cache, .. }
-            | Self::MongoDB { cache, .. }
-            | Self::Redis { cache, .. } => cache,
-        }
+        &mut self.cache
     }
 
-    pub(crate) fn postgres_schemas(&mut self) -> Option<&mut HashSet<String>> {
-        match self {
-            Self::Postgres {
-                expanded_schemas, ..
-            } => Some(expanded_schemas),
-            _ => None,
-        }
-    }
-
-    pub(crate) fn seed_postgres_public_schema(&mut self, objects: &[SchemaObject]) {
-        let Some(schemas) = self.postgres_schemas() else {
-            return;
-        };
-        if !schemas.is_empty() {
-            return;
-        }
-        if objects
-            .iter()
-            .any(|o| o.schema.as_deref() == Some("public"))
+    /// Expand `public` by default when no schema has been opened yet.
+    pub(crate) fn seed_public_schema(&mut self, objects: &[SchemaObject]) {
+        if self.expanded_schemas.is_empty()
+            && objects
+                .iter()
+                .any(|o| o.schema.as_deref() == Some("public"))
         {
-            schemas.insert("public".into());
+            self.expanded_schemas.insert("public".into());
         }
     }
 }

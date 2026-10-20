@@ -181,12 +181,7 @@ fn push_postgres_rows(
     q: &str,
     child_rows: &mut Vec<BrowserRow>,
 ) -> bool {
-    let ConnState::Postgres {
-        expanded_schemas, ..
-    } = state
-    else {
-        return push_kind_rows(conn_idx, objects, q, child_rows, false);
-    };
+    let expanded_schemas = &state.expanded_schemas;
 
     let mut child_matches = false;
     for schema_section in group_postgres_objects(objects.to_vec()) {

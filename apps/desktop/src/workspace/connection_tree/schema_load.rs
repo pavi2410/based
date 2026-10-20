@@ -212,7 +212,7 @@ impl ConnectionTree {
                 Ok(objects) => {
                     st.cache_mut().set_ready(objects.clone());
                     if engine == EngineKind::Postgres {
-                        st.seed_postgres_public_schema(objects);
+                        st.seed_public_schema(objects);
                     }
                 }
                 Err(err) => st.cache_mut().set_error(err.to_string()),

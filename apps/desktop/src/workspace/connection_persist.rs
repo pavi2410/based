@@ -58,6 +58,9 @@ fn persist_secret(
         ConnectionConfig::MongoDB(c) if !c.uri.is_empty() => {
             upsert_env_file(&env_path, &secret_env_key(relative_id, "URL"), &c.uri)?;
         }
+        ConnectionConfig::Redis(c) if !c.url.is_empty() => {
+            upsert_env_file(&env_path, &secret_env_key(relative_id, "URL"), &c.url)?;
+        }
         _ => {}
     }
     Ok(())
@@ -131,6 +134,23 @@ fn project_connection_from_config(
                 ssh: None,
             }
         }
+        ConnectionConfig::Redis(c) => ProjectConnection {
+            id: relative_id.clone(),
+            label: c.label.clone(),
+            engine: "redis".into(),
+            tags,
+            read_only: false,
+            spec: ConnectionSpec::Redis {
+                url: if c.url.is_empty() {
+                    EnvOrString::Literal(String::new())
+                } else {
+                    EnvOrString::FromEnv {
+                        var: secret_env_key(&relative_id, "URL"),
+                    }
+                },
+            },
+            ssh: None,
+        },
         ConnectionConfig::SQLite(c) => ProjectConnection {
             id: relative_id,
             label: c.label.clone(),

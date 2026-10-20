@@ -5,6 +5,7 @@ use super::lifecycle::Connectable;
 use super::{AnyConnection, ConnectionConfig};
 use crate::mongodb::MongoConnection;
 use crate::postgres::PgConnection;
+use crate::redis::RedisConnection;
 use crate::sqlite::SqliteConnection;
 
 /// Plain connection value from `Connectable::open` before GPUI entity wrapping.
@@ -12,6 +13,7 @@ pub enum OpenedConnection {
     Sqlite(SqliteConnection),
     Postgres(PgConnection),
     MongoDB(MongoConnection),
+    Redis(RedisConnection),
 }
 
 /// Start open using the right `Connectable` impl (single dispatch site).
@@ -38,6 +40,10 @@ pub fn open_connection(
                 async move { Ok(OpenedConnection::MongoDB(task.await?)) },
             )
         }
+        ConnectionConfig::Redis(cfg) => {
+            let task = RedisConnection::open(cfg, cx);
+            Tokio::spawn_result(cx, async move { Ok(OpenedConnection::Redis(task.await?)) })
+        }
     }
 }
 
@@ -47,5 +53,6 @@ pub fn opened_into_any(opened: OpenedConnection, cx: &mut App) -> AnyConnection 
         OpenedConnection::Sqlite(conn) => AnyConnection::SQLite(cx.new(|_| conn)),
         OpenedConnection::Postgres(conn) => AnyConnection::Postgres(cx.new(|_| conn)),
         OpenedConnection::MongoDB(conn) => AnyConnection::MongoDB(cx.new(|_| conn)),
+        OpenedConnection::Redis(conn) => AnyConnection::Redis(cx.new(|_| conn)),
     }
 }

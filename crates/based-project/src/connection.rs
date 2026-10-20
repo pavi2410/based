@@ -48,6 +48,9 @@ pub enum ConnectionSpec {
         url: EnvOrString,
         database: Option<String>,
     },
+    Redis {
+        url: EnvOrString,
+    },
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -238,6 +241,9 @@ impl From<&ProjectConnection> for WriteConnectionFile {
                 out.url = Some(url.clone());
                 out.database = database.clone();
             }
+            ConnectionSpec::Redis { url } => {
+                out.url = Some(url.clone());
+            }
         }
         out
     }
@@ -304,6 +310,12 @@ fn parse_connection_file(connections_dir: &Path, path: &Path) -> Result<ProjectC
                 database: file.database.clone(),
             }
         }
+        "redis" => ConnectionSpec::Redis {
+            url: file
+                .url
+                .clone()
+                .with_context(|| format!("redis connection {id} requires `url`"))?,
+        },
         other => bail!("unknown engine {other:?} in {}", path.display()),
     };
     let read_only = resolve_read_only(file.read_only, &file.tags);
@@ -398,6 +410,41 @@ file = "data/index.db"
         let conn = parse_connection_file(&conn_dir, &path).unwrap();
         assert!(conn.read_only);
         assert!(matches!(conn.spec, ConnectionSpec::Sqlite { .. }));
+    }
+
+    #[test]
+    fn parse_redis_requires_url_and_round_trips() {
+        let dir = tempfile::tempdir().unwrap();
+        let based = dir.path();
+        let conn = ProjectConnection {
+            id: "cache".into(),
+            label: "Cache".into(),
+            engine: "redis".into(),
+            tags: vec![],
+            read_only: false,
+            spec: ConnectionSpec::Redis {
+                url: EnvOrString::FromEnv {
+                    var: "BASED_CACHE_URL".into(),
+                },
+            },
+            ssh: None,
+        };
+        write_connection_file(based, &conn).unwrap();
+        let loaded = load_connections_from_based_dir(based).unwrap();
+        assert!(matches!(
+            &loaded[0].spec,
+            ConnectionSpec::Redis {
+                url: EnvOrString::FromEnv { var }
+            } if var == "BASED_CACHE_URL"
+        ));
+
+        let missing = based.join("connections/bad.toml");
+        fs::write(
+            &missing,
+            "schema_version = 1\nlabel = \"Bad\"\nengine = \"redis\"\n",
+        )
+        .unwrap();
+        assert!(load_connections_from_based_dir(based).is_err());
     }
 
     #[test]

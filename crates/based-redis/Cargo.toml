@@ -1,0 +1,18 @@
+[package]
+name = "based-redis"
+version = "0.0.0-dev"
+edition = "2024"
+description = "Redis driver logic for Based (no UI)"
+license = "MIT"
+publish = false
+
+[dependencies]
+anyhow = { workspace = true }
+redis = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+
+[lints]
+workspace = true

@@ -105,6 +105,7 @@ fn parse_engine(s: &str) -> EngineKind {
     match s.to_lowercase().as_str() {
         "mongodb" | "mongo" => EngineKind::MongoDB,
         "sqlite" => EngineKind::SQLite,
+        "redis" => EngineKind::Redis,
         _ => EngineKind::Postgres,
     }
 }

@@ -8,6 +8,9 @@ use super::ConnectionTree;
 use super::types::{ActiveObjects, ObjectKind, SchemaObject};
 use crate::db::run;
 
+/// Keys loaded into the sidebar per refresh (SCAN stops here).
+const REDIS_KEY_LIMIT: usize = 2000;
+
 impl ConnectionTree {
     pub(crate) fn load_objects_for_connection(
         &mut self,
@@ -50,6 +53,10 @@ impl ConnectionTree {
             AnyConnection::MongoDB(conn) => {
                 let db = conn.read(cx).database().clone();
                 self.load_mongo_objects(idx, conn_id, label, engine, db, cx);
+            }
+            AnyConnection::Redis(conn) => {
+                let conn = conn.read(cx).conn();
+                self.load_redis_keys(idx, conn_id, label, engine, conn, cx);
             }
         }
     }
@@ -171,6 +178,36 @@ impl ConnectionTree {
                     })
                     .collect::<Vec<_>>();
                 Ok(objects)
+            })
+            .await;
+
+            let _ = this.update(cx, |tree, cx| {
+                tree.apply_schema_load_result(idx, &conn_id, label, engine, result, cx);
+            });
+        })
+        .detach();
+    }
+
+    fn load_redis_keys(
+        &mut self,
+        idx: usize,
+        conn_id: ConnectionId,
+        label: String,
+        engine: EngineKind,
+        mut conn: based_redis::Conn,
+        cx: &mut Context<Self>,
+    ) {
+        cx.spawn(async move |this, cx| {
+            let result = run(cx, async move {
+                let keys = based_redis::scan_keys(&mut conn, "*", REDIS_KEY_LIMIT).await?;
+                Ok(keys
+                    .into_iter()
+                    .map(|name| SchemaObject {
+                        name,
+                        schema: None,
+                        kind: ObjectKind::Key,
+                    })
+                    .collect::<Vec<_>>())
             })
             .await;
 

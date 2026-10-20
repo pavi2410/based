@@ -152,6 +152,7 @@ impl Render for ConnectionDashboardPanel {
             AnyConnection::Postgres(e) => e.read(cx).server_version.clone(),
             AnyConnection::SQLite(e) => e.read(cx).server_version.clone(),
             AnyConnection::MongoDB(e) => e.read(cx).server_version.clone(),
+            AnyConnection::Redis(e) => e.read(cx).server_version.clone(),
         });
 
         let (engine, state_label, conn_id, read_only) = {

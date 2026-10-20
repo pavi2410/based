@@ -6,6 +6,7 @@ use gpui_kit::{Context, Window, prelude::*};
 
 use crate::connection::AnyConnection;
 use crate::postgres;
+use crate::redis::console::ConsolePanel as RedisConsolePanel;
 use crate::sqlite;
 use crate::workspace::WorkspaceRef;
 
@@ -83,6 +84,11 @@ impl ConnectionTree {
                     Arc::new(builder),
                     Arc::new(stream),
                 ]
+            }
+            AnyConnection::Redis(ent) => {
+                let conn = ent.read(cx).conn();
+                let console = cx.new(|cx| RedisConsolePanel::new(conn, None, window, cx));
+                vec![Arc::new(dashboard) as Arc<dyn PanelView>, Arc::new(console)]
             }
         };
 

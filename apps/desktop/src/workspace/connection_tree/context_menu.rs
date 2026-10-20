@@ -6,6 +6,7 @@ use gpui_kit::{App, ClipboardItem, WeakEntity};
 use crate::connection::{ConnectionConfig, ConnectionId, ConnectionState, EngineKind};
 use crate::mongodb::{mongo_uri, mongosh_command};
 use crate::postgres::{postgres_uri, psql_command};
+use crate::redis::{redis_cli, redis_uri};
 use crate::sqlite::{resolve_sqlite_path, sqlite_uri, sqlite3_command};
 use crate::workspace::notify;
 use crate::workspace::tabs::WorkspaceRef;
@@ -150,6 +151,43 @@ fn add_copy_items(
                     _ => None,
                 },
             )),
+        EngineKind::Redis => menu
+            .item(copy_config_item(
+                "Copy Connection URL",
+                tree.clone(),
+                conn_id.clone(),
+                |cfg, _| match cfg {
+                    ConnectionConfig::Redis(c) => Some(redis_uri(c, false)),
+                    _ => None,
+                },
+            ))
+            .item(copy_config_item(
+                "Copy Connection URL with Password",
+                tree.clone(),
+                conn_id.clone(),
+                |cfg, _| match cfg {
+                    ConnectionConfig::Redis(c) => Some(redis_uri(c, true)),
+                    _ => None,
+                },
+            ))
+            .item(copy_config_item(
+                "Copy redis-cli Command",
+                tree.clone(),
+                conn_id.clone(),
+                |cfg, _| match cfg {
+                    ConnectionConfig::Redis(c) => Some(redis_cli(c, false)),
+                    _ => None,
+                },
+            ))
+            .item(copy_config_item(
+                "Copy redis-cli Command with Password",
+                tree,
+                conn_id.clone(),
+                |cfg, _| match cfg {
+                    ConnectionConfig::Redis(c) => Some(redis_cli(c, true)),
+                    _ => None,
+                },
+            )),
     }
 }
 
@@ -160,7 +198,7 @@ fn structure_supported(engine: EngineKind, kind: ObjectKind) -> bool {
             ObjectKind::Table | ObjectKind::View | ObjectKind::MaterializedView
         ),
         EngineKind::SQLite => matches!(kind, ObjectKind::Table | ObjectKind::View),
-        EngineKind::MongoDB => false,
+        EngineKind::MongoDB | EngineKind::Redis => false,
     }
 }
 

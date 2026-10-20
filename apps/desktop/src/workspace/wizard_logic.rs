@@ -19,6 +19,9 @@ pub enum SaveLabelSource<'a> {
     Sqlite {
         path: &'a str,
     },
+    Redis {
+        url: &'a str,
+    },
 }
 
 /// Name used when saving. Typed text wins; otherwise host / file stem, never an engine word.
@@ -34,6 +37,9 @@ pub fn wizard_save_label(name: &str, source: SaveLabelSource<'_>) -> String {
             first_nonempty(&[host.as_deref().unwrap_or(""), database.unwrap_or("")])
         }
         SaveLabelSource::Sqlite { path } => sqlite_stem(path),
+        SaveLabelSource::Redis { url } => {
+            first_nonempty(&[mongo_host(url).as_deref().unwrap_or("")])
+        }
     }
 }
 
@@ -53,6 +59,9 @@ pub fn save_label_from_config(name: &str, config: &ConnectionConfig) -> String {
                 database: c.database.as_deref(),
             },
         ),
+        ConnectionConfig::Redis(c) => {
+            wizard_save_label(name, SaveLabelSource::Redis { url: &c.url })
+        }
         ConnectionConfig::SQLite(c) => wizard_save_label(
             name,
             SaveLabelSource::Sqlite {
@@ -83,6 +92,7 @@ pub fn wizard_engine_label(engine: EngineKind) -> &'static str {
         EngineKind::Postgres => "PostgreSQL",
         EngineKind::MongoDB => "MongoDB",
         EngineKind::SQLite => "SQLite",
+        EngineKind::Redis => "Redis",
     }
 }
 
@@ -139,6 +149,7 @@ pub fn open_params_changed(old: &ConnectionConfig, new: &ConnectionConfig) -> bo
         (ConnectionConfig::MongoDB(a), ConnectionConfig::MongoDB(b)) => {
             a.uri != b.uri || a.database != b.database || a.auth_source != b.auth_source
         }
+        (ConnectionConfig::Redis(a), ConnectionConfig::Redis(b)) => a.url != b.url,
         (ConnectionConfig::SQLite(a), ConnectionConfig::SQLite(b)) => {
             a.path != b.path || a.read_only != b.read_only
         }

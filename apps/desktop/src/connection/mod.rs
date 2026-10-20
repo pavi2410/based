@@ -22,6 +22,7 @@ use time::OffsetDateTime;
 use crate::db::{close_pg_pool, close_sqlite_pool};
 use crate::mongodb::{MongoConfig, MongoConnection};
 use crate::postgres::{PgConnection, PostgresConfig};
+use crate::redis::{RedisConfig, RedisConnection};
 use crate::sqlite::{SqliteConfig, SqliteConnection};
 
 pub use based_core::categorize_connect_error;
@@ -43,6 +44,7 @@ pub enum ConnectionConfig {
     Postgres(PostgresConfig),
     MongoDB(MongoConfig),
     SQLite(SqliteConfig),
+    Redis(RedisConfig),
 }
 
 impl ConnectionConfig {
@@ -51,6 +53,7 @@ impl ConnectionConfig {
             Self::Postgres(_) => EngineKind::Postgres,
             Self::MongoDB(_) => EngineKind::MongoDB,
             Self::SQLite(_) => EngineKind::SQLite,
+            Self::Redis(_) => EngineKind::Redis,
         }
     }
 
@@ -59,6 +62,7 @@ impl ConnectionConfig {
             Self::Postgres(c) => &c.label,
             Self::MongoDB(c) => &c.label,
             Self::SQLite(c) => &c.label,
+            Self::Redis(c) => &c.label,
         }
     }
 
@@ -74,6 +78,7 @@ impl ConnectionConfig {
             Self::Postgres(c) => c.label = label,
             Self::MongoDB(c) => c.label = label,
             Self::SQLite(c) => c.label = label,
+            Self::Redis(c) => c.label = label,
         }
         self
     }
@@ -86,6 +91,7 @@ pub enum AnyConnection {
     Postgres(gpui_kit::Entity<PgConnection>),
     MongoDB(gpui_kit::Entity<MongoConnection>),
     SQLite(gpui_kit::Entity<SqliteConnection>),
+    Redis(gpui_kit::Entity<RedisConnection>),
 }
 
 // ── Connection state machine ──────────────────────────────────────────────────
@@ -248,8 +254,8 @@ pub fn close_any_connection(ac: AnyConnection, cx: &gpui_kit::App) {
             let pool = ent.read(cx).pool.clone();
             close_sqlite_pool(pool);
         }
-        AnyConnection::MongoDB(_) => {
-            // Mongo client closes when the connection entity is dropped.
+        AnyConnection::MongoDB(_) | AnyConnection::Redis(_) => {
+            // Mongo / Redis clients close when the connection entity is dropped.
         }
     }
 }

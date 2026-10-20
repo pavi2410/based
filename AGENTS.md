@@ -30,7 +30,7 @@ docker compose up -d          # PostgreSQL 18 → localhost:15432, MongoDB 8 →
 
 ## Architecture
 
-**Based** is a native desktop database client written in Rust using GPUI (from Zed Industries). It supports PostgreSQL, MongoDB, and SQLite. The project model is a `.based/` folder (committed to git) containing connection configs and saved queries — there is no backend service.
+**Based** is a native desktop database client written in Rust using GPUI (from Zed Industries). It supports PostgreSQL, MongoDB, SQLite, and Redis. The project model is a `.based/` folder (committed to git) containing connection configs and saved queries — there is no backend service.
 
 ### Workspace layout
 
@@ -62,7 +62,7 @@ UI-free logic lives in `crates/` (no GPUI dependency):
 | `based-query` | Query history, saved queries, variables, SQL helpers |
 | `based-workspace` | Workspace/collection/environment models, template resolution |
 | `based-storage` | Local SQLite metadata store (WAL) + keychain secret boundary |
-| `based-postgres` / `based-sqlite` / `based-mongo` | Per-engine driver logic |
+| `based-postgres` / `based-sqlite` / `based-mongo` / `based-redis` | Per-engine driver logic |
 | `based-ssh` | SSH local-forward tunnel used in front of an engine |
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for dependency rules between layers.

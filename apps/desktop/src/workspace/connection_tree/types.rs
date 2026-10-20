@@ -12,6 +12,7 @@ pub enum ObjectKind {
     MaterializedView,
     Trigger,
     Collection,
+    Key,
 }
 
 impl ObjectKind {
@@ -22,6 +23,7 @@ impl ObjectKind {
             Self::MaterializedView => "matview",
             Self::Trigger => "trigger",
             Self::Collection => "collection",
+            Self::Key => "key",
         }
     }
 
@@ -33,6 +35,7 @@ impl ObjectKind {
             Self::MaterializedView => "mview",
             Self::Trigger => "trig",
             Self::Collection => "coll",
+            Self::Key => "key",
         }
     }
 
@@ -42,6 +45,7 @@ impl ObjectKind {
             Self::View | Self::MaterializedView => "Views",
             Self::Trigger => "Triggers",
             Self::Collection => "Collections",
+            Self::Key => "Keys",
         }
     }
 
@@ -51,6 +55,7 @@ impl ObjectKind {
             Self::View | Self::MaterializedView => "◈",
             Self::Trigger => "⚡",
             Self::Collection => "▦",
+            Self::Key => "⚿",
         }
     }
 
@@ -62,6 +67,7 @@ impl ObjectKind {
             Self::MaterializedView => IconName::GalleryVerticalEnd,
             Self::Trigger => IconName::TriangleAlert,
             Self::Collection => IconName::Inbox,
+            Self::Key => IconName::Asterisk,
         }
     }
 
@@ -72,6 +78,7 @@ impl ObjectKind {
             Self::View | Self::MaterializedView => theme.magenta_light,
             Self::Trigger => theme.warning_foreground,
             Self::Collection => theme.green_light,
+            Self::Key => theme.red_light,
         }
     }
 }
@@ -169,6 +176,10 @@ pub(crate) enum ConnState {
         expanded: bool,
         cache: ConnCache,
     },
+    Redis {
+        expanded: bool,
+        cache: ConnCache,
+    },
 }
 
 impl ConnState {
@@ -187,6 +198,10 @@ impl ConnState {
                 expanded: false,
                 cache: ConnCache::default(),
             },
+            EngineKind::Redis => Self::Redis {
+                expanded: false,
+                cache: ConnCache::default(),
+            },
         }
     }
 
@@ -194,7 +209,8 @@ impl ConnState {
         match self {
             Self::Postgres { expanded, .. }
             | Self::Sqlite { expanded, .. }
-            | Self::MongoDB { expanded, .. } => *expanded,
+            | Self::MongoDB { expanded, .. }
+            | Self::Redis { expanded, .. } => *expanded,
         }
     }
 
@@ -202,7 +218,8 @@ impl ConnState {
         match self {
             Self::Postgres { expanded, .. }
             | Self::Sqlite { expanded, .. }
-            | Self::MongoDB { expanded, .. } => *expanded = value,
+            | Self::MongoDB { expanded, .. }
+            | Self::Redis { expanded, .. } => *expanded = value,
         }
     }
 
@@ -210,7 +227,8 @@ impl ConnState {
         match self {
             Self::Postgres { cache, .. }
             | Self::Sqlite { cache, .. }
-            | Self::MongoDB { cache, .. } => cache,
+            | Self::MongoDB { cache, .. }
+            | Self::Redis { cache, .. } => cache,
         }
     }
 
@@ -218,7 +236,8 @@ impl ConnState {
         match self {
             Self::Postgres { cache, .. }
             | Self::Sqlite { cache, .. }
-            | Self::MongoDB { cache, .. } => cache,
+            | Self::MongoDB { cache, .. }
+            | Self::Redis { cache, .. } => cache,
         }
     }
 

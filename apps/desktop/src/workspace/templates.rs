@@ -10,6 +10,7 @@ use uuid::Uuid;
 use crate::connection::{ConnectionConfig, ConnectionEntry};
 use crate::mongodb::MongoConfig;
 use crate::postgres::{PostgresConfig, SslMode};
+use crate::redis::RedisConfig;
 use crate::sqlite::SqliteConfig;
 
 const TEMPLATE_KEY_PREFIX: &str = ConnectionId::WORKSPACE_TEMPLATE_PREFIX;
@@ -70,6 +71,17 @@ pub fn template_from_config(
             password: String::new(),
             ssl_mode: String::new(),
         },
+        ConnectionConfig::Redis(c) => ConnectionTemplate {
+            id,
+            label: c.label.clone(),
+            engine: EngineKind::Redis,
+            host: c.url.clone(),
+            port: "6379".into(),
+            database: String::new(),
+            username: String::new(),
+            password: String::new(),
+            ssl_mode: String::new(),
+        },
         ConnectionConfig::SQLite(c) => ConnectionTemplate {
             id,
             label: c.label.clone(),
@@ -124,6 +136,10 @@ pub fn resolve_template_entry(
             uri: resolved.host,
             database: nonempty_opt(resolved.database),
             auth_source: nonempty_opt(resolved.username),
+        }),
+        EngineKind::Redis => ConnectionConfig::Redis(RedisConfig {
+            label: template.label.clone(),
+            url: resolved.host,
         }),
         EngineKind::SQLite => ConnectionConfig::SQLite(SqliteConfig {
             label: template.label.clone(),

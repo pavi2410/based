@@ -6,6 +6,7 @@ members = [
     "crates/based-postgres",
     "crates/based-project",
     "crates/based-query",
+    "crates/based-redis",
     "crates/based-sqlite",
     "crates/based-ssh",
     "crates/based-storage",
@@ -41,6 +42,11 @@ dirs = "6"
 tempfile = "3"
 rfd = "0.15"
 mongodb = "3"
+redis = { version = "1", default-features = false, features = [
+    "tokio-rustls-comp",
+    "tls-rustls-webpki-roots",
+    "connection-manager",
+] }
 russh = "0.54"
 
 [workspace.lints.clippy]

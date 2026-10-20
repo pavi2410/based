@@ -9,6 +9,7 @@ use super::label::tab_label_for_spec;
 use super::spec::TabSpec;
 use crate::mongodb::tab_dispatch as mongo_tab_dispatch;
 use crate::postgres::tab_dispatch as pg_tab_dispatch;
+use crate::redis::tab_dispatch as redis_tab_dispatch;
 use crate::sqlite::tab_dispatch as sqlite_tab_dispatch;
 use crate::workspace::Workspace;
 use crate::workspace::dock_utils::add_center_panel_view;
@@ -107,6 +108,10 @@ impl Workspace {
             AnyConnection::MongoDB(conn) => {
                 let db = conn.read(cx).database().clone();
                 mongo_tab_dispatch::build_panel(&spec, db, &conn_id, window, cx)
+            }
+            AnyConnection::Redis(conn) => {
+                let conn = conn.read(cx).conn();
+                redis_tab_dispatch::build_panel(&spec, conn, window, cx)
             }
         };
 

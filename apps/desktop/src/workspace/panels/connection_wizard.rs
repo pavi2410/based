@@ -37,6 +37,7 @@ use crate::mongodb::{MongoConfig, MongoConnection};
 use crate::postgres::wizard::parse_postgres_uri;
 use crate::postgres::{PgConnection, PostgresConfig, SslMode};
 use crate::project::ProjectRoot;
+use crate::redis::{RedisConfig, RedisConnection};
 use crate::sqlite::{SqliteConfig, SqliteConnection, SqlitePragma};
 use crate::widgets::{labeled_field, labeled_fixed, new_field, set_field};
 use crate::workspace::WorkspaceRef;
@@ -48,7 +49,7 @@ use crate::workspace::wizard_logic::{
     ssl_mode_from_toggle, ssl_toggle_enabled, wizard_engine_label, wizard_session_id,
 };
 
-const ENGINE_LABELS: &[&str] = &["PostgreSQL", "MongoDB", "SQLite"];
+const ENGINE_LABELS: &[&str] = &["PostgreSQL", "MongoDB", "SQLite", "Redis"];
 const SSL_ON_LABELS: &[&str] = &["require", "verify-ca", "verify-full"];
 const WIZARD_COLUMN_W: f32 = 480.0;
 
@@ -84,6 +85,7 @@ pub struct ConnectionWizardPanel {
     uri: Entity<InputState>,
     mongo_uri: Entity<InputState>,
     mongo_database: Entity<InputState>,
+    redis_url: Entity<InputState>,
     sqlite_path: Entity<InputState>,
     sqlite_read_only: bool,
     sqlite_pragma: Option<SqlitePragma>,
@@ -167,6 +169,12 @@ impl ConnectionWizardPanel {
                 "mongodb://host:27017",
             ),
             mongo_database: new_field(window, cx, "", "Database (optional)"),
+            redis_url: new_field(
+                window,
+                cx,
+                "redis://127.0.0.1:6379",
+                "redis://[:password@]host:6379[/db]",
+            ),
             sqlite_path: new_field(window, cx, "", "/path/to/database.db"),
             sqlite_read_only: false,
             sqlite_pragma: None,
@@ -244,6 +252,9 @@ impl ConnectionWizardPanel {
                     cx,
                 );
             }
+            ConnectionConfig::Redis(c) => {
+                set_field(&self.redis_url, &c.url, window, cx);
+            }
             ConnectionConfig::SQLite(c) => {
                 set_field(&self.sqlite_path, &c.path.to_string_lossy(), window, cx);
                 self.sqlite_read_only = c.read_only;
@@ -256,6 +267,7 @@ impl ConnectionWizardPanel {
         match self.engine.read(cx).selected_value().copied() {
             Some("MongoDB") => EngineKind::MongoDB,
             Some("SQLite") => EngineKind::SQLite,
+            Some("Redis") => EngineKind::Redis,
             _ => EngineKind::Postgres,
         }
     }
@@ -337,6 +349,10 @@ impl ConnectionWizardPanel {
                     auth_source: None,
                 })
             }
+            EngineKind::Redis => ConnectionConfig::Redis(RedisConfig {
+                label: self.name.read(cx).value().to_string(),
+                url: self.redis_url.read(cx).value().to_string(),
+            }),
             EngineKind::SQLite => ConnectionConfig::SQLite(SqliteConfig {
                 label: self.name.read(cx).value().to_string(),
                 path: PathBuf::from(self.sqlite_path.read(cx).value().as_ref()),
@@ -433,6 +449,7 @@ impl ConnectionWizardPanel {
             ConnectionConfig::Postgres(cfg) => PgConnection::test(cfg, cx),
             ConnectionConfig::MongoDB(cfg) => MongoConnection::test(cfg, cx),
             ConnectionConfig::SQLite(cfg) => SqliteConnection::test(cfg, cx),
+            ConnectionConfig::Redis(cfg) => RedisConnection::test(cfg, cx),
         };
         cx.spawn(async move |this, cx| {
             let result = task.await;
@@ -661,7 +678,7 @@ fn drop_opened(opened: OpenedConnection) {
     match opened {
         OpenedConnection::Postgres(conn) => db::close_pg_pool(conn.pool),
         OpenedConnection::Sqlite(conn) => db::close_sqlite_pool(conn.pool),
-        OpenedConnection::MongoDB(_) => {}
+        OpenedConnection::MongoDB(_) | OpenedConnection::Redis(_) => {}
     }
 }
 
@@ -976,6 +993,23 @@ impl Render for ConnectionWizardPanel {
                                 .cleanable(true)
                                 .aria_label("Database"),
                         ))
+                    })
+                    .when(engine == EngineKind::Redis, |v| {
+                        v.child(labeled_field(
+                            "URL",
+                            muted,
+                            Input::new(&self.redis_url)
+                                .content_type(InputContentType::Url)
+                                .cleanable(true)
+                                .aria_label("Connection URL")
+                                .font_family(prefs::code_font_family(cx)),
+                        ))
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(muted)
+                                .child("Use rediss:// for TLS and /N to pick a DB index."),
+                        )
                     })
                     .when(engine == EngineKind::SQLite, |v| {
                         v.child(

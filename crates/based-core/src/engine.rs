@@ -6,6 +6,7 @@ pub enum EngineKind {
     Postgres,
     MongoDB,
     SQLite,
+    Redis,
 }
 
 impl EngineKind {
@@ -14,15 +15,17 @@ impl EngineKind {
             Self::Postgres => "pg",
             Self::MongoDB => "mg",
             Self::SQLite => "sqlite",
+            Self::Redis => "rd",
         }
     }
 
-    /// Canonical storage / config string (`postgres`, `mongodb`, `sqlite`).
+    /// Canonical storage / config string (`postgres`, `mongodb`, `sqlite`, `redis`).
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Postgres => "postgres",
             Self::MongoDB => "mongodb",
             Self::SQLite => "sqlite",
+            Self::Redis => "redis",
         }
     }
 
@@ -33,6 +36,7 @@ impl EngineKind {
         match s.to_ascii_lowercase().as_str() {
             "mongodb" | "mongo" => Self::MongoDB,
             "sqlite" => Self::SQLite,
+            "redis" => Self::Redis,
             "postgres" | "postgresql" => Self::Postgres,
             _ => Self::Postgres,
         }
@@ -54,6 +58,7 @@ mod tests {
         assert_eq!(EngineKind::from_str_lossy("mongo"), EngineKind::MongoDB);
         assert_eq!(EngineKind::from_str_lossy("sqlite"), EngineKind::SQLite);
         assert_eq!(EngineKind::from_str_lossy("SQLite"), EngineKind::SQLite);
+        assert_eq!(EngineKind::from_str_lossy("Redis"), EngineKind::Redis);
         assert_eq!(EngineKind::from_str_lossy("nope"), EngineKind::Postgres);
     }
 
@@ -63,6 +68,7 @@ mod tests {
             EngineKind::Postgres,
             EngineKind::MongoDB,
             EngineKind::SQLite,
+            EngineKind::Redis,
         ] {
             assert_eq!(EngineKind::from_str_lossy(engine.as_str()), engine);
         }

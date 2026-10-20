@@ -11,6 +11,7 @@ pub fn engine_label(engine: EngineKind) -> &'static str {
         EngineKind::Postgres => "PG",
         EngineKind::MongoDB => "MDB",
         EngineKind::SQLite => "SQL",
+        EngineKind::Redis => "RDS",
     }
 }
 
@@ -19,6 +20,7 @@ pub fn engine_name(engine: EngineKind) -> &'static str {
         EngineKind::Postgres => "Postgres",
         EngineKind::MongoDB => "MongoDB",
         EngineKind::SQLite => "SQLite",
+        EngineKind::Redis => "Redis",
     }
 }
 
@@ -27,6 +29,7 @@ pub fn engine_color(engine: EngineKind) -> Hsla {
         EngineKind::Postgres => hsla(0.58, 0.78, 0.64, 1.0),
         EngineKind::MongoDB => hsla(0.38, 0.62, 0.54, 1.0),
         EngineKind::SQLite => hsla(0.10, 0.74, 0.59, 1.0),
+        EngineKind::Redis => hsla(0.01, 0.76, 0.52, 1.0),
     }
 }
 
@@ -35,6 +38,7 @@ fn engine_icon_path(engine: EngineKind) -> &'static str {
         EngineKind::Postgres => "icons/engines/postgresql.svg",
         EngineKind::MongoDB => "icons/engines/mongodb.svg",
         EngineKind::SQLite => "icons/engines/sqlite.svg",
+        EngineKind::Redis => "icons/engines/redis.svg",
     }
 }
 

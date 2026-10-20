@@ -22,6 +22,7 @@ mod mongodb;
 mod postgres;
 mod project;
 mod query_store;
+mod redis;
 mod settings_window;
 mod sqlite;
 mod storage;
@@ -36,6 +37,7 @@ use project::{
     ProjectContext, ProjectVars, find_project_root, install_reload_watcher,
     settings::apply_project_settings, variables::load_variables,
 };
+use redis::RedisEngine;
 use sqlite::SqliteEngine;
 use workspace::{PopOutManager, SqlInject, TabOpenQueue, WorkspaceNavQueue};
 
@@ -64,6 +66,7 @@ fn main() {
                 registry.register(PostgresEngine);
                 registry.register(SqliteEngine);
                 registry.register(MongoEngine);
+                registry.register(RedisEngine);
                 cx.set_global(registry);
             }
 

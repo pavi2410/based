@@ -7,12 +7,13 @@ use gpui_kit::{App, AppContext, Context, EntityId, Window};
 
 use super::spec::TabSpec;
 use crate::connection::{
-    AnyConnection::{MongoDB, Postgres, SQLite},
+    AnyConnection::{MongoDB, Postgres, Redis, SQLite},
     ConnectionEntry, ConnectionId,
     ConnectionState::Connected,
 };
 use crate::mongodb::pipeline_builder::PipelineBuilderPanel;
 use crate::postgres::query_editor::QueryEditorPanel as PgQueryEditorPanel;
+use crate::redis::console::ConsolePanel as RedisConsolePanel;
 use crate::sqlite::query_editor::QueryEditorPanel as SqliteQueryEditorPanel;
 use crate::workspace::Workspace;
 use crate::workspace::dock_utils::{
@@ -208,6 +209,11 @@ impl Workspace {
                 let panel = cx.new(|cx| {
                     PipelineBuilderPanel::new_with_pipeline(coll, conn_id.clone(), None, window, cx)
                 });
+                Some(Arc::new(panel))
+            }
+            Redis(conn) => {
+                let conn = conn.read(cx).conn();
+                let panel = cx.new(|cx| RedisConsolePanel::new(conn, None, window, cx));
                 Some(Arc::new(panel))
             }
         }

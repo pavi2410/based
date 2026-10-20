@@ -420,7 +420,15 @@ impl ConnectionTree {
                     self.emit_object_info_tab(object, conn_idx, cx);
                 }
             }
-            _ => {}
+            Some(AnyConnection::Redis(_)) => {
+                if matches!(object.kind, ObjectKind::Key) {
+                    cx.emit(TreeEvent::OpenTab(TabSpec::DataViewer {
+                        conn_id: ent.read(cx).id.clone(),
+                        object: object.display_name(),
+                    }));
+                }
+            }
+            None => {}
         }
     }
 
@@ -445,7 +453,7 @@ impl ConnectionTree {
                 ObjectKind::Table | ObjectKind::View | ObjectKind::MaterializedView
             ),
             EngineKind::SQLite => matches!(object.kind, ObjectKind::Table | ObjectKind::View),
-            EngineKind::MongoDB => false,
+            EngineKind::MongoDB | EngineKind::Redis => false,
         };
         if !supported {
             notify::push_info(cx, "Structure view is not available for this object yet.");

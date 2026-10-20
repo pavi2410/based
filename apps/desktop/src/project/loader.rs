@@ -11,6 +11,7 @@ use based_sqlite::SqlitePragma;
 use crate::connection::{ConnectionConfig, ConnectionEntry, ConnectionId, ConnectionOrigin};
 use crate::mongodb::MongoConfig;
 use crate::postgres::{PostgresConfig, SslMode};
+use crate::redis::RedisConfig;
 use crate::sqlite::SqliteConfig;
 
 pub fn entry_from_project(conn: &ProjectConnection) -> anyhow::Result<ConnectionEntry> {
@@ -64,6 +65,16 @@ pub fn entry_from_tree(
                 uri,
                 database: database.clone(),
                 auth_source: None,
+            })
+        }
+        ConnectionSpec::Redis { url } => {
+            let url = url.resolve_with(file_vars)?;
+            if url.trim().is_empty() {
+                anyhow::bail!("redis connection {} has empty url", conn.id);
+            }
+            ConnectionConfig::Redis(RedisConfig {
+                label: conn.label.clone(),
+                url,
             })
         }
     };

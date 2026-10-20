@@ -67,6 +67,8 @@ pub(crate) fn render_content_rail(
         }
     }
     let query_count = queries.len();
+    // Nothing to show (and no active filter): keep only the header visible.
+    let queries_collapsed = queries_collapsed || (query_count == 0 && query_filter.is_empty());
 
     v_flex()
         .flex_1()

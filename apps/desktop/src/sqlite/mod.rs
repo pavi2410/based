@@ -22,7 +22,6 @@ pub use based_sqlite::{
 use sqlx::{AssertSqlSafe, SqlitePool};
 
 use crate::connection::lifecycle::{Connectable, TestReport};
-use crate::db;
 use crate::db::Tokio;
 use crate::project::ProjectRoot;
 
@@ -38,7 +37,6 @@ pub fn resolve_sqlite_path(path: &Path, cx: &App) -> PathBuf {
 
 /// Live SQLite connection wrapping a sqlx pool.
 pub struct SqliteConnection {
-    pub config: SqliteConfig,
     pub pool: SqlitePool,
     pub server_version: Option<String>,
 }
@@ -59,7 +57,6 @@ impl Connectable for SqliteConnection {
                 .fetch_one(&pool)
                 .await?;
             Ok(Self {
-                config,
                 pool,
                 server_version: Some(version),
             })
@@ -86,10 +83,6 @@ impl Connectable for SqliteConnection {
                 message: None,
             })
         })
-    }
-
-    async fn close(self) {
-        db::close_sqlite_pool(self.pool);
     }
 }
 

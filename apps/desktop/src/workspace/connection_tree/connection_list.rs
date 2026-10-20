@@ -26,7 +26,7 @@ pub(crate) enum RailItem {
 fn connection_state_dot(state: &ConnectionState, t: &Theme) -> Hsla {
     match state {
         ConnectionState::Disconnected => t.muted_foreground.opacity(0.75),
-        ConnectionState::Connecting { .. } => t.warning_foreground,
+        ConnectionState::Connecting => t.warning_foreground,
         ConnectionState::Connected(_) => t.green_light,
         ConnectionState::Failed { .. } => t.danger_foreground,
     }
@@ -46,7 +46,7 @@ pub(crate) fn build_connection_rows(tree: &ConnectionTree, cx: &App) -> Vec<Conn
                 engine: entry.config.engine(),
                 state_color: connection_state_dot(&entry.state, cx.theme()),
                 is_connected: matches!(entry.state, ConnectionState::Connected(_)),
-                is_connecting: matches!(entry.state, ConnectionState::Connecting { .. }),
+                is_connecting: matches!(entry.state, ConnectionState::Connecting),
                 is_failed: matches!(entry.state, ConnectionState::Failed { .. }),
                 fail_reason: match &entry.state {
                     ConnectionState::Failed { reason, .. } => Some(reason.clone()),

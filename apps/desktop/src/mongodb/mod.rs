@@ -24,9 +24,9 @@ use crate::db::Tokio;
 
 /// Live MongoDB connection: client + selected database.
 pub struct MongoConnection {
-    pub config: MongoConfig,
     pub server_version: Option<String>,
-    client: Client,
+    /// Held so the client outlives `database` handles.
+    _client: Client,
     database: Database,
 }
 
@@ -57,9 +57,8 @@ impl Connectable for MongoConnection {
                 .and_then(|info| info.get_str("version").ok().map(ToString::to_string));
 
             Ok(Self {
-                config,
                 server_version,
-                client,
+                _client: client,
                 database,
             })
         })
@@ -88,9 +87,5 @@ impl Connectable for MongoConnection {
                 message: Some("ping ok".into()),
             })
         })
-    }
-
-    async fn close(self) {
-        drop(self.client);
     }
 }

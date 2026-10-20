@@ -16,7 +16,6 @@ use crate::db::Tokio;
 
 /// Live Redis connection: an auto-reconnecting manager bound to the URL's DB index.
 pub struct RedisConnection {
-    pub config: RedisConfig,
     pub server_version: Option<String>,
     conn: Conn,
 }
@@ -44,7 +43,6 @@ impl Connectable for RedisConnection {
             let mut conn = connect(&config.url).await?;
             let server_version = server_version(&mut conn).await;
             Ok(Self {
-                config,
                 server_version,
                 conn,
             })
@@ -63,9 +61,5 @@ impl Connectable for RedisConnection {
                 message: Some("ping ok".into()),
             })
         })
-    }
-
-    async fn close(self) {
-        drop(self.conn);
     }
 }

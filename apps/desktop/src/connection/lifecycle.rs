@@ -4,7 +4,6 @@
 
 use gpui_kit::{App, Task};
 use serde::de::DeserializeOwned;
-use std::future::Future;
 
 #[derive(Debug, Clone)]
 pub struct TestReport {
@@ -18,5 +17,4 @@ pub trait Connectable: 'static + Sized {
 
     fn open(config: Self::Config, cx: &mut App) -> Task<anyhow::Result<Self>>;
     fn test(config: &Self::Config, cx: &mut App) -> Task<anyhow::Result<TestReport>>;
-    fn close(self) -> impl Future<Output = ()> + Send + 'static;
 }

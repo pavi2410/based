@@ -37,7 +37,7 @@ pub(crate) use context_menu::connection_actions_menu;
 pub(crate) use icon_rail::ICON_RAIL_WIDTH;
 pub use types::{ObjectKind, SchemaObject, TreeEvent};
 
-use types::{ActiveObjects, ConnState};
+use types::ConnState;
 
 pub struct ConnectionTree {
     pub registry: Entity<ConnectionRegistry>,
@@ -46,7 +46,6 @@ pub struct ConnectionTree {
     #[allow(dead_code)]
     active_spec: Option<TabSpec>,
     pub(crate) selected_connection: Option<usize>,
-    pub(crate) active_objects: ActiveObjects,
     pub(crate) selected_object: Option<String>,
     pub(crate) browser_list: Option<Entity<ListState<browser_list::BrowserListDelegate>>>,
     object_list_epoch: u64,
@@ -98,7 +97,6 @@ impl ConnectionTree {
             RegistryEvent::Removed(id) => {
                 this.conn_states.remove(id);
                 this.selected_connection = None;
-                this.active_objects = ActiveObjects::Empty;
                 this.selected_object = None;
                 this.bump_object_list_epoch(cx);
                 this.pending_open_connection = None;
@@ -120,7 +118,6 @@ impl ConnectionTree {
             conn_states,
             active_spec: None,
             selected_connection: None,
-            active_objects: ActiveObjects::Empty,
             selected_object: None,
             browser_list: None,
             object_list_epoch: 0,

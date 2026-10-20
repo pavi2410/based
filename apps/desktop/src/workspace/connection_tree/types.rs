@@ -79,24 +79,6 @@ impl SchemaObject {
     }
 }
 
-#[derive(Clone, Debug)]
-pub(crate) enum ActiveObjects {
-    Empty,
-    Loading {
-        label: String,
-        engine: EngineKind,
-    },
-    Ready {
-        label: String,
-        engine: EngineKind,
-        objects: Vec<SchemaObject>,
-    },
-    Error {
-        label: String,
-        message: String,
-    },
-}
-
 #[derive(Clone, Debug, Default)]
 pub(crate) enum ConnCache {
     #[default]

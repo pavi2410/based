@@ -7,7 +7,6 @@ use crate::connection::{
 
 use super::ConnectionTree;
 use super::notify;
-use super::types::ActiveObjects;
 
 impl ConnectionTree {
     pub(crate) fn on_connection_row_clicked(
@@ -36,10 +35,6 @@ impl ConnectionTree {
         }
 
         let config = conn_ent.read(cx).config.clone();
-        self.active_objects = ActiveObjects::Loading {
-            label: config.label().to_string(),
-            engine: config.engine(),
-        };
         self.bump_object_list_epoch(cx);
         conn_ent.update(cx, |e, cx| {
             e.state = ConnectionState::Connecting;

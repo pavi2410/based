@@ -5,7 +5,7 @@ use sqlx::{PgPool, Row, SqlitePool};
 use crate::connection::{AnyConnection, ConnectionId, EngineKind};
 
 use super::ConnectionTree;
-use super::types::{ActiveObjects, ObjectKind, SchemaObject};
+use super::types::{ObjectKind, SchemaObject};
 use crate::db::run;
 
 /// Keys loaded into the sidebar per refresh (SCAN stops here).
@@ -21,51 +21,39 @@ impl ConnectionTree {
         let Some(ent) = self.registry.read(cx).connections().get(idx).cloned() else {
             return;
         };
-        let (label, engine, conn_id) = {
+        let (engine, conn_id) = {
             let entry = ent.read(cx);
-            (
-                entry.config.label().to_string(),
-                entry.config.engine(),
-                entry.id.clone(),
-            )
+            (entry.config.engine(), entry.id.clone())
         };
 
         if let Some(st) = self.conn_states.get_mut(&conn_id) {
             st.cache_mut().start_loading();
-        }
-        if self.selected_connection == Some(idx) {
-            self.active_objects = ActiveObjects::Loading {
-                label: label.clone(),
-                engine,
-            };
         }
         self.bump_object_list_epoch(cx);
 
         match ac {
             AnyConnection::SQLite(conn) => {
                 let pool = conn.read(cx).pool.clone();
-                self.load_sqlite_objects(idx, conn_id, label, engine, pool, cx);
+                self.load_sqlite_objects(conn_id, engine, pool, cx);
             }
             AnyConnection::Postgres(conn) => {
                 let pool = conn.read(cx).pool.clone();
-                self.load_postgres_objects(idx, conn_id, label, engine, pool, cx);
+                self.load_postgres_objects(conn_id, engine, pool, cx);
             }
             AnyConnection::MongoDB(conn) => {
                 let db = conn.read(cx).database().clone();
-                self.load_mongo_objects(idx, conn_id, label, engine, db, cx);
+                self.load_mongo_objects(conn_id, engine, db, cx);
             }
             AnyConnection::Redis(conn) => {
                 let conn = conn.read(cx).conn();
-                self.load_redis_keys(idx, conn_id, label, engine, conn, cx);
+                self.load_redis_keys(conn_id, engine, conn, cx);
             }
         }
     }
 
     fn load_sqlite_objects(
         &mut self,
-        idx: usize,
         conn_id: ConnectionId,
-        label: String,
         engine: EngineKind,
         pool: SqlitePool,
         cx: &mut Context<Self>,
@@ -102,7 +90,7 @@ impl ConnectionTree {
             .await;
 
             let _ = this.update(cx, |tree, cx| {
-                tree.apply_schema_load_result(idx, &conn_id, label, engine, result, cx);
+                tree.apply_schema_load_result(&conn_id, engine, result, cx);
             });
         })
         .detach();
@@ -110,9 +98,7 @@ impl ConnectionTree {
 
     fn load_postgres_objects(
         &mut self,
-        idx: usize,
         conn_id: ConnectionId,
-        label: String,
         engine: EngineKind,
         pool: PgPool,
         cx: &mut Context<Self>,
@@ -151,7 +137,7 @@ impl ConnectionTree {
             .await;
 
             let _ = this.update(cx, |tree, cx| {
-                tree.apply_schema_load_result(idx, &conn_id, label, engine, result, cx);
+                tree.apply_schema_load_result(&conn_id, engine, result, cx);
             });
         })
         .detach();
@@ -159,9 +145,7 @@ impl ConnectionTree {
 
     fn load_mongo_objects(
         &mut self,
-        idx: usize,
         conn_id: ConnectionId,
-        label: String,
         engine: EngineKind,
         db: Database,
         cx: &mut Context<Self>,
@@ -182,7 +166,7 @@ impl ConnectionTree {
             .await;
 
             let _ = this.update(cx, |tree, cx| {
-                tree.apply_schema_load_result(idx, &conn_id, label, engine, result, cx);
+                tree.apply_schema_load_result(&conn_id, engine, result, cx);
             });
         })
         .detach();
@@ -190,9 +174,7 @@ impl ConnectionTree {
 
     fn load_redis_keys(
         &mut self,
-        idx: usize,
         conn_id: ConnectionId,
-        label: String,
         engine: EngineKind,
         mut conn: based_redis::Conn,
         cx: &mut Context<Self>,
@@ -212,7 +194,7 @@ impl ConnectionTree {
             .await;
 
             let _ = this.update(cx, |tree, cx| {
-                tree.apply_schema_load_result(idx, &conn_id, label, engine, result, cx);
+                tree.apply_schema_load_result(&conn_id, engine, result, cx);
             });
         })
         .detach();
@@ -220,9 +202,7 @@ impl ConnectionTree {
 
     fn apply_schema_load_result(
         &mut self,
-        idx: usize,
         conn_id: &ConnectionId,
-        label: String,
         engine: EngineKind,
         result: Result<Vec<SchemaObject>, anyhow::Error>,
         cx: &mut Context<Self>,
@@ -237,20 +217,6 @@ impl ConnectionTree {
                 }
                 Err(err) => st.cache_mut().set_error(err.to_string()),
             }
-        }
-
-        if self.selected_connection == Some(idx) {
-            self.active_objects = match result {
-                Ok(objects) => ActiveObjects::Ready {
-                    label,
-                    engine,
-                    objects,
-                },
-                Err(err) => ActiveObjects::Error {
-                    label,
-                    message: err.to_string(),
-                },
-            };
         }
 
         self.bump_object_list_epoch(cx);

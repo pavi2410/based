@@ -58,11 +58,6 @@ impl UpdateCoordinator {
         }
     }
 
-    fn set_phase(&mut self, phase: UpdatePhase, cx: &mut App) {
-        self.phase = phase;
-        Self::notify_workspace(cx);
-    }
-
     fn notify_workspace(cx: &mut App) {
         if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
             ws.update(cx, |_, cx| cx.notify());

@@ -25,10 +25,6 @@ impl ConfigReloadSignal {
         let (tx, rx) = channel();
         Self { tx, rx }
     }
-
-    pub fn notify(&self) {
-        let _ = self.tx.send(());
-    }
 }
 
 impl Global for ConfigReloadSignal {}

@@ -52,10 +52,6 @@ impl PopOutManager {
         });
     }
 
-    pub fn is_pop_out_panel(entity_id: EntityId, cx: &App) -> bool {
-        Self::global(cx).windows.contains_key(&entity_id)
-    }
-
     pub fn on_any_window_closed(cx: &mut App, closed_id: WindowId) {
         let is_main = PopOutManager::global(cx).main_window_id == Some(closed_id);
         if is_main {
@@ -77,23 +73,10 @@ impl PopOutManager {
     }
 }
 
-fn center_tab_count(cx: &App) -> usize {
-    if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
-        return ws.read(cx).center_panels.len();
-    }
-    cx.try_global::<TabManagerRef>()
-        .map(|tm| tm.0.read(cx).tabs.len())
-        .unwrap_or(0)
-}
-
 fn is_tab_pinned(panel_id: EntityId, cx: &App) -> bool {
     cx.try_global::<TabManagerRef>()
         .and_then(|tm| tm.0.read(cx).tab_for_panel_id(panel_id))
         .is_some_and(|t| t.pinned)
-}
-
-fn can_close_center_tab(panel_id: EntityId, cx: &App) -> bool {
-    !is_tab_pinned(panel_id, cx)
 }
 
 fn can_close_center_pane(panel_id: EntityId, cx: &App) -> bool {

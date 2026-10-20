@@ -130,60 +130,11 @@ impl TabSpec {
         }
     }
 
-    /// Returns the connection scope for this tab.
-    pub fn scope(&self) -> TabScope {
-        match self {
-            Self::Home | Self::ReleaseNotes { .. } => TabScope::Global,
-            Self::Dashboard { conn_id } => TabScope::Connection(conn_id.clone()),
-            Self::DataViewer { conn_id, .. } => TabScope::Connection(conn_id.clone()),
-            Self::QueryEditor { conn_id, .. } => TabScope::Connection(conn_id.clone()),
-            Self::Pipeline { conn_id, .. } => TabScope::Connection(conn_id.clone()),
-            Self::Inspector { conn_id, .. } => TabScope::Connection(conn_id.clone()),
-            Self::ObjectInfo { conn_id, .. } => TabScope::Connection(conn_id.clone()),
-            Self::DocumentInsert { conn_id, .. } => TabScope::Connection(conn_id.clone()),
-            Self::Builtin { conn_id, .. } => conn_id
-                .as_ref()
-                .cloned()
-                .map(TabScope::Connection)
-                .unwrap_or(TabScope::Global),
-        }
-    }
-
     /// Whether this tab should be written to / restored from the session snapshot.
     ///
     /// What's New is a one-shot after an in-app update, not workspace state.
     pub fn persist_in_session(&self) -> bool {
         !matches!(self, Self::ReleaseNotes { .. })
-    }
-
-    pub fn kind_label(&self) -> &'static str {
-        match self {
-            Self::Home => "home",
-            Self::Dashboard { .. } => "dashboard",
-            Self::DataViewer { .. } => "data viewer",
-            Self::QueryEditor { .. } => "query",
-            Self::Pipeline { .. } => "pipeline",
-            Self::Inspector { .. } => "structure",
-            Self::ObjectInfo { .. } => "object",
-            Self::DocumentInsert { .. } => "insert",
-            Self::ReleaseNotes { .. } => "release notes",
-            Self::Builtin { .. } => "panel",
-        }
-    }
-
-    pub fn title(&self) -> String {
-        match self {
-            Self::Home => "Home".to_string(),
-            Self::Dashboard { conn_id } => conn_id.0.clone(),
-            Self::DataViewer { object, .. } => object.clone(),
-            Self::QueryEditor { .. } => "untitled".to_string(),
-            Self::Pipeline { collection, .. } => collection.clone(),
-            Self::Inspector { object, .. } => object.clone(),
-            Self::ObjectInfo { object_name, .. } => object_name.clone(),
-            Self::DocumentInsert { collection, .. } => format!("Insert · {collection}"),
-            Self::ReleaseNotes { version } => format!("What's New in v{version}"),
-            Self::Builtin { panel, .. } => panel.clone(),
-        }
     }
 }
 

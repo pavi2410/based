@@ -35,10 +35,6 @@ impl MongoConnection {
     pub fn database(&self) -> &Database {
         &self.database
     }
-
-    pub fn client(&self) -> &Client {
-        &self.client
-    }
 }
 
 impl Connectable for MongoConnection {

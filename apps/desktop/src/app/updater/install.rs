@@ -2,7 +2,6 @@ use anyhow::{Context as _, Result};
 use cargo_packager_updater::Update;
 use gpui_kit::App;
 
-use super::config::{current_version_string, supports_in_app_install};
 use super::log::info as uinfo;
 use super::persist::UpdaterStateFile;
 use std::env;
@@ -43,16 +42,4 @@ pub fn relaunch_app() -> Result<()> {
 pub fn open_releases_page(cx: &mut App) {
     uinfo("open releases page (manual update fallback)");
     cx.open_url(super::config::RELEASES_PAGE);
-}
-
-pub fn install_mode_label() -> &'static str {
-    if supports_in_app_install() {
-        "in_app"
-    } else {
-        "manual"
-    }
-}
-
-pub fn running_version() -> &'static str {
-    current_version_string()
 }

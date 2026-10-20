@@ -133,23 +133,6 @@ pub struct ConnectionEntry {
 }
 
 impl ConnectionEntry {
-    pub fn new(config: ConnectionConfig) -> Self {
-        let key = config.label().to_string();
-        Self::with_stable_id(config, &key)
-    }
-
-    pub fn with_stable_id(config: ConnectionConfig, stable_key: &str) -> Self {
-        Self::with_stable_id_and_tags(config, stable_key, vec![])
-    }
-
-    pub fn with_stable_id_and_tags(
-        config: ConnectionConfig,
-        stable_key: &str,
-        tags: Vec<String>,
-    ) -> Self {
-        Self::with_origin(config, stable_key, tags, ConnectionOrigin::Project)
-    }
-
     pub fn with_origin(
         config: ConnectionConfig,
         stable_key: &str,

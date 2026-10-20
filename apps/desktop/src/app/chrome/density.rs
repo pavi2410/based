@@ -48,18 +48,6 @@ impl SizeToken {
         }
     }
 
-    pub fn from_legacy_px(px: f32) -> Self {
-        if px <= 11.0 {
-            Self::XSmall
-        } else if px <= 13.0 {
-            Self::Small
-        } else if px <= 15.0 {
-            Self::Medium
-        } else {
-            Self::Large
-        }
-    }
-
     pub fn storage_key(self) -> &'static str {
         match self {
             Self::XSmall => "xsmall",
@@ -170,17 +158,5 @@ pub fn panel_header_h(size: SizeToken) -> f32 {
         SizeToken::Small => 28.0,
         SizeToken::Medium => 32.0,
         SizeToken::Large => 36.0,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn legacy_px_migration() {
-        assert_eq!(SizeToken::from_legacy_px(10.0), SizeToken::XSmall);
-        assert_eq!(SizeToken::from_legacy_px(14.0), SizeToken::Medium);
-        assert_eq!(SizeToken::from_legacy_px(18.0), SizeToken::Large);
     }
 }

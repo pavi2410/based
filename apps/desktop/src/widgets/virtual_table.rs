@@ -168,8 +168,6 @@ impl TableDelegate for RowDelegate {
     }
 }
 
-pub type VirtualTable = Entity<TableState<RowDelegate>>;
-
 /// Replace delegate data and rebuild gpui-kit column layout.
 ///
 /// [`TableState::refresh`] must run after columns change; otherwise `col_groups` stays

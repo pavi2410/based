@@ -46,14 +46,6 @@ impl Workspace {
         self.activate_center_panel_id(panel_id, window, cx);
     }
 
-    pub fn tab_navigation_can_go_back(&self) -> bool {
-        self.tab_navigation.can_go_back()
-    }
-
-    pub fn tab_navigation_can_go_forward(&self) -> bool {
-        self.tab_navigation.can_go_forward()
-    }
-
     fn activate_center_panel_id(
         &mut self,
         panel_id: EntityId,

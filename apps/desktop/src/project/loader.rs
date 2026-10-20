@@ -14,10 +14,6 @@ use crate::postgres::{PostgresConfig, SslMode};
 use crate::redis::RedisConfig;
 use crate::sqlite::SqliteConfig;
 
-pub fn entry_from_project(conn: &ProjectConnection) -> anyhow::Result<ConnectionEntry> {
-    entry_from_tree(conn, ConnectionOrigin::Project, &HashMap::new())
-}
-
 pub fn entry_from_tree(
     conn: &ProjectConnection,
     origin: ConnectionOrigin,

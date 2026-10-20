@@ -176,11 +176,6 @@ impl QueryEditorPanel {
         &self.conn_id
     }
 
-    pub fn load_sql(&mut self, sql: &str, window: &mut Window, cx: &mut Context<Self>) {
-        set_input_text(&self.sql_input, sql, window, cx);
-        cx.notify();
-    }
-
     pub fn current_sql(&self, cx: &App) -> String {
         text_from_input(&self.sql_input, cx)
     }

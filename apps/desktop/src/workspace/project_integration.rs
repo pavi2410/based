@@ -19,7 +19,6 @@ use crate::query_store::QueryStore;
 use super::Workspace;
 use super::connection_destination::ConnectionDestination;
 use super::connection_persist::persist_config_to_based_dir;
-use super::context::WorkspaceContext;
 use super::project_query::{OpenQueryResult, open_project_query, tab_spec_for_query};
 
 impl Workspace {
@@ -58,13 +57,6 @@ impl Workspace {
         }
     }
 
-    pub fn sync_project_context(&mut self, cx: &mut Context<Self>) {
-        if let Some(pctx) = cx.try_global::<ProjectContext>() {
-            self.project_title = pctx.project_name().into();
-            cx.notify();
-        }
-    }
-
     pub fn apply_opened_project(&mut self, root: PathBuf, cx: &mut Context<Self>) {
         self.project_dir = Some(root);
         if let Some(pctx) = cx.try_global::<ProjectContext>() {
@@ -78,16 +70,6 @@ impl Workspace {
         self.project_dir = None;
         self.project_title = "No project".into();
         self.connection_tree.update(cx, |_, cx| cx.notify());
-        cx.notify();
-    }
-
-    pub fn apply_workspace_context(&mut self, ctx: WorkspaceContext, cx: &mut Context<Self>) {
-        if let Some(pctx) = cx.try_global::<ProjectContext>() {
-            self.project_title = pctx.project_name().into();
-        } else {
-            self.project_title = ctx.active.name.clone().into();
-        }
-        cx.set_global(ctx.clone());
         cx.notify();
     }
 

@@ -13,19 +13,7 @@ pub enum UpdatePhase {
     Failed,
 }
 
-impl UpdatePhase {
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Idle => "",
-            Self::Checking => "Checking…",
-            Self::UpToDate => "Up to date",
-            Self::Available => "Update available",
-            Self::Downloading => "Downloading…",
-            Self::Ready => "Restart to update",
-            Self::Failed => "Update failed",
-        }
-    }
-}
+impl UpdatePhase {}
 
 /// Snapshot for status bar rendering.
 #[derive(Clone, Debug, Default)]

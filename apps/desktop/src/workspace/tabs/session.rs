@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use based_storage::{ACTIVE_CONNECTION_ID, ACTIVE_TAB_INDEX, MetadataStore, OPEN_TABS};
 
-use super::spec::{QueryEditorInit, TabSpec};
+use super::spec::TabSpec;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SessionSnapshot {
@@ -92,6 +92,7 @@ pub fn merge_live_and_pending(live: Vec<TabSpec>, pending: &[TabSpec]) -> Vec<Ta
 mod tests {
     use super::*;
     use crate::connection::ConnectionId;
+    use crate::workspace::tabs::spec::QueryEditorInit;
 
     #[test]
     fn pending_session_tabs_survive_home_only_live_set() {

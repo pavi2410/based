@@ -682,15 +682,6 @@ pub fn set_sidebar(collapsed: bool, cx: &mut App) {
     });
 }
 
-/// Switch light/dark appearance (legacy helper).
-pub fn apply_theme(mode: ThemeMode, cx: &mut App) {
-    let appearance = match mode {
-        ThemeMode::Light => AppearanceMode::Light,
-        ThemeMode::Dark => AppearanceMode::Dark,
-    };
-    apply_appearance(appearance, None, cx);
-}
-
 pub fn appearance_mode(cx: &App) -> AppearanceMode {
     cx.global::<NativePreferences>().appearance_mode
 }

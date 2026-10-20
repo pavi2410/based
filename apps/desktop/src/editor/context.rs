@@ -41,11 +41,6 @@ impl EditorContext {
         }
     }
 
-    /// Replace the variable scope (e.g. after `.env` reload).
-    pub fn set_variables(&mut self, scope: VariableScope) {
-        self.variables = scope;
-    }
-
     /// Update the schema cache after a background refresh completes.
     pub fn set_schema_cache(&mut self, cache: SchemaCache) {
         self.schema_cache = Arc::new(cache);

@@ -11,7 +11,7 @@ use crate::app::prefs;
 use crate::connection::{ConnectionId, EngineKind};
 use crate::project::RegistryRef;
 use crate::widgets::engine_icon;
-use crate::widgets::layout::{PANEL_RADIUS, panel_header_height};
+use crate::widgets::layout::panel_header_height;
 use crate::widgets::metadata_pill;
 use crate::widgets::status_item::STATUS_BAR_HEIGHT;
 
@@ -64,27 +64,6 @@ pub fn panel_header(
     panel_shell_header(title, subtitle, cx)
 }
 
-/// In-panel context line when the dock tab already shows the title.
-pub fn panel_context_header(subtitle: impl Into<SharedString>, cx: &mut App) -> impl IntoElement {
-    let border = cx.theme().border.opacity(0.85);
-    h_flex()
-        .h(px(panel_header_height(cx)))
-        .w_full()
-        .flex_shrink_0()
-        .items_center()
-        .px(px(10.0))
-        .border_b_1()
-        .border_color(border)
-        .bg(cx.theme().muted.opacity(0.18))
-        .child(
-            div()
-                .text_xs()
-                .text_color(cx.theme().muted_foreground)
-                .truncate()
-                .child(subtitle.into()),
-        )
-}
-
 /// Height of the data-viewer filter/export toolbar (centers compact controls).
 pub const DATA_VIEWER_TOOLBAR_H: f32 = 28.0;
 
@@ -101,50 +80,6 @@ pub fn data_viewer_toolbar(cx: &mut App) -> Div {
         .border_b_1()
         .border_color(cx.theme().border.opacity(0.72))
         .bg(cx.theme().muted.opacity(0.18))
-}
-
-/// Secondary toolbar row inside a panel shell.
-pub fn toolbar_strip(
-    cx: &mut App,
-    children: impl IntoIterator<Item = AnyElement>,
-) -> impl IntoElement {
-    h_flex()
-        .w_full()
-        .flex_shrink_0()
-        .flex_wrap()
-        .gap(px(8.0))
-        .px(px(8.0))
-        .py(px(6.0))
-        .border_b_1()
-        .border_color(cx.theme().border.opacity(0.72))
-        .bg(cx.theme().muted.opacity(0.18))
-        .children(children)
-}
-
-/// Bordered panel frame: optional header + flexible body.
-pub fn panel_shell(
-    cx: &mut App,
-    title: impl Into<SharedString>,
-    subtitle: impl Into<SharedString>,
-    body: impl IntoElement,
-) -> impl IntoElement {
-    let border = cx.theme().border.opacity(0.85);
-    let title = title.into();
-    let subtitle = subtitle.into();
-    let header: AnyElement = if title.is_empty() {
-        panel_context_header(subtitle, cx).into_any_element()
-    } else {
-        panel_shell_header(title, subtitle, cx).into_any_element()
-    };
-    v_flex()
-        .size_full()
-        .border_1()
-        .border_color(border)
-        .rounded(px(PANEL_RADIUS))
-        .overflow_hidden()
-        .bg(cx.theme().background)
-        .child(header)
-        .child(div().flex_1().min_h_0().child(body))
 }
 
 pub fn toolbar_button(id: &'static str, icon: IconName, tooltip: &'static str, cx: &App) -> Button {

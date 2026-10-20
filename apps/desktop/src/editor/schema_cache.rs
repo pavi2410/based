@@ -53,13 +53,6 @@ impl SchemaCache {
         }
     }
 
-    /// Returns `true` if the cache has never been populated or is older than 5 minutes.
-    pub fn is_stale(&self) -> bool {
-        self.last_refreshed_at
-            .map(|t| t.elapsed().as_secs() > 300)
-            .unwrap_or(true)
-    }
-
     /// Returns objects whose label starts with `prefix` (case-insensitive).
     pub fn complete(&self, prefix: &str) -> Vec<&SchemaObject> {
         let lower = prefix.to_lowercase();
@@ -74,11 +67,6 @@ impl SchemaCache {
         self.objects
             .iter()
             .find(|o| o.full_name == name || o.label == name || o.label.to_lowercase() == lower)
-    }
-
-    /// Mark the cache as needing a refresh on the next load.
-    pub fn mark_stale(&mut self) {
-        self.last_refreshed_at = None;
     }
 
     /// Column names on `table_name` matching `prefix` (case-insensitive).

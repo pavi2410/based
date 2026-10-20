@@ -82,26 +82,3 @@ pub fn schema_object_row(
             None,
         ))
 }
-
-/// Schema browser row with trailing actions (e.g. inspect / insert).
-pub fn schema_object_row_with_actions(
-    id: impl Into<ElementId>,
-    selected: bool,
-    kind_icon: IconName,
-    label: impl Into<SharedString>,
-    style: SchemaRowStyle,
-    actions: impl IntoElement,
-) -> ListItem {
-    ListItem::new(id)
-        .selected(selected)
-        .pl(px(SIDEBAR_INSET))
-        .pr(px(SIDEBAR_INSET))
-        .py(px(style.row_py))
-        .cursor_pointer()
-        .child(schema_object_row_inner(
-            kind_icon,
-            label.into(),
-            style,
-            Some(actions.into_any_element()),
-        ))
-}

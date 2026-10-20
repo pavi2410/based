@@ -10,8 +10,7 @@ use gpui_kit::component::{
     list::ListState,
 };
 use gpui_kit::{
-    App, ClipboardItem, Context, Entity, EventEmitter, Focusable, IntoElement, Render, Window,
-    prelude::*,
+    App, Context, Entity, EventEmitter, Focusable, IntoElement, Render, Window, prelude::*,
 };
 
 use crate::connection::registry::{ConnectionRegistry, RegistryEvent};
@@ -463,10 +462,6 @@ impl ConnectionTree {
         self.open_inspector_tab(object, conn_id, cx);
     }
 
-    pub(crate) fn copy_object_name(&self, object: &SchemaObject, cx: &mut App) {
-        cx.write_to_clipboard(ClipboardItem::new_string(object.display_name()));
-    }
-
     fn emit_object_info_tab(
         &mut self,
         object: SchemaObject,
@@ -493,18 +488,6 @@ impl ConnectionTree {
         cx.emit(TreeEvent::OpenTab(TabSpec::Inspector {
             conn_id,
             object: object.display_name(),
-        }));
-    }
-
-    pub(crate) fn open_document_insert_tab(
-        &mut self,
-        object: SchemaObject,
-        conn_id: ConnectionId,
-        cx: &mut Context<Self>,
-    ) {
-        cx.emit(TreeEvent::OpenTab(TabSpec::DocumentInsert {
-            conn_id,
-            collection: object.display_name(),
         }));
     }
 }

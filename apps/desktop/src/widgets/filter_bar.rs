@@ -95,11 +95,6 @@ impl FilterExpr {
         }
     }
 
-    /// Alias for Postgres (tests / callers default).
-    pub fn to_sql(&self) -> String {
-        self.to_sql_postgres()
-    }
-
     /// MongoDB filter as extended-JSON string (single predicate).
     pub fn to_mongo_filter(&self) -> String {
         match self.op {
@@ -253,7 +248,6 @@ mod tests {
             value: "a@b.com".into(),
         };
         assert_eq!(expr.to_sql_postgres(), "\"email\" = 'a@b.com'");
-        assert_eq!(expr.to_sql(), expr.to_sql_postgres());
     }
 
     #[test]

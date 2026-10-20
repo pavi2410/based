@@ -25,13 +25,6 @@ pub enum EditorMode {
     Edit,
 }
 
-fn document_to_pretty_json(doc: &Document) -> String {
-    serde_json::to_value(doc)
-        .ok()
-        .and_then(|v| serde_json::to_string_pretty(&v).ok())
-        .unwrap_or_else(|| "{\n  \n}".to_string())
-}
-
 pub struct DocumentEditorPanel {
     focus_handle: FocusHandle,
     collection: Collection<Document>,
@@ -64,38 +57,6 @@ impl DocumentEditorPanel {
             status: SharedString::default(),
             tab_label,
         }
-    }
-
-    pub fn new_edit(
-        collection: Collection<Document>,
-        doc: Document,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Self {
-        let pretty = document_to_pretty_json(&doc);
-        let json_input = new_json_input(&pretty, window, cx);
-
-        let name = collection.name().to_string();
-        let tab_label = format!("Edit · {name}").into();
-        Self {
-            focus_handle: cx.focus_handle(),
-            collection,
-            mode: EditorMode::Edit,
-            json_input,
-            original: Some(doc),
-            error: None,
-            status: SharedString::default(),
-            tab_label,
-        }
-    }
-
-    /// Kept for callers that open an editor without a pre-loaded document (same as insert).
-    pub fn new(
-        collection: Collection<Document>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Self {
-        Self::new_insert(collection, window, cx)
     }
 
     fn save(&mut self, _window: &mut Window, cx: &mut Context<Self>) {

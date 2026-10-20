@@ -67,22 +67,6 @@ impl ChromePrefs {
         }
         self.density_preset = DensityPreset::Custom;
     }
-
-    pub fn migrate_from_legacy(
-        &mut self,
-        ui_font_size: f32,
-        mono_font_size: f32,
-        table_compact: bool,
-    ) {
-        self.ui.size = SizeToken::from_legacy_px(ui_font_size);
-        self.editor.size = SizeToken::from_legacy_px(mono_font_size);
-        self.table.size = if table_compact {
-            SizeToken::XSmall
-        } else {
-            SizeToken::Small
-        };
-        self.sync_density_preset();
-    }
 }
 
 /// Apply chrome font profiles to the global theme and refresh windows.

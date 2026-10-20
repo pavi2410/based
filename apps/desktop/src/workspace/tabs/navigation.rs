@@ -38,14 +38,6 @@ impl TabNavigationHistory {
         Some(next)
     }
 
-    pub fn can_go_back(&self) -> bool {
-        !self.back.is_empty()
-    }
-
-    pub fn can_go_forward(&self) -> bool {
-        !self.forward.is_empty()
-    }
-
     #[cfg(test)]
     fn panel_id(n: u64) -> EntityId {
         EntityId::from(n)
@@ -77,6 +69,6 @@ mod tests {
         h.record_activation(TabNavigationHistory::panel_id(3));
         h.go_back();
         h.record_activation(TabNavigationHistory::panel_id(4));
-        assert!(!h.can_go_forward());
+        assert!(h.go_forward().is_none());
     }
 }

@@ -52,10 +52,6 @@ impl ConnectionRegistry {
         self.connections.iter().find(|e| e.read(cx).id == *id)
     }
 
-    pub fn sync_project_entries(&mut self, entries: Vec<ConnectionEntry>, cx: &mut Context<Self>) {
-        self.sync_origin_entries(ConnectionOrigin::Project, entries, cx);
-    }
-
     /// Replace connections for one origin; leave the other origin untouched.
     pub fn sync_origin_entries(
         &mut self,
@@ -99,13 +95,6 @@ impl ConnectionRegistry {
             });
     }
 
-    pub fn ordered_ids(&self, cx: &App) -> Vec<ConnectionId> {
-        self.connections
-            .iter()
-            .map(|e| e.read(cx).id.clone())
-            .collect()
-    }
-
     /// Remove `.based/` project connections after Close Project.
     /// Workspace-local wizard templates (`ws-template:`) stay in the registry.
     pub fn remove_project_owned(&mut self, cx: &mut Context<Self>) {
@@ -144,30 +133,31 @@ pub(crate) fn retain_after_origin_sync(
     snapshot_ids.contains(id) || is_connected
 }
 
-/// Project reload only owns `.based/connections/` rows.
-pub(crate) fn retain_after_project_sync(
-    id: &ConnectionId,
-    is_connected: bool,
-    snapshot_ids: &HashSet<ConnectionId>,
-) -> bool {
-    retain_after_origin_sync(
-        ConnectionOrigin::Project,
-        if id.is_workspace_local() {
-            ConnectionOrigin::Personal
-        } else {
-            ConnectionOrigin::Project
-        },
-        id,
-        is_connected,
-        snapshot_ids,
-    )
-}
-
 impl EventEmitter<RegistryEvent> for ConnectionRegistry {}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Project reload only owns `.based/connections/` rows.
+    fn retain_after_project_sync(
+        id: &ConnectionId,
+        is_connected: bool,
+        snapshot_ids: &HashSet<ConnectionId>,
+    ) -> bool {
+        let origin = if id.is_workspace_local() {
+            ConnectionOrigin::Personal
+        } else {
+            ConnectionOrigin::Project
+        };
+        retain_after_origin_sync(
+            ConnectionOrigin::Project,
+            origin,
+            id,
+            is_connected,
+            snapshot_ids,
+        )
+    }
 
     fn id(key: &str) -> ConnectionId {
         ConnectionId::from_key(key)

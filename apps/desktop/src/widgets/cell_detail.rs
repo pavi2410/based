@@ -86,25 +86,6 @@ pub fn interpret_cell_with_meta(s: &str, meta: &GridColumnMeta) -> CellValue {
     }
 }
 
-pub fn interpret_cell_display(s: &str) -> CellValue {
-    let Some(t) = null_or_trimmed(s) else {
-        return CellValue::Null;
-    };
-    if let Ok(n) = t.parse::<i64>() {
-        return CellValue::Integer(n);
-    }
-    if let Ok(n) = t.parse::<f64>() {
-        return CellValue::Float(n);
-    }
-    if let Ok(b) = t.parse::<bool>() {
-        return CellValue::Boolean(b);
-    }
-    if (t.starts_with('{') && t.ends_with('}')) || (t.starts_with('[') && t.ends_with(']')) {
-        return CellValue::Json(t.to_string());
-    }
-    CellValue::Text(t.to_string())
-}
-
 pub struct CellDetail {
     pub column: String,
     pub value: CellValue,

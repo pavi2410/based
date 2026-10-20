@@ -190,16 +190,6 @@ fn new_actions(cx: &mut App) -> impl IntoElement {
         )
 }
 
-fn empty_hint(text: &str, cx: &App) -> AnyElement {
-    v_flex()
-        .px_3()
-        .py_2()
-        .text_xs()
-        .text_color(cx.theme().muted_foreground)
-        .child(text.to_string())
-        .into_any_element()
-}
-
 fn open_loose_query(sql: &str, cx: &mut App) {
     let conn_id = first_connected_conn_id(cx).unwrap_or_else(|| ConnectionId("pg".into()));
     enqueue_open_tab(

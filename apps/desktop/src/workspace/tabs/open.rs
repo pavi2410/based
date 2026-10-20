@@ -106,21 +106,8 @@ pub fn request_workspace_flush(cx: &mut App) {
     }
 }
 
-pub fn enqueue_open_connection_wizard(cx: &mut impl BorrowAppContext) {
-    cx.update_global(|q: &mut WorkspaceNavQueue, _| q.open_connection_wizard = true);
-}
-
-/// Deprecated alias — prefer [`enqueue_open_connection_wizard`].
-pub fn enqueue_open_postgres_wizard(cx: &mut impl BorrowAppContext) {
-    enqueue_open_connection_wizard(cx);
-}
-
 pub fn enqueue_toggle_side_pane(pane: SidePane, cx: &mut impl BorrowAppContext) {
     cx.update_global(|q: &mut WorkspaceNavQueue, _| q.toggle_side_pane = Some(pane));
-}
-
-pub fn enqueue_toggle_left_pane(pane: LeftPane, cx: &mut impl BorrowAppContext) {
-    cx.update_global(|q: &mut WorkspaceNavQueue, _| q.toggle_left_pane = Some(pane));
 }
 
 pub fn enqueue_open_release_notes(version: String, cx: &mut impl BorrowAppContext) {

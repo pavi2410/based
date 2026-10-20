@@ -211,11 +211,6 @@ impl Workspace {
         self.refresh_tab_strip_chrome(cx);
     }
 
-    /// Number of live center tabs.
-    pub fn center_tab_count(&self, _cx: &App) -> usize {
-        self.center_panels.len()
-    }
-
     /// Whether the given center-dock panel may be closed (gpui-kit hides Close for center tabs).
     pub fn can_close_center_panel(&self, panel_id: EntityId, cx: &App) -> bool {
         if self.is_tab_pinned(panel_id, cx) {

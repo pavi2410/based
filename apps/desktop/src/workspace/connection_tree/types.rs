@@ -27,18 +27,6 @@ impl ObjectKind {
         }
     }
 
-    /// Short badge for sidebar object rows (fits fixed-width column).
-    pub(crate) fn badge_label(&self) -> &'static str {
-        match self {
-            Self::Table => "tbl",
-            Self::View => "view",
-            Self::MaterializedView => "mview",
-            Self::Trigger => "trig",
-            Self::Collection => "coll",
-            Self::Key => "key",
-        }
-    }
-
     pub fn group(&self) -> &'static str {
         match self {
             Self::Table => "Tables",
@@ -46,16 +34,6 @@ impl ObjectKind {
             Self::Trigger => "Triggers",
             Self::Collection => "Collections",
             Self::Key => "Keys",
-        }
-    }
-
-    pub fn icon(&self) -> &'static str {
-        match self {
-            Self::Table => "▤",
-            Self::View | Self::MaterializedView => "◈",
-            Self::Trigger => "⚡",
-            Self::Collection => "▦",
-            Self::Key => "⚿",
         }
     }
 
@@ -129,10 +107,6 @@ pub(crate) enum ConnCache {
 }
 
 impl ConnCache {
-    pub(crate) fn is_loading(&self) -> bool {
-        matches!(self, Self::Loading)
-    }
-
     pub(crate) fn should_skip_load(&self) -> bool {
         matches!(self, Self::Loading | Self::Ready(_))
     }
@@ -202,15 +176,6 @@ impl ConnState {
                 expanded: false,
                 cache: ConnCache::default(),
             },
-        }
-    }
-
-    pub(crate) fn expanded(&self) -> bool {
-        match self {
-            Self::Postgres { expanded, .. }
-            | Self::Sqlite { expanded, .. }
-            | Self::MongoDB { expanded, .. }
-            | Self::Redis { expanded, .. } => *expanded,
         }
     }
 

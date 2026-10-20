@@ -109,7 +109,3 @@ fn parse_engine(s: &str) -> EngineKind {
         _ => EngineKind::Postgres,
     }
 }
-
-pub fn engine_kind_from_str(s: &str) -> EngineKind {
-    parse_engine(s)
-}

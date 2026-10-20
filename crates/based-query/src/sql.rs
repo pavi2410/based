@@ -65,9 +65,28 @@ pub fn statement_at_offset(script: &str, offset: usize) -> Option<SqlStatement> 
         .or_else(|| stmts.last().copied())
 }
 
+/// Pretty-print `sql` (keywords uppercased, 2-space indent). Comments are kept.
+pub fn format_sql(sql: &str) -> String {
+    use sqlformat::{FormatOptions, Indent, QueryParams};
+    let opts = FormatOptions {
+        indent: Indent::Spaces(2),
+        uppercase: Some(true),
+        lines_between_queries: 1,
+        ..Default::default()
+    };
+    sqlformat::format(sql, &QueryParams::None, &opts)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn formats_select() {
+        let out = format_sql("select a,b from t where a=1");
+        assert!(out.starts_with("SELECT"));
+        assert!(out.contains('\n'));
+    }
 
     #[test]
     fn splits_two_statements() {

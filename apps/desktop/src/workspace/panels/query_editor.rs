@@ -197,6 +197,15 @@ impl QueryEditorPanel {
         text_from_input(&self.sql_input, cx)
     }
 
+    /// Pretty-print the editor contents.
+    fn format(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let sql = self.current_sql(cx);
+        if sql.trim().is_empty() {
+            return;
+        }
+        set_input_text(&self.sql_input, &based_query::format_sql(&sql), window, cx);
+    }
+
     /// Switch to the Explain tab and (re)run EXPLAIN inline.
     fn switch_to_explain(&mut self, cx: &mut Context<Self>) {
         let sql = self.current_sql(cx);
@@ -484,6 +493,13 @@ impl QueryEditorPanel {
                     .label("Run")
                     .child(shortcut_run_kbd_in_primary_button(cx))
                     .on_click(cx.listener(|panel, _, _, cx| panel.run(cx))),
+            )
+            .child(
+                Button::new(format!("{id}-format"))
+                    .ghost()
+                    .small()
+                    .label("Format")
+                    .on_click(cx.listener(|panel, _, window, cx| panel.format(window, cx))),
             )
             .child(
                 Button::new(format!("{id}-explain"))

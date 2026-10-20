@@ -5,6 +5,7 @@ pub mod dispatch;
 pub mod infer;
 pub mod label;
 pub mod manager;
+pub mod menu;
 pub mod navigation;
 pub mod open;
 pub mod session;

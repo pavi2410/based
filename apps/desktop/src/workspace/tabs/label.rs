@@ -4,11 +4,14 @@ use gpui_kit::component::{
     ActiveTheme, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex,
+    menu::ContextMenuExt,
+    tooltip::Tooltip,
 };
 use gpui_kit::{App, EntityId, IntoElement, SharedString, div, prelude::*, px};
 
 use crate::workspace::WorkspaceRef;
 
+use super::menu::tab_context_menu;
 use super::open::TabManagerRef;
 use super::spec::TabSpec;
 
@@ -30,11 +33,15 @@ pub fn render_strip_tab(
     cx: &mut App,
 ) -> impl IntoElement {
     let pinned = is_panel_pinned(panel_id, cx);
+    let info = tab_info(&label, panel_id, cx);
     let text = with_dirty_suffix(label, dirty);
     let color = cx.theme().tab_foreground;
 
     h_flex()
+        .id(("tab-title", panel_id.as_u64()))
         .max_w(px(TAB_MAX_WIDTH))
+        .tooltip(move |window, cx| Tooltip::new(info.clone()).build(window, cx))
+        .context_menu(move |menu, _window, cx| tab_context_menu(menu, panel_id, cx))
         .gap(px(4.0))
         .items_center()
         .when(pinned, |this| {
@@ -47,6 +54,39 @@ pub fn render_strip_tab(
         })
         .child(div().min_w_0().truncate().child(text))
         .when(!pinned, |this| this.child(close_button(panel_id, color)))
+}
+
+/// Hover card text: tab title, what it shows, and its connection.
+fn tab_info(label: &SharedString, panel_id: EntityId, cx: &App) -> SharedString {
+    let spec = cx
+        .try_global::<TabManagerRef>()
+        .and_then(|tm| tm.0.read(cx).tab_for_panel_id(panel_id))
+        .map(|t| t.spec.clone());
+    let Some(spec) = spec else {
+        return label.clone();
+    };
+    let detail = match &spec {
+        TabSpec::DataViewer { object, .. } => format!("Table data · {object}"),
+        TabSpec::Inspector { object, .. } => format!("Schema · {object}"),
+        TabSpec::QueryEditor { .. } => "Query editor".into(),
+        TabSpec::Pipeline { collection, .. } => format!("Aggregation pipeline · {collection}"),
+        TabSpec::ObjectInfo {
+            object_name,
+            kind_label,
+            ..
+        } => format!("{kind_label} · {object_name}"),
+        TabSpec::DocumentInsert { collection, .. } => format!("Insert document · {collection}"),
+        TabSpec::Dashboard { .. } => "Connection dashboard".into(),
+        TabSpec::Home | TabSpec::ReleaseNotes { .. } | TabSpec::Builtin { .. } => String::new(),
+    };
+    let mut lines = vec![label.to_string()];
+    if !detail.is_empty() {
+        lines.push(detail);
+    }
+    if let Some(conn) = spec.conn_id() {
+        lines.push(format!("Connection · {}", conn.0));
+    }
+    lines.join("\n").into()
 }
 
 /// Per-tab × that closes through the workspace so pin and Home rules still apply.

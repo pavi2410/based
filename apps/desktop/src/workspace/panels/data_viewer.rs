@@ -74,10 +74,6 @@ impl PageData {
 }
 
 /// Double-quote a SQL identifier.
-pub fn quote_ident(ident: &str) -> String {
-    format!("\"{}\"", ident.replace('"', "\"\""))
-}
-
 /// Engine-specific data access for [`DataViewerPanel`].
 pub trait DataSource: Send + Sync + 'static {
     /// Dock panel name, e.g. `"PgDataViewer"`.

@@ -2,14 +2,14 @@
 
 use std::collections::HashMap;
 
+use based_core::quote_ident;
 use gpui_kit::SharedString;
-use sqlx::{AssertSqlSafe, Column, Row, SqlitePool};
+use sqlx::SqlitePool;
 
 use crate::db::column_catalog;
 use crate::widgets::column_header::GridColumnMeta;
 use crate::widgets::filter_bar::FilterExpr;
-use crate::widgets::row_cell::sqlite_cell_display;
-use crate::workspace::panels::data_viewer::{DataSource, Fut, PageData, quote_ident};
+use crate::workspace::panels::data_viewer::{DataSource, Fut, PageData};
 
 pub struct SqliteSource {
     pub pool: SqlitePool,
@@ -43,32 +43,17 @@ impl DataSource for SqliteSource {
     ) -> Fut<PageData> {
         let pool = self.pool.clone();
         let table = quote_ident(&self.table);
-        let where_clause = filter
+        let where_sql = filter
             .map(|e| format!(" WHERE {}", e.to_sql_sqlite()))
             .unwrap_or_default();
         Box::pin(async move {
-            let count_sql = format!("SELECT COUNT(*) FROM {table}{where_clause}");
-            let total: i64 = sqlx::query_scalar(AssertSqlSafe(count_sql))
-                .fetch_one(&pool)
-                .await
-                .unwrap_or(0);
-            let fetch_sql =
-                format!("SELECT * FROM {table}{where_clause} LIMIT {limit} OFFSET {offset}");
-            let rows = sqlx::query(AssertSqlSafe(fetch_sql))
-                .fetch_all(&pool)
-                .await?;
-            let names = rows
-                .first()
-                .map(|r| r.columns().iter().map(|c| c.name().to_string()).collect());
-            let data = rows
-                .iter()
-                .map(|row| {
-                    (0..row.len())
-                        .map(|i| SharedString::from(sqlite_cell_display(row, i)))
-                        .collect()
-                })
+            let page = based_sqlite::fetch_page(&pool, &table, &where_sql, limit, offset).await?;
+            let rows = page
+                .rows
+                .into_iter()
+                .map(|r| r.into_iter().map(SharedString::from).collect())
                 .collect();
-            Ok(PageData::new(total, names, data, &catalog))
+            Ok(PageData::new(page.total, page.columns, rows, &catalog))
         })
     }
 }

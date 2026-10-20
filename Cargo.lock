@@ -739,6 +739,7 @@ name = "based-sqlite"
 version = "0.0.0-dev"
 dependencies = [
  "anyhow",
+ "based-core",
  "serde",
  "sqlx",
  "tempfile",

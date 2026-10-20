@@ -40,7 +40,6 @@ use crate::widgets::query_status::{
     QueryStatusDisplay, query_error_card, query_status_indicator, tab_breadcrumb_query_trailing,
 };
 use crate::widgets::result_tabs::{BottomTab, result_tab_strip};
-use crate::widgets::row_cell::sqlite_cell_display;
 use crate::widgets::shortcut_run_kbd_in_primary_button;
 use crate::widgets::sql_editor::{self, new_sql_input, set_input_text, text_from_input};
 use crate::widgets::virtual_table::{
@@ -49,6 +48,7 @@ use crate::widgets::virtual_table::{
 use crate::workspace::WorkspaceRef;
 use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::tabs::take_sql_inject;
+use based_sqlite::sqlite_cell_display;
 use gpui_kit::Entity;
 use std::sync::Arc;
 use std::time::Instant;

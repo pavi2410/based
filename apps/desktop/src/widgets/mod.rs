@@ -23,7 +23,6 @@ pub mod panel;
 pub mod query_panel_extras;
 pub mod query_status;
 pub mod result_tabs;
-pub mod row_cell;
 pub mod same_value;
 pub mod section_eyebrow;
 pub mod sql_editor;

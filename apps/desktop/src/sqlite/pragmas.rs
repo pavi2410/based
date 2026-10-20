@@ -2,7 +2,7 @@
 
 use sqlx::{AssertSqlSafe, Row, SqlitePool};
 
-use crate::widgets::row_cell::sqlite_cell_display;
+use based_sqlite::sqlite_cell_display;
 
 const PRAGMA_LIST: &[&str] = &[
     "page_size",

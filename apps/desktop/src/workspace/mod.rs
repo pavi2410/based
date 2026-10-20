@@ -47,7 +47,7 @@ use crate::command_palette::{
 use crate::connection::ConnectionId;
 use crate::connection::ConnectionOrigin;
 use crate::connection::registry::ConnectionRegistry;
-use crate::db::Tokio;
+use crate::db::{self, Tokio};
 use based_project::ProjectQuery;
 
 use crate::project::{
@@ -81,6 +81,9 @@ pub struct Workspace {
     project_title: SharedString,
     project_dir: Option<PathBuf>,
     session_restored: bool,
+    /// Latest session snapshot waiting for the writer task (newer snapshots replace older ones).
+    session_pending_save: Option<tabs::SessionSnapshot>,
+    session_saving: bool,
     pending_open_tab: Option<TabSpec>,
     /// Session tabs waiting for their connection to come up. Kept until the user closes them.
     pending_session_tabs: Vec<TabSpec>,
@@ -184,6 +187,8 @@ impl Workspace {
             project_title,
             project_dir,
             session_restored: false,
+            session_pending_save: None,
+            session_saving: false,
             pending_open_tab: None,
             pending_session_tabs: Vec::new(),
             session_tabs_opened: Vec::new(),
@@ -284,7 +289,7 @@ impl Workspace {
         &self.registry
     }
 
-    fn save_session(&self, cx: &Context<Self>) {
+    fn save_session(&mut self, cx: &mut Context<Self>) {
         let tm = self.tab_manager.read(cx);
         let mut tabs = Vec::new();
         let mut active = None;
@@ -311,11 +316,24 @@ impl Workspace {
                 .filter(TabSpec::persist_in_session)
                 .collect(),
         };
-        let store = storage::store(cx);
-        let handle = Tokio::handle(cx);
-        if let Err(err) = handle.block_on(snapshot.save(&store)) {
-            log::warn!("session save failed: {err:#}");
+        self.session_pending_save = Some(snapshot);
+        if self.session_saving {
+            return;
         }
+        self.session_saving = true;
+        let store = storage::store(cx);
+        cx.spawn(async move |this, cx| {
+            // Coalesce: keep writing until no newer snapshot arrived during the last write.
+            while let Ok(Some(snapshot)) = this.update(cx, |ws, _| ws.session_pending_save.take()) {
+                let store = store.clone();
+                let saved = db::run(cx, async move { snapshot.save(&store).await }).await;
+                if let Err(err) = saved {
+                    log::warn!("session save failed: {err:#}");
+                }
+            }
+            let _ = this.update(cx, |ws, _| ws.session_saving = false);
+        })
+        .detach();
     }
 
     fn restore_session(&mut self, window: &mut Window, cx: &mut Context<Self>) {

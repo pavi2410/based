@@ -20,15 +20,21 @@ const engines = [
     color: "var(--mongo)",
     body: "Collections and aggregations alongside your SQL connections, in the same version-controlled project.",
   },
+  {
+    icon: "redis",
+    name: "Redis",
+    color: "var(--redis)",
+    body: "Browse keys, inspect and edit strings, hashes, lists, sets, and sorted sets, manage TTLs, and run raw commands from a console.",
+  },
 ];
 ---
 
 <section class="section engines" id="engines">
   <div class="section-head">
     <span class="eyebrow">Engines</span>
-    <h2 class="section-title">Three databases, one project.</h2>
+    <h2 class="section-title">Four databases, one project.</h2>
     <p class="section-lead">
-      Postgres, SQLite, and MongoDB connections live side by side in the same
+      Postgres, SQLite, MongoDB, and Redis connections live side by side in the same
       <span class="mono">.based/</span> folder — pick the engine per connection file.
     </p>
   </div>
@@ -36,7 +42,7 @@ const engines = [
   <div class="engines-grid">
     {
       engines.map((engine, index) => (
-        <Reveal delay={index % 3}>
+        <Reveal delay={index % 2}>
           <article
             class="card engine-card"
             style={`--engine-color: ${engine.color}`}
@@ -58,7 +64,7 @@ const engines = [
 <style>
   .engines-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1rem;
   }
 

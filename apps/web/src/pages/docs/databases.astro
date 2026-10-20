@@ -4,13 +4,13 @@ import DocsLayout from "../../layouts/DocsLayout.astro";
 
 <DocsLayout
   title="Databases"
-  description="PostgreSQL, SQLite, and MongoDB in the same project. Each connection picks an engine; the workspace changes with it."
+  description="PostgreSQL, SQLite, MongoDB, and Redis in the same project. Each connection picks an engine; the workspace changes with it."
 >
   <p>
-    A Based project can hold any mix of the three engines. The engine is a field
+    A Based project can hold any mix of the four engines. The engine is a field
     on the connection file (<code>engine = "postgres"</code>,
-    <code>"sqlite"</code>, or <code>"mongodb"</code>), not a separate app mode.
-    Postgres is the deepest daily driver; SQLite and MongoDB share the same
+    <code>"sqlite"</code>, <code>"mongodb"</code>, or <code>"redis"</code>), not a separate app mode.
+    Postgres is the deepest daily driver; SQLite, MongoDB, and Redis share the same
     catalog, tabs, and saved-query model.
   </p>
 
@@ -23,6 +23,7 @@ import DocsLayout from "../../layouts/DocsLayout.astro";
           <th>PostgreSQL</th>
           <th>SQLite</th>
           <th>MongoDB</th>
+          <th>Redis</th>
         </tr>
       </thead>
       <tbody>
@@ -31,29 +32,34 @@ import DocsLayout from "../../layouts/DocsLayout.astro";
           <td>SQL</td>
           <td>SQL (multi-statement scripts)</td>
           <td>Aggregation pipeline (JSON)</td>
+          <td>Raw commands (console)</td>
         </tr>
         <tr>
           <td>Catalog</td>
           <td>Schemas → tables, views, materialized views</td>
           <td>Tables, views, triggers</td>
           <td>Collections</td>
+          <td>Keys (first 2000, searchable)</td>
         </tr>
         <tr>
           <td>Data viewer</td>
           <td>Paginated <code>SELECT *</code></td>
           <td>Paginated <code>SELECT *</code></td>
           <td><code>find()</code>, first 200 documents</td>
+          <td>Per-key view: string, hash, list, set, zset</td>
         </tr>
         <tr>
           <td>Structure</td>
           <td>Columns, indexes, constraints, stats</td>
           <td>Columns, indexes, constraints, DDL</td>
           <td>Collection stats / inferred schema</td>
+          <td>Type, TTL, length, memory</td>
         </tr>
         <tr>
           <td>Explain</td>
           <td><code>EXPLAIN (FORMAT JSON)</code></td>
           <td><code>EXPLAIN QUERY PLAN</code></td>
+          <td>—</td>
           <td>—</td>
         </tr>
         <tr>
@@ -61,11 +67,13 @@ import DocsLayout from "../../layouts/DocsLayout.astro";
           <td>Not yet</td>
           <td>Tables, columns, keywords, functions</td>
           <td>—</td>
+          <td>—</td>
         </tr>
         <tr>
           <td>Read-only mode</td>
           <td>Not in the connection file</td>
           <td><code>read_only = true</code> or a <code>readonly</code> tag</td>
+          <td>Not in the connection file</td>
           <td>Not in the connection file</td>
         </tr>
         <tr>
@@ -73,6 +81,7 @@ import DocsLayout from "../../layouts/DocsLayout.astro";
           <td>Not shipped</td>
           <td>Not shipped</td>
           <td>Document edit UI not wired</td>
+          <td>Edit strings, add/remove entries, set TTL, delete keys</td>
         </tr>
       </tbody>
     </table>
@@ -170,6 +179,27 @@ import DocsLayout from "../../layouts/DocsLayout.astro";
     supplies a harmless default handle. Data pipelines that read documents
     must set <code>collection</code>.
   </p>
+
+  <h2 id="redis">Redis</h2>
+  <p>
+    Native async driver. The connection file needs a <code>url</code>
+    (<code>redis://[:password@]host:6379[/db]</code>, or <code>rediss://</code>
+    for TLS), usually as <code>{`{ env = "REDIS_URL" }`}</code>.
+  </p>
+  <ul>
+    <li>Catalog lists keys via <code>SCAN</code> (never <code>KEYS</code>), capped at 2000.</li>
+    <li>
+      Key viewer shows type, TTL, length, and memory. Edit string values, add
+      or remove hash/list/set/zset entries (first 500 shown), set or clear a
+      TTL, and delete a key.
+    </li>
+    <li>
+      Console runs raw commands with redis-cli style output.
+      <code>FLUSHALL</code>, <code>FLUSHDB</code>, <code>DEBUG</code>,
+      <code>SHUTDOWN</code>, and <code>KEYS *</code> need a second Enter.
+    </li>
+    <li>Not yet: streams, SSH tunnels, Cluster/Sentinel, saved queries.</li>
+  </ul>
 
   <h2>What is not engine-specific</h2>
   <p>

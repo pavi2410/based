@@ -19,7 +19,8 @@ export const DOC_PAGES: DocPage[] = [
     href: "/docs/databases",
     title: "Databases",
     group: "Workspace",
-    description: "PostgreSQL, SQLite, and MongoDB — what each engine can do in the app today.",
+    description:
+      "PostgreSQL, SQLite, MongoDB, and Redis — what each engine can do in the app today.",
   },
   {
     href: "/docs/connections",

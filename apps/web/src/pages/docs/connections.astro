@@ -38,6 +38,15 @@ url = { env = "MONGO_URL" }
 database = "analytics"
 `;
 
+const redisToml = `schema_version = 1
+label = "Local Redis"
+engine = "redis"
+tags = ["local"]
+
+# redis:// or rediss:// (TLS); /N selects the DB index
+url = { env = "REDIS_URL" }
+`;
+
 const sshToml = `schema_version = 1
 label = "Prod Postgres"
 engine = "postgres"
@@ -135,7 +144,8 @@ key_passphrase = { env = "BASED_PROD_SSH_KEY_PASSPHRASE" }
           <td>Yes</td>
           <td>
             <code>postgres</code> (alias <code>postgresql</code>),
-            <code>sqlite</code>, or <code>mongodb</code> (alias <code>mongo</code>).
+            <code>sqlite</code>, <code>mongodb</code> (alias <code>mongo</code>), or
+            <code>redis</code>.
           </td>
         </tr>
         <tr>
@@ -182,6 +192,15 @@ key_passphrase = { env = "BASED_PROD_SSH_KEY_PASSPHRASE" }
   <h3>MongoDB</h3>
   <CodeSample filename=".based/connections/staging/analytics.toml" code={mongoToml} />
 
+  <h3>Redis</h3>
+  <CodeSample filename=".based/connections/local/redis.toml" code={redisToml} />
+  <p>
+    A single <code>url</code> carries host, credentials, TLS
+    (<code>rediss://</code>), and DB index (<code>/2</code>). Keep it in an env
+    var since it usually contains a password. Single node only; SSH tunnels,
+    Cluster, and Sentinel are not supported yet.
+  </p>
+
   <h2>Secrets</h2>
   <p>
     Any password or URI field can be a literal string or
@@ -213,7 +232,7 @@ key_passphrase = { env = "BASED_PROD_SSH_KEY_PASSPHRASE" }
   <h3>Ephemeral connections</h3>
   <p>
     Home → New Connection opens an engine picker and a wizard (Postgres /
-    SQLite / MongoDB). <strong>Test</strong> reports latency and server
+    SQLite / MongoDB / Redis). <strong>Test</strong> reports latency and server
     version. Connect adds the connection to this session only — it does
     <em>not</em> write a file under <code>.based/connections/</code>. To share
     it, add a TOML file yourself (or wait for the project wizard).
@@ -223,7 +242,7 @@ key_passphrase = { env = "BASED_PROD_SSH_KEY_PASSPHRASE" }
     <li>Icon rail: every connection, engine icon, state color.</li>
     <li>
       Content rail: catalog grouped by schema (Postgres) or a flat list
-      (SQLite, MongoDB). Search filters objects.
+      (SQLite, MongoDB, Redis keys). Search filters objects.
     </li>
     <li>
       Object actions: Open Data, Open Structure (SQL tables/views), Copy Name,

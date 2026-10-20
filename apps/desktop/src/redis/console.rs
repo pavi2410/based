@@ -6,7 +6,7 @@ use gpui_kit::component::{
     button::{Button, ButtonVariants},
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
-    input::{Input, InputEvent, InputState},
+    input::{Editor, EditorState, InputEvent},
     menu::PopupMenu,
     scroll::ScrollableElement,
     v_flex,
@@ -15,7 +15,8 @@ use gpui_kit::{prelude::*, *};
 
 use crate::app::prefs;
 use crate::db;
-use crate::widgets::{new_field, set_field};
+use crate::editor::redis_completion::RedisCompletionProvider;
+use crate::widgets::sql_editor::{set_input_text, text_from_input};
 use crate::workspace::pop_out::PopOutWindowTitle;
 
 struct Output {
@@ -26,7 +27,7 @@ struct Output {
 pub struct ConsolePanel {
     focus_handle: FocusHandle,
     conn: Conn,
-    input: Entity<InputState>,
+    input: Entity<EditorState>,
     outputs: Vec<Output>,
     /// Dangerous command awaiting a second Enter.
     pending: Option<String>,
@@ -41,12 +42,17 @@ impl ConsolePanel {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let input = new_field(
-            window,
-            cx,
-            initial.as_deref().unwrap_or(""),
-            "GET key · HGETALL key · SCAN 0 MATCH user:*",
-        );
+        let input = cx.new(|cx| {
+            let mut state = EditorState::new(window, cx)
+                .line_number(false)
+                .searchable(false)
+                .submit_on_enter(true);
+            state.lsp_mut().completion_provider = Some(RedisCompletionProvider::new());
+            state
+        });
+        input.update(cx, |s, cx| {
+            s.set_value(initial.as_deref().unwrap_or(""), window, cx)
+        });
         cx.subscribe_in(&input, window, |panel, _, event, window, cx| {
             if let InputEvent::PressEnter {
                 secondary: false,
@@ -69,7 +75,7 @@ impl ConsolePanel {
     }
 
     fn submit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let line = self.input.read(cx).value().trim().to_string();
+        let line = text_from_input(&self.input, cx).trim().to_string();
         if line.is_empty() || self.running {
             return;
         }
@@ -96,7 +102,7 @@ impl ConsolePanel {
                             result: result.map_err(|e| format!("(error) {e}")),
                         },
                     );
-                    set_field(&panel.input, "", window, cx);
+                    set_input_text(&panel.input, "", window, cx);
                     cx.notify();
                 })
             });
@@ -154,11 +160,11 @@ impl Render for ConsolePanel {
                     .border_b_1()
                     .border_color(border)
                     .child(
-                        Input::new(&self.input)
-                            .cleanable(true)
-                            .aria_label("Redis command")
+                        div()
+                            .flex_1()
+                            .h(px(64.0))
                             .font_family(mono.clone())
-                            .flex_1(),
+                            .child(Editor::new(&self.input).h_full()),
                     )
                     .child(
                         Button::new("redis-run")

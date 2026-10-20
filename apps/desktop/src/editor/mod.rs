@@ -3,6 +3,8 @@
 //! Engine-agnostic: all SQL editor panels (Postgres, SQLite) and future
 //! LSP/autocomplete features share this layer.
 
+pub mod pg_schema;
+pub mod redis_completion;
 pub mod schema_cache;
 pub mod sql_completion;
 pub mod sqlite_schema;

@@ -75,6 +75,18 @@ const SQL_KEYWORDS: &[&str] = &[
     "NULLS",
     "FIRST",
     "LAST",
+    "ILIKE",
+    "RETURNING",
+    "USING",
+    "ANALYZE",
+    "TRUNCATE",
+    "CONFLICT",
+    "DO",
+    "NOTHING",
+    "LATERAL",
+    "OVER",
+    "PARTITION",
+    "FILTER",
 ];
 
 const SQL_FUNCTIONS: &[&str] = &[

@@ -11,6 +11,7 @@ use sqlx::{AssertSqlSafe, PgPool, Row};
 use tokio::time::timeout;
 
 use super::explain_plan::{PlanNode, parse_pg_explain_json, render_plan_node};
+use crate::editor::{SchemaCache, pg_schema};
 use crate::workspace::panels::query_editor::{Explained, Fut, PlanView, QuerySource, RunOutput};
 
 pub struct PgQuery {
@@ -46,6 +47,11 @@ impl QuerySource for PgQuery {
 
     fn default_sql(&self) -> &'static str {
         "SELECT 1 AS one;"
+    }
+
+    fn load_schema(&self) -> Option<Fut<SchemaCache>> {
+        let pool = self.pool.clone();
+        Some(Box::pin(async move { pg_schema::load_schema(&pool).await }))
     }
 
     fn run(&self, sql: String, timeout_secs: u32) -> Fut<RunOutput> {

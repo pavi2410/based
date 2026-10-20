@@ -6,13 +6,14 @@ use gpui_kit::component::{
 };
 use gpui_kit::{App, Entity, IntoElement, RenderOnce, SharedString, div, prelude::*, px};
 
+use crate::app::prefs::update_check_settings_locked;
 use crate::app::updater::UpdateBarSnapshot;
 use crate::app::updater::{self, UpdatePhase};
 use crate::bindings::{ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane};
 use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{ConnectionEntry, ConnectionId, ConnectionState, EngineKind};
 use crate::widgets::engine_icon;
-use crate::widgets::status_item::{STATUS_BAR_HEIGHT, status_divider, status_segment, status_text};
+use crate::widgets::status_item::{STATUS_BAR_HEIGHT, status_divider, status_text};
 use crate::workspace::ConnectionTree;
 use crate::workspace::chrome::side_pane::SidePane;
 use crate::workspace::connection_tree::connection_actions_menu;
@@ -169,108 +170,162 @@ fn connection_chip(
         })
 }
 
-fn update_widget(
+/// Version label doubling as the update entry point; the click menu depends on the phase.
+fn version_item(
     snapshot: &UpdateBarSnapshot,
     registry: gpui_kit::Entity<ConnectionRegistry>,
     cx: &App,
-) -> Option<impl IntoElement> {
+) -> impl IntoElement {
     let phase = snapshot.phase;
-    if matches!(phase, UpdatePhase::Idle) {
-        return None;
-    }
-
+    let locked = update_check_settings_locked();
+    let can_install = snapshot.can_install;
     let muted = cx.theme().muted_foreground;
     let accent = cx.theme().accent_foreground;
     let warning = cx.theme().warning_foreground;
     let danger = cx.theme().danger_foreground;
+    let current = env!("CARGO_PKG_VERSION");
+    let new_version: SharedString = snapshot
+        .version
+        .as_ref()
+        .map(|v| v.trim_start_matches('v').to_string())
+        .unwrap_or_default()
+        .into();
 
-    let (dot, fg, label) = match phase {
-        UpdatePhase::Checking => (None, muted, SharedString::from("Checking…")),
-        UpdatePhase::UpToDate => (None, muted, SharedString::from("Up to date")),
-        UpdatePhase::Available => (
-            Some(accent),
-            accent,
-            snapshot
-                .version
-                .as_ref()
-                .map(|v| SharedString::from(format!("Update {v}")))
-                .unwrap_or_else(|| SharedString::from("Update available")),
-        ),
-        UpdatePhase::Downloading => {
-            let pct = snapshot.progress_percent;
-            (
-                Some(accent),
+    let (suffix, color, tooltip): (Option<String>, _, String) = if locked {
+        (None, muted, format!("Based {current}"))
+    } else {
+        match phase {
+            UpdatePhase::Idle => (None, muted, format!("Based {current} — click for options")),
+            UpdatePhase::Checking => (
+                Some("checking…".into()),
+                muted,
+                "Checking for updates…".into(),
+            ),
+            UpdatePhase::UpToDate => (None, muted, format!("Based {current} is up to date")),
+            UpdatePhase::Available => (
+                Some(format!("→ {new_version}")),
                 accent,
-                SharedString::from(format!("Downloading… {pct}%")),
-            )
+                format!("Based {new_version} is available — click to review"),
+            ),
+            UpdatePhase::Downloading => (
+                Some(format!("{}%", snapshot.progress_percent)),
+                accent,
+                format!("Downloading {new_version}… {}%", snapshot.progress_percent),
+            ),
+            UpdatePhase::Ready => (
+                Some("restart".into()),
+                warning,
+                format!("Based {new_version} is downloaded — click to install"),
+            ),
+            UpdatePhase::Failed => (
+                Some("update failed".into()),
+                danger,
+                snapshot
+                    .error
+                    .as_ref()
+                    .map(|e| e.to_string())
+                    .unwrap_or_else(|| "Update failed".into()),
+            ),
         }
-        UpdatePhase::Ready => (
-            Some(warning),
-            warning,
-            SharedString::from("Restart to update"),
-        ),
-        UpdatePhase::Failed => (Some(danger), danger, SharedString::from("Update failed")),
-        UpdatePhase::Idle => unreachable!(),
     };
+    let show_dot = matches!(
+        phase,
+        UpdatePhase::Available
+            | UpdatePhase::Downloading
+            | UpdatePhase::Ready
+            | UpdatePhase::Failed
+    ) && !locked;
 
-    let has_version = snapshot.version.is_some();
-
-    Some(
-        Button::new("status-update")
-            .ghost()
-            .small()
-            .child(status_segment("update", label, muted, fg, dot))
-            .dropdown_menu(move |menu, _window, _cx| {
-                let registry = registry.clone();
-                let mut menu = menu;
-                if matches!(
-                    phase,
-                    UpdatePhase::Available | UpdatePhase::Ready | UpdatePhase::Failed
-                ) {
-                    menu = menu.item(
-                        PopupMenuItem::new("Check for updates")
-                            .icon(IconName::Inbox)
-                            .on_click(|_, _, cx| updater::check_now(cx)),
-                    );
+    Button::new("status-version")
+        .ghost()
+        .small()
+        .tooltip(tooltip)
+        .child(
+            h_flex()
+                .items_center()
+                .gap(px(4.0))
+                .child(status_text(format!("based {current}"), muted))
+                .when_some(suffix, |row, text| {
+                    row.child(div().text_xs().text_color(color).child(text))
+                })
+                .when(show_dot, |row| {
+                    row.child(
+                        div()
+                            .w(px(5.0))
+                            .h(px(5.0))
+                            .rounded_full()
+                            .flex_shrink_0()
+                            .bg(color),
+                    )
+                }),
+        )
+        .dropdown_menu(move |menu, _window, _cx| {
+            let registry = registry.clone();
+            let mut menu = menu;
+            let notes_new = || {
+                PopupMenuItem::new(format!("What's new in {new_version}"))
+                    .icon(IconName::BookOpen)
+                    .on_click(|_, _, cx| updater::open_release_notes_for_available(cx))
+            };
+            if !locked {
+                match phase {
+                    UpdatePhase::Available => {
+                        menu = menu.item(notes_new());
+                        menu = if can_install {
+                            menu.item(
+                                PopupMenuItem::new("Download update")
+                                    .icon(IconName::ArrowDown)
+                                    .on_click(|_, _, cx| updater::start_download(cx)),
+                            )
+                        } else {
+                            menu.item(
+                                PopupMenuItem::new("Open releases page")
+                                    .icon(IconName::ExternalLink)
+                                    .on_click(|_, _, cx| updater::open_releases_page(cx)),
+                            )
+                        };
+                        menu = menu.item(
+                            PopupMenuItem::new("Skip this version")
+                                .icon(IconName::Close)
+                                .on_click(|_, _, cx| updater::skip_version(cx)),
+                        );
+                        return menu;
+                    }
+                    UpdatePhase::Downloading => return menu.item(notes_new()),
+                    UpdatePhase::Ready => {
+                        return menu
+                            .item(
+                                PopupMenuItem::new("Install & Restart…")
+                                    .icon(IconName::Play)
+                                    .on_click(move |_, window, cx| {
+                                        updater::install_and_restart(&registry, window, cx);
+                                    }),
+                            )
+                            .item(notes_new());
+                    }
+                    _ => {
+                        menu = menu.item(
+                            PopupMenuItem::new("Check for updates")
+                                .icon(IconName::Inbox)
+                                .disabled(phase == UpdatePhase::Checking)
+                                .on_click(|_, _, cx| updater::check_now(cx)),
+                        );
+                        if phase == UpdatePhase::Failed {
+                            menu = menu.item(
+                                PopupMenuItem::new("Open releases page")
+                                    .icon(IconName::ExternalLink)
+                                    .on_click(|_, _, cx| updater::open_releases_page(cx)),
+                            );
+                        }
+                    }
                 }
-                if matches!(phase, UpdatePhase::Available) {
-                    menu = menu.item(
-                        PopupMenuItem::new("Download update")
-                            .icon(IconName::Plus)
-                            .on_click(|_, _, cx| updater::start_download(cx)),
-                    );
-                }
-                if matches!(phase, UpdatePhase::Ready | UpdatePhase::Available) {
-                    menu = menu.item(
-                        PopupMenuItem::new("Install & Restart")
-                            .icon(IconName::Play)
-                            .on_click(move |_, window, cx| {
-                                updater::install_and_restart(&registry, window, cx);
-                            }),
-                    );
-                }
-                if has_version {
-                    menu = menu.item(
-                        PopupMenuItem::new("Release notes")
-                            .icon(IconName::BookOpen)
-                            .on_click(|_, _, cx| updater::open_release_notes_for_current(cx)),
-                    );
-                }
-                if matches!(phase, UpdatePhase::Available) {
-                    menu = menu.item(PopupMenuItem::separator()).item(
-                        PopupMenuItem::new("Later").on_click(|_, _, cx| updater::dismiss(cx)),
-                    );
-                }
-                if matches!(phase, UpdatePhase::Failed) {
-                    menu = menu.item(
-                        PopupMenuItem::new("Open releases page")
-                            .icon(IconName::ExternalLink)
-                            .on_click(|_, _, cx| updater::open_releases_page(cx)),
-                    );
-                }
-                menu
-            }),
-    )
+            }
+            menu.item(
+                PopupMenuItem::new("Release notes")
+                    .icon(IconName::BookOpen)
+                    .on_click(|_, _, cx| updater::open_release_notes_for_current(cx)),
+            )
+        })
 }
 
 impl RenderOnce for StatusBar {
@@ -278,7 +333,6 @@ impl RenderOnce for StatusBar {
         let muted = cx.theme().muted_foreground;
 
         let active_side_pane = self.active_side_pane;
-        let version_label = format!("based {}", env!("CARGO_PKG_VERSION"));
         let registry = self.registry.clone();
         let update_snapshot = self.model.update.clone();
         let connection_tree = self.connection_tree.clone();
@@ -307,11 +361,7 @@ impl RenderOnce for StatusBar {
                     .gap(px(6.0))
                     .items_center()
                     .flex_shrink_0()
-                    .when_some(
-                        update_widget(&update_snapshot, registry, cx),
-                        |row, widget| row.child(widget).child(status_divider(muted)),
-                    )
-                    .child(status_text(version_label, muted))
+                    .child(version_item(&update_snapshot, registry, cx))
                     .child(status_divider(muted))
                     .child(h_flex().gap(px(2.0)).items_center().children(
                         SidePane::ALL.map(|pane| side_pane_button(pane, active_side_pane, cx)),

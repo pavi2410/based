@@ -375,7 +375,8 @@ impl SettingsWindow {
                             prefs::set_update_auto_download,
                         ),
                     )
-                    .description("Download updates in the background when available."),
+                    .disabled(update_checks_locked)
+                    .description("Download updates in the background. Installing always asks first."),
                     SettingItem::new(
                         "Show release notes after updating",
                         SettingField::switch(

@@ -55,7 +55,7 @@ pub fn push_update_available(app: &mut App, version: &str) {
     push_notification(
         app,
         Notification::info(format!(
-            "Based {version} is available — see the status bar for options."
+            "Based {version} is available — click the version in the status bar."
         ))
         .title("Update available"),
     );

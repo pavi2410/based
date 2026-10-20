@@ -1,3 +1,5 @@
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 use std::time::Duration;
 
 use tokio::task::spawn_blocking;
@@ -33,6 +35,12 @@ use self::log::{debug as udebug, info as uinfo, warn as uwarn};
 use self::persist::{UpdaterStateFile, should_run_periodic_check, startup_check_stale};
 use self::release_notes::fetch_latest_release;
 
+/// Download progress (0-100) written from the blocking download thread.
+static DL_PROGRESS: AtomicU8 = AtomicU8::new(0);
+
+/// Verified update bundle waiting for the user to approve the install.
+static STAGED: Mutex<Option<(cargo_packager_updater::Update, Vec<u8>)>> = Mutex::new(None);
+
 /// Global update coordinator state (UI + scheduling).
 #[derive(Clone, Default)]
 pub struct UpdateCoordinator {
@@ -41,6 +49,8 @@ pub struct UpdateCoordinator {
     pub download_progress: u8,
     pub error: Option<String>,
     pub toast_shown_for_version: Option<String>,
+    /// The available version can be downloaded and installed in-app.
+    pub can_install: bool,
 }
 
 impl Global for UpdateCoordinator {}
@@ -54,6 +64,7 @@ impl UpdateCoordinator {
                 .as_ref()
                 .map(|v| SharedString::from(format!("v{v}"))),
             progress_percent: self.download_progress,
+            can_install: self.can_install,
             error: self.error.as_ref().map(|e| SharedString::from(e.clone())),
         }
     }
@@ -181,10 +192,11 @@ pub fn check_now(cx: &mut App) {
     trigger_check(cx, true);
 }
 
-pub fn dismiss(cx: &mut App) {
+/// Don't offer this version again (a manual check still shows it).
+pub fn skip_version(cx: &mut App) {
     cx.update_global(|coord: &mut UpdateCoordinator, app| {
         if let Some(v) = coord.available_version.clone() {
-            uinfo(format!("dismiss: version={v}"));
+            uinfo(format!("skip_version: version={v}"));
             let mut state = UpdaterStateFile::load();
             state.dismissed_version = Some(v);
             state.save_best_effort();
@@ -195,43 +207,77 @@ pub fn dismiss(cx: &mut App) {
     });
 }
 
+/// User-approved download of the available update; stages it for a later install.
 pub fn start_download(cx: &mut App) {
     let version = cx.update_global(|coord: &mut UpdateCoordinator, _| {
+        if coord.phase != UpdatePhase::Available || !coord.can_install {
+            return None;
+        }
         coord.phase = UpdatePhase::Downloading;
         coord.download_progress = 0;
         coord.available_version.clone()
     });
     let Some(version) = version else {
-        uwarn("start_download: no available version");
+        uwarn("start_download: nothing to download");
         return;
     };
     uinfo(format!("start_download: version={version}"));
+    DL_PROGRESS.store(0, Ordering::Relaxed);
     cx.spawn(async move |cx| {
-        run_download_install(cx, version).await;
+        run_download(cx, version).await;
+    })
+    .detach();
+    cx.spawn(async move |cx| {
+        // The download runs on a blocking thread; poll its progress for the status bar.
+        loop {
+            sleep_on_tokio(cx, Duration::from_millis(250)).await;
+            let downloading = cx.update(|app| {
+                app.update_global(|coord: &mut UpdateCoordinator, app| {
+                    if coord.phase != UpdatePhase::Downloading {
+                        return false;
+                    }
+                    coord.download_progress = DL_PROGRESS.load(Ordering::Relaxed);
+                    UpdateCoordinator::notify_workspace(app);
+                    true
+                })
+            });
+            if !downloading {
+                break;
+            }
+        }
     })
     .detach();
     cx.update_global(|_: &mut UpdateCoordinator, app| UpdateCoordinator::notify_workspace(app));
 }
 
+/// Ask for confirmation, then install the downloaded update and restart.
 pub fn install_and_restart(
     registry: &gpui_kit::Entity<ConnectionRegistry>,
     window: &mut Window,
     cx: &mut App,
 ) {
-    let live = live_connection_count(registry, cx);
-    if live == 0 {
-        uinfo("install_and_restart: no live connections, proceeding");
-        trigger_install(cx);
+    let (phase, version) = {
+        let coord = cx.global::<UpdateCoordinator>();
+        (coord.phase, coord.available_version.clone())
+    };
+    if phase != UpdatePhase::Ready {
+        udebug("install_and_restart: skipped (nothing downloaded)");
         return;
     }
+    let live = live_connection_count(registry, cx);
     uinfo(format!(
         "install_and_restart: prompting (live_connections={live})"
     ));
-    let description: SharedString = if live == 1 {
-        "Restarting will disconnect 1 live connection to apply the update.".into()
-    } else {
-        format!("Restarting will disconnect {live} live connections to apply the update.").into()
-    };
+    let mut description = format!(
+        "Based {} has been downloaded. Based will quit and relaunch to install it.",
+        version.as_deref().unwrap_or("update")
+    );
+    match live {
+        0 => {}
+        1 => description.push_str(" 1 live connection will be disconnected."),
+        n => description.push_str(&format!(" {n} live connections will be disconnected.")),
+    }
+    let description: SharedString = description.into();
     let registry = registry.clone();
     window.open_alert_dialog(cx, move |alert, _window, cx| {
         use gpui_kit::component::button::{Button, ButtonVariants};
@@ -252,15 +298,15 @@ pub fn install_and_restart(
                         DialogClose::new().child(
                             Button::new("update-restart-cancel")
                                 .outline()
-                                .label("Cancel"),
+                                .label("Not now"),
                         ),
                     )
                     .child(DialogAction::new().child(update_btn)),
             )
             .on_ok(move |_, _, cx| {
-                uinfo("install_and_restart: confirmed after connection gate");
+                uinfo("install_and_restart: confirmed");
                 quit::disconnect_all(&registry, cx);
-                trigger_install(cx);
+                install_staged(cx);
                 true
             })
             .on_cancel(|_, _, _| true)
@@ -273,7 +319,19 @@ pub fn open_release_notes_for_current(cx: &mut App) {
     cx.refresh_windows();
 }
 
+/// Changelog of the update being offered (not the running version).
+pub fn open_release_notes_for_available(cx: &mut App) {
+    let Some(version) = cx.global::<UpdateCoordinator>().available_version.clone() else {
+        return;
+    };
+    enqueue_open_release_notes(version.trim_start_matches('v').to_string(), cx);
+    cx.refresh_windows();
+}
+
 fn trigger_check(cx: &mut App, manual: bool) {
+    if prefs::update_check_settings_locked() {
+        return;
+    }
     let skipped = cx.update_global(|coord: &mut UpdateCoordinator, app| {
         if coord.phase == UpdatePhase::Checking || coord.phase == UpdatePhase::Downloading {
             udebug(format!(
@@ -301,25 +359,36 @@ fn trigger_check(cx: &mut App, manual: bool) {
     .detach();
 }
 
-fn trigger_install(cx: &mut App) {
-    let version = cx.update_global(|coord: &mut UpdateCoordinator, _| {
-        if coord.phase != UpdatePhase::Ready && coord.phase != UpdatePhase::Available {
-            return None;
-        }
-        coord.phase = UpdatePhase::Downloading;
-        coord.download_progress = 0;
-        coord.available_version.clone()
-    });
-    let Some(version) = version else {
-        udebug("trigger_install: skipped (phase not Available/Ready)");
+fn install_staged(cx: &mut App) {
+    let Some((update, bytes)) = STAGED.lock().ok().and_then(|mut g| g.take()) else {
+        uwarn("install_staged: no staged update");
         return;
     };
-    uinfo(format!("trigger_install: version={version}"));
+    let version = update.version.to_string();
+    uinfo(format!("install_staged: version={version}"));
     cx.spawn(async move |cx| {
-        run_download_install(cx, version).await;
+        let result = run(cx, async move {
+            spawn_blocking(move || install::install_and_relaunch(update, bytes, &version))
+                .await
+                .context("join install")?
+        })
+        .await;
+        if let Err(err) = result {
+            uwarn(format!("install_staged: failed {err:#}"));
+            fail(cx, err.to_string());
+        }
     })
     .detach();
-    cx.update_global(|_: &mut UpdateCoordinator, app| UpdateCoordinator::notify_workspace(app));
+}
+
+fn fail(cx: &mut AsyncApp, msg: String) {
+    cx.update(|app| {
+        app.update_global(|coord: &mut UpdateCoordinator, a| {
+            coord.phase = UpdatePhase::Failed;
+            coord.error = Some(msg);
+            UpdateCoordinator::notify_workspace(a);
+        });
+    });
 }
 
 async fn run_check(cx: &mut AsyncApp, manual: bool) {
@@ -345,97 +414,90 @@ async fn run_check(cx: &mut AsyncApp, manual: bool) {
             udebug("run_check: no github latest (filtered or unavailable)");
         }
 
-        if !config::supports_in_app_install() {
-            udebug("run_check: in-app install unsupported on this install path");
-            if let Some(g) = github_newer {
-                return Ok(CheckOutcome::AvailableManual {
-                    version: g.version_label.clone(),
-                });
-            }
-            return Ok(CheckOutcome::UpToDate);
-        }
+        let skipped = |version: &str| {
+            !manual && UpdaterStateFile::load().dismissed_version.as_deref() == Some(version)
+        };
 
-        // Packager manifest for signed in-app update.
-        udebug(format!(
-            "run_check: packager manifest {}",
-            config::UPDATE_MANIFEST_URL
-        ));
-        let packager = spawn_blocking(check_packager_update)
-            .await
-            .context("join packager check")??;
-
-        if let Some(_update) = packager {
-            let version = _update.version.to_string();
-            uinfo(format!(
-                "run_check: packager update available version={version}"
+        if config::supports_in_app_install() {
+            // Packager manifest for signed in-app update.
+            udebug(format!(
+                "run_check: packager manifest {}",
+                config::UPDATE_MANIFEST_URL
             ));
-            if !manual {
-                let state = UpdaterStateFile::load();
-                if state.dismissed_version.as_deref() == Some(version.as_str()) {
-                    udebug(format!("run_check: dismissed version={version}"));
-                    return Ok(CheckOutcome::Dismissed);
+            let packager = spawn_blocking(check_packager_update)
+                .await
+                .context("join packager check")??;
+            if let Some(update) = packager {
+                let version = update.version.to_string();
+                uinfo(format!("run_check: update available version={version}"));
+                if skipped(&version) {
+                    return Ok(CheckOutcome::Skipped);
                 }
+                return Ok(CheckOutcome::AvailableInApp { version });
             }
-            return Ok(CheckOutcome::AvailableInApp { version });
+            udebug("run_check: packager manifest has no newer update");
+        } else {
+            udebug("run_check: in-app install unsupported on this install path");
         }
 
-        udebug("run_check: packager manifest has no newer update");
         if let Some(g) = github_newer {
+            if skipped(&g.version_label) {
+                return Ok(CheckOutcome::Skipped);
+            }
             return Ok(CheckOutcome::AvailableManual {
                 version: g.version_label.clone(),
             });
         }
-
         Ok(CheckOutcome::UpToDate)
     })
     .await;
 
-    cx.update(|app| apply_check_outcome(app, result, &prefs));
+    cx.update(|app| {
+        apply_check_outcome(app, result);
+        let ready = {
+            let coord = app.global::<UpdateCoordinator>();
+            coord.phase == UpdatePhase::Available && coord.can_install
+        };
+        if ready && prefs.auto_download && !manual {
+            start_download(app);
+        }
+    });
 }
 
 enum CheckOutcome {
     UpToDate,
-    Dismissed,
+    Skipped,
     AvailableManual { version: String },
     AvailableInApp { version: String },
 }
 
-fn apply_check_outcome(
-    cx: &mut App,
-    result: Result<CheckOutcome, anyhow::Error>,
-    prefs: &UpdatePreferences,
-) {
-    let mut start_dl = false;
+fn apply_check_outcome(cx: &mut App, result: Result<CheckOutcome, anyhow::Error>) {
     cx.update_global(|coord: &mut UpdateCoordinator, app| match result {
         Ok(CheckOutcome::UpToDate) => {
             uinfo("check outcome: up_to_date");
             coord.phase = UpdatePhase::UpToDate;
             coord.available_version = None;
         }
-        Ok(CheckOutcome::Dismissed) => {
-            udebug("check outcome: dismissed");
+        Ok(CheckOutcome::Skipped) => {
+            udebug("check outcome: skipped version");
             coord.phase = UpdatePhase::Idle;
         }
         Ok(CheckOutcome::AvailableManual { version }) => {
             uinfo(format!("check outcome: available_manual version={version}"));
             coord.phase = UpdatePhase::Available;
+            coord.can_install = false;
             coord.available_version = Some(version.clone());
             if coord.should_toast(&version) {
                 notify::push_update_available(app, &version);
             }
         }
         Ok(CheckOutcome::AvailableInApp { version }) => {
-            uinfo(format!(
-                "check outcome: available_in_app version={version} auto_download={}",
-                prefs.auto_download
-            ));
+            uinfo(format!("check outcome: available_in_app version={version}"));
             coord.phase = UpdatePhase::Available;
+            coord.can_install = true;
             coord.available_version = Some(version.clone());
             if coord.should_toast(&version) {
                 notify::push_update_available(app, &version);
-            }
-            if prefs.auto_download && config::supports_in_app_install() {
-                start_dl = true;
             }
         }
         Err(err) => {
@@ -444,16 +506,12 @@ fn apply_check_outcome(
             coord.error = Some(err.to_string());
         }
     });
-    if start_dl {
-        start_download(cx);
-    } else {
-        UpdateCoordinator::notify_workspace(cx);
-    }
+    UpdateCoordinator::notify_workspace(cx);
 }
 
-async fn run_download_install(cx: &mut AsyncApp, version: String) {
-    uinfo(format!("download_install: starting version={version}"));
-    let result = run(cx, async {
+async fn run_download(cx: &mut AsyncApp, version: String) {
+    uinfo(format!("download: starting version={version}"));
+    let result = run(cx, async move {
         let update = spawn_blocking(check_packager_update)
             .await
             .context("join")??
@@ -461,26 +519,46 @@ async fn run_download_install(cx: &mut AsyncApp, version: String) {
         if update.version != version {
             anyhow::bail!("update version mismatch");
         }
-        uinfo(format!(
-            "download_install: fetching url={}",
-            update.download_url
-        ));
-        spawn_blocking(move || install::download_install_and_relaunch(update, &version))
-            .await
-            .context("join install")?
+        uinfo(format!("download: fetching url={}", update.download_url));
+        spawn_blocking(move || {
+            let seen = AtomicUsize::new(0);
+            let bytes = update
+                .download_extended(
+                    |chunk, total| {
+                        let done = seen.fetch_add(chunk, Ordering::Relaxed) + chunk;
+                        if let Some(total) = total.filter(|t| *t > 0) {
+                            let pct = (done as u64 * 100 / total).min(100) as u8;
+                            DL_PROGRESS.store(pct, Ordering::Relaxed);
+                        }
+                    },
+                    || {},
+                )
+                .context("download update")?;
+            Ok::<_, anyhow::Error>((update, bytes))
+        })
+        .await
+        .context("join download")?
     })
     .await;
 
-    if let Err(err) = result {
-        uwarn(format!("download_install: failed {err:#}"));
-        let msg = err.to_string();
-        cx.update(|app| {
-            app.update_global(|coord: &mut UpdateCoordinator, a| {
-                coord.phase = UpdatePhase::Failed;
-                coord.error = Some(msg);
-                UpdateCoordinator::notify_workspace(a);
+    match result {
+        Ok(staged) => {
+            uinfo("download: complete, staged for install");
+            if let Ok(mut slot) = STAGED.lock() {
+                *slot = Some(staged);
+            }
+            cx.update(|app| {
+                app.update_global(|coord: &mut UpdateCoordinator, a| {
+                    coord.phase = UpdatePhase::Ready;
+                    coord.download_progress = 100;
+                    UpdateCoordinator::notify_workspace(a);
+                });
             });
-        });
+        }
+        Err(err) => {
+            uwarn(format!("download: failed {err:#}"));
+            fail(cx, err.to_string());
+        }
     }
 }
 

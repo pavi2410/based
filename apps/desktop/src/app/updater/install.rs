@@ -7,15 +7,14 @@ use super::persist::UpdaterStateFile;
 use std::env;
 use std::process;
 
-/// Download and install a signed update bundle, then relaunch the app.
-pub fn download_install_and_relaunch(update: Update, pending_notes_version: &str) -> Result<()> {
-    uinfo(format!(
-        "install: download_and_install version={} url={}",
-        update.version, update.download_url
-    ));
-    update
-        .download_and_install()
-        .context("download_and_install update")?;
+/// Install an already downloaded, signature-verified bundle, then relaunch the app.
+pub fn install_and_relaunch(
+    update: Update,
+    bytes: Vec<u8>,
+    pending_notes_version: &str,
+) -> Result<()> {
+    uinfo(format!("install: installing version={}", update.version));
+    update.install(bytes).context("install update")?;
 
     uinfo(format!(
         "install: success, pending release notes v{pending_notes_version}"

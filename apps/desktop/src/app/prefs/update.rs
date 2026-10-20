@@ -1,6 +1,7 @@
 //! Auto-update preferences.
 
 use super::*;
+use std::{env, path::Path, sync::OnceLock};
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -48,7 +49,8 @@ pub struct UpdatePreferences {
     pub auto_check: bool,
     #[serde(default)]
     pub check_interval: UpdateCheckInterval,
-    #[serde(default = "default_true")]
+    /// Download in the background once an update is found (install still asks).
+    #[serde(default)]
     pub auto_download: bool,
     #[serde(default = "default_true")]
     pub show_release_notes_after_update: bool,
@@ -62,7 +64,7 @@ impl Default for UpdatePreferences {
             check_at_startup: true,
             auto_check: true,
             check_interval: UpdateCheckInterval::Daily,
-            auto_download: true,
+            auto_download: false,
             show_release_notes_after_update: true,
             include_prereleases: false,
         }
@@ -73,9 +75,39 @@ pub fn update_prefs(cx: &App) -> UpdatePreferences {
     cx.global::<NativePreferences>().update.clone()
 }
 
-/// Dev builds cannot enable automatic update checks; settings UI reflects this.
+/// Dev builds and package-manager installs never check for updates themselves.
 pub fn update_check_settings_locked() -> bool {
-    is_dev_build()
+    update_lock_reason().is_some()
+}
+
+/// Why update checks are disabled, if they are.
+pub fn update_lock_reason() -> Option<&'static str> {
+    if is_dev_build() {
+        Some("Dev build — update checks disabled")
+    } else if installed_via_brew() {
+        Some("Installed with Homebrew — update with `brew upgrade`")
+    } else {
+        None
+    }
+}
+
+/// Whether this executable lives in a Homebrew Cellar / Caskroom.
+fn installed_via_brew() -> bool {
+    static BREW: OnceLock<bool> = OnceLock::new();
+    *BREW.get_or_init(|| {
+        let Ok(exe) = env::current_exe() else {
+            return false;
+        };
+        let exe = exe.canonicalize().unwrap_or(exe);
+        let path = exe.to_string_lossy();
+        if path.contains("/Cellar/") || path.contains("/Caskroom/") {
+            return true;
+        }
+        // Casks copy the app out of the Caskroom, which still holds a `based` entry.
+        ["/opt/homebrew", "/usr/local", "/home/linuxbrew/.linuxbrew"]
+            .iter()
+            .any(|prefix| Path::new(prefix).join("Caskroom/based").exists())
+    })
 }
 
 fn is_dev_build() -> bool {

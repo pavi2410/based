@@ -21,5 +21,7 @@ pub struct UpdateBarSnapshot {
     pub phase: UpdatePhase,
     pub version: Option<SharedString>,
     pub progress_percent: u8,
+    /// An in-app signed download is possible (otherwise: open the releases page).
+    pub can_install: bool,
     pub error: Option<SharedString>,
 }

@@ -17,7 +17,7 @@ use gpui_kit::{
 use std::sync::LazyLock;
 use time::OffsetDateTime;
 
-use crate::app::prefs::{manual_update_checks_enabled, update_check_settings_locked};
+use crate::app::prefs::{manual_update_checks_enabled, update_lock_reason};
 use crate::app::shell;
 use crate::app::updater::{
     UpdatePhase, check_now, coordinator_snapshot, open_release_notes_for_current,
@@ -149,10 +149,9 @@ fn version_row(muted: Hsla) -> impl IntoElement {
 }
 
 fn update_card(muted: Hsla, border: Hsla, accent: Hsla, cx: &gpui_kit::App) -> impl IntoElement {
-    let checks_locked = update_check_settings_locked();
     let snapshot = coordinator_snapshot(cx);
-    let status: SharedString = if checks_locked {
-        "Dev build — update checks disabled".into()
+    let status: SharedString = if let Some(reason) = update_lock_reason() {
+        reason.into()
     } else {
         match snapshot.phase {
             UpdatePhase::Idle => "Check for updates to see status".into(),
@@ -163,7 +162,7 @@ fn update_card(muted: Hsla, border: Hsla, accent: Hsla, cx: &gpui_kit::App) -> i
                 .map(|v| format!("{v} is available").into())
                 .unwrap_or_else(|| "Update available".into()),
             UpdatePhase::Downloading => "Downloading update…".into(),
-            UpdatePhase::Ready => "Update ready — restart to apply".into(),
+            UpdatePhase::Ready => "Update downloaded — install from the status bar".into(),
             UpdatePhase::Failed => snapshot
                 .error
                 .unwrap_or_else(|| "Update check failed".into()),

@@ -15,6 +15,8 @@ use gpui_kit::component::{
 };
 use gpui_kit::{prelude::*, *};
 
+use based_core::{Grid, TableExtra, TableInfo};
+
 use crate::connection::ConnectionId;
 use crate::db;
 use crate::widgets::compact_description_list_vertical;
@@ -23,7 +25,9 @@ use crate::widgets::panel::{
     panel_tab_content, tab_breadcrumb_footer, tab_breadcrumb_for_connection, tab_button_styled,
 };
 use crate::widgets::sql_editor::{self, new_sql_input, set_input_text};
-use crate::widgets::virtual_table::{RowDelegate, empty_column_meta, replace_table_data};
+use crate::widgets::virtual_table::{
+    RowDelegate, data_column, empty_column_meta, replace_table_data,
+};
 
 #[derive(Clone, Copy)]
 pub enum Kind {
@@ -47,6 +51,32 @@ pub enum Section {
     },
     Code(String),
     Facts(Vec<(SharedString, SharedString)>),
+}
+
+impl Section {
+    /// Columns, Indexes, Constraints, then the engine extra (DDL or stats).
+    pub fn from_info(info: TableInfo) -> Vec<Section> {
+        let grid = |g: Grid| Section::Table {
+            columns: g.headers.into_iter().map(|h| data_column(h, h)).collect(),
+            rows: g
+                .rows
+                .into_iter()
+                .map(|r| r.into_iter().map(SharedString::from).collect())
+                .collect(),
+        };
+        let extra = match info.extra {
+            TableExtra::Ddl(ddl) => Section::Code(ddl),
+            TableExtra::Stats(kv) => {
+                Section::Facts(kv.into_iter().map(|(k, v)| (k.into(), v.into())).collect())
+            }
+        };
+        vec![
+            grid(info.columns),
+            grid(info.indexes),
+            grid(info.constraints),
+            extra,
+        ]
+    }
 }
 
 /// Engine-specific schema queries for [`TableInspectorPanel`].

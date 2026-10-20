@@ -19,6 +19,38 @@ pub struct ColumnMeta {
     pub fk_target: Option<String>,
 }
 
+/// Headed string table (inspector sections).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Grid {
+    pub headers: Vec<&'static str>,
+    pub rows: Vec<Vec<String>>,
+}
+
+impl Grid {
+    pub fn new(headers: &[&'static str], rows: Vec<Vec<String>>) -> Self {
+        Self {
+            headers: headers.to_vec(),
+            rows,
+        }
+    }
+}
+
+/// Engine-specific extra inspector section.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TableExtra {
+    Ddl(String),
+    Stats(Vec<(String, String)>),
+}
+
+/// Table structure as shown by the inspector.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TableInfo {
+    pub columns: Grid,
+    pub indexes: Grid,
+    pub constraints: Grid,
+    pub extra: TableExtra,
+}
+
 /// Quote a SQL identifier (`a"b` → `"a""b"`).
 pub fn quote_ident(ident: &str) -> String {
     format!("\"{}\"", ident.replace('"', "\"\""))

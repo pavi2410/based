@@ -4,6 +4,7 @@ pub mod catalog;
 pub mod config;
 pub mod decode;
 pub mod explain;
+pub mod inspect;
 pub mod mutations;
 pub mod page;
 
@@ -13,5 +14,6 @@ pub use config::{
 };
 pub use decode::{decode_pg_cell, pg_cell_display};
 pub use explain::{PlanNode, parse_pg_explain_json};
+pub use inspect::inspect_table;
 pub use mutations::{QueryColumn, delete_row, execute_sql, insert_row};
 pub use page::fetch_page;

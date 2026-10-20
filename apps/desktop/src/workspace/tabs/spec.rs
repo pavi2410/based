@@ -63,7 +63,9 @@ impl Default for QueryEditorInit {
 pub enum TabSpec {
     #[serde(alias = "welcome")]
     Home,
-    Dashboard(ConnectionId),
+    Dashboard {
+        conn_id: ConnectionId,
+    },
     DataViewer {
         conn_id: ConnectionId,
         object: String,
@@ -117,7 +119,7 @@ impl TabSpec {
     pub fn conn_id(&self) -> Option<&ConnectionId> {
         match self {
             Self::Home | Self::ReleaseNotes { .. } => None,
-            Self::Dashboard(id) => Some(id),
+            Self::Dashboard { conn_id } => Some(conn_id),
             Self::DataViewer { conn_id, .. } => Some(conn_id),
             Self::QueryEditor { conn_id, .. } => Some(conn_id),
             Self::Pipeline { conn_id, .. } => Some(conn_id),
@@ -132,7 +134,7 @@ impl TabSpec {
     pub fn scope(&self) -> TabScope {
         match self {
             Self::Home | Self::ReleaseNotes { .. } => TabScope::Global,
-            Self::Dashboard(id) => TabScope::Connection(id.clone()),
+            Self::Dashboard { conn_id } => TabScope::Connection(conn_id.clone()),
             Self::DataViewer { conn_id, .. } => TabScope::Connection(conn_id.clone()),
             Self::QueryEditor { conn_id, .. } => TabScope::Connection(conn_id.clone()),
             Self::Pipeline { conn_id, .. } => TabScope::Connection(conn_id.clone()),
@@ -157,7 +159,7 @@ impl TabSpec {
     pub fn kind_label(&self) -> &'static str {
         match self {
             Self::Home => "home",
-            Self::Dashboard(_) => "dashboard",
+            Self::Dashboard { .. } => "dashboard",
             Self::DataViewer { .. } => "data viewer",
             Self::QueryEditor { .. } => "query",
             Self::Pipeline { .. } => "pipeline",
@@ -172,7 +174,7 @@ impl TabSpec {
     pub fn title(&self) -> String {
         match self {
             Self::Home => "Home".to_string(),
-            Self::Dashboard(id) => id.0.clone(),
+            Self::Dashboard { conn_id } => conn_id.0.clone(),
             Self::DataViewer { object, .. } => object.clone(),
             Self::QueryEditor { .. } => "untitled".to_string(),
             Self::Pipeline { collection, .. } => collection.clone(),
@@ -231,5 +233,35 @@ mod tests {
         };
         assert!(!notes.persist_in_session());
         assert!(TabSpec::Home.persist_in_session());
+    }
+
+    #[test]
+    fn dashboard_tab_round_trips_in_session_json() {
+        let spec = TabSpec::Dashboard {
+            conn_id: ConnectionId("sqlite/local".into()),
+        };
+        let json = serde_json::to_string(&spec).expect("serialize dashboard tab");
+        let restored: TabSpec = serde_json::from_str(&json).expect("deserialize dashboard tab");
+        assert_eq!(restored, spec);
+    }
+
+    #[test]
+    fn existing_session_tab_shapes_still_deserialize() {
+        let home: TabSpec = serde_json::from_str(r#"{"type":"home"}"#).unwrap();
+        assert_eq!(home, TabSpec::Home);
+
+        let welcome: TabSpec = serde_json::from_str(r#"{"type":"welcome"}"#).unwrap();
+        assert_eq!(welcome, TabSpec::Home);
+
+        let viewer: TabSpec =
+            serde_json::from_str(r#"{"type":"data_viewer","conn_id":"pg","object":"users"}"#)
+                .unwrap();
+        assert_eq!(
+            viewer,
+            TabSpec::DataViewer {
+                conn_id: ConnectionId("pg".into()),
+                object: "users".into(),
+            }
+        );
     }
 }

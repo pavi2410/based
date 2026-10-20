@@ -12,7 +12,7 @@ use crate::postgres::tab_dispatch as pg_tab_dispatch;
 use crate::sqlite::tab_dispatch as sqlite_tab_dispatch;
 use crate::workspace::Workspace;
 use crate::workspace::dock_utils::add_center_panel_view;
-use crate::workspace::panels::object_info::ObjectInfoPanel;
+use crate::workspace::panels::object_info::{ConnectionDashboardPanel, ObjectInfoPanel};
 use crate::workspace::panels::release_notes::ReleaseNotesPanel;
 
 impl Workspace {
@@ -30,12 +30,12 @@ impl Workspace {
         spec: TabSpec,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) {
+    ) -> bool {
         // ── Connection-independent tabs ───────────────────────────────────────────
         match &spec {
             TabSpec::Home => {
                 self.show_home(window, cx);
-                return;
+                return true;
             }
             TabSpec::ReleaseNotes { version } => {
                 let label = tab_label_for_spec(&spec, false);
@@ -43,7 +43,7 @@ impl Workspace {
                 let panel = cx.new(|cx| ReleaseNotesPanel::new(v, window, cx));
                 panel.update(cx, |p, _| p.tab_label = label);
                 self.dock_add_and_register_tab(spec, Arc::new(panel), window, cx);
-                return;
+                return true;
             }
             TabSpec::ObjectInfo {
                 object_name,
@@ -56,28 +56,40 @@ impl Workspace {
                 let panel = cx.new(|cx| ObjectInfoPanel::new(on, kl, window, cx));
                 panel.update(cx, |p, _| p.tab_label = label);
                 self.dock_add_and_register_tab(spec, Arc::new(panel), window, cx);
-                return;
+                return true;
             }
-            TabSpec::Dashboard(conn_id) => {
+            TabSpec::Dashboard { conn_id } => {
                 self.connection_tree.update(cx, |tree, ecx| {
                     tree.focus_connection_by_id(conn_id, ecx);
                 });
-                return;
+                if self.tab_has_spec(&spec, cx) {
+                    return true;
+                }
+                let Some(ent) = self.find_connection(conn_id, cx) else {
+                    return false;
+                };
+                let panel = cx.new(|cx| ConnectionDashboardPanel::new(ent, window, cx));
+                self.dock_add_and_register_tab(spec, Arc::new(panel), window, cx);
+                return true;
             }
-            TabSpec::Builtin { .. } => return,
+            TabSpec::Builtin { .. } => return true,
             _ => {}
+        }
+
+        if !matches!(spec, TabSpec::QueryEditor { .. }) && self.tab_has_spec(&spec, cx) {
+            return true;
         }
 
         // ── Connection-scoped tabs ────────────────────────────────────────────────
         let Some(conn_id) = spec.conn_id().cloned() else {
-            return;
+            return false;
         };
         let Some(ent) = self.find_connection(&conn_id, cx) else {
-            return;
+            return false;
         };
         let ac = match &ent.read(cx).state {
             ConnectionState::Connected(ac) => ac.clone(),
-            _ => return,
+            _ => return false,
         };
 
         // Each engine's tab_dispatch::build_panel handles its own tab types.
@@ -100,7 +112,18 @@ impl Workspace {
 
         if let Some(panel) = panel {
             self.dock_add_and_register_tab(spec, panel, window, cx);
+            true
+        } else {
+            true
         }
+    }
+
+    fn tab_has_spec(&self, spec: &TabSpec, cx: &App) -> bool {
+        self.tab_manager
+            .read(cx)
+            .tabs
+            .iter()
+            .any(|t| t.spec == *spec)
     }
 
     fn dock_add_and_register_tab(

@@ -344,7 +344,7 @@ impl ConnectionTree {
             .and_then(|idx| self.registry.read(cx).connections().get(idx).cloned())
     }
 
-    /// Select a connection in the sidebar and, if connected, open its dashboard workspace (same as clicking the row).
+    /// Select a connection in the sidebar without opening its workspace (session restore).
     pub fn focus_connection_by_id(&mut self, conn_id: &ConnectionId, cx: &mut Context<Self>) {
         let Some(idx) = self
             .registry
@@ -359,10 +359,6 @@ impl ConnectionTree {
         self.selected_object = None;
         self.content_rail_expanded = true;
         self.bump_object_list_epoch(cx);
-        let conn_ent = self.registry.read(cx).connections()[idx].clone();
-        if matches!(conn_ent.read(cx).state, ConnectionState::Connected(_)) {
-            self.pending_open_connection = Some(idx);
-        }
         cx.notify();
     }
 

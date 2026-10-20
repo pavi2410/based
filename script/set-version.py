@@ -47,6 +47,16 @@ def main() -> int:
         print(f"Cargo.toml [package].version not found in {CARGO}", file=sys.stderr)
         return 1
     CARGO.write_text(new, encoding="utf-8")
+    # Keep Cargo.lock in sync so `--locked` builds pass after stamping.
+    lock = CARGO.parents[2] / "Cargo.lock"
+    lock_text = lock.read_text(encoding="utf-8")
+    lock_new = re.sub(
+        r'(name = "desktop"\nversion = ")[^"]+(")',
+        rf"\g<1>{version}\g<2>",
+        lock_text,
+        count=1,
+    )
+    lock.write_text(lock_new, encoding="utf-8")
     print(f"set {CARGO} version to {version}")
     return 0
 

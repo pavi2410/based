@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
 
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_PROFILE_DEV_DEBUG: 0
+  CARGO_PROFILE_TEST_DEBUG: 0
+  CARGO_TERM_COLOR: always
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -53,13 +59,13 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Clippy
-        run: cargo clippy --workspace --all-targets
+        run: cargo clippy --locked --workspace --all-targets
 
       - name: Tests
-        run: cargo test --workspace
+        run: cargo test --locked --workspace
 
       - name: Build desktop
-        run: cargo build -p desktop
+        run: cargo build --locked -p desktop
 
   # Linux CI never type-checks `#[cfg(windows)]`. The release matrix does, so
   # SSH-agent Windows APIs have to be checked here or they only fail on Release.
@@ -68,6 +74,10 @@ jobs:
     if: github.event_name == 'push'
     runs-on: windows-latest
     steps:
+      - name: Disable Windows Defender
+        shell: powershell
+        run: Set-MpPreference -DisableRealtimeMonitoring $true
+
       - uses: actions/checkout@v6
 
       - name: Install Rust toolchain
@@ -79,4 +89,4 @@ jobs:
           workspaces: . -> target
 
       - name: Check desktop
-        run: cargo check -p desktop
+        run: cargo check --locked -p desktop

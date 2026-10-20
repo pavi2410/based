@@ -6,6 +6,12 @@ on:
 permissions:
   contents: write
 
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_PROFILE_DEV_DEBUG: 0
+  CARGO_PROFILE_RELEASE_DEBUG: 0
+  CARGO_TERM_COLOR: always
+
 jobs:
   prepare:
     name: Compute CalVer version
@@ -49,6 +55,11 @@ jobs:
             artifact: windows
     runs-on: ${{ matrix.runner }}
     steps:
+      - name: Disable Windows Defender
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: Set-MpPreference -DisableRealtimeMonitoring $true
+
       - uses: actions/checkout@v6
 
       - name: Install Rust stable
@@ -99,7 +110,7 @@ jobs:
           TARGET: ${{ matrix.target }}
           FORMATS: ${{ matrix.formats }}
         run: |
-          cargo build -p desktop --release --target "$TARGET"
+          cargo build --locked -p desktop --release --target "$TARGET"
           cargo packager --release \
             -p desktop \
             --target "$TARGET" \

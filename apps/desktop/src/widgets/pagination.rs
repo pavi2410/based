@@ -1,7 +1,7 @@
 //! SQL offset/limit paging helpers and gpui-kit `Pagination` builder.
 
 use gpui_kit::component::{ActiveTheme, Disableable, Sizable, h_flex, pagination::Pagination};
-use gpui_kit::{App, ElementId, IntoElement, ParentElement, Styled, div, px};
+use gpui_kit::{AnyElement, App, ElementId, IntoElement, ParentElement, Styled, div, px};
 
 /// 1-based current page and total page count for offset/limit SQL paging.
 pub fn sql_page_state(total: u64, offset: u64, page_size: u64) -> (usize, usize) {
@@ -49,8 +49,8 @@ pub fn sql_pagination_controls(
         .disabled(disabled)
 }
 
-/// Single bar with the row range on the left and the pager on the right.
-pub fn sql_pagination_bar(
+/// Row range, page label and pager in one compact group (for the footer).
+pub fn sql_pagination_group(
     id: impl Into<ElementId>,
     total: u64,
     offset: u64,
@@ -58,31 +58,28 @@ pub fn sql_pagination_bar(
     disabled: bool,
     on_page: impl Fn(usize, &mut App) + 'static,
     cx: &App,
-) -> impl IntoElement {
+) -> AnyElement {
     let (page, pages) = sql_page_state(total, offset, page_size);
+    let muted = cx.theme().muted_foreground;
     h_flex()
-        .h(px(32.0))
-        .px(px(8.0))
+        .flex_shrink_0()
         .gap(px(8.0))
         .items_center()
-        .flex_shrink_0()
-        .border_t_1()
-        .border_color(cx.theme().border)
         .child(
             div()
                 .text_xs()
-                .text_color(cx.theme().muted_foreground)
+                .text_color(muted)
                 .child(sql_row_range_label(total, offset, page_size)),
         )
-        .child(div().flex_1())
         .child(
             div()
                 .text_xs()
-                .text_color(cx.theme().muted_foreground)
+                .text_color(muted)
                 .child(format!("Page {page} of {pages}")),
         )
         .child(
             sql_pagination_controls(id, total, offset, page_size, disabled)
                 .on_click(move |page, _, cx| on_page(*page, cx)),
         )
+        .into_any_element()
 }

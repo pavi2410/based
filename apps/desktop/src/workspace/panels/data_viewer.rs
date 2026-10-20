@@ -25,7 +25,7 @@ use crate::widgets::column_header::ColumnMeta;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export_popover::export_popover;
 use crate::widgets::filter_bar::{FilterBar, FilterExpr};
-use crate::widgets::pagination::{offset_for_page, sql_pagination_bar};
+use crate::widgets::pagination::{offset_for_page, sql_pagination_group};
 use crate::widgets::panel::{
     data_viewer_toolbar, panel_tab_content, tab_breadcrumb_data_viewer_trailing,
     tab_breadcrumb_footer, tab_breadcrumb_for_connection,
@@ -302,21 +302,21 @@ impl Render for DataViewerPanel {
                     .min_h_0()
                     .child(render_row_table(&self.table, cx)),
             )
-            .child(self.cell_detail.clone())
-            .child(sql_pagination_bar(
-                SharedString::from(format!("{id}-pager")),
-                total,
-                offset,
-                page_size,
-                loading,
-                move |page, cx| {
-                    if let Some(ent) = panel.upgrade() {
-                        ent.update(cx, |panel, cx| panel.go_to_page(page, cx));
-                    }
-                },
-                cx,
-            ));
+            .child(self.cell_detail.clone());
 
+        let pager = sql_pagination_group(
+            SharedString::from(format!("{id}-pager")),
+            total,
+            offset,
+            page_size,
+            loading,
+            move |page, cx| {
+                if let Some(ent) = panel.upgrade() {
+                    ent.update(cx, |panel, cx| panel.go_to_page(page, cx));
+                }
+            },
+            cx,
+        );
         let read_only = cx
             .try_global::<WorkspaceRef>()
             .map(|ws| is_connection_read_only(&self.conn_id, ws.0.read(cx).registry().read(cx), cx))
@@ -326,6 +326,7 @@ impl Render for DataViewerPanel {
             SharedString::from(format!("{id}-breadcrumb")),
             crumbs,
             Some(tab_breadcrumb_data_viewer_trailing(
+                pager,
                 self.last_load_ms,
                 read_only,
                 "dv-read-only",

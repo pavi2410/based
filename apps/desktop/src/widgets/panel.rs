@@ -126,14 +126,19 @@ pub fn tab_breadcrumb_for_connection(
     TabBreadcrumb { engine, segments }
 }
 
-/// Trailing cluster for data-viewer breadcrumbs: row range, load time, optional read-only indicator.
+/// Trailing cluster for data-viewer breadcrumbs: pagination, load time, optional read-only indicator.
 pub fn tab_breadcrumb_data_viewer_trailing(
+    pagination: impl IntoElement,
     load_ms: Option<u64>,
     show_read_only: bool,
     read_only_id: &'static str,
     cx: &mut App,
 ) -> AnyElement {
-    let mut row = h_flex().flex_shrink_0().items_center().gap(px(6.0));
+    let mut row = h_flex()
+        .flex_shrink_0()
+        .items_center()
+        .gap(px(10.0))
+        .child(pagination);
     if let Some(ms) = load_ms {
         row = row.child(metadata_pill("time", format!("{ms} ms"), cx));
     }

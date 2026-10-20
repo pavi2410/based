@@ -16,6 +16,7 @@ toml = { workspace = true }
 uuid = { workspace = true, features = ["serde"] }
 rand = { workspace = true }
 sqlformat = "0.5.0"
+sqlparser = "0.63.0"
 
 [dev-dependencies]
 tempfile = { workspace = true }

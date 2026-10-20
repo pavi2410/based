@@ -6,6 +6,8 @@ pub struct ScopeTable {
     /// Possibly quoted/dotted, exactly as written.
     pub name: String,
     pub alias: Option<String>,
+    /// Byte offset of `name` within the scanned statement.
+    pub offset: usize,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -105,10 +107,7 @@ pub fn tables_in_scope(stmt: &str) -> Vec<ScopeTable> {
             continue;
         }
         let from = w.eq_ignore_ascii_case("FROM");
-        loop {
-            let Some(&Tok::Word(name)) = toks.get(i) else {
-                break;
-            };
+        while let Some(&Tok::Word(name)) = toks.get(i) {
             if is_kw(name, NOT_ALIAS) {
                 break;
             }
@@ -129,6 +128,7 @@ pub fn tables_in_scope(stmt: &str) -> Vec<ScopeTable> {
             out.push(ScopeTable {
                 name: name.to_string(),
                 alias,
+                offset: name.as_ptr() as usize - stmt.as_ptr() as usize,
             });
             if from && toks.get(i) == Some(&Tok::Punct(',')) {
                 i += 1;
@@ -138,6 +138,34 @@ pub fn tables_in_scope(stmt: &str) -> Vec<ScopeTable> {
         }
     }
     out
+}
+
+/// Names defined by `WITH name AS (...)` in `stmt`.
+pub fn cte_names(stmt: &str) -> Vec<String> {
+    tokens(stmt)
+        .windows(3)
+        .filter_map(|w| match w {
+            [Tok::Word(n), Tok::Word(a), Tok::Punct('(')] if a.eq_ignore_ascii_case("AS") => {
+                Some(n.to_string())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// `DELETE` / `UPDATE` with no `WHERE`: returns the leading keyword and its byte length.
+pub fn unfiltered_write(stmt: &str) -> Option<&'static str> {
+    let toks = tokens(stmt);
+    let Some(Tok::Word(first)) = toks.first() else {
+        return None;
+    };
+    let kind = ["DELETE", "UPDATE"]
+        .into_iter()
+        .find(|k| k.eq_ignore_ascii_case(first))?;
+    let has_where = toks
+        .iter()
+        .any(|t| matches!(t, Tok::Word(w) if w.eq_ignore_ascii_case("WHERE")));
+    (!has_where).then_some(kind)
 }
 
 /// Last word before the end of `prefix`, uppercased (`None` if the prefix ends in punctuation).
@@ -175,6 +203,14 @@ mod tests {
     fn comma_list_and_no_alias() {
         let got = names("select 1 from a, b where 1");
         assert_eq!(got, vec![("a".into(), None), ("b".into(), None)]);
+    }
+
+    #[test]
+    fn detects_ctes_and_unfiltered_writes() {
+        assert_eq!(cte_names("WITH x AS (select 1) select * from x"), vec!["x"]);
+        assert_eq!(unfiltered_write("delete from t"), Some("DELETE"));
+        assert_eq!(unfiltered_write("update t set a=1 where b=2"), None);
+        assert_eq!(unfiltered_write("select 1"), None);
     }
 
     #[test]

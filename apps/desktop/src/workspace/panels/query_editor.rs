@@ -2,16 +2,17 @@
 
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use based_core::EngineKind;
+use based_query::{Lint, Severity};
 use futures::future::BoxFuture;
 use gpui_kit::component::{
     ActiveTheme, IconName, Sizable as _, Theme,
     button::{Button, ButtonVariants},
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
-    input::{EditorState, InputEvent},
+    input::{EditorState, InputEvent, RopeExt as _},
     menu::PopupMenu,
     resizable::{ResizableState, resizable_panel, v_resizable},
     table::TableState,
@@ -22,7 +23,7 @@ use gpui_kit::{App, Entity, prelude::*, *};
 use crate::app::prefs;
 use crate::connection::{ConnectionId, is_connection_read_only};
 use crate::db;
-use crate::editor::SchemaCache;
+use crate::editor::{SchemaCache, lint::lint};
 use crate::project::{ProjectRoot, ProjectVars, substitute};
 use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
@@ -103,6 +104,8 @@ pub struct QueryEditorPanel {
     source: Arc<dyn QuerySource>,
     conn_id: ConnectionId,
     sql_input: Entity<EditorState>,
+    schema: Arc<SchemaCache>,
+    lint_seq: u64,
     result: Entity<TableState<RowDelegate>>,
     status: QueryStatus,
     split_state: Entity<ResizableState>,
@@ -130,6 +133,7 @@ impl QueryEditorPanel {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        let source_engine = source.engine();
         let sql = initial_sql.unwrap_or_else(|| source.default_sql().to_string());
         let sql_input = new_sql_input(&sql, window, cx);
         let result = cx.new(|cx| configure_row_table(RowDelegate::default(), window, cx));
@@ -139,6 +143,8 @@ impl QueryEditorPanel {
             source,
             conn_id,
             sql_input: sql_input.clone(),
+            schema: Arc::new(SchemaCache::new(source_engine)),
+            lint_seq: 0,
             result,
             status: QueryStatus::Idle,
             split_state,
@@ -156,14 +162,13 @@ impl QueryEditorPanel {
             cx.notify();
         })
         .detach();
-        cx.subscribe_in(&sql_input, window, |panel, _, event, _, cx| {
-            if let InputEvent::PressEnter {
+        cx.subscribe_in(&sql_input, window, |panel, _, event, _, cx| match event {
+            InputEvent::PressEnter {
                 secondary: true,
                 shift: false,
-            } = event
-            {
-                panel.run(cx);
-            }
+            } => panel.run(cx),
+            InputEvent::Change => panel.schedule_lint(cx),
+            _ => {}
         })
         .detach();
         if auto_run && !sql.trim().is_empty() {
@@ -173,6 +178,59 @@ impl QueryEditorPanel {
         panel
     }
 
+    /// Debounced background lint; results land as editor diagnostics.
+    fn schedule_lint(&mut self, cx: &mut Context<Self>) {
+        self.lint_seq += 1;
+        let seq = self.lint_seq;
+        let sql = self.current_sql(cx);
+        let engine = self.source.engine();
+        let cache = self.schema.clone();
+        cx.spawn(async move |this, cx| {
+            cx.background_executor()
+                .timer(Duration::from_millis(300))
+                .await;
+            if this.update(cx, |p, _| p.lint_seq != seq).unwrap_or(true) {
+                return;
+            }
+            let text = sql.clone();
+            let lints = cx
+                .background_spawn(async move { lint(&text, engine, &cache) })
+                .await;
+            let _ = this.update(cx, |p, cx| p.apply_lints(seq, &sql, lints, cx));
+        })
+        .detach();
+    }
+
+    fn apply_lints(&mut self, seq: u64, sql: &str, lints: Vec<Lint>, cx: &mut Context<Self>) {
+        if self.lint_seq != seq || self.current_sql(cx) != sql {
+            return;
+        }
+        self.sql_input.update(cx, |state, cx| {
+            let rope = state.text().clone();
+            let Some(set) = state.diagnostics_mut() else {
+                return;
+            };
+            set.reset(&rope);
+            for l in lints {
+                let severity = match l.severity {
+                    Severity::Error => lsp_types::DiagnosticSeverity::ERROR,
+                    Severity::Warning => lsp_types::DiagnosticSeverity::WARNING,
+                };
+                set.push(lsp_types::Diagnostic {
+                    range: lsp_types::Range::new(
+                        rope.offset_to_position(l.start),
+                        rope.offset_to_position(l.end),
+                    ),
+                    severity: Some(severity),
+                    source: Some("based".into()),
+                    message: l.message,
+                    ..Default::default()
+                });
+            }
+            cx.notify();
+        });
+    }
+
     fn load_schema(&self, cx: &mut Context<Self>) {
         let Some(load) = self.source.load_schema() else {
             return;
@@ -180,11 +238,16 @@ impl QueryEditorPanel {
         let sql_input = self.sql_input.clone();
         let empty = Arc::new(SchemaCache::new(self.source.engine()));
         sql_editor::attach_sql_completion(&sql_input, empty, cx);
-        cx.spawn(async move |_, cx| {
+        cx.spawn(async move |this, cx| {
             let Ok(cache) = db::run(cx, load).await else {
                 return;
             };
-            cx.update(|cx| sql_editor::attach_sql_completion(&sql_input, Arc::new(cache), cx));
+            let cache = Arc::new(cache);
+            cx.update(|cx| sql_editor::attach_sql_completion(&sql_input, cache.clone(), cx));
+            let _ = this.update(cx, |p, cx| {
+                p.schema = cache;
+                p.schedule_lint(cx);
+            });
         })
         .detach();
     }

@@ -36,7 +36,13 @@ pub fn render_strip_tab(
     let spec = tab_spec(panel_id, cx);
     let icon = spec.as_ref().map(|s| tab_icon(s, cx.theme()));
     let info = tab_info(&label, spec.as_ref());
-    let text = with_dirty_suffix(label, dirty);
+    // The dirty marker is drawn as a small dot instead of a text glyph.
+    let dirty = dirty || label.ends_with(DIRTY_MARKER);
+    let text: SharedString = label
+        .strip_suffix(DIRTY_MARKER)
+        .unwrap_or(&label)
+        .to_string()
+        .into();
     let color = cx.theme().tab_foreground;
 
     h_flex()
@@ -58,6 +64,15 @@ pub fn render_strip_tab(
             )
         })
         .child(div().min_w_0().truncate().child(text))
+        .when(dirty, |this| {
+            this.child(
+                div()
+                    .size(px(6.0))
+                    .flex_shrink_0()
+                    .rounded_full()
+                    .bg(color.opacity(0.8)),
+            )
+        })
         .when(!pinned, |this| this.child(close_button(panel_id, color)))
 }
 
@@ -172,10 +187,11 @@ pub fn with_dirty_suffix(label: impl Into<SharedString>, dirty: bool) -> SharedS
     s.into()
 }
 
+const DIRTY_MARKER: &str = " ●";
+
 fn push_dirty_marker(s: &mut String) {
-    const MARKER: &str = " ●";
-    if !s.ends_with(MARKER) {
-        s.push_str(MARKER);
+    if !s.ends_with(DIRTY_MARKER) {
+        s.push_str(DIRTY_MARKER);
     }
 }
 

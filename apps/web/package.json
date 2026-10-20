@@ -15,10 +15,10 @@
     "check": "astro check"
   },
   "dependencies": {
-    "astro": "^6.4.2"
+    "astro": "^7.4.1"
   },
   "devDependencies": {
-    "@astrojs/check": "^0.9.9",
+    "@astrojs/check": "^0.9.11",
     "@types/node": "^25.9.1",
     "oxfmt": "^0.52.0",
     "oxlint": "^1.67.0",

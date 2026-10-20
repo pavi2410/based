@@ -31,6 +31,8 @@ impl ConnectionTree {
         }
         self.bump_object_list_epoch(cx);
 
+        self.load_databases(conn_id.clone(), &ac, cx);
+
         match ac {
             AnyConnection::SQLite(conn) => {
                 let pool = conn.read(cx).pool.clone();

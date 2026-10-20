@@ -20,6 +20,31 @@ pub fn redis_cli_command(config: &RedisConfig, include_password: bool) -> String
     format!("redis-cli -u '{}'", redis_url(config, include_password))
 }
 
+/// Byte range of the `/db` path segment in `url`, if present.
+fn db_path_range(url: &str) -> (usize, usize) {
+    let query = url.find('?').unwrap_or(url.len());
+    let auth_start = url.find("://").map_or(0, |i| i + 3);
+    let host_start = url[auth_start..query]
+        .rfind('@')
+        .map_or(auth_start, |i| auth_start + i + 1);
+    let path_start = url[host_start..query]
+        .find('/')
+        .map_or(query, |i| host_start + i);
+    (path_start, query)
+}
+
+/// Database index encoded in the URL path (`redis://h:6379/2` -> 2); defaults to 0.
+pub fn url_db(url: &str) -> u32 {
+    let (start, end) = db_path_range(url);
+    url[start..end].trim_start_matches('/').parse().unwrap_or(0)
+}
+
+/// Same URL pointing at database `db`.
+pub fn url_with_db(url: &str, db: u32) -> String {
+    let (start, end) = db_path_range(url);
+    format!("{}/{db}{}", &url[..start], &url[end..])
+}
+
 fn redact_password(url: &str) -> String {
     let Some((scheme, rest)) = url.split_once("://") else {
         return url.to_string();
@@ -46,6 +71,17 @@ mod tests {
             label: "local".into(),
             url: url.into(),
         }
+    }
+
+    #[test]
+    fn reads_and_sets_db() {
+        assert_eq!(url_db("redis://h:6379"), 0);
+        assert_eq!(url_db("redis://u:p@h:6379/3?x=1"), 3);
+        assert_eq!(url_with_db("redis://h:6379", 5), "redis://h:6379/5");
+        assert_eq!(
+            url_with_db("rediss://u:p@h:6379/3?x=1", 7),
+            "rediss://u:p@h:6379/7?x=1"
+        );
     }
 
     #[test]

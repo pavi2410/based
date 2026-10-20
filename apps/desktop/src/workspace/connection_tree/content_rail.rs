@@ -25,6 +25,7 @@ use crate::workspace::project_query::{
 use super::ConnectionTree;
 use super::TreeEvent;
 use super::browser_list::BrowserListDelegate;
+use super::database::database_selector;
 
 pub(crate) fn render_content_rail(
     tree: &ConnectionTree,
@@ -75,6 +76,7 @@ pub(crate) fn render_content_rail(
         .h_full()
         .min_w_0()
         .min_h_0()
+        .children(database_selector(tree, tree_entity.clone(), cx))
         .child(pane_shell(
             "Catalog",
             catalog_count,

@@ -121,6 +121,8 @@ impl ConnCache {
 pub(crate) struct ConnState {
     pub(crate) expanded_schemas: HashSet<String>,
     pub(crate) cache: ConnCache,
+    /// Databases on the server (Postgres / Redis only).
+    pub(crate) databases: Vec<String>,
 }
 
 impl ConnState {

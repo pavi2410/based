@@ -27,6 +27,7 @@ mod connect;
 mod connection_list;
 mod content_rail;
 mod context_menu;
+mod database;
 mod icon_rail;
 mod object_list;
 mod open_workspace;

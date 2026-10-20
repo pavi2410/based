@@ -67,7 +67,7 @@ impl ConnectionTree {
     }
 }
 
-fn finish_connection_open(
+pub(super) fn finish_connection_open(
     result: anyhow::Result<OpenedConnection>,
     conn_ent: Entity<ConnectionEntry>,
     tree: Entity<ConnectionTree>,

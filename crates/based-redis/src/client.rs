@@ -14,6 +14,19 @@ pub async fn ping(conn: &mut Conn) -> Result<()> {
     Ok(())
 }
 
+/// Number of logical databases (`CONFIG GET databases`); 16 when the server hides it.
+pub async fn database_count(conn: &mut Conn) -> u32 {
+    let reply: Result<Vec<String>, _> = redis::cmd("CONFIG")
+        .arg("GET")
+        .arg("databases")
+        .query_async(conn)
+        .await;
+    reply
+        .ok()
+        .and_then(|v| v.get(1).and_then(|n| n.parse().ok()))
+        .unwrap_or(16)
+}
+
 /// `redis_version` from `INFO server`, if the server exposes it.
 pub async fn server_version(conn: &mut Conn) -> Option<String> {
     let info: String = redis::cmd("INFO")

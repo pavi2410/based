@@ -11,10 +11,8 @@ use gpui_kit::{App, Task};
 pub use based_redis::RedisConfig;
 use based_redis::{Conn, connect, ping, redis_cli_command, redis_url, server_version};
 
-use crate::connection::descriptor::EngineDescriptor;
 use crate::connection::lifecycle::{Connectable, TestReport};
 use crate::db::Tokio;
-use based_core::EngineKind;
 
 /// Live Redis connection: an auto-reconnecting manager bound to the URL's DB index.
 pub struct RedisConnection {
@@ -69,29 +67,5 @@ impl Connectable for RedisConnection {
 
     async fn close(self) {
         drop(self.conn);
-    }
-}
-
-/// Engine descriptor for Redis — registered at startup via [`crate::connection::EngineRegistry`].
-pub struct RedisEngine;
-
-impl EngineDescriptor for RedisEngine {
-    fn kind(&self) -> EngineKind {
-        EngineKind::Redis
-    }
-    fn display_name(&self) -> &str {
-        "Redis"
-    }
-    fn icon_name(&self) -> &str {
-        "redis"
-    }
-    fn default_port(&self) -> Option<u16> {
-        Some(6379)
-    }
-    fn supports_tab_kind(&self, kind: &str) -> bool {
-        matches!(kind, "query_editor" | "data_viewer" | "dashboard")
-    }
-    fn connect_hint(&self) -> &'static str {
-        "Connection URL"
     }
 }

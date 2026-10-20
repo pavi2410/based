@@ -30,15 +30,10 @@ mod theme;
 mod widgets;
 mod workspace;
 
-use connection::EngineRegistry;
-use mongodb::MongoEngine;
-use postgres::PostgresEngine;
 use project::{
     ProjectContext, ProjectVars, find_project_root, install_reload_watcher,
     settings::apply_project_settings, variables::load_variables,
 };
-use redis::RedisEngine;
-use sqlite::SqliteEngine;
 use workspace::{PopOutManager, SqlInject, TabOpenQueue, WorkspaceNavQueue};
 
 // ── Entry point ──────────────────────────────────────────────────────────────
@@ -59,16 +54,6 @@ fn main() {
             app::prefs::install(cx);
 
             db::init(cx);
-
-            // Engine registry — register new engines here; no other files need to change.
-            {
-                let mut registry = EngineRegistry::new();
-                registry.register(PostgresEngine);
-                registry.register(SqliteEngine);
-                registry.register(MongoEngine);
-                registry.register(RedisEngine);
-                cx.set_global(registry);
-            }
 
             cx.set_global(TabOpenQueue::default());
             cx.set_global(WorkspaceNavQueue::default());

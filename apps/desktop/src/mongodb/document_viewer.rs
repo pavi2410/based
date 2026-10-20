@@ -1,9 +1,10 @@
 // mongodb::document_viewer — paginated find() as a virtual table.
 
+use gpui_kit::assets::IconName as AssetIcon;
 use std::collections::HashMap;
 
 use gpui_kit::component::{
-    ActiveTheme, Sizable as _,
+    ActiveTheme, Icon, IconName, Sizable as _,
     button::Button,
     dock::{BasePanel, Panel, PanelEvent},
     menu::PopupMenu,
@@ -232,6 +233,7 @@ impl Render for DocumentViewerPanel {
                     .child(
                         Button::new("mongo-refresh-docs")
                             .small()
+                            .icon(IconName::RefreshCw)
                             .label("Refresh")
                             .on_click(cx.listener(|p, _, _, cx| p.reload(cx))),
                     )
@@ -240,6 +242,7 @@ impl Render for DocumentViewerPanel {
                         Button::new("mongo-filter-apply")
                             .small()
                             .outline()
+                            .icon(Icon::new(AssetIcon::Funnel))
                             .label("Apply filter")
                             .on_click(cx.listener(|p, _, _, cx| p.reload(cx))),
                     )
@@ -247,7 +250,8 @@ impl Render for DocumentViewerPanel {
                         Button::new("mongo-filter-clear")
                             .small()
                             .outline()
-                            .label("Clear filter")
+                            .icon(Icon::new(AssetIcon::FunnelX))
+                            .tooltip("Clear filter")
                             .on_click(cx.listener(|p, _, window, cx| {
                                 p.filter_bar.update(cx, |fb, cx| {
                                     fb.clear(window, cx);
@@ -263,6 +267,7 @@ impl Render for DocumentViewerPanel {
                         Button::new("mongo-export-json")
                             .outline()
                             .small()
+                            .icon(Icon::new(AssetIcon::Download))
                             .label("Export JSON")
                             .on_click(move |_, _, cx| {
                                 let json = export::to_json(&export_headers, &export_rows);

@@ -1,7 +1,8 @@
 //! Export popover — CSV / Excel download trigger for any tabular data view.
 
+use gpui_kit::assets::IconName as AssetIcon;
 use gpui_kit::component::{
-    Sizable,
+    Icon, Sizable,
     button::{Button, ButtonVariants},
     popover::Popover,
     v_flex,
@@ -28,6 +29,7 @@ pub fn export_popover(
             Button::new(SharedString::from(format!("{id_prefix}-export-trigger")))
                 .outline()
                 .small()
+                .icon(Icon::new(AssetIcon::Download))
                 .label("Export"),
         )
         .content(move |_, _, _| {

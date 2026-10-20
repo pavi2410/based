@@ -2,7 +2,7 @@
 
 use based_redis::{Conn, exec, is_dangerous};
 use gpui_kit::component::{
-    ActiveTheme,
+    ActiveTheme, IconName,
     button::{Button, ButtonVariants},
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
@@ -163,6 +163,7 @@ impl Render for ConsolePanel {
                     .child(
                         Button::new("redis-run")
                             .primary()
+                            .icon(IconName::Play)
                             .label(if self.running { "Running…" } else { "Run" })
                             .on_click(cx.listener(|p, _, w, cx| p.submit(w, cx))),
                     ),

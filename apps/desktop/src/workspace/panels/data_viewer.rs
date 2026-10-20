@@ -1,5 +1,6 @@
 // Paginated table viewer shared by SQL engines; engines plug in via [`DataSource`].
 
+use gpui_kit::assets::IconName as AssetIcon;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -7,7 +8,7 @@ use std::time::Instant;
 use futures::future::BoxFuture;
 use gpui_kit::component::table::TableEvent;
 use gpui_kit::component::{
-    ActiveTheme, Sizable as _,
+    ActiveTheme, Icon, Sizable as _,
     button::Button,
     dock::{BasePanel, Panel, PanelEvent},
     menu::PopupMenu,
@@ -274,6 +275,7 @@ impl Render for DataViewerPanel {
                 Button::new(SharedString::from(format!("{id}-filter-apply")))
                     .small()
                     .outline()
+                    .icon(Icon::new(AssetIcon::Funnel))
                     .label("Apply filter")
                     .on_click(cx.listener(|panel, _, _, cx| panel.load_page(0, cx))),
             )
@@ -281,7 +283,8 @@ impl Render for DataViewerPanel {
                 Button::new(SharedString::from(format!("{id}-filter-clear")))
                     .small()
                     .outline()
-                    .label("Clear filter")
+                    .icon(Icon::new(AssetIcon::FunnelX))
+                    .tooltip("Clear filter")
                     .on_click(cx.listener(|panel, _, window, cx| {
                         panel.filter_bar.update(cx, |fb, cx| fb.clear(window, cx));
                         panel.load_page(0, cx);

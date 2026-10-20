@@ -7,7 +7,7 @@ use based_redis::{
     remove_entry, set_string, set_ttl,
 };
 use gpui_kit::component::{
-    ActiveTheme, Sizable as _,
+    ActiveTheme, IconName, Sizable as _,
     button::{Button, ButtonVariants},
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
@@ -290,6 +290,7 @@ impl KeyViewPanel {
             .child(
                 Button::new("redis-refresh")
                     .small()
+                    .icon(IconName::RefreshCw)
                     .label("Refresh")
                     .on_click(cx.listener(|p, _, w, cx| p.reload(w, cx))),
             )
@@ -398,7 +399,7 @@ impl KeyViewPanel {
                                         Button::new(("redis-rm", ix))
                                             .ghost()
                                             .small()
-                                            .label("✕")
+                                            .icon(IconName::Close)
                                             .on_click(cx.listener(move |p, _, w, cx| {
                                                 p.remove(id.clone(), w, cx)
                                             })),

@@ -11,16 +11,7 @@ pub const KEY_ICON: &str = "icons/key.svg";
 pub const LINK_ICON: &str = "icons/link.svg";
 pub const SHIELD_CHECK_ICON: &str = "icons/shield-check.svg";
 
-/// Per-column metadata for grid headers (parallel to [`gpui_kit::component::table::Column::key`]).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct GridColumnMeta {
-    pub data_type: Option<String>,
-    pub nullable: Option<bool>,
-    pub is_primary_key: bool,
-    pub is_foreign_key: bool,
-    pub is_unique: bool,
-    pub fk_target: Option<String>,
-}
+pub use based_core::ColumnMeta;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ColumnRole {
@@ -30,7 +21,7 @@ pub enum ColumnRole {
 }
 
 /// Highest-priority constraint role for the leading header icon (PK > FK > UQ).
-pub fn dominant_role(meta: &GridColumnMeta) -> Option<ColumnRole> {
+pub fn dominant_role(meta: &ColumnMeta) -> Option<ColumnRole> {
     if meta.is_primary_key {
         Some(ColumnRole::PrimaryKey)
     } else if meta.is_foreign_key {
@@ -59,7 +50,7 @@ pub fn role_icon_color(role: ColumnRole, cx: &App) -> Hsla {
     }
 }
 
-pub fn has_tooltip_content(meta: &GridColumnMeta) -> bool {
+pub fn has_tooltip_content(meta: &ColumnMeta) -> bool {
     meta.data_type.is_some()
         || meta.fk_target.is_some()
         || meta.is_primary_key
@@ -69,7 +60,7 @@ pub fn has_tooltip_content(meta: &GridColumnMeta) -> bool {
 }
 
 /// Text lines shown in the header hover tooltip.
-pub fn tooltip_lines(meta: &GridColumnMeta) -> Vec<String> {
+pub fn tooltip_lines(meta: &ColumnMeta) -> Vec<String> {
     let mut lines = Vec::new();
     if let Some(ty) = &meta.data_type
         && !ty.is_empty()
@@ -100,8 +91,8 @@ pub fn tooltip_lines(meta: &GridColumnMeta) -> Vec<String> {
     lines
 }
 
-pub fn meta_for_column_name(name: &str) -> GridColumnMeta {
-    let mut meta = GridColumnMeta::default();
+pub fn meta_for_column_name(name: &str) -> ColumnMeta {
+    let mut meta = ColumnMeta::default();
     if name == "_id" {
         meta.is_primary_key = true;
     }
@@ -110,8 +101,8 @@ pub fn meta_for_column_name(name: &str) -> GridColumnMeta {
 
 pub fn align_meta_to_columns(
     column_keys: impl IntoIterator<Item = impl AsRef<str>>,
-    catalog: &HashMap<String, GridColumnMeta>,
-) -> Vec<GridColumnMeta> {
+    catalog: &HashMap<String, ColumnMeta>,
+) -> Vec<ColumnMeta> {
     column_keys
         .into_iter()
         .map(|k| {
@@ -124,15 +115,15 @@ pub fn align_meta_to_columns(
         .collect()
 }
 
-pub fn meta_from_query_type(type_name: impl Into<String>) -> GridColumnMeta {
-    GridColumnMeta {
+pub fn meta_from_query_type(type_name: impl Into<String>) -> ColumnMeta {
+    ColumnMeta {
         data_type: Some(type_name.into()),
         ..Default::default()
     }
 }
 
 /// Reorder column metadata when a column is moved (mirrors `RowDelegate::move_column`).
-pub fn reorder_column_meta(meta: &mut Vec<GridColumnMeta>, col_ix: usize, to_ix: usize) {
+pub fn reorder_column_meta(meta: &mut Vec<ColumnMeta>, col_ix: usize, to_ix: usize) {
     if col_ix >= meta.len() || to_ix > meta.len() {
         return;
     }
@@ -144,7 +135,7 @@ pub fn reorder_column_meta(meta: &mut Vec<GridColumnMeta>, col_ix: usize, to_ix:
 pub fn render_column_header(
     col_ix: usize,
     name: SharedString,
-    meta: GridColumnMeta,
+    meta: ColumnMeta,
     _window: &mut Window,
     cx: &mut App,
 ) -> impl IntoElement {
@@ -216,7 +207,7 @@ mod tests {
 
     #[test]
     fn dominant_role_priority() {
-        let pk_fk = GridColumnMeta {
+        let pk_fk = ColumnMeta {
             is_primary_key: true,
             is_foreign_key: true,
             is_unique: true,
@@ -224,25 +215,25 @@ mod tests {
         };
         assert_eq!(dominant_role(&pk_fk), Some(ColumnRole::PrimaryKey));
 
-        let fk_uq = GridColumnMeta {
+        let fk_uq = ColumnMeta {
             is_foreign_key: true,
             is_unique: true,
             ..Default::default()
         };
         assert_eq!(dominant_role(&fk_uq), Some(ColumnRole::ForeignKey));
 
-        let uq = GridColumnMeta {
+        let uq = ColumnMeta {
             is_unique: true,
             ..Default::default()
         };
         assert_eq!(dominant_role(&uq), Some(ColumnRole::Unique));
 
-        assert_eq!(dominant_role(&GridColumnMeta::default()), None);
+        assert_eq!(dominant_role(&ColumnMeta::default()), None);
     }
 
     #[test]
     fn tooltip_lists_secondary_constraints() {
-        let meta = GridColumnMeta {
+        let meta = ColumnMeta {
             data_type: Some("integer".into()),
             is_primary_key: true,
             is_foreign_key: true,
@@ -260,15 +251,15 @@ mod tests {
     #[test]
     fn reorder_column_meta_tracks_drag() {
         let mut meta = vec![
-            GridColumnMeta {
+            ColumnMeta {
                 data_type: Some("a".into()),
                 ..Default::default()
             },
-            GridColumnMeta {
+            ColumnMeta {
                 data_type: Some("b".into()),
                 ..Default::default()
             },
-            GridColumnMeta {
+            ColumnMeta {
                 data_type: Some("c".into()),
                 ..Default::default()
             },

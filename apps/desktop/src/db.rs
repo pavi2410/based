@@ -9,7 +9,6 @@ use sqlx::{PgPool, SqlitePool};
 
 mod runtime;
 
-pub mod column_catalog;
 pub use runtime::Tokio;
 
 /// Register Tokio with GPUI. Call once from `App::run` after `gpui_kit::init`.

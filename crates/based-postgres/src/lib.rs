@@ -1,11 +1,13 @@
 //! PostgreSQL configuration, connection options, query execution, and EXPLAIN parsing.
 
+pub mod catalog;
 pub mod config;
 pub mod decode;
 pub mod explain;
 pub mod mutations;
 pub mod page;
 
+pub use catalog::column_catalog;
 pub use config::{
     PostgresConfig, SslMode, pg_connect_options, pg_ssl_mode, postgres_uri, psql_command,
 };

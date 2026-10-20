@@ -21,7 +21,7 @@ use crate::connection::ConnectionId;
 use crate::connection::is_connection_read_only;
 use crate::db;
 use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_with_meta};
-use crate::widgets::column_header::GridColumnMeta;
+use crate::widgets::column_header::ColumnMeta;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export_popover::export_popover;
 use crate::widgets::filter_bar::{FilterBar, FilterExpr};
@@ -54,7 +54,7 @@ impl PageData {
         total: i64,
         names: Option<Vec<String>>,
         rows: Vec<Vec<SharedString>>,
-        catalog: &HashMap<String, GridColumnMeta>,
+        catalog: &HashMap<String, ColumnMeta>,
     ) -> Self {
         let names = names.unwrap_or_else(|| {
             let mut keys: Vec<_> = catalog.keys().cloned().collect();
@@ -82,13 +82,13 @@ pub trait DataSource: Send + Sync + 'static {
     fn id(&self) -> &'static str;
     /// Object path shown in breadcrumbs and titles, e.g. `["public", "users"]`.
     fn path(&self) -> Vec<String>;
-    fn catalog(&self) -> Fut<HashMap<String, GridColumnMeta>>;
+    fn catalog(&self) -> Fut<HashMap<String, ColumnMeta>>;
     fn page(
         &self,
         filter: Option<FilterExpr>,
         offset: u64,
         limit: u64,
-        catalog: HashMap<String, GridColumnMeta>,
+        catalog: HashMap<String, ColumnMeta>,
     ) -> Fut<PageData>;
 }
 
@@ -104,7 +104,7 @@ pub struct DataViewerPanel {
     total_rows: u64,
     loading: bool,
     last_load_ms: Option<u64>,
-    column_catalog: HashMap<String, GridColumnMeta>,
+    column_catalog: HashMap<String, ColumnMeta>,
     pub(crate) tab_label: SharedString,
 }
 

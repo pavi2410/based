@@ -15,7 +15,7 @@ pub use connection_error::{
 };
 pub use connection_id::ConnectionId;
 pub use engine::EngineKind;
-pub use page::{RawPage, quote_ident};
+pub use page::{ColumnMeta, RawPage, quote_ident};
 pub use session::{PersistedConnection, WorkspaceState};
 pub use ssh::SshTunnelConfig;
 pub use tab::{TabId, TabKind};

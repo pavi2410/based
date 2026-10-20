@@ -12,7 +12,7 @@ use crate::app::prefs;
 use crate::widgets::cell_render::{
     cell_value_kind, column_value_kind, compare_cells, render_grid_cell,
 };
-use crate::widgets::column_header::{GridColumnMeta, render_column_header, reorder_column_meta};
+use crate::widgets::column_header::{ColumnMeta, render_column_header, reorder_column_meta};
 use crate::widgets::same_value::{self, SameValueMatch};
 
 pub use crate::widgets::column_header::{align_meta_to_columns, meta_from_query_type};
@@ -28,7 +28,7 @@ pub fn data_column(key: impl Into<SharedString>, label: impl Into<SharedString>)
 #[derive(Default)]
 pub struct RowDelegate {
     pub columns: Vec<Column>,
-    pub column_meta: Vec<GridColumnMeta>,
+    pub column_meta: Vec<ColumnMeta>,
     pub rows: Vec<Vec<SharedString>>,
     pub sort_col: Option<usize>,
     pub sort_asc: bool,
@@ -172,15 +172,15 @@ impl TableDelegate for RowDelegate {
 ///
 /// [`TableState::refresh`] must run after columns change; otherwise `col_groups` stays
 /// empty from the initial delegate and body cells never render.
-pub fn empty_column_meta(count: usize) -> Vec<GridColumnMeta> {
-    vec![GridColumnMeta::default(); count]
+pub fn empty_column_meta(count: usize) -> Vec<ColumnMeta> {
+    vec![ColumnMeta::default(); count]
 }
 
 pub fn replace_table_data(
     state: &mut TableState<RowDelegate>,
     columns: Vec<Column>,
     rows: Vec<Vec<SharedString>>,
-    column_meta: Vec<GridColumnMeta>,
+    column_meta: Vec<ColumnMeta>,
     cx: &mut Context<TableState<RowDelegate>>,
 ) {
     {

@@ -1,9 +1,11 @@
 //! SQLite configuration, path resolution, and sqlx execution (no UI).
 
+pub mod catalog;
 pub mod config;
 pub mod mutations;
 pub mod page;
 
+pub use catalog::column_catalog;
 pub use config::{
     SqliteConfig, SqliteOpenOptions, SqlitePathContext, SqlitePragma, resolve_sqlite_path,
     sqlite_connect_options, sqlite_uri, sqlite3_command,

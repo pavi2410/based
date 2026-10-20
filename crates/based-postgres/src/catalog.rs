@@ -1,17 +1,16 @@
-//! Per-column catalog metadata for SQL table browse grids.
+//! Per-column catalog metadata (types, keys) for table browse.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use anyhow::Result;
-use sqlx::{AssertSqlSafe, PgPool, Row, SqlitePool};
+use based_core::ColumnMeta;
+use sqlx::{PgPool, Row};
 
-use crate::widgets::column_header::GridColumnMeta;
-
-pub async fn load_postgres_column_catalog(
+pub async fn column_catalog(
     pool: &PgPool,
     schema: &str,
     table: &str,
-) -> Result<HashMap<String, GridColumnMeta>> {
+) -> Result<HashMap<String, ColumnMeta>> {
     let col_rows = sqlx::query(
         r"SELECT
             c.column_name,
@@ -92,7 +91,7 @@ pub async fn load_postgres_column_catalog(
         let is_unique: bool = row.try_get("is_unique")?;
         out.insert(
             name.clone(),
-            GridColumnMeta {
+            ColumnMeta {
                 data_type: Some(display_type),
                 nullable: Some(nullable),
                 is_primary_key: is_pk,
@@ -102,76 +101,5 @@ pub async fn load_postgres_column_catalog(
             },
         );
     }
-    Ok(out)
-}
-
-pub async fn load_sqlite_column_catalog(
-    pool: &SqlitePool,
-    table: &str,
-) -> Result<HashMap<String, GridColumnMeta>> {
-    let col_sql = format!("PRAGMA table_info(\"{table}\")");
-    let col_rows = sqlx::query(AssertSqlSafe(col_sql)).fetch_all(pool).await?;
-
-    let mut out = HashMap::new();
-    let mut pk_columns = HashSet::new();
-    for row in &col_rows {
-        let name: String = row.try_get("name")?;
-        let type_name: String = row.try_get("type")?;
-        let notnull: bool = row.try_get("notnull")?;
-        let pk: i64 = row.try_get("pk")?;
-        if pk > 0 {
-            pk_columns.insert(name.clone());
-        }
-        out.insert(
-            name.clone(),
-            GridColumnMeta {
-                data_type: if type_name.is_empty() {
-                    None
-                } else {
-                    Some(type_name)
-                },
-                nullable: Some(!notnull),
-                is_primary_key: pk > 0,
-                ..Default::default()
-            },
-        );
-    }
-
-    let fk_sql = format!("PRAGMA foreign_key_list(\"{table}\")");
-    let fk_rows = sqlx::query(AssertSqlSafe(fk_sql)).fetch_all(pool).await?;
-    for row in fk_rows {
-        let from_col: String = row.try_get("from")?;
-        let to_table: String = row.try_get("table")?;
-        let to_col: String = row.try_get("to")?;
-        if let Some(meta) = out.get_mut(&from_col) {
-            meta.is_foreign_key = true;
-            meta.fk_target = Some(format!("{to_table}({to_col})"));
-        }
-    }
-
-    let idx_sql = format!("PRAGMA index_list(\"{table}\")");
-    let idx_rows = sqlx::query(AssertSqlSafe(idx_sql)).fetch_all(pool).await?;
-    for idx in idx_rows {
-        let unique: bool = idx.try_get("unique")?;
-        if !unique {
-            continue;
-        }
-        let idx_name: String = idx.try_get("name")?;
-        if idx_name.starts_with("sqlite_autoindex") {
-            continue;
-        }
-        let info_sql = format!("PRAGMA index_info(\"{idx_name}\")");
-        let info_rows = sqlx::query(AssertSqlSafe(info_sql)).fetch_all(pool).await?;
-        for info in info_rows {
-            let col_name: String = info.try_get("name")?;
-            if pk_columns.contains(&col_name) {
-                continue;
-            }
-            if let Some(meta) = out.get_mut(&col_name) {
-                meta.is_unique = true;
-            }
-        }
-    }
-
     Ok(out)
 }

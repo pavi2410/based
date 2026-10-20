@@ -6,8 +6,7 @@ use based_core::quote_ident;
 use gpui_kit::SharedString;
 use sqlx::PgPool;
 
-use crate::db::column_catalog;
-use crate::widgets::column_header::GridColumnMeta;
+use crate::widgets::column_header::ColumnMeta;
 use crate::widgets::filter_bar::FilterExpr;
 use crate::workspace::panels::data_viewer::{DataSource, Fut, PageData};
 
@@ -30,11 +29,9 @@ impl DataSource for PgSource {
         vec![self.schema.clone(), self.table.clone()]
     }
 
-    fn catalog(&self) -> Fut<HashMap<String, GridColumnMeta>> {
+    fn catalog(&self) -> Fut<HashMap<String, ColumnMeta>> {
         let (pool, schema, table) = (self.pool.clone(), self.schema.clone(), self.table.clone());
-        Box::pin(async move {
-            column_catalog::load_postgres_column_catalog(&pool, &schema, &table).await
-        })
+        Box::pin(async move { based_postgres::column_catalog(&pool, &schema, &table).await })
     }
 
     fn page(
@@ -42,7 +39,7 @@ impl DataSource for PgSource {
         filter: Option<FilterExpr>,
         offset: u64,
         limit: u64,
-        catalog: HashMap<String, GridColumnMeta>,
+        catalog: HashMap<String, ColumnMeta>,
     ) -> Fut<PageData> {
         let pool = self.pool.clone();
         let table = format!("{}.{}", quote_ident(&self.schema), quote_ident(&self.table));

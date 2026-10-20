@@ -6,8 +6,7 @@ use based_core::quote_ident;
 use gpui_kit::SharedString;
 use sqlx::SqlitePool;
 
-use crate::db::column_catalog;
-use crate::widgets::column_header::GridColumnMeta;
+use crate::widgets::column_header::ColumnMeta;
 use crate::widgets::filter_bar::FilterExpr;
 use crate::workspace::panels::data_viewer::{DataSource, Fut, PageData};
 
@@ -29,9 +28,9 @@ impl DataSource for SqliteSource {
         vec![self.table.clone()]
     }
 
-    fn catalog(&self) -> Fut<HashMap<String, GridColumnMeta>> {
+    fn catalog(&self) -> Fut<HashMap<String, ColumnMeta>> {
         let (pool, table) = (self.pool.clone(), self.table.clone());
-        Box::pin(async move { column_catalog::load_sqlite_column_catalog(&pool, &table).await })
+        Box::pin(async move { based_sqlite::column_catalog(&pool, &table).await })
     }
 
     fn page(
@@ -39,7 +38,7 @@ impl DataSource for SqliteSource {
         filter: Option<FilterExpr>,
         offset: u64,
         limit: u64,
-        catalog: HashMap<String, GridColumnMeta>,
+        catalog: HashMap<String, ColumnMeta>,
     ) -> Fut<PageData> {
         let pool = self.pool.clone();
         let table = quote_ident(&self.table);

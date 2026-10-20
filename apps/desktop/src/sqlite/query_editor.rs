@@ -28,7 +28,7 @@ use crate::editor::SchemaCache;
 use crate::editor::sqlite_schema;
 use crate::project::{ProjectRoot, ProjectVars, substitute};
 use crate::query_store::{HistoryEntry, QueryStore};
-use crate::widgets::column_header::GridColumnMeta;
+use crate::widgets::column_header::ColumnMeta;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export_popover::export_popover;
 use crate::widgets::metadata_pill;
@@ -226,7 +226,7 @@ impl QueryEditorPanel {
         cx.spawn(async move |this, cx| {
             let start = Instant::now();
 
-            let result: anyhow::Result<(Vec<Column>, Vec<GridColumnMeta>, Vec<Vec<SharedString>>)> =
+            let result: anyhow::Result<(Vec<Column>, Vec<ColumnMeta>, Vec<Vec<SharedString>>)> =
                 db::run(cx, async move {
                     let stmts = based_query::statements_in_script(&sql);
                     if stmts.is_empty() {

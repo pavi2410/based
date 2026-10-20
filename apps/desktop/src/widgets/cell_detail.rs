@@ -5,7 +5,7 @@ use gpui_kit::{Context, IntoElement, MouseButton, Render, Window, div, prelude::
 
 use crate::app::prefs;
 use crate::widgets::cell_render::{ColumnValueKind, column_value_kind, parse_bool_display};
-use crate::widgets::column_header::GridColumnMeta;
+use crate::widgets::column_header::ColumnMeta;
 
 pub enum CellValue {
     Text(String),
@@ -70,7 +70,7 @@ fn parse_numeric_display(s: &str) -> CellValue {
 }
 
 /// Infer cell value using column schema type (not string heuristics).
-pub fn interpret_cell_with_meta(s: &str, meta: &GridColumnMeta) -> CellValue {
+pub fn interpret_cell_with_meta(s: &str, meta: &ColumnMeta) -> CellValue {
     let Some(t) = null_or_trimmed(s) else {
         return CellValue::Null;
     };
@@ -219,7 +219,7 @@ mod tests {
 
     #[test]
     fn meta_text_column_keeps_string_numbers() {
-        let meta = GridColumnMeta {
+        let meta = ColumnMeta {
             data_type: Some("text".into()),
             ..Default::default()
         };
@@ -231,7 +231,7 @@ mod tests {
 
     #[test]
     fn meta_numeric_column_parses_float() {
-        let meta = GridColumnMeta {
+        let meta = ColumnMeta {
             data_type: Some("numeric".into()),
             ..Default::default()
         };
@@ -244,7 +244,7 @@ mod tests {
 
     #[test]
     fn meta_bool_column_parses_boolean() {
-        let meta = GridColumnMeta {
+        let meta = ColumnMeta {
             data_type: Some("bool".into()),
             ..Default::default()
         };

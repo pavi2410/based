@@ -8,6 +8,17 @@ pub struct RawPage {
     pub rows: Vec<Vec<String>>,
 }
 
+/// Per-column metadata for table browse headers.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ColumnMeta {
+    pub data_type: Option<String>,
+    pub nullable: Option<bool>,
+    pub is_primary_key: bool,
+    pub is_foreign_key: bool,
+    pub is_unique: bool,
+    pub fk_target: Option<String>,
+}
+
 /// Quote a SQL identifier (`a"b` → `"a""b"`).
 pub fn quote_ident(ident: &str) -> String {
     format!("\"{}\"", ident.replace('"', "\"\""))

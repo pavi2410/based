@@ -12,7 +12,8 @@ use lsp_types::{
     Range, TextEdit,
 };
 
-use super::schema_cache::{ObjectKind, SchemaCache, quote_ident};
+use super::schema_cache::{ObjectKind, SchemaCache, quote_ident, unquote};
+use super::sql_scope::{previous_word, tables_in_scope};
 
 const SQL_KEYWORDS: &[&str] = &[
     "SELECT",
@@ -185,11 +186,54 @@ impl CompletionProvider for SqlCompletionProvider {
         };
         let range = Range::new(rope.offset_to_position(from), rope.offset_to_position(end));
 
+        let (scope, prev) = match based_query::statement_at_offset(&text, end) {
+            Some(s) => (
+                tables_in_scope(&text[s.start..s.end]),
+                previous_word(&text[s.start..start.clamp(s.start, s.end)]),
+            ),
+            None => (vec![], None),
+        };
+        let tables_only = prev
+            .as_deref()
+            .is_some_and(|w| matches!(w, "FROM" | "JOIN" | "INTO" | "UPDATE" | "TABLE"));
+
         let cache = self.cache.clone();
         cx.background_spawn(async move {
             let items = match qualifier {
-                Some(table) => column_items(&cache, &table, &prefix, &range),
-                None => schema_and_keyword_items(&cache, &prefix, &range),
+                Some(q) => {
+                    let wanted = unquote(&q);
+                    let table = scope
+                        .iter()
+                        .find(|t| {
+                            t.alias
+                                .as_deref()
+                                .is_some_and(|a| unquote(a).eq_ignore_ascii_case(&wanted))
+                        })
+                        .map_or(q, |t| t.name.clone());
+                    column_items(&cache, &table, &prefix, &range)
+                }
+                None => {
+                    let mut items = schema_and_keyword_items(&cache, &prefix, &range, tables_only);
+                    if !tables_only {
+                        for t in &scope {
+                            let label = unquote(&t.name);
+                            items.extend(
+                                column_items(&cache, &t.name, &prefix, &range)
+                                    .into_iter()
+                                    .map(|mut i| {
+                                        i.detail = Some(format!(
+                                            "{label} · {}",
+                                            i.detail.as_deref().unwrap_or_default()
+                                        ));
+                                        i
+                                    }),
+                            );
+                        }
+                    }
+                    items.sort_by_key(|a| a.label.to_lowercase());
+                    items.truncate(50);
+                    items
+                }
             };
             Ok(CompletionResponse::Array(items))
         })
@@ -207,6 +251,7 @@ fn schema_and_keyword_items(
     cache: &SchemaCache,
     query: &str,
     range: &Range,
+    tables_only: bool,
 ) -> Vec<CompletionItem> {
     let mut items: Vec<CompletionItem> = cache
         .complete(query)
@@ -228,7 +273,7 @@ fn schema_and_keyword_items(
         .collect();
 
     // Keywords and functions are never quoted, so a leading `"` means identifiers only.
-    if !query.starts_with('"') {
+    if !tables_only && !query.starts_with('"') {
         let lower = query.to_lowercase();
         let words = SQL_KEYWORDS
             .iter()

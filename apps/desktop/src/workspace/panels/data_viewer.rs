@@ -25,10 +25,7 @@ use crate::widgets::column_header::ColumnMeta;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export_popover::export_popover;
 use crate::widgets::filter_bar::{FilterBar, FilterExpr};
-use crate::widgets::metadata_pill;
-use crate::widgets::pagination::{
-    offset_for_page, sql_page_state, sql_pagination_controls, sql_row_range_label,
-};
+use crate::widgets::pagination::{offset_for_page, sql_pagination_bar};
 use crate::widgets::panel::{
     data_viewer_toolbar, panel_tab_content, tab_breadcrumb_data_viewer_trailing,
     tab_breadcrumb_footer, tab_breadcrumb_for_connection,
@@ -256,9 +253,6 @@ impl Render for DataViewerPanel {
             (self.total_rows, self.offset, self.page_size, self.loading);
         let id = self.source.id();
 
-        let row_info: SharedString = sql_row_range_label(total, offset, page_size).into();
-        let (current_page, total_pages) = sql_page_state(total, offset, page_size);
-        let page_info: SharedString = format!("{current_page} / {total_pages}").into();
         let panel = cx.entity().downgrade();
         let muted = cx.theme().muted_foreground;
 
@@ -275,7 +269,6 @@ impl Render for DataViewerPanel {
         };
 
         let toolbar = data_viewer_toolbar(cx)
-            .child(metadata_pill("page", page_info, cx))
             .child(self.filter_bar.clone())
             .child(
                 Button::new(SharedString::from(format!("{id}-filter-apply")))
@@ -298,21 +291,7 @@ impl Render for DataViewerPanel {
             .when(loading, |d| {
                 d.child(div().text_sm().text_color(muted).child("Loading…"))
             })
-            .child(export_popover(id, export_headers, export_rows))
-            .child(
-                sql_pagination_controls(
-                    SharedString::from(format!("{id}-pager")),
-                    total,
-                    offset,
-                    page_size,
-                    loading,
-                )
-                .on_click(move |page, _, cx| {
-                    if let Some(ent) = panel.upgrade() {
-                        ent.update(cx, |panel, cx| panel.go_to_page(*page, cx));
-                    }
-                }),
-            );
+            .child(export_popover(id, export_headers, export_rows));
 
         let body = v_flex()
             .size_full()
@@ -323,7 +302,20 @@ impl Render for DataViewerPanel {
                     .min_h_0()
                     .child(render_row_table(&self.table, cx)),
             )
-            .child(self.cell_detail.clone());
+            .child(self.cell_detail.clone())
+            .child(sql_pagination_bar(
+                SharedString::from(format!("{id}-pager")),
+                total,
+                offset,
+                page_size,
+                loading,
+                move |page, cx| {
+                    if let Some(ent) = panel.upgrade() {
+                        ent.update(cx, |panel, cx| panel.go_to_page(page, cx));
+                    }
+                },
+                cx,
+            ));
 
         let read_only = cx
             .try_global::<WorkspaceRef>()
@@ -334,7 +326,6 @@ impl Render for DataViewerPanel {
             SharedString::from(format!("{id}-breadcrumb")),
             crumbs,
             Some(tab_breadcrumb_data_viewer_trailing(
-                row_info,
                 self.last_load_ms,
                 read_only,
                 "dv-read-only",

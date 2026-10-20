@@ -50,7 +50,6 @@ impl StatusBarConnection {
 /// Context passed into the workspace status rail.
 #[derive(Clone, Debug)]
 pub struct StatusBarModel {
-    pub history_ready: bool,
     pub update: UpdateBarSnapshot,
     pub focused_connection: Option<StatusBarConnection>,
 }
@@ -277,23 +276,6 @@ fn update_widget(
 impl RenderOnce for StatusBar {
     fn render(self, _window: &mut gpui_kit::Window, cx: &mut App) -> impl IntoElement {
         let muted = cx.theme().muted_foreground;
-        let fg = cx.theme().foreground;
-
-        let history_value = if self.model.history_ready {
-            "ready"
-        } else {
-            "empty"
-        };
-        let history_fg = if self.model.history_ready {
-            fg
-        } else {
-            cx.theme().warning_foreground
-        };
-        let history_dot = if self.model.history_ready {
-            Some(cx.theme().green_light.opacity(0.85))
-        } else {
-            None
-        };
 
         let active_side_pane = self.active_side_pane;
         let version_label = format!("based {}", env!("CARGO_PKG_VERSION"));
@@ -325,14 +307,6 @@ impl RenderOnce for StatusBar {
                     .gap(px(6.0))
                     .items_center()
                     .flex_shrink_0()
-                    .child(status_segment(
-                        "history",
-                        history_value,
-                        muted,
-                        history_fg,
-                        history_dot,
-                    ))
-                    .child(status_divider(muted))
                     .when_some(
                         update_widget(&update_snapshot, registry, cx),
                         |row, widget| row.child(widget).child(status_divider(muted)),

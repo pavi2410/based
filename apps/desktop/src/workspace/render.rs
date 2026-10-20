@@ -35,7 +35,6 @@ use crate::project::drain_pending_reload;
 use crate::project::open::{
     maybe_show_pending_project_close_dialog, maybe_show_pending_project_switch_dialog,
 };
-use crate::query_store::QueryStore;
 use crate::workspace::query_lane::render_query_lane;
 
 impl Render for Workspace {
@@ -235,7 +234,6 @@ impl Render for Workspace {
             .child(body)
             .child(StatusBar::new(
                 StatusBarModel {
-                    history_ready: !cx.global::<QueryStore>().history.recent(1).is_empty(),
                     update: coordinator_snapshot(cx),
                     focused_connection: focused_conn_id
                         .as_ref()

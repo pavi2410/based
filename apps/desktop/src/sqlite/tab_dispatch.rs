@@ -10,10 +10,12 @@ use gpui_kit::component::dock::PanelView;
 use gpui_kit::{Context, Window, prelude::*};
 use sqlx::SqlitePool;
 
+use super::inspect::SqliteInspect;
 use super::source::SqliteSource;
 use crate::connection::ConnectionId;
 use crate::workspace::Workspace;
 use crate::workspace::panels::data_viewer::DataViewerPanel;
+use crate::workspace::panels::table_inspector::TableInspectorPanel;
 use crate::workspace::tabs::label::tab_label_for_spec;
 use crate::workspace::tabs::spec::{QueryEditorInit, TabSpec};
 
@@ -69,10 +71,12 @@ pub fn build_panel(
         TabSpec::Inspector { object, .. } => {
             let label = tab_label_for_spec(spec, false);
             let panel = cx.new(|cx| {
-                super::inspector::TableInspectorPanel::new(
-                    pool,
+                TableInspectorPanel::new(
+                    Arc::new(SqliteInspect {
+                        pool,
+                        table: object.clone(),
+                    }),
                     conn_id.clone(),
-                    object.clone(),
                     window,
                     cx,
                 )

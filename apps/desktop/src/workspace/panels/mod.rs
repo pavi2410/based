@@ -6,6 +6,7 @@ pub mod home;
 pub mod inspector;
 pub mod object_info;
 pub mod release_notes;
+pub mod table_inspector;
 
 pub use connection_wizard::ConnectionWizardPanel;
 pub use home::HomePanel;

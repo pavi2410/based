@@ -8,7 +8,7 @@ pub mod attach_workspace;
 mod constraints;
 mod eqp_parse;
 pub mod eqp_viewer;
-pub mod inspector;
+pub mod inspect;
 pub mod pragmas;
 pub mod query_editor;
 pub mod source;

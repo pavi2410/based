@@ -5,7 +5,7 @@ use gpui_kit::{App, Task};
 
 pub mod explain_plan;
 pub mod grammar;
-pub mod inspector;
+pub mod inspect;
 pub mod query_editor;
 pub mod source;
 pub mod tab_dispatch;

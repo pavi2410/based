@@ -199,18 +199,6 @@ pub fn replace_table_data(
     cx.notify();
 }
 
-/// Replace row data when columns are unchanged.
-pub fn replace_table_rows(
-    state: &mut TableState<RowDelegate>,
-    rows: Vec<Vec<SharedString>>,
-    cx: &mut Context<TableState<RowDelegate>>,
-) {
-    state.delegate_mut().rows = rows;
-    state.delegate_mut().sort_col = None;
-    refresh_same_value_highlight(state, None, cx);
-    cx.notify();
-}
-
 pub fn refresh_same_value_highlight(
     state: &mut TableState<RowDelegate>,
     cell: Option<(usize, usize)>,

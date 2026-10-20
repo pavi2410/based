@@ -16,10 +16,11 @@ use crate::workspace::notify::push_export_success;
 /// `id_prefix` is used as a namespace for all element IDs inside the popover
 /// (e.g. `"pg-qe"` → `"pg-qe-export-popover"`, `"pg-qe-export-csv"`, …).
 pub fn export_popover(
-    id_prefix: &'static str,
+    id_prefix: &str,
     headers: Vec<String>,
     rows: Vec<Vec<String>>,
 ) -> impl IntoElement {
+    let id_prefix = id_prefix.to_string();
     let (h, r) = (headers.clone(), rows.clone());
     let (h2, r2) = (headers, rows);
     Popover::new(SharedString::from(format!("{id_prefix}-export-popover")))

@@ -12,15 +12,16 @@ use crate::connection::{
     ConnectionState::Connected,
 };
 use crate::mongodb::pipeline_builder::PipelineBuilderPanel;
-use crate::postgres::query_editor::QueryEditorPanel as PgQueryEditorPanel;
+use crate::postgres::query::PgQuery;
 use crate::redis::console::ConsolePanel as RedisConsolePanel;
-use crate::sqlite::query_editor::QueryEditorPanel as SqliteQueryEditorPanel;
+use crate::sqlite::query::SqliteQuery;
 use crate::workspace::Workspace;
 use crate::workspace::dock_utils::{
     activate_center_panel, active_live_center_panel, center_panel_by_id, center_tab_group_count,
     panel_entity_id, remove_presentation_panel, split_center_with_panel, tab_group_panel_ids,
     to_panel_id,
 };
+use crate::workspace::panels::query_editor::QueryEditorPanel;
 
 impl Workspace {
     pub(crate) fn record_tab_navigation(&mut self, cx: &Context<Self>) {
@@ -186,13 +187,21 @@ impl Workspace {
         match ac {
             SQLite(conn) => {
                 let pool = conn.read(cx).pool.clone();
-                let panel =
-                    cx.new(|cx| SqliteQueryEditorPanel::new(pool, conn_id.clone(), window, cx));
+                let panel = cx.new(|cx| {
+                    QueryEditorPanel::new(
+                        Arc::new(SqliteQuery { pool }),
+                        conn_id.clone(),
+                        window,
+                        cx,
+                    )
+                });
                 Some(Arc::new(panel))
             }
             Postgres(conn) => {
                 let pool = conn.read(cx).pool.clone();
-                let panel = cx.new(|cx| PgQueryEditorPanel::new(pool, conn_id.clone(), window, cx));
+                let panel = cx.new(|cx| {
+                    QueryEditorPanel::new(Arc::new(PgQuery { pool }), conn_id.clone(), window, cx)
+                });
                 Some(Arc::new(panel))
             }
             MongoDB(conn) => {

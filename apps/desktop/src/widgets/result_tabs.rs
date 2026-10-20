@@ -44,7 +44,7 @@ impl BottomTab {
 /// `on_select` is invoked with the clicked tab; it is shared (`Rc`) across the
 /// three click handlers so the caller can wire it with a single `cx.listener`.
 pub fn result_tab_strip(
-    id_prefix: &'static str,
+    id_prefix: &str,
     active: BottomTab,
     has_error: bool,
     on_select: Rc<dyn Fn(BottomTab, &mut Window, &mut App)>,

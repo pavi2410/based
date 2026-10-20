@@ -9,7 +9,7 @@ mod eqp_parse;
 pub mod eqp_viewer;
 pub mod inspect;
 pub mod pragmas;
-pub mod query_editor;
+pub mod query;
 pub mod source;
 pub mod tab_dispatch;
 

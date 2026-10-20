@@ -7,10 +7,9 @@ use gpui_kit::component::dock::PanelView;
 
 use crate::connection::ConnectionId;
 use crate::mongodb::pipeline_builder::PipelineBuilderPanel;
-use crate::postgres;
-use crate::sqlite;
 use crate::workspace::panels::ConnectionWizardPanel;
 use crate::workspace::panels::object_info::ConnectionDashboardPanel;
+use crate::workspace::panels::query_editor::QueryEditorPanel;
 use crate::workspace::panels::release_notes::ReleaseNotesPanel;
 
 use super::spec::{QueryEditorInit, TabSpec};
@@ -25,17 +24,9 @@ pub(crate) fn infer_tab_spec(panel: &Arc<dyn PanelView>, cx: &App) -> TabSpec {
                 conn_id: ent.read(cx).connection_id(cx),
             })
             .unwrap_or_else(|_| builtin(panel, cx)),
-        "PgQueryEditor" => panel
+        "PgQueryEditor" | "SqliteQueryEditor" => panel
             .view()
-            .downcast::<postgres::query_editor::QueryEditorPanel>()
-            .map(|ent| {
-                let panel = ent.read(cx);
-                query_editor_spec(panel.connection_id().clone(), panel.current_sql(cx))
-            })
-            .unwrap_or_else(|_| builtin(panel, cx)),
-        "SqliteQueryEditor" => panel
-            .view()
-            .downcast::<sqlite::query_editor::QueryEditorPanel>()
+            .downcast::<QueryEditorPanel>()
             .map(|ent| {
                 let panel = ent.read(cx);
                 query_editor_spec(panel.connection_id().clone(), panel.current_sql(cx))

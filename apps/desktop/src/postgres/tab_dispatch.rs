@@ -15,6 +15,7 @@ use super::source::PgSource;
 use crate::connection::ConnectionId;
 use crate::workspace::Workspace;
 use crate::workspace::panels::data_viewer::DataViewerPanel;
+use crate::workspace::panels::query_editor::QueryEditorPanel;
 use crate::workspace::panels::table_inspector::TableInspectorPanel;
 use crate::workspace::tabs::label::tab_label_for_spec;
 use crate::workspace::tabs::spec::{QueryEditorInit, TabSpec};
@@ -57,8 +58,8 @@ pub fn build_panel(
         } => {
             let label = tab_label_for_spec(spec, false);
             let panel = cx.new(|cx| {
-                super::query_editor::QueryEditorPanel::new_with_initial(
-                    pool,
+                QueryEditorPanel::new_with_initial(
+                    Arc::new(super::query::PgQuery { pool }),
                     conn_id.clone(),
                     sql.clone(),
                     *auto_run,

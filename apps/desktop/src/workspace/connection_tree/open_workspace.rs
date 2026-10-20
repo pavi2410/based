@@ -9,6 +9,7 @@ use crate::postgres;
 use crate::redis::console::ConsolePanel as RedisConsolePanel;
 use crate::sqlite;
 use crate::workspace::WorkspaceRef;
+use crate::workspace::panels::query_editor::QueryEditorPanel;
 
 use super::super::dock_utils::tabs_layout;
 use super::ConnectionTree;
@@ -57,15 +58,20 @@ impl ConnectionTree {
             AnyConnection::SQLite(ent) => {
                 let pool = ent.read(cx).pool.clone();
                 let query = cx.new(|cx| {
-                    sqlite::query_editor::QueryEditorPanel::new(pool, conn_id.clone(), window, cx)
+                    QueryEditorPanel::new(
+                        Arc::new(sqlite::query::SqliteQuery { pool }),
+                        conn_id.clone(),
+                        window,
+                        cx,
+                    )
                 });
                 vec![Arc::new(dashboard) as Arc<dyn PanelView>, Arc::new(query)]
             }
             AnyConnection::Postgres(ent) => {
                 let pool = ent.read(cx).pool.clone();
                 let query = cx.new(|cx| {
-                    postgres::query_editor::QueryEditorPanel::new(
-                        pool.clone(),
+                    QueryEditorPanel::new(
+                        Arc::new(postgres::query::PgQuery { pool: pool.clone() }),
                         conn_id.clone(),
                         window,
                         cx,

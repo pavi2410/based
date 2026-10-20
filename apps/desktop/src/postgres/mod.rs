@@ -6,14 +6,12 @@ use gpui_kit::{App, Task};
 pub mod explain_plan;
 pub mod grammar;
 pub mod inspect;
-pub mod query_editor;
+pub mod query;
 pub mod source;
 pub mod tab_dispatch;
 pub mod wizard;
 
-pub use based_postgres::{
-    PostgresConfig, SslMode, execute_sql, pg_connect_options, postgres_uri, psql_command,
-};
+pub use based_postgres::{PostgresConfig, SslMode, pg_connect_options, postgres_uri, psql_command};
 
 use sqlx::PgPool;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};

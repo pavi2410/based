@@ -12,12 +12,11 @@ use crate::mongodb::document_editor::DocumentEditorPanel;
 use crate::mongodb::document_viewer::DocumentViewerPanel;
 use crate::mongodb::inspector::CollectionInspectorPanel;
 use crate::mongodb::pipeline_builder::PipelineBuilderPanel;
-use crate::postgres::query_editor::QueryEditorPanel as PgQueryEditorPanel;
-use crate::sqlite::query_editor::QueryEditorPanel as SqliteQueryEditorPanel;
 use crate::workspace::panels::connection_wizard::ConnectionWizardPanel;
 use crate::workspace::panels::data_viewer::DataViewerPanel;
 use crate::workspace::panels::home::HomePanel;
 use crate::workspace::panels::object_info::{ConnectionDashboardPanel, ObjectInfoPanel};
+use crate::workspace::panels::query_editor::QueryEditorPanel;
 use crate::workspace::panels::release_notes::ReleaseNotesPanel;
 use crate::workspace::panels::table_inspector::TableInspectorPanel;
 
@@ -220,10 +219,9 @@ pub(crate) fn remove_presentation_panel(
         DocumentViewerPanel,
         CollectionInspectorPanel,
         PipelineBuilderPanel,
-        PgQueryEditorPanel,
         DataViewerPanel,
         TableInspectorPanel,
-        SqliteQueryEditorPanel,
+        QueryEditorPanel,
     );
     log::error!(
         "unrecognized center panel type for remove: {}",

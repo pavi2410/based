@@ -1,13 +1,13 @@
 //! Tab strip labels (`Panel::title` when `tab_name` is unset).
 
 use gpui_kit::component::{
-    ActiveTheme, Icon, IconName, Sizable as _,
+    ActiveTheme, Icon, IconName, Sizable as _, Theme,
     button::{Button, ButtonVariants as _},
     h_flex,
     menu::ContextMenuExt,
     tooltip::Tooltip,
 };
-use gpui_kit::{App, EntityId, IntoElement, SharedString, div, prelude::*, px};
+use gpui_kit::{App, EntityId, Hsla, IntoElement, SharedString, div, prelude::*, px};
 
 use crate::workspace::WorkspaceRef;
 
@@ -33,7 +33,9 @@ pub fn render_strip_tab(
     cx: &mut App,
 ) -> impl IntoElement {
     let pinned = is_panel_pinned(panel_id, cx);
-    let info = tab_info(&label, panel_id, cx);
+    let spec = tab_spec(panel_id, cx);
+    let icon = spec.as_ref().map(|s| tab_icon(s, cx.theme()));
+    let info = tab_info(&label, spec.as_ref());
     let text = with_dirty_suffix(label, dirty);
     let color = cx.theme().tab_foreground;
 
@@ -44,6 +46,9 @@ pub fn render_strip_tab(
         .context_menu(move |menu, _window, cx| tab_context_menu(menu, panel_id, cx))
         .gap(px(4.0))
         .items_center()
+        .when_some(icon, |this, (name, color)| {
+            this.child(Icon::new(name).xsmall().text_color(color))
+        })
         .when(pinned, |this| {
             this.child(
                 Icon::empty()
@@ -56,16 +61,51 @@ pub fn render_strip_tab(
         .when(!pinned, |this| this.child(close_button(panel_id, color)))
 }
 
-/// Hover card text: tab title, what it shows, and its connection.
-fn tab_info(label: &SharedString, panel_id: EntityId, cx: &App) -> SharedString {
-    let spec = cx
-        .try_global::<TabManagerRef>()
+fn tab_spec(panel_id: EntityId, cx: &App) -> Option<TabSpec> {
+    cx.try_global::<TabManagerRef>()
         .and_then(|tm| tm.0.read(cx).tab_for_panel_id(panel_id))
-        .map(|t| t.spec.clone());
+        .map(|t| t.spec.clone())
+}
+
+/// Leading glyph and tint that identify a tab's kind at a glance.
+fn tab_icon(spec: &TabSpec, theme: &Theme) -> (IconName, Hsla) {
+    let muted = theme.muted_foreground;
+    match spec {
+        TabSpec::Home => (IconName::Globe, muted),
+        TabSpec::Dashboard { .. } => (IconName::ChartPie, theme.blue_light),
+        TabSpec::DataViewer { .. } => (IconName::LayoutDashboard, theme.blue_light),
+        TabSpec::Inspector { .. } => (IconName::Inspector, theme.blue_light),
+        TabSpec::QueryEditor { .. } => (IconName::SquareTerminal, theme.green_light),
+        TabSpec::Pipeline { .. } => (IconName::GalleryVerticalEnd, theme.green_light),
+        TabSpec::DocumentInsert { .. } => (IconName::Plus, theme.green_light),
+        TabSpec::ObjectInfo { .. } => (IconName::Info, muted),
+        TabSpec::ReleaseNotes { .. } => (IconName::FileText, muted),
+        // Panels the dock infers as `Builtin` are identified by panel name.
+        TabSpec::Builtin { panel, .. } => builtin_icon(panel, theme),
+    }
+}
+
+fn builtin_icon(panel: &str, theme: &Theme) -> (IconName, Hsla) {
+    let (blue, green, red) = (theme.blue_light, theme.green_light, theme.red_light);
+    match panel {
+        p if p.ends_with("DataViewer") => (IconName::LayoutDashboard, blue),
+        p if p.ends_with("Inspector") => (IconName::Inspector, blue),
+        p if p.ends_with("DocumentViewer") => (IconName::Inbox, green),
+        p if p.ends_with("DocumentEditor") => (IconName::Plus, green),
+        p if p.ends_with("ChangeStream") => (IconName::Redo2, green),
+        p if p.starts_with("Redis") && p.ends_with("Console") => (IconName::SquareTerminal, red),
+        p if p.starts_with("Redis") => (IconName::Asterisk, red),
+        "ObjectInfo" => (IconName::Info, theme.muted_foreground),
+        _ => (IconName::Settings, theme.muted_foreground),
+    }
+}
+
+/// Hover card text: tab title, what it shows, and its connection.
+fn tab_info(label: &SharedString, spec: Option<&TabSpec>) -> SharedString {
     let Some(spec) = spec else {
         return label.clone();
     };
-    let detail = match &spec {
+    let detail = match spec {
         TabSpec::DataViewer { object, .. } => format!("Table data · {object}"),
         TabSpec::Inspector { object, .. } => format!("Schema · {object}"),
         TabSpec::QueryEditor { .. } => "Query editor".into(),

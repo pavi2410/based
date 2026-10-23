@@ -63,23 +63,16 @@ impl FontWeightToken {
 #[serde(rename_all = "snake_case")]
 pub enum UiFontFamilyId {
     #[default]
-    IbmPlexMono,
     SystemUi,
     JetBrainsMono,
     PlatformMono,
 }
 
 impl UiFontFamilyId {
-    pub const ALL: [Self; 4] = [
-        Self::IbmPlexMono,
-        Self::SystemUi,
-        Self::JetBrainsMono,
-        Self::PlatformMono,
-    ];
+    pub const ALL: [Self; 3] = [Self::SystemUi, Self::JetBrainsMono, Self::PlatformMono];
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::IbmPlexMono => "IBM Plex Mono",
             Self::SystemUi => "System UI",
             Self::JetBrainsMono => "JetBrains Mono",
             Self::PlatformMono => "System Mono",
@@ -88,7 +81,6 @@ impl UiFontFamilyId {
 
     pub fn resolve(self) -> SharedString {
         match self {
-            Self::IbmPlexMono => "IBM Plex Mono".into(),
             Self::SystemUi => ".SystemUIFont".into(),
             Self::JetBrainsMono => "JetBrains Mono".into(),
             Self::PlatformMono => platform_mono_family(),
@@ -97,7 +89,6 @@ impl UiFontFamilyId {
 
     pub fn storage_key(self) -> &'static str {
         match self {
-            Self::IbmPlexMono => "ibm_plex_mono",
             Self::SystemUi => "system_ui",
             Self::JetBrainsMono => "jetbrains_mono",
             Self::PlatformMono => "platform_mono",
@@ -106,7 +97,6 @@ impl UiFontFamilyId {
 
     pub fn from_storage_key(key: &str) -> Option<Self> {
         match key {
-            "ibm_plex_mono" => Some(Self::IbmPlexMono),
             "system_ui" => Some(Self::SystemUi),
             "jetbrains_mono" => Some(Self::JetBrainsMono),
             "platform_mono" => Some(Self::PlatformMono),
@@ -122,17 +112,15 @@ impl UiFontFamilyId {
 pub enum CodeFontFamilyId {
     #[default]
     JetBrainsMono,
-    IbmPlexMono,
     PlatformMono,
 }
 
 impl CodeFontFamilyId {
-    pub const ALL: [Self; 3] = [Self::JetBrainsMono, Self::IbmPlexMono, Self::PlatformMono];
+    pub const ALL: [Self; 2] = [Self::JetBrainsMono, Self::PlatformMono];
 
     pub fn label(self) -> &'static str {
         match self {
             Self::JetBrainsMono => "JetBrains Mono",
-            Self::IbmPlexMono => "IBM Plex Mono",
             Self::PlatformMono => "System Mono",
         }
     }
@@ -140,7 +128,6 @@ impl CodeFontFamilyId {
     pub fn resolve(self) -> SharedString {
         match self {
             Self::JetBrainsMono => "JetBrains Mono".into(),
-            Self::IbmPlexMono => "IBM Plex Mono".into(),
             Self::PlatformMono => platform_mono_family(),
         }
     }
@@ -148,7 +135,6 @@ impl CodeFontFamilyId {
     pub fn storage_key(self) -> &'static str {
         match self {
             Self::JetBrainsMono => "jetbrains_mono",
-            Self::IbmPlexMono => "ibm_plex_mono",
             Self::PlatformMono => "platform_mono",
         }
     }
@@ -156,7 +142,6 @@ impl CodeFontFamilyId {
     pub fn from_storage_key(key: &str) -> Option<Self> {
         match key {
             "jetbrains_mono" => Some(Self::JetBrainsMono),
-            "ibm_plex_mono" => Some(Self::IbmPlexMono),
             "platform_mono" => Some(Self::PlatformMono),
             _ => None,
         }
@@ -183,7 +168,7 @@ pub struct UiFontProfile {
 impl Default for UiFontProfile {
     fn default() -> Self {
         Self {
-            family: UiFontFamilyId::IbmPlexMono,
+            family: UiFontFamilyId::SystemUi,
             weight: FontWeightToken::Regular,
             size: SizeToken::Medium,
         }

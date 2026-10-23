@@ -118,6 +118,8 @@ pub struct FilterBar {
     pub selected_column: usize,
     pub op: FilterOp,
     value_input: Entity<InputState>,
+    /// `columns` holds only a preset column until the real list loads.
+    preset_only: bool,
 }
 
 impl FilterBar {
@@ -128,7 +130,24 @@ impl FilterBar {
             selected_column: 0,
             op: FilterOp::Eq,
             value_input,
+            preset_only: false,
         }
+    }
+
+    /// Start with `column = value`; the full column list replaces the preset on load.
+    pub fn preset_eq(
+        &mut self,
+        column: String,
+        value: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.columns = vec![column];
+        self.selected_column = 0;
+        self.op = FilterOp::Eq;
+        self.preset_only = true;
+        self.value_input
+            .update(cx, |state, cx| state.set_value(value, window, cx));
     }
 
     pub fn current_expr(&self, cx: &App) -> Option<FilterExpr> {
@@ -165,9 +184,14 @@ impl FilterBar {
     }
 
     pub fn set_columns_if_empty(&mut self, columns: Vec<String>, cx: &mut Context<Self>) {
-        if self.columns.is_empty() && !columns.is_empty() {
+        if (self.columns.is_empty() || self.preset_only) && !columns.is_empty() {
+            self.selected_column = self
+                .columns
+                .get(self.selected_column)
+                .and_then(|c| columns.iter().position(|n| n == c))
+                .unwrap_or(0);
             self.columns = columns;
-            self.selected_column = 0;
+            self.preset_only = false;
             cx.notify();
         }
     }

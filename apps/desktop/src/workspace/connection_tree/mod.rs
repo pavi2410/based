@@ -378,6 +378,7 @@ impl ConnectionTree {
                     cx.emit(TreeEvent::OpenTab(TabSpec::DataViewer {
                         conn_id: ent.read(cx).id.clone(),
                         object: object.display_name(),
+                        filter: None,
                     }));
                 }
                 _ => self.emit_object_info_tab(object, conn_idx, cx),
@@ -387,6 +388,7 @@ impl ConnectionTree {
                     cx.emit(TreeEvent::OpenTab(TabSpec::DataViewer {
                         conn_id: ent.read(cx).id.clone(),
                         object: object.display_name(),
+                        filter: None,
                     }));
                 }
                 _ => self.emit_object_info_tab(object, conn_idx, cx),
@@ -396,6 +398,7 @@ impl ConnectionTree {
                     cx.emit(TreeEvent::OpenTab(TabSpec::DataViewer {
                         conn_id: ent.read(cx).id.clone(),
                         object: object.display_name(),
+                        filter: None,
                     }));
                 } else {
                     self.emit_object_info_tab(object, conn_idx, cx);
@@ -406,6 +409,7 @@ impl ConnectionTree {
                     cx.emit(TreeEvent::OpenTab(TabSpec::DataViewer {
                         conn_id: ent.read(cx).id.clone(),
                         object: object.display_name(),
+                        filter: None,
                     }));
                 }
             }

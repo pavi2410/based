@@ -31,7 +31,7 @@ pub fn build_panel(
     cx: &mut Context<Workspace>,
 ) -> Option<Arc<dyn PanelView>> {
     match spec {
-        TabSpec::DataViewer { object, .. } => {
+        TabSpec::DataViewer { object, filter, .. } => {
             let label = tab_label_for_spec(spec, false);
             let panel = cx.new(|cx| {
                 DataViewerPanel::new(
@@ -40,6 +40,7 @@ pub fn build_panel(
                         table: object.clone(),
                     }),
                     conn_id.clone(),
+                    filter.clone(),
                     window,
                     cx,
                 )

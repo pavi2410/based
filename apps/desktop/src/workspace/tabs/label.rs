@@ -163,7 +163,10 @@ pub fn tab_label_for_spec(spec: &TabSpec, dirty: bool) -> SharedString {
     let base = match spec {
         TabSpec::Home => "Home".to_string(),
         TabSpec::Dashboard { conn_id } => conn_id.0.clone(),
-        TabSpec::DataViewer { object, .. } => short_object_name(object),
+        TabSpec::DataViewer { object, filter, .. } => match filter {
+            Some(f) => format!("{} · {}={}", short_object_name(object), f.column, f.value),
+            None => short_object_name(object),
+        },
         TabSpec::QueryEditor { .. } => "Query".to_string(),
         TabSpec::Pipeline { collection, .. } => collection.clone(),
         TabSpec::Inspector { object, .. } => format!("{} (schema)", short_object_name(object)),
@@ -212,6 +215,7 @@ mod tests {
         let spec = TabSpec::DataViewer {
             conn_id: ConnectionId("x".into()),
             object: "public.orders".into(),
+            filter: None,
         };
         assert_eq!(tab_label_for_spec(&spec, false).as_ref(), "orders");
     }

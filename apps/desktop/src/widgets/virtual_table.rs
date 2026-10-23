@@ -2,8 +2,11 @@
 // The DataTable widget in gpui-kit already virtualizes rows internally,
 // so this is a thin wrapper / type alias for the RowDelegate-based table.
 
+use std::rc::Rc;
+
 use gpui_kit::component::{
     StyleSized,
+    menu::{ContextMenuExt, PopupMenu},
     table::{Column, ColumnSort, TableDelegate, TableState},
 };
 use gpui_kit::{prelude::*, *};
@@ -24,6 +27,9 @@ pub fn data_column(key: impl Into<SharedString>, label: impl Into<SharedString>)
     Column::new(key, label).sortable().resizable(true)
 }
 
+/// Builds the right-click menu for cell `(row, col)`.
+pub type CellMenuFn = Rc<dyn Fn(PopupMenu, usize, usize, &App) -> PopupMenu>;
+
 /// Generic row data: column names + string-valued cells.
 #[derive(Default)]
 pub struct RowDelegate {
@@ -34,6 +40,7 @@ pub struct RowDelegate {
     pub sort_asc: bool,
     pub same_value_match: Option<SameValueMatch>,
     pub cell_focused: bool,
+    pub cell_menu: Option<CellMenuFn>,
 }
 
 impl TableDelegate for RowDelegate {
@@ -89,11 +96,19 @@ impl TableDelegate for RowDelegate {
         // to the glyphs and drops the kit left pad. Wash sits on this
         // unpadded fill; an inner `table_cell_size` keeps label inset. The
         // kit draws the blue ring after this node.
-        div()
+        let menu_fn = self.cell_menu.clone();
+        let el = div()
+            .id(("cell", row_ix << 16 | col_ix))
             .absolute()
             .inset_0()
             .when(highlight, |this| this.bg(same_value::wash_color()))
-            .child(div().size_full().table_cell_size(cell_size).child(cell))
+            .child(div().size_full().table_cell_size(cell_size).child(cell));
+        match menu_fn {
+            Some(f) => el
+                .context_menu(move |menu, _, cx| f(menu, row_ix, col_ix, cx))
+                .into_any_element(),
+            None => el.into_any_element(),
+        }
     }
 
     fn cell_text(&self, row_ix: usize, col_ix: usize, _: &App) -> String {

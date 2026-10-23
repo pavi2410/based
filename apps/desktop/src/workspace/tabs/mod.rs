@@ -20,4 +20,4 @@ pub use open::{
     enqueue_toggle_side_pane, mark_query_tab_dirty, request_workspace_flush, take_sql_inject,
 };
 pub use session::{SessionSnapshot, merge_live_and_pending};
-pub use spec::{QueryEditorInit, TabSpec};
+pub use spec::{DrillFilter, QueryEditorInit, TabSpec};

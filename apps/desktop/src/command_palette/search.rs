@@ -160,6 +160,7 @@ fn push_schema_objects(
             spec: TabSpec::DataViewer {
                 conn_id: conn_id.clone(),
                 object: display,
+                filter: None,
             },
             command_action: None,
             project_query_path: None,

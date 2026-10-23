@@ -39,6 +39,13 @@ impl Default for QueryEditorInit {
     }
 }
 
+/// Equality filter a data viewer opens with.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct DrillFilter {
+    pub column: String,
+    pub value: String,
+}
+
 /// Identifies what a tab shows. Used by TabManager to open-or-focus.
 /// Two specs are equal iff they refer to the same logical panel — prevents duplicate DataViewers.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -52,6 +59,9 @@ pub enum TabSpec {
     DataViewer {
         conn_id: ConnectionId,
         object: String,
+        /// Initial `column = value` filter (foreign-key drill-down).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        filter: Option<DrillFilter>,
     },
     /// Query/pipeline editor. Always opens a new tab (see TabManager).
     QueryEditor {
@@ -130,10 +140,12 @@ mod tests {
         let a = TabSpec::DataViewer {
             conn_id: ConnectionId("pg".into()),
             object: "users".into(),
+            filter: None,
         };
         let b = TabSpec::DataViewer {
             conn_id: ConnectionId("pg".into()),
             object: "users".into(),
+            filter: None,
         };
         assert_eq!(a, b);
     }
@@ -143,10 +155,12 @@ mod tests {
         let a = TabSpec::DataViewer {
             conn_id: ConnectionId("pg".into()),
             object: "users".into(),
+            filter: None,
         };
         let b = TabSpec::DataViewer {
             conn_id: ConnectionId("pg".into()),
             object: "orders".into(),
+            filter: None,
         };
         assert_ne!(a, b);
     }
@@ -195,6 +209,7 @@ mod tests {
             TabSpec::DataViewer {
                 conn_id: ConnectionId("pg".into()),
                 object: "users".into(),
+                filter: None,
             }
         );
     }

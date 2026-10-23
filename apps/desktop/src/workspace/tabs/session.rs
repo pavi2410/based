@@ -104,6 +104,7 @@ mod tests {
             TabSpec::DataViewer {
                 conn_id: ConnectionId("events".into()),
                 object: "events".into(),
+                filter: None,
             },
         ];
         let tabs = merge_live_and_pending(live, &pending);
@@ -136,6 +137,7 @@ mod tests {
             TabSpec::DataViewer {
                 conn_id: conn,
                 object: "txns".into(),
+                filter: None,
             },
         ];
         let tabs = merge_live_and_pending(live, &pending);

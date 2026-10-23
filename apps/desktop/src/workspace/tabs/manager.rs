@@ -148,6 +148,7 @@ mod tests {
         let spec_a = TabSpec::DataViewer {
             conn_id: ConnectionId("pg".into()),
             object: "users".into(),
+            filter: None,
         };
         let spec_b = spec_a.clone();
         assert_eq!(spec_a, spec_b, "same spec should match for dedup");

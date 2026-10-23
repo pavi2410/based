@@ -71,6 +71,7 @@ mod tests {
             spec: TabSpec::DataViewer {
                 conn_id: conn("local"),
                 object: "users".into(),
+                filter: None,
             },
             project_query_path: None,
             command_action: None,
@@ -85,6 +86,7 @@ mod tests {
             PaletteEvent::OpenTab(TabSpec::DataViewer {
                 conn_id: conn("local"),
                 object: "users".into(),
+                filter: None,
             })
         );
     }

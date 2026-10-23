@@ -31,7 +31,7 @@ pub fn build_panel(
     cx: &mut Context<Workspace>,
 ) -> Option<Arc<dyn PanelView>> {
     match spec {
-        TabSpec::DataViewer { object, .. } => {
+        TabSpec::DataViewer { object, filter, .. } => {
             let (schema, name) = match object.rsplit_once('.') {
                 Some((s, n)) if !n.is_empty() => (s.to_string(), n.to_string()),
                 _ => ("public".to_string(), object.clone()),
@@ -45,6 +45,7 @@ pub fn build_panel(
                         table: name,
                     }),
                     conn_id.clone(),
+                    filter.clone(),
                     window,
                     cx,
                 )

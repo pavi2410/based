@@ -1,5 +1,7 @@
 //! Filter bar: pick column, op, and value; build SQL or Mongo filter strings.
 
+use std::collections::HashSet;
+
 use gpui_kit::component::{
     ActiveTheme, Sizable,
     button::{Button, ButtonVariants},
@@ -23,9 +25,24 @@ pub enum FilterOp {
     Lte,
     IsNull,
     IsNotNull,
+    /// Array column: any element equals value.
+    ArrayHas,
+    /// Array column: contains all listed values.
+    ArrayHasAll,
+    /// Array column: shares any listed value.
+    ArrayHasAny,
 }
 
 impl FilterOp {
+    /// Extra operators offered for array columns.
+    pub const ARRAY: [FilterOp; 3] = [Self::ArrayHas, Self::ArrayHasAll, Self::ArrayHasAny];
+
+    /// Operators valid for a column of the given kind.
+    pub fn for_column(is_array: bool) -> impl Iterator<Item = FilterOp> {
+        let extra: &[FilterOp] = if is_array { &Self::ARRAY } else { &[] };
+        Self::ALL.into_iter().chain(extra.iter().copied())
+    }
+
     pub const ALL: [FilterOp; 12] = [
         Self::Eq,
         Self::NotEq,
@@ -55,6 +72,9 @@ impl FilterOp {
             Self::Lte => "≤",
             Self::IsNull => "is null",
             Self::IsNotNull => "is not null",
+            Self::ArrayHas => "has",
+            Self::ArrayHasAll => "has all",
+            Self::ArrayHasAny => "has any",
         }
     }
 
@@ -90,6 +110,30 @@ impl FilterExpr {
         }
     }
 
+    /// Elements of a comma-separated list (or an existing `{..}` array literal).
+    fn list_items(&self) -> Vec<String> {
+        let v = self.value.trim();
+        let inner = v
+            .strip_prefix('{')
+            .and_then(|r| r.strip_suffix('}'))
+            .unwrap_or(v);
+        inner
+            .split(',')
+            .map(|i| i.trim().trim_matches('"').to_string())
+            .filter(|i| !i.is_empty())
+            .collect()
+    }
+
+    /// Postgres array literal body for the listed values, SQL-escaped.
+    fn pg_array_literal(&self) -> String {
+        let items: Vec<String> = self
+            .list_items()
+            .iter()
+            .map(|i| format!("\"{}\"", i.replace('\\', "\\\\").replace('"', "\\\"")))
+            .collect();
+        format!("{{{}}}", items.join(",")).replace('\'', "''")
+    }
+
     /// Postgres-style fragment (`ILIKE`, quoted identifiers).
     pub fn to_sql_postgres(&self) -> String {
         let c = quote_sql_ident(&self.column);
@@ -103,6 +147,9 @@ impl FilterExpr {
             FilterOp::Gte => format!("{c} >= '{}'", self.value.replace('\'', "''")),
             FilterOp::Lt => format!("{c} < '{}'", self.value.replace('\'', "''")),
             FilterOp::Lte => format!("{c} <= '{}'", self.value.replace('\'', "''")),
+            FilterOp::ArrayHas => format!("'{}' = ANY({c})", self.value.replace('\'', "''")),
+            FilterOp::ArrayHasAll => format!("{c} @> '{}'", self.pg_array_literal()),
+            FilterOp::ArrayHasAny => format!("{c} && '{}'", self.pg_array_literal()),
             FilterOp::NotLike => format!("{c} NOT ILIKE '{}'", self.like_pattern()),
             FilterOp::StartsWith | FilterOp::EndsWith => {
                 format!("{c} ILIKE '{}'", self.like_pattern())
@@ -131,6 +178,10 @@ impl FilterExpr {
             FilterOp::Lte => format!("{c} <= '{}'", self.value.replace('\'', "''")),
             FilterOp::NotLike => {
                 format!("{c} NOT LIKE '{}' ESCAPE '\\'", self.like_pattern())
+            }
+            // SQLite has no arrays; match the text form instead.
+            FilterOp::ArrayHas | FilterOp::ArrayHasAll | FilterOp::ArrayHasAny => {
+                format!("{c} LIKE '{}' ESCAPE '\\'", self.like_pattern())
             }
             FilterOp::StartsWith | FilterOp::EndsWith => {
                 format!("{c} LIKE '{}' ESCAPE '\\'", self.like_pattern())
@@ -172,6 +223,24 @@ impl FilterExpr {
             FilterOp::Gte => format!("{{\"{}\":{{\"$gte\":\"{}\"}}}}", self.column, self.value),
             FilterOp::Lt => format!("{{\"{}\":{{\"$lt\":\"{}\"}}}}", self.column, self.value),
             FilterOp::Lte => format!("{{\"{}\":{{\"$lte\":\"{}\"}}}}", self.column, self.value),
+            FilterOp::ArrayHas => format!("{{\"{}\":\"{}\"}}", self.column, self.value),
+            FilterOp::ArrayHasAll | FilterOp::ArrayHasAny => {
+                let key = if self.op == FilterOp::ArrayHasAll {
+                    "$all"
+                } else {
+                    "$in"
+                };
+                let items: Vec<String> = self
+                    .list_items()
+                    .iter()
+                    .map(|i| format!("\"{}\"", i.replace('\\', "\\\\").replace('"', "\\\"")))
+                    .collect();
+                format!(
+                    "{{\"{}\":{{\"{key}\":[{}]}}}}",
+                    self.column,
+                    items.join(",")
+                )
+            }
             FilterOp::NotLike => format!(
                 "{{\"{}\":{{\"$not\":{{\"$regex\":\"{}\",\"$options\":\"i\"}}}}}}",
                 self.column,
@@ -196,6 +265,8 @@ pub struct FilterBar {
     pub selected_column: usize,
     pub op: FilterOp,
     value_input: Entity<InputState>,
+    /// Columns whose type is an array (enables array operators).
+    array_columns: HashSet<String>,
     /// `columns` holds only a preset column until the real list loads.
     preset_only: bool,
 }
@@ -208,6 +279,7 @@ impl FilterBar {
             selected_column: 0,
             op: FilterOp::Eq,
             value_input,
+            array_columns: HashSet::new(),
             preset_only: false,
         }
     }
@@ -266,6 +338,16 @@ impl FilterBar {
         }
     }
 
+    pub fn set_array_columns(&mut self, cols: HashSet<String>) {
+        self.array_columns = cols;
+    }
+
+    fn selected_is_array(&self) -> bool {
+        self.columns
+            .get(self.selected_column)
+            .is_some_and(|c| self.array_columns.contains(c))
+    }
+
     pub fn clear(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.value_input.update(cx, |state, cx| {
             state.set_value("", window, cx);
@@ -319,6 +401,11 @@ impl Render for FilterBar {
                                         .on_click(move |_, _, cx| {
                                             let _ = fb.update(cx, |fb, cx| {
                                                 fb.selected_column = i;
+                                                if !fb.selected_is_array()
+                                                    && FilterOp::ARRAY.contains(&fb.op)
+                                                {
+                                                    fb.op = FilterOp::Eq;
+                                                }
                                                 cx.notify();
                                             });
                                         }),
@@ -335,9 +422,10 @@ impl Render for FilterBar {
                     .dropdown_caret(true)
                     .label(self.op.label())
                     .dropdown_menu({
-                        let (fb, current) = (cx.weak_entity(), self.op);
+                        let (fb, current, is_array) =
+                            (cx.weak_entity(), self.op, self.selected_is_array());
                         move |mut menu, _, _| {
-                            for op in FilterOp::ALL {
+                            for op in FilterOp::for_column(is_array) {
                                 let fb = fb.clone();
                                 menu = menu.item(
                                     PopupMenuItem::new(op.label())
@@ -424,5 +512,26 @@ mod tests {
             value: "O'Brien".into(),
         };
         assert_eq!(expr.to_sql_postgres(), "\"name\" = 'O''Brien'");
+    }
+
+    #[test]
+    fn sql_array_ops_postgres() {
+        let mk = |op, v: &str| FilterExpr {
+            column: "tags".into(),
+            op,
+            value: v.into(),
+        };
+        assert_eq!(
+            mk(FilterOp::ArrayHas, "a").to_sql_postgres(),
+            "'a' = ANY(\"tags\")"
+        );
+        assert_eq!(
+            mk(FilterOp::ArrayHasAll, "a, b").to_sql_postgres(),
+            "\"tags\" @> '{\"a\",\"b\"}'"
+        );
+        assert_eq!(
+            mk(FilterOp::ArrayHasAny, "{1,2}").to_sql_postgres(),
+            "\"tags\" && '{\"1\",\"2\"}'"
+        );
     }
 }

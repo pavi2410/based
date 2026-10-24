@@ -1,7 +1,7 @@
 // Paginated table viewer shared by SQL engines; engines plug in via [`DataSource`].
 
 use gpui_kit::assets::IconName as AssetIcon;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -40,6 +40,20 @@ use crate::widgets::virtual_table::{
 use crate::workspace::WorkspaceRef;
 use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::tabs::{DrillFilter, TabSpec, enqueue_open_tab, request_workspace_flush};
+
+fn is_array_type(ty: Option<&str>) -> bool {
+    ty.is_some_and(|t| t.trim().ends_with("[]") || t.trim().eq_ignore_ascii_case("array"))
+}
+
+/// Names of columns whose catalog type is an array.
+fn meta_array_columns(names: &[String], meta: &[ColumnMeta]) -> HashSet<String> {
+    names
+        .iter()
+        .zip(meta)
+        .filter(|(_, m)| is_array_type(m.data_type.as_deref()))
+        .map(|(n, _)| n.clone())
+        .collect()
+}
 
 pub type Fut<T> = BoxFuture<'static, anyhow::Result<T>>;
 
@@ -239,10 +253,24 @@ impl DataViewerPanel {
                 .unwrap_or_default();
             let headers: Vec<String> = del.columns.iter().map(|c| c.key.to_string()).collect();
             let fk = this.fk_target_for(row, col, cx);
-            name.zip(value)
-                .map(|(n, v)| (n, v, row_text, headers, fk, this.self_handle.clone()))
+            let is_array = is_array_type(
+                del.column_meta
+                    .get(col)
+                    .and_then(|m| m.data_type.as_deref()),
+            );
+            name.zip(value).map(|(n, v)| {
+                (
+                    n,
+                    v,
+                    row_text,
+                    headers,
+                    fk,
+                    this.self_handle.clone(),
+                    is_array,
+                )
+            })
         };
-        let Some((name, value, row_text, headers, fk, this)) = snap else {
+        let Some((name, value, row_text, headers, fk, this, is_array)) = snap else {
             return menu;
         };
         let row_tsv = row_text.join("\t");
@@ -263,7 +291,8 @@ impl DataViewerPanel {
             .submenu("Quick Filter", window, cx, {
                 let this = this.clone();
                 move |mut m, _, _| {
-                    for op in FilterOp::ALL {
+                    // `has` takes a single element; a whole-cell array can't supply one.
+                    for op in FilterOp::for_column(is_array).filter(|o| *o != FilterOp::ArrayHas) {
                         let (this, name, fv) = (this.clone(), name.clone(), fv.clone());
                         let label = if op.has_value() {
                             format!("{name} {} value", op.label())
@@ -344,7 +373,9 @@ impl DataViewerPanel {
                         page.columns.iter().map(|c| c.key.to_string()).collect();
                     let meta = align_meta_to_columns(names.iter().cloned(), &catalog);
                     panel.column_catalog = catalog;
+                    let arrays = meta_array_columns(&names, &meta);
                     panel.filter_bar.update(cx, |fb, cx| {
+                        fb.set_array_columns(arrays);
                         fb.set_columns_if_empty(names, cx);
                     });
                     panel.table.update(cx, |state, cx| {

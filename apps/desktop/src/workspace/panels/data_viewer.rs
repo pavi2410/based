@@ -10,7 +10,7 @@ use time::OffsetDateTime;
 use futures::future::BoxFuture;
 use gpui_kit::component::table::TableEvent;
 use gpui_kit::component::{
-    ActiveTheme, Disableable as _, Icon, IconName, Sizable as _,
+    Disableable as _, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants as _},
     dock::{BasePanel, Panel, PanelEvent},
     menu::{PopupMenu, PopupMenuItem},
@@ -335,6 +335,20 @@ impl DataViewerPanel {
     }
 }
 
+/// Refresh glyph that spins while `spinning`.
+fn refresh_icon(spinning: bool) -> impl IntoElement {
+    let icon = Icon::new(IconName::RefreshCw).small();
+    if !spinning {
+        return icon.into_any_element();
+    }
+    icon.with_animation(
+        "refresh-spin",
+        Animation::new(Duration::from_millis(900)).repeat(),
+        |icon, delta| icon.transform(Transformation::rotate(percentage(delta))),
+    )
+    .into_any_element()
+}
+
 impl EventEmitter<PanelEvent> for DataViewerPanel {}
 
 impl Focusable for DataViewerPanel {
@@ -383,8 +397,6 @@ impl Render for DataViewerPanel {
         let id = self.source.id();
 
         let panel = cx.entity().downgrade();
-        let muted = cx.theme().muted_foreground;
-
         let (export_headers, export_rows) = {
             let st = self.table.read(cx);
             let d = st.delegate();
@@ -430,9 +442,6 @@ impl Render for DataViewerPanel {
                 )
             })
             .child(div().flex_1())
-            .when(loading, |d| {
-                d.child(div().text_sm().text_color(muted).child("Loading…"))
-            })
             .child(export_popover(id, export_headers, export_rows));
 
         let body = v_flex()
@@ -476,7 +485,7 @@ impl Render for DataViewerPanel {
                 Button::new(SharedString::from(format!("{id}-refresh")))
                     .ghost()
                     .small()
-                    .icon(Icon::new(IconName::RefreshCw))
+                    .child(refresh_icon(loading))
                     .tooltip("Refresh")
                     .disabled(loading)
                     .on_click(cx.listener(|panel, _, _, cx| panel.load_page(panel.offset, cx))),

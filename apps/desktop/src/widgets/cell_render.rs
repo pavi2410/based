@@ -10,12 +10,14 @@ use gpui_kit::{App, Div, IntoElement, SharedString, Window, div, prelude::*};
 use crate::app::prefs;
 use crate::widgets::datetime;
 use crate::widgets::dt_hover;
+use crate::widgets::json_hover;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ColumnValueKind {
     Numeric,
     Boolean,
     DateTime,
+    Json,
     Text,
     Unknown,
 }
@@ -40,6 +42,9 @@ pub fn column_value_kind(data_type: Option<&str>) -> ColumnValueKind {
     // contains "int" (including `timestamptz`) to INTEGER.
     if is_datetime_type(&base) {
         return ColumnValueKind::DateTime;
+    }
+    if matches!(base.as_str(), "json" | "jsonb") {
+        return ColumnValueKind::Json;
     }
     if is_numeric_type(&base) {
         return ColumnValueKind::Numeric;
@@ -260,7 +265,10 @@ pub fn compare_cells(kind: ColumnValueKind, a: &str, b: &str) -> Ordering {
             (Some(av), Some(bv)) => av.cmp(&bv),
             _ => a.cmp(b),
         },
-        ColumnValueKind::DateTime | ColumnValueKind::Text | ColumnValueKind::Unknown => a.cmp(b),
+        ColumnValueKind::DateTime
+        | ColumnValueKind::Json
+        | ColumnValueKind::Text
+        | ColumnValueKind::Unknown => a.cmp(b),
     }
 }
 
@@ -361,6 +369,16 @@ pub fn render_grid_cell(
                 .text_color(theme.foreground)
                 .child(display);
             dt_hover::wrap(("grid-dt-hover", cell_id), cell, &raw)
+        }
+        ColumnValueKind::Json => {
+            let cell_id = row_ix.saturating_mul(10_000).saturating_add(col_ix);
+            let raw = display.to_string();
+            let cell = cell_chrome(cx)
+                .id(("grid-cell-json", cell_id))
+                .w_full()
+                .text_color(theme.foreground)
+                .child(display);
+            json_hover::wrap(("grid-json-hover", cell_id), cell, &raw)
         }
         ColumnValueKind::Text | ColumnValueKind::Unknown => cell_chrome(cx)
             .text_color(theme.foreground)

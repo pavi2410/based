@@ -14,6 +14,7 @@ pub mod engine;
 pub mod export;
 pub mod export_popover;
 pub mod filter_bar;
+pub mod json_hover;
 pub mod kbd;
 pub mod layout;
 pub mod list_row;

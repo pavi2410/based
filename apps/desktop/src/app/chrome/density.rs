@@ -94,9 +94,9 @@ impl DensityPreset {
     pub fn tokens(self) -> (SizeToken, SizeToken, SizeToken) {
         match self {
             Self::Compact => (SizeToken::XSmall, SizeToken::Small, SizeToken::XSmall),
-            Self::Default => (SizeToken::Medium, SizeToken::Medium, SizeToken::XSmall),
+            Self::Default => (SizeToken::Medium, SizeToken::Medium, SizeToken::Small),
             Self::Comfortable => (SizeToken::Medium, SizeToken::Large, SizeToken::Small),
-            Self::Custom => (SizeToken::Medium, SizeToken::Medium, SizeToken::XSmall),
+            Self::Custom => (SizeToken::Medium, SizeToken::Medium, SizeToken::Small),
         }
     }
 
@@ -128,7 +128,7 @@ pub struct TableProfile {
 impl Default for TableProfile {
     fn default() -> Self {
         Self {
-            size: SizeToken::XSmall,
+            size: SizeToken::Small,
         }
     }
 }

@@ -28,7 +28,8 @@ pub fn data_column(key: impl Into<SharedString>, label: impl Into<SharedString>)
 }
 
 /// Builds the right-click menu for cell `(row, col)`.
-pub type CellMenuFn = Rc<dyn Fn(PopupMenu, usize, usize, &App) -> PopupMenu>;
+pub type CellMenuFn =
+    Rc<dyn Fn(PopupMenu, usize, usize, &mut Window, &mut Context<PopupMenu>) -> PopupMenu>;
 
 /// Generic row data: column names + string-valued cells.
 #[derive(Default)]
@@ -105,7 +106,7 @@ impl TableDelegate for RowDelegate {
             .child(div().size_full().table_cell_size(cell_size).child(cell));
         match menu_fn {
             Some(f) => el
-                .context_menu(move |menu, _, cx| f(menu, row_ix, col_ix, cx))
+                .context_menu(move |menu, window, cx| f(menu, row_ix, col_ix, window, cx))
                 .into_any_element(),
             None => el.into_any_element(),
         }

@@ -28,7 +28,7 @@ use crate::widgets::column_header::ColumnMeta;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::datetime::format_relative;
 use crate::widgets::export_popover::export_popover;
-use crate::widgets::filter_bar::{FilterBar, FilterExpr};
+use crate::widgets::filter_bar::{FilterBar, FilterExpr, FilterOp};
 use crate::widgets::pagination::{offset_for_page, sql_pagination_group};
 use crate::widgets::panel::{
     data_viewer_toolbar, panel_tab_content, tab_breadcrumb_data_viewer_trailing,
@@ -40,6 +40,22 @@ use crate::widgets::virtual_table::{
 use crate::workspace::WorkspaceRef;
 use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::tabs::{DrillFilter, TabSpec, enqueue_open_tab, request_workspace_flush};
+
+/// Operators offered by the cell "Quick Filter" submenu.
+const FILTER_MENU_OPS: [FilterOp; 12] = [
+    FilterOp::Eq,
+    FilterOp::NotEq,
+    FilterOp::Like,
+    FilterOp::NotLike,
+    FilterOp::StartsWith,
+    FilterOp::EndsWith,
+    FilterOp::Gt,
+    FilterOp::Gte,
+    FilterOp::Lt,
+    FilterOp::Lte,
+    FilterOp::IsNull,
+    FilterOp::IsNotNull,
+];
 
 pub type Fut<T> = BoxFuture<'static, anyhow::Result<T>>;
 
@@ -167,9 +183,11 @@ impl DataViewerPanel {
         let weak = cx.weak_entity();
         panel.table.update(cx, |t, _| {
             t.delegate_mut().cell_menu =
-                Some(Rc::new(move |menu, row, col, cx| match weak.upgrade() {
-                    Some(p) => p.read(cx).cell_menu(menu, row, col, cx),
-                    None => menu,
+                Some(Rc::new(move |menu, row, col, window, cx| {
+                    match weak.upgrade() {
+                        Some(p) => Self::cell_menu(&p, menu, row, col, window, cx),
+                        None => menu,
+                    }
                 }));
         });
         panel.load_page(0, cx);
@@ -212,22 +230,37 @@ impl DataViewerPanel {
     }
 
     /// Right-click menu for the cell at `(row, col)`.
-    fn cell_menu(&self, menu: PopupMenu, row: usize, col: usize, cx: &App) -> PopupMenu {
-        let del = self.table.read(cx).delegate();
-        let (Some(name), Some(value)) = (
-            del.columns.get(col).map(|c| c.key.to_string()),
-            del.rows
+    fn cell_menu(
+        p: &Entity<Self>,
+        menu: PopupMenu,
+        row: usize,
+        col: usize,
+        window: &mut Window,
+        cx: &mut Context<PopupMenu>,
+    ) -> PopupMenu {
+        // Snapshot owned data so `cx` stays free for building the submenu.
+        let snap = {
+            let this = p.read(cx);
+            let del = this.table.read(cx).delegate();
+            let name = del.columns.get(col).map(|c| c.key.to_string());
+            let value = del
+                .rows
                 .get(row)
                 .and_then(|r| r.get(col))
-                .map(|v| v.to_string()),
-        ) else {
+                .map(|v| v.to_string());
+            let row_text: Vec<String> = del
+                .rows
+                .get(row)
+                .map(|r| r.iter().map(|c| c.to_string()).collect())
+                .unwrap_or_default();
+            let headers: Vec<String> = del.columns.iter().map(|c| c.key.to_string()).collect();
+            let fk = this.fk_target_for(row, col, cx);
+            name.zip(value)
+                .map(|(n, v)| (n, v, row_text, headers, fk, this.self_handle.clone()))
+        };
+        let Some((name, value, row_text, headers, fk, this)) = snap else {
             return menu;
         };
-        let row_text = del.rows[row]
-            .iter()
-            .map(|c| c.to_string())
-            .collect::<Vec<_>>();
-        let headers: Vec<String> = del.columns.iter().map(|c| c.key.to_string()).collect();
         let row_tsv = row_text.join("\t");
         let row_json =
             serde_json::to_string_pretty(&headers.iter().zip(&row_text).collect::<HashMap<_, _>>())
@@ -237,24 +270,34 @@ impl DataViewerPanel {
                 cx.write_to_clipboard(ClipboardItem::new_string(text.clone()));
             })
         };
-        let this = self.self_handle.clone();
-        let (fv, fk) = (value.clone(), self.fk_target_for(row, col, cx));
+        let fv = value.clone();
         let mut menu = menu
             .item(copy("Copy Value", value))
             .item(copy("Copy Row (TSV)", row_tsv))
             .item(copy("Copy Row (JSON)", row_json))
             .separator()
-            .item(PopupMenuItem::new("Filter by Value").on_click({
+            .submenu("Quick Filter", window, cx, {
                 let this = this.clone();
-                move |_, window, cx| {
-                    let (name, fv) = (name.clone(), fv.clone());
-                    let _ = this.update(cx, |p, cx| {
-                        p.filter_bar
-                            .update(cx, |fb, cx| fb.preset_eq(name, &fv, window, cx));
-                        p.load_page(0, cx);
-                    });
+                move |mut m, _, _| {
+                    for op in FILTER_MENU_OPS {
+                        let (this, name, fv) = (this.clone(), name.clone(), fv.clone());
+                        let label = if op.has_value() {
+                            format!("{name} {} value", op.label())
+                        } else {
+                            format!("{name} {}", op.label())
+                        };
+                        m = m.item(PopupMenuItem::new(label).on_click(move |_, window, cx| {
+                            let (name, fv) = (name.clone(), fv.clone());
+                            let _ = this.update(cx, |p, cx| {
+                                p.filter_bar
+                                    .update(cx, |fb, cx| fb.preset(name, op, &fv, window, cx));
+                                p.load_page(0, cx);
+                            });
+                        }));
+                    }
+                    m
                 }
-            }));
+            });
         if let Some((table, f)) = fk {
             menu = menu.item(
                 PopupMenuItem::new(format!("Go to {table} · {}={}", f.column, f.value)).on_click(

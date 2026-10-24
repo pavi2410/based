@@ -13,8 +13,13 @@ pub enum FilterOp {
     Eq,
     NotEq,
     Like,
+    NotLike,
+    StartsWith,
+    EndsWith,
     Gt,
+    Gte,
     Lt,
+    Lte,
     IsNull,
     IsNotNull,
 }
@@ -25,8 +30,13 @@ impl FilterOp {
             Self::Eq => "=",
             Self::NotEq => "≠",
             Self::Like => "contains",
+            Self::NotLike => "not contains",
+            Self::StartsWith => "starts with",
+            Self::EndsWith => "ends with",
             Self::Gt => ">",
+            Self::Gte => "≥",
             Self::Lt => "<",
+            Self::Lte => "≤",
             Self::IsNull => "is null",
             Self::IsNotNull => "is not null",
         }
@@ -40,9 +50,14 @@ impl FilterOp {
         match self {
             Self::Eq => Self::NotEq,
             Self::NotEq => Self::Like,
-            Self::Like => Self::Gt,
-            Self::Gt => Self::Lt,
-            Self::Lt => Self::IsNull,
+            Self::Like => Self::NotLike,
+            Self::NotLike => Self::StartsWith,
+            Self::StartsWith => Self::EndsWith,
+            Self::EndsWith => Self::Gt,
+            Self::Gt => Self::Gte,
+            Self::Gte => Self::Lt,
+            Self::Lt => Self::Lte,
+            Self::Lte => Self::IsNull,
             Self::IsNull => Self::IsNotNull,
             Self::IsNotNull => Self::Eq,
         }
@@ -61,6 +76,21 @@ pub struct FilterExpr {
 }
 
 impl FilterExpr {
+    /// `LIKE` pattern (`%`/`_`/`\\` escaped) for contains / starts / ends ops.
+    fn like_pattern(&self) -> String {
+        let v = self
+            .value
+            .replace('\\', "\\\\")
+            .replace('%', "\\%")
+            .replace('_', "\\_")
+            .replace('\'', "''");
+        match self.op {
+            FilterOp::StartsWith => format!("{v}%"),
+            FilterOp::EndsWith => format!("%{v}"),
+            _ => format!("%{v}%"),
+        }
+    }
+
     /// Postgres-style fragment (`ILIKE`, quoted identifiers).
     pub fn to_sql_postgres(&self) -> String {
         let c = quote_sql_ident(&self.column);
@@ -71,7 +101,13 @@ impl FilterExpr {
             FilterOp::Eq => format!("{c} = '{}'", self.value.replace('\'', "''")),
             FilterOp::NotEq => format!("{c} != '{}'", self.value.replace('\'', "''")),
             FilterOp::Gt => format!("{c} > '{}'", self.value.replace('\'', "''")),
+            FilterOp::Gte => format!("{c} >= '{}'", self.value.replace('\'', "''")),
             FilterOp::Lt => format!("{c} < '{}'", self.value.replace('\'', "''")),
+            FilterOp::Lte => format!("{c} <= '{}'", self.value.replace('\'', "''")),
+            FilterOp::NotLike => format!("{c} NOT ILIKE '{}'", self.like_pattern()),
+            FilterOp::StartsWith | FilterOp::EndsWith => {
+                format!("{c} ILIKE '{}'", self.like_pattern())
+            }
         }
     }
 
@@ -91,8 +127,34 @@ impl FilterExpr {
             FilterOp::Eq => format!("{c} = '{}'", self.value.replace('\'', "''")),
             FilterOp::NotEq => format!("{c} != '{}'", self.value.replace('\'', "''")),
             FilterOp::Gt => format!("{c} > '{}'", self.value.replace('\'', "''")),
+            FilterOp::Gte => format!("{c} >= '{}'", self.value.replace('\'', "''")),
             FilterOp::Lt => format!("{c} < '{}'", self.value.replace('\'', "''")),
+            FilterOp::Lte => format!("{c} <= '{}'", self.value.replace('\'', "''")),
+            FilterOp::NotLike => {
+                format!("{c} NOT LIKE '{}' ESCAPE '\\'", self.like_pattern())
+            }
+            FilterOp::StartsWith | FilterOp::EndsWith => {
+                format!("{c} LIKE '{}' ESCAPE '\\'", self.like_pattern())
+            }
         }
+    }
+
+    /// Value escaped as a regex literal inside a JSON string.
+    fn mongo_regex(&self) -> String {
+        let mut out = String::new();
+        for ch in self.value.chars() {
+            if ch == '\\' {
+                out.push_str("\\\\\\\\");
+                continue;
+            }
+            if ".^$*+?()[]{}|".contains(ch) {
+                out.push_str("\\\\");
+            } else if ch == '"' {
+                out.push('\\');
+            }
+            out.push(ch);
+        }
+        out
     }
 
     /// MongoDB filter as extended-JSON string (single predicate).
@@ -108,7 +170,24 @@ impl FilterExpr {
                 self.value.replace('\\', "\\\\").replace('"', "\\\"")
             ),
             FilterOp::Gt => format!("{{\"{}\":{{\"$gt\":\"{}\"}}}}", self.column, self.value),
+            FilterOp::Gte => format!("{{\"{}\":{{\"$gte\":\"{}\"}}}}", self.column, self.value),
             FilterOp::Lt => format!("{{\"{}\":{{\"$lt\":\"{}\"}}}}", self.column, self.value),
+            FilterOp::Lte => format!("{{\"{}\":{{\"$lte\":\"{}\"}}}}", self.column, self.value),
+            FilterOp::NotLike => format!(
+                "{{\"{}\":{{\"$not\":{{\"$regex\":\"{}\",\"$options\":\"i\"}}}}}}",
+                self.column,
+                self.mongo_regex()
+            ),
+            FilterOp::StartsWith => format!(
+                "{{\"{}\":{{\"$regex\":\"^{}\",\"$options\":\"i\"}}}}",
+                self.column,
+                self.mongo_regex()
+            ),
+            FilterOp::EndsWith => format!(
+                "{{\"{}\":{{\"$regex\":\"{}$\",\"$options\":\"i\"}}}}",
+                self.column,
+                self.mongo_regex()
+            ),
         }
     }
 }
@@ -142,9 +221,21 @@ impl FilterBar {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.preset(column, FilterOp::Eq, value, window, cx);
+    }
+
+    /// Start with `column <op> value`; the full column list replaces the preset on load.
+    pub fn preset(
+        &mut self,
+        column: String,
+        op: FilterOp,
+        value: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.columns = vec![column];
         self.selected_column = 0;
-        self.op = FilterOp::Eq;
+        self.op = op;
         self.preset_only = true;
         self.value_input
             .update(cx, |state, cx| state.set_value(value, window, cx));

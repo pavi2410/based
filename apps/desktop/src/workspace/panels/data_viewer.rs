@@ -41,22 +41,6 @@ use crate::workspace::WorkspaceRef;
 use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::tabs::{DrillFilter, TabSpec, enqueue_open_tab, request_workspace_flush};
 
-/// Operators offered by the cell "Quick Filter" submenu.
-const FILTER_MENU_OPS: [FilterOp; 12] = [
-    FilterOp::Eq,
-    FilterOp::NotEq,
-    FilterOp::Like,
-    FilterOp::NotLike,
-    FilterOp::StartsWith,
-    FilterOp::EndsWith,
-    FilterOp::Gt,
-    FilterOp::Gte,
-    FilterOp::Lt,
-    FilterOp::Lte,
-    FilterOp::IsNull,
-    FilterOp::IsNotNull,
-];
-
 pub type Fut<T> = BoxFuture<'static, anyhow::Result<T>>;
 
 /// One page of table rows, already formatted for display.
@@ -279,7 +263,7 @@ impl DataViewerPanel {
             .submenu("Quick Filter", window, cx, {
                 let this = this.clone();
                 move |mut m, _, _| {
-                    for op in FILTER_MENU_OPS {
+                    for op in FilterOp::ALL {
                         let (this, name, fv) = (this.clone(), name.clone(), fv.clone());
                         let label = if op.has_value() {
                             format!("{name} {} value", op.label())

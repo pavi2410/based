@@ -5,6 +5,7 @@ use gpui_kit::component::{
     button::{Button, ButtonVariants},
     h_flex,
     input::{Input, InputState},
+    menu::{DropdownMenu as _, PopupMenuItem},
 };
 use gpui_kit::{App, Context, Entity, IntoElement, Render, Styled, Window, div, prelude::*, px};
 
@@ -25,6 +26,21 @@ pub enum FilterOp {
 }
 
 impl FilterOp {
+    pub const ALL: [FilterOp; 12] = [
+        Self::Eq,
+        Self::NotEq,
+        Self::Like,
+        Self::NotLike,
+        Self::StartsWith,
+        Self::EndsWith,
+        Self::Gt,
+        Self::Gte,
+        Self::Lt,
+        Self::Lte,
+        Self::IsNull,
+        Self::IsNotNull,
+    ];
+
     pub fn label(&self) -> &'static str {
         match self {
             Self::Eq => "=",
@@ -44,23 +60,6 @@ impl FilterOp {
 
     pub fn has_value(&self) -> bool {
         !matches!(self, Self::IsNull | Self::IsNotNull)
-    }
-
-    fn next(self) -> Self {
-        match self {
-            Self::Eq => Self::NotEq,
-            Self::NotEq => Self::Like,
-            Self::Like => Self::NotLike,
-            Self::NotLike => Self::StartsWith,
-            Self::StartsWith => Self::EndsWith,
-            Self::EndsWith => Self::Gt,
-            Self::Gt => Self::Gte,
-            Self::Gte => Self::Lt,
-            Self::Lt => Self::Lte,
-            Self::Lte => Self::IsNull,
-            Self::IsNull => Self::IsNotNull,
-            Self::IsNotNull => Self::Eq,
-        }
     }
 }
 
@@ -286,17 +285,6 @@ impl FilterBar {
             cx.notify();
         }
     }
-
-    fn cycle_column(&mut self) {
-        if self.columns.is_empty() {
-            return;
-        }
-        self.selected_column = (self.selected_column + 1) % self.columns.len();
-    }
-
-    fn cycle_op(&mut self) {
-        self.op = self.op.next();
-    }
 }
 
 impl Render for FilterBar {
@@ -312,26 +300,59 @@ impl Render for FilterBar {
                 Button::new("fb-col")
                     .small()
                     .ghost()
+                    .dropdown_caret(true)
                     .label(
                         self.columns
                             .get(self.selected_column)
                             .cloned()
                             .unwrap_or_else(|| "—".into()),
                     )
-                    .on_click(cx.listener(|fb, _, _, cx| {
-                        fb.cycle_column();
-                        cx.notify();
-                    })),
+                    .dropdown_menu({
+                        let (fb, columns, current) =
+                            (cx.weak_entity(), self.columns.clone(), self.selected_column);
+                        move |mut menu, _, _| {
+                            for (i, name) in columns.iter().enumerate() {
+                                let fb = fb.clone();
+                                menu = menu.item(
+                                    PopupMenuItem::new(name.clone())
+                                        .checked(i == current)
+                                        .on_click(move |_, _, cx| {
+                                            let _ = fb.update(cx, |fb, cx| {
+                                                fb.selected_column = i;
+                                                cx.notify();
+                                            });
+                                        }),
+                                );
+                            }
+                            menu
+                        }
+                    }),
             )
             .child(
                 Button::new("fb-op")
                     .small()
                     .ghost()
+                    .dropdown_caret(true)
                     .label(self.op.label())
-                    .on_click(cx.listener(|fb, _, _, cx| {
-                        fb.cycle_op();
-                        cx.notify();
-                    })),
+                    .dropdown_menu({
+                        let (fb, current) = (cx.weak_entity(), self.op);
+                        move |mut menu, _, _| {
+                            for op in FilterOp::ALL {
+                                let fb = fb.clone();
+                                menu = menu.item(
+                                    PopupMenuItem::new(op.label())
+                                        .checked(op == current)
+                                        .on_click(move |_, _, cx| {
+                                            let _ = fb.update(cx, |fb, cx| {
+                                                fb.op = op;
+                                                cx.notify();
+                                            });
+                                        }),
+                                );
+                            }
+                            menu
+                        }
+                    }),
             )
             .when(self.op.has_value(), |row| {
                 row.child(

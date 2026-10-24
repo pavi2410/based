@@ -3,7 +3,7 @@
 use super::*;
 
 /// Default SQL data viewer page size (rows per fetch).
-pub const DEFAULT_PAGE_SIZE: u64 = 500;
+pub const DEFAULT_PAGE_SIZE: u64 = 100;
 
 /// Default query timeout shown in settings (seconds); execution wiring is future work.
 pub const DEFAULT_QUERY_TIMEOUT_SECS: u32 = 30;

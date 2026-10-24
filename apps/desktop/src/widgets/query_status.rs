@@ -8,7 +8,9 @@ use gpui_kit::component::{
 };
 use gpui_kit::{prelude::*, *};
 
-use crate::widgets::metadata_pill;
+use time::OffsetDateTime;
+
+use crate::widgets::datetime::format_relative;
 
 /// Engine-agnostic representation of a query execution state.
 ///
@@ -23,6 +25,8 @@ pub enum QueryStatusDisplay {
         /// Present for engines that report affected-row counts (e.g. Postgres DML).
         affected: Option<u64>,
         elapsed_ms: u64,
+        /// When the result finished loading.
+        finished_at: OffsetDateTime,
     },
     Error(SharedString),
 }
@@ -83,32 +87,35 @@ pub fn query_status_indicator(status: &QueryStatusDisplay, cx: &mut App) -> AnyE
     }
 }
 
-/// Trailing cluster for query-editor breadcrumbs: rows, affected, and elapsed time.
+/// Trailing text for query-editor breadcrumbs: rows, affected, elapsed time, and age.
 pub fn tab_breadcrumb_query_trailing(
     status: &QueryStatusDisplay,
     cx: &mut App,
 ) -> Option<AnyElement> {
-    match status {
-        QueryStatusDisplay::Done {
-            rows,
-            affected,
-            elapsed_ms,
-        } => {
-            let mut row = h_flex()
-                .flex_shrink_0()
-                .items_center()
-                .gap(px(6.0))
-                .child(metadata_pill("rows", rows.to_string(), cx));
-            if let Some(n) = affected {
-                row = row.child(metadata_pill("affected", n.to_string(), cx));
-            }
-            Some(
-                row.child(metadata_pill("time", format!("{elapsed_ms} ms"), cx))
-                    .into_any_element(),
-            )
-        }
-        _ => None,
+    let QueryStatusDisplay::Done {
+        rows,
+        affected,
+        elapsed_ms,
+        finished_at,
+    } = status
+    else {
+        return None;
+    };
+    let muted = cx.theme().muted_foreground;
+    let mut parts = vec![format!("{rows} rows")];
+    if let Some(n) = affected {
+        parts.push(format!("{n} affected"));
     }
+    parts.push(format!("{elapsed_ms} ms"));
+    parts.push(format_relative(*finished_at, OffsetDateTime::now_utc()));
+    Some(
+        div()
+            .flex_shrink_0()
+            .text_xs()
+            .text_color(muted)
+            .child(parts.join(" · "))
+            .into_any_element(),
+    )
 }
 
 /// Danger-bordered mono error card with a copy button.

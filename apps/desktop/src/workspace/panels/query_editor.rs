@@ -3,6 +3,7 @@
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use time::OffsetDateTime;
 
 use based_core::EngineKind;
 use based_query::{Lint, Severity};
@@ -88,6 +89,7 @@ pub enum QueryStatus {
         rows: usize,
         affected: Option<u64>,
         elapsed_ms: u64,
+        finished_at: OffsetDateTime,
     },
     Error(String),
 }
@@ -175,6 +177,16 @@ impl QueryEditorPanel {
             cx.defer_in(window, |panel, _, cx| panel.run(cx));
         }
         panel.load_schema(cx);
+        // Keep the relative "loaded" label fresh.
+        cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor().timer(Duration::from_secs(5)).await;
+                if this.update(cx, |_, cx| cx.notify()).is_err() {
+                    break;
+                }
+            }
+        })
+        .detach();
         panel
     }
 
@@ -353,6 +365,7 @@ impl QueryEditorPanel {
                             rows: n,
                             affected: out.affected,
                             elapsed_ms: ms,
+                            finished_at: OffsetDateTime::now_utc(),
                         };
                         (Some(n as u64), status)
                     }
@@ -432,10 +445,12 @@ fn status_display(status: &QueryStatus) -> QueryStatusDisplay {
             rows,
             affected,
             elapsed_ms,
+            finished_at,
         } => QueryStatusDisplay::Done {
             rows: *rows,
             affected: *affected,
             elapsed_ms: *elapsed_ms,
+            finished_at: *finished_at,
         },
         QueryStatus::Error(e) => QueryStatusDisplay::Error(e.clone().into()),
     }
@@ -482,6 +497,7 @@ impl QueryEditorPanel {
                 rows,
                 affected,
                 elapsed_ms,
+                ..
             } => {
                 let affected = affected.map_or(String::new(), |a| format!(" · {a} affected"));
                 hint(

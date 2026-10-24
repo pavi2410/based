@@ -5,12 +5,15 @@ use std::cmp::Ordering;
 use gpui_kit::component::{
     ActiveTheme, Icon, IconName, Sizable as _, StyleSized, h_flex, tooltip::Tooltip,
 };
-use gpui_kit::{App, Div, IntoElement, SharedString, Window, div, prelude::*};
+use gpui_kit::{App, Div, IntoElement, SharedString, Window, div, prelude::*, px};
 
 use crate::app::prefs;
 use crate::widgets::datetime;
 use crate::widgets::dt_hover;
 use crate::widgets::json_hover;
+
+/// Max chars of a text cell shown in its hover tooltip.
+const TEXT_TOOLTIP_MAX: usize = 2_000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ColumnValueKind {
@@ -380,7 +383,27 @@ pub fn render_grid_cell(
                 .child(display);
             json_hover::wrap(("grid-json-hover", cell_id), cell, &raw)
         }
-        ColumnValueKind::Text | ColumnValueKind::Unknown => cell_chrome(cx)
+        ColumnValueKind::Text => {
+            let cell_id = row_ix.saturating_mul(10_000).saturating_add(col_ix);
+            let full: String = display.chars().take(TEXT_TOOLTIP_MAX).collect();
+            cell_chrome(cx)
+                .id(("grid-cell-text", cell_id))
+                .w_full()
+                .text_color(theme.foreground)
+                .child(display)
+                .hoverable_tooltip(move |w, app| {
+                    let text = full.clone();
+                    Tooltip::element(move |_, _| {
+                        div()
+                            .max_w(px(480.0))
+                            .child(text.clone())
+                            .into_any_element()
+                    })
+                    .build(w, app)
+                })
+                .into_any_element()
+        }
+        ColumnValueKind::Unknown => cell_chrome(cx)
             .text_color(theme.foreground)
             .child(display)
             .into_any_element(),

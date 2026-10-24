@@ -35,7 +35,18 @@ pub fn decode_pg_cell(type_name: &str, bytes: Option<&[u8]>) -> String {
     let Some(bytes) = bytes else {
         return NULL_CELL.into();
     };
-    decode_binary(normalize_pg_type(type_name), bytes).unwrap_or_else(|| NULL_CELL.into())
+    let type_name = type_name.trim();
+    let decoded = match array_elem_type(type_name) {
+        Some(elem) => decode_array(normalize_pg_type(elem), bytes),
+        None => decode_binary(normalize_pg_type(type_name), bytes),
+    };
+    decoded.unwrap_or_else(|| NULL_CELL.into())
+}
+
+/// Element type name for array types (`INT4[]`, `_text`); `None` for scalars.
+fn array_elem_type(name: &str) -> Option<&str> {
+    name.strip_suffix("[]")
+        .or_else(|| name.strip_prefix('_').filter(|n| !n.is_empty()))
 }
 
 fn normalize_pg_type(name: &str) -> &str {
@@ -88,6 +99,87 @@ fn decode_binary(type_name: &str, bytes: &[u8]) -> Option<String> {
         "NUMERIC" => decode_numeric(bytes),
         "UUID" => decode_uuid(bytes),
         _ => String::from_utf8(bytes.to_vec()).ok(),
+    }
+}
+
+fn read_i32(bytes: &[u8], off: usize) -> Option<i32> {
+    Some(i32::from_be_bytes(
+        bytes.get(off..off + 4)?.try_into().ok()?,
+    ))
+}
+
+/// Decode a binary array into Postgres literal syntax (`{1,2,NULL}`, nested for N-d).
+fn decode_array(elem: &str, bytes: &[u8]) -> Option<String> {
+    let ndim = usize::try_from(read_i32(bytes, 0)?).ok()?;
+    // bytes 4..8 flags, 8..12 element OID.
+    let mut off = 12;
+    let mut dims = Vec::with_capacity(ndim);
+    for _ in 0..ndim {
+        dims.push(usize::try_from(read_i32(bytes, off)?).ok()?);
+        off += 8; // length + lower bound
+    }
+    if ndim == 0 {
+        return Some("{}".into());
+    }
+    let mut out = String::new();
+    write_array_level(elem, bytes, &mut off, &dims, &mut out)?;
+    Some(out)
+}
+
+fn write_array_level(
+    elem: &str,
+    bytes: &[u8],
+    off: &mut usize,
+    dims: &[usize],
+    out: &mut String,
+) -> Option<()> {
+    out.push('{');
+    for i in 0..dims[0] {
+        if i > 0 {
+            out.push(',');
+        }
+        if dims.len() > 1 {
+            write_array_level(elem, bytes, off, &dims[1..], out)?;
+            continue;
+        }
+        let len = read_i32(bytes, *off)?;
+        *off += 4;
+        if len < 0 {
+            out.push_str("NULL");
+            continue;
+        }
+        let end = off.checked_add(len as usize)?;
+        let cell = decode_binary(elem, bytes.get(*off..end)?)?;
+        *off = end;
+        push_array_elem(out, &cell, elem);
+    }
+    out.push('}');
+    Some(())
+}
+
+/// Quote string-like elements the way Postgres does when needed.
+fn push_array_elem(out: &mut String, cell: &str, elem: &str) {
+    let plain = matches!(
+        elem,
+        "INT2" | "INT4" | "INT8" | "FLOAT4" | "FLOAT8" | "BOOL" | "NUMERIC" | "UUID"
+    );
+    let needs_quote = !plain
+        && (cell.is_empty()
+            || cell.eq_ignore_ascii_case("null")
+            || cell
+                .chars()
+                .any(|c| matches!(c, ',' | '{' | '}' | '"' | '\\') || c.is_whitespace()));
+    if needs_quote {
+        out.push('"');
+        for c in cell.chars() {
+            if matches!(c, '"' | '\\') {
+                out.push('\\');
+            }
+            out.push(c);
+        }
+        out.push('"');
+    } else {
+        out.push_str(cell);
     }
 }
 
@@ -374,6 +466,47 @@ mod tests {
             ),
             ("TEXT", None, NULL_CELL),
         ]
+    }
+
+    fn array_bytes(elem_oid: i32, dims: &[i32], elems: &[Option<&[u8]>]) -> Vec<u8> {
+        let mut b = Vec::new();
+        b.extend_from_slice(&be_i32(dims.len() as i32));
+        b.extend_from_slice(&be_i32(i32::from(elems.iter().any(Option::is_none))));
+        b.extend_from_slice(&be_i32(elem_oid));
+        for d in dims {
+            b.extend_from_slice(&be_i32(*d));
+            b.extend_from_slice(&be_i32(1));
+        }
+        for e in elems {
+            match e {
+                Some(v) => {
+                    b.extend_from_slice(&be_i32(v.len() as i32));
+                    b.extend_from_slice(v);
+                }
+                None => b.extend_from_slice(&be_i32(-1)),
+            }
+        }
+        b
+    }
+
+    #[test]
+    fn decodes_arrays() {
+        let ints = array_bytes(23, &[3], &[Some(&be_i32(1)), None, Some(&be_i32(3))]);
+        assert_eq!(decode_pg_cell("INT4[]", Some(&ints)), "{1,NULL,3}");
+        let texts = array_bytes(25, &[2], &[Some(b"a b"), Some(b"c")]);
+        assert_eq!(decode_pg_cell("TEXT[]", Some(&texts)), r#"{"a b",c}"#);
+        let grid = array_bytes(
+            23,
+            &[2, 2],
+            &[
+                Some(&be_i32(1)),
+                Some(&be_i32(2)),
+                Some(&be_i32(3)),
+                Some(&be_i32(4)),
+            ],
+        );
+        assert_eq!(decode_pg_cell("_int4", Some(&grid)), "{{1,2},{3,4}}");
+        assert_eq!(decode_pg_cell("INT4[]", Some(&be_i32(0).repeat(3))), "{}");
     }
 
     #[test]

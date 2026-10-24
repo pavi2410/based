@@ -22,6 +22,7 @@ pub async fn column_catalog(
                 WHEN c.datetime_precision IS NOT NULL
                     AND c.data_type IN ('timestamp without time zone', 'timestamp with time zone', 'time without time zone', 'time with time zone')
                 THEN c.data_type || '(' || c.datetime_precision::text || ')'
+                WHEN c.data_type = 'ARRAY' THEN ltrim(c.udt_name, '_') || '[]'
                 ELSE c.data_type
             END AS display_type,
             c.is_nullable = 'YES' AS nullable,
@@ -40,7 +41,8 @@ pub async fn column_catalog(
             AND tc.table_name = c.table_name
         WHERE c.table_schema = $1 AND c.table_name = $2
         GROUP BY c.column_name, c.ordinal_position, c.data_type, c.character_maximum_length,
-                 c.numeric_precision, c.numeric_scale, c.datetime_precision, c.is_nullable
+                 c.numeric_precision, c.numeric_scale, c.datetime_precision, c.is_nullable,
+                 c.udt_name
         ORDER BY c.ordinal_position",
     )
     .bind(schema)

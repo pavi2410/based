@@ -40,6 +40,11 @@ pub fn column_value_kind(data_type: Option<&str>) -> ColumnValueKind {
         return ColumnValueKind::Unknown;
     }
 
+    // Arrays render as Postgres literals (`{1,2}`); show them as text.
+    if raw.trim().ends_with("[]") || raw.trim().eq_ignore_ascii_case("array") {
+        return ColumnValueKind::Text;
+    }
+
     let base = normalize_type_name(raw);
     // Datetime before numeric: sqlx-sqlite maps any declared type whose name
     // contains "int" (including `timestamptz`) to INTEGER.

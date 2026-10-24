@@ -12,7 +12,6 @@ use crate::connection::{ConnectionId, EngineKind};
 use crate::project::RegistryRef;
 use crate::widgets::engine_icon;
 use crate::widgets::layout::panel_header_height;
-use crate::widgets::metadata_pill;
 use crate::widgets::status_item::STATUS_BAR_HEIGHT;
 
 /// Bottom-of-tab breadcrumb rail height (matches status bar segment height).
@@ -130,22 +129,26 @@ pub fn tab_breadcrumb_for_connection(
 pub fn tab_breadcrumb_data_viewer_trailing(
     pagination: impl IntoElement,
     load_ms: Option<u64>,
+    fetched_ago: Option<String>,
+    refresh: impl IntoElement,
     show_read_only: bool,
     read_only_id: &'static str,
     cx: &mut App,
 ) -> AnyElement {
-    let mut row = h_flex()
-        .flex_shrink_0()
-        .items_center()
-        .gap(px(10.0))
-        .child(pagination);
+    let muted = cx.theme().muted_foreground;
+    let text = |s: String| div().text_xs().text_color(muted).child(s);
+    let mut row = h_flex().flex_shrink_0().items_center().gap(px(10.0));
     if let Some(ms) = load_ms {
-        row = row.child(metadata_pill("time", format!("{ms} ms"), cx));
+        row = row.child(text(format!("{ms} ms")));
     }
+    if let Some(ago) = fetched_ago {
+        row = row.child(text(ago));
+    }
+    row = row.child(refresh);
     if show_read_only {
         row = row.child(tab_breadcrumb_read_only_indicator(read_only_id, cx));
     }
-    row.into_any_element()
+    row.child(pagination).into_any_element()
 }
 
 /// Muted eye icon shown at the trailing edge of data-viewer breadcrumbs.

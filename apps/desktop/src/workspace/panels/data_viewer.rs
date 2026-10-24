@@ -4,13 +4,14 @@ use gpui_kit::assets::IconName as AssetIcon;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
+use time::OffsetDateTime;
 
 use futures::future::BoxFuture;
 use gpui_kit::component::table::TableEvent;
 use gpui_kit::component::{
-    ActiveTheme, Icon, Sizable as _,
-    button::Button,
+    ActiveTheme, Disableable as _, Icon, IconName, Sizable as _,
+    button::{Button, ButtonVariants as _},
     dock::{BasePanel, Panel, PanelEvent},
     menu::{PopupMenu, PopupMenuItem},
     table::{Column, TableState},
@@ -25,6 +26,7 @@ use crate::db;
 use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_with_meta};
 use crate::widgets::column_header::ColumnMeta;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
+use crate::widgets::datetime::format_relative;
 use crate::widgets::export_popover::export_popover;
 use crate::widgets::filter_bar::{FilterBar, FilterExpr};
 use crate::widgets::pagination::{offset_for_page, sql_pagination_group};
@@ -104,6 +106,7 @@ pub struct DataViewerPanel {
     total_rows: u64,
     loading: bool,
     last_load_ms: Option<u64>,
+    last_fetched: Option<OffsetDateTime>,
     column_catalog: HashMap<String, ColumnMeta>,
     /// Foreign-key jump for the selected cell.
     fk_jump: Option<(String, DrillFilter)>,
@@ -138,6 +141,7 @@ impl DataViewerPanel {
             total_rows: 0,
             loading: false,
             last_load_ms: None,
+            last_fetched: None,
             column_catalog: HashMap::new(),
             fk_jump: None,
             self_handle: cx.weak_entity(),
@@ -169,6 +173,16 @@ impl DataViewerPanel {
                 }));
         });
         panel.load_page(0, cx);
+        // Keep the relative "fetched" label fresh.
+        cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor().timer(Duration::from_secs(5)).await;
+                if this.update(cx, |_, cx| cx.notify()).is_err() {
+                    break;
+                }
+            }
+        })
+        .detach();
         panel
     }
 
@@ -298,6 +312,7 @@ impl DataViewerPanel {
                 if let Ok((page, elapsed_ms)) = res {
                     panel.total_rows = page.total as u64;
                     panel.last_load_ms = Some(elapsed_ms);
+                    panel.last_fetched = Some(OffsetDateTime::now_utc());
                     let names: Vec<String> =
                         page.columns.iter().map(|c| c.key.to_string()).collect();
                     let meta = align_meta_to_columns(names.iter().cloned(), &catalog);
@@ -456,6 +471,15 @@ impl Render for DataViewerPanel {
             Some(tab_breadcrumb_data_viewer_trailing(
                 pager,
                 self.last_load_ms,
+                self.last_fetched
+                    .map(|t| format_relative(t, OffsetDateTime::now_utc())),
+                Button::new(SharedString::from(format!("{id}-refresh")))
+                    .ghost()
+                    .small()
+                    .icon(Icon::new(IconName::RefreshCw))
+                    .tooltip("Refresh")
+                    .disabled(loading)
+                    .on_click(cx.listener(|panel, _, _, cx| panel.load_page(panel.offset, cx))),
                 read_only,
                 "dv-read-only",
                 cx,

@@ -113,7 +113,15 @@ fn rail_icon(
     let engine = row.engine;
     let is_connected = row.is_connected;
     let sidebar = cx.theme().sidebar;
-    let hover = cx.theme().muted.opacity(0.42);
+    let dark = cx.theme().is_dark();
+    // Light themes get white tiles; dark themes keep the themed look.
+    let (base, hover) = if dark {
+        (None, cx.theme().muted.opacity(0.42))
+    } else {
+        (Some(gpui_kit::white()), gpui_kit::white().opacity(0.85))
+    };
+    let selected_bg = cx.theme().sidebar_accent;
+    let primary = cx.theme().primary;
     let outline = cx.theme().muted_foreground.opacity(0.25);
 
     div()
@@ -127,8 +135,13 @@ fn rail_icon(
         .justify_center()
         .cursor_pointer()
         .border_1()
-        .border_color(outline)
-        .when(is_selected, |d| d.bg(cx.theme().sidebar_accent))
+        .border_color(if is_selected && !dark {
+            primary
+        } else {
+            outline
+        })
+        .when_some(base, |d, c| d.bg(c))
+        .when(is_selected && dark, |d| d.bg(selected_bg))
         .when(!is_selected, |d| d.hover(move |d| d.bg(hover)))
         .tooltip(move |window, app| Tooltip::new(label.clone()).build(window, app))
         .on_mouse_down(MouseButton::Left, move |_, window, cx| {

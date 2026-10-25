@@ -13,6 +13,10 @@ homepage = "https://github.com/pavi2410/based"
 license = "MIT"
 publish = false
 
+[lib]
+name = "based_desktop"
+path = "src/lib.rs"
+
 [[bin]]
 name = "based"
 path = "src/main.rs"

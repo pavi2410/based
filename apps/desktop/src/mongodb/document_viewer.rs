@@ -57,7 +57,7 @@ impl DocumentViewerPanel {
         let tab_label = collection.name().to_string().into();
         let table = cx.new(|cx| configure_row_table(delegate, window, cx));
         let filter_bar = cx.new(|cx| FilterBar::new(window, cx, vec![]));
-        let cell_detail = cx.new(|_| CellDetail::new());
+        let cell_detail = cx.new(|_| CellDetail::default());
         let mut p = Self {
             focus_handle: cx.focus_handle(),
             collection,

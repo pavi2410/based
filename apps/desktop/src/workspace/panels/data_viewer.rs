@@ -141,7 +141,7 @@ impl DataViewerPanel {
         if let Some(f) = filter {
             filter_bar.update(cx, |fb, cx| fb.preset_eq(f.column, &f.value, window, cx));
         }
-        let cell_detail = cx.new(|_| CellDetail::new());
+        let cell_detail = cx.new(|_| CellDetail::default());
         let tab_label = source.path().join(".").into();
         let mut panel = Self {
             focus_handle: cx.focus_handle(),

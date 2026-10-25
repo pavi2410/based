@@ -171,7 +171,7 @@ impl Workspace {
         let connection_tree =
             cx.new(|cx| ConnectionTree::new(registry.clone(), dock_area.clone(), cx));
 
-        let tab_manager = cx.new(|_| TabManager::new());
+        let tab_manager = cx.new(|_| TabManager::default());
         cx.set_global(TabManagerRef(tab_manager.clone()));
         cx.set_global(DockAreaRef(dock_area.clone()));
         if let Some(root) = project_dir.clone() {

@@ -27,6 +27,12 @@ impl ConfigReloadSignal {
     }
 }
 
+impl Default for ConfigReloadSignal {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Global for ConfigReloadSignal {}
 
 pub struct ProjectRoot(pub PathBuf);

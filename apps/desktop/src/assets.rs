@@ -34,8 +34,8 @@ pub struct ChainedAssets {
     fallback: KitAssets,
 }
 
-impl ChainedAssets {
-    pub fn new() -> Self {
+impl Default for ChainedAssets {
+    fn default() -> Self {
         Self {
             local: BasedEmbeddedSource,
             fallback: KitAssets,

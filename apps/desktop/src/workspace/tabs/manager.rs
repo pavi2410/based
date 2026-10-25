@@ -16,19 +16,13 @@ pub enum TabEvent {
     ActiveChanged(usize),
 }
 
+#[derive(Default)]
 pub struct TabManager {
     pub tabs: Vec<Tab>,
     pub active_idx: Option<usize>,
 }
 
 impl TabManager {
-    pub fn new() -> Self {
-        Self {
-            tabs: vec![],
-            active_idx: None,
-        }
-    }
-
     /// Open a new tab or focus the existing one for this spec.
     /// QueryEditor always opens a new tab (caller passes a fresh spec each time).
     pub fn open_or_focus(&mut self, spec: TabSpec, view: AnyView, cx: &mut Context<Self>) {

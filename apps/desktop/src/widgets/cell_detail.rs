@@ -7,12 +7,14 @@ use crate::app::prefs;
 use crate::widgets::cell_render::{ColumnValueKind, column_value_kind, parse_bool_display};
 use crate::widgets::column_header::ColumnMeta;
 
+#[derive(Default)]
 pub enum CellValue {
     Text(String),
     Integer(i64),
     Float(f64),
     Boolean(bool),
     Json(String), // raw JSON string — will be pretty-printed
+    #[default]
     Null,
     Blob(usize), // byte count only
 }
@@ -87,6 +89,7 @@ pub fn interpret_cell_with_meta(s: &str, meta: &ColumnMeta) -> CellValue {
     }
 }
 
+#[derive(Default)]
 pub struct CellDetail {
     pub column: String,
     pub value: CellValue,
@@ -94,14 +97,6 @@ pub struct CellDetail {
 }
 
 impl CellDetail {
-    pub fn new() -> Self {
-        Self {
-            column: String::new(),
-            value: CellValue::Null,
-            visible: false,
-        }
-    }
-
     pub fn show(&mut self, column: String, value: CellValue) {
         self.column = column;
         self.value = value;

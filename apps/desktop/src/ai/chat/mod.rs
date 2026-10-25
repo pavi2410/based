@@ -7,6 +7,7 @@
 mod approve;
 mod calls;
 mod conn;
+mod footer;
 mod group;
 mod saved;
 mod style;
@@ -19,6 +20,7 @@ use std::sync::Arc;
 
 use based_ai::context::ContextLevel;
 use based_ai::history::ChatMeta;
+use based_ai::stamp::now_ms;
 use based_ai::tools::{ReadOnlyTools, ToolBackend, ToolCall, ToolResult, connection_specs};
 use based_ai::{AiError, Message, Role, prompt};
 use based_core::EngineKind;
@@ -245,7 +247,7 @@ impl ChatPane {
         self.tools = self.connection_tools(cx);
         self.round = 0;
         let tags = self.take_tags(&text, cx);
-        self.turns.push(Message::user(text));
+        self.turns.push(Message::user(text).at(now_ms()));
         self.follow(cx);
         if self.tools.is_some() && !tags.is_empty() {
             // Tagged tables arrive as ordinary `describe_table` calls, so they show in the chat.
@@ -302,13 +304,13 @@ impl ChatPane {
                 self.stream = None;
                 let reply = take(&mut self.draft);
                 if self.calls.is_empty() {
-                    self.turns.push(Message::assistant(reply));
+                    self.turns.push(Message::assistant(reply).at(now_ms()));
                     self.phase = Phase::Idle;
                     self.persist(cx);
                 } else {
                     let calls = take(&mut self.calls);
                     self.turns
-                        .push(Message::assistant_calls(reply, calls.clone()));
+                        .push(Message::assistant_calls(reply, calls.clone()).at(now_ms()));
                     self.run_tools(calls, cx);
                 }
             }
@@ -369,7 +371,7 @@ impl ChatPane {
             Phase::Streaming => {
                 let partial = take(&mut self.draft);
                 if !partial.is_empty() {
-                    self.turns.push(Message::assistant(partial));
+                    self.turns.push(Message::assistant(partial).at(now_ms()));
                 }
             }
             // The tool request has no results; drop it so the history stays valid.

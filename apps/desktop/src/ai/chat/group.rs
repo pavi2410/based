@@ -65,6 +65,7 @@ impl ChatPane {
     ) -> AnyElement {
         let mut group = MessageGroup::new().px_3();
         let mut calls: Vec<AnyElement> = Vec::new();
+        let (start, end) = (range.start, range.end);
         for ix in range {
             let turn = &self.turns[ix];
             if turn.role == Role::Tool {
@@ -79,6 +80,9 @@ impl ChatPane {
             }
         }
         group = flush(group, &mut calls);
+        if !live {
+            group = group.children(self.group_footer(start..end, this, cx));
+        }
         if live {
             group = group.child(self.live(cx));
         }

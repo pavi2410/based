@@ -5,10 +5,10 @@ use std::collections::HashMap;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
+use crate::stamp::now_ms;
 use crate::types::{Message, Role};
 
 const TITLE_CHARS: usize = 48;
@@ -31,12 +31,6 @@ pub struct ChatMeta {
     pub id: String,
     pub title: String,
     pub updated: u64,
-}
-
-fn now_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
 }
 
 /// A fresh, filename-safe id.

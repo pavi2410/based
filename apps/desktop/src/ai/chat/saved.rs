@@ -71,6 +71,18 @@ impl ChatPane {
         self.sync(cx);
     }
 
+    /// Continues a copy of the conversation up to and including turn `upto`.
+    pub(super) fn fork(&mut self, upto: usize, cx: &mut Context<Self>) {
+        if self.busy() || upto >= self.turns.len() {
+            return;
+        }
+        self.turns.truncate(upto + 1);
+        self.chat_id = None;
+        self.expanded.clear();
+        self.persist(cx);
+        self.sync(cx);
+    }
+
     fn open_saved(&mut self, id: String, cx: &mut Context<Self>) {
         if self.chat_id.as_deref() == Some(&id) {
             return;

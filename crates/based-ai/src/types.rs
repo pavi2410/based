@@ -26,6 +26,9 @@ pub struct Message {
     pub calls: Vec<ToolCall>,
     /// Set on tool results.
     pub outcome: Option<ToolOutcome>,
+    /// Unix milliseconds when the message was sent or finished.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub at: Option<u64>,
 }
 
 impl Message {
@@ -35,7 +38,14 @@ impl Message {
             content,
             calls: Vec::new(),
             outcome: None,
+            at: None,
         }
+    }
+
+    /// Records when the message was sent or finished.
+    pub fn at(mut self, ms: u64) -> Self {
+        self.at = Some(ms);
+        self
     }
 
     pub fn user(content: impl Into<String>) -> Self {

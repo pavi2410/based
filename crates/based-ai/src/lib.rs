@@ -9,6 +9,7 @@ pub mod prompt;
 pub mod provider;
 pub mod providers;
 mod sse;
+pub mod stamp;
 pub mod tools;
 pub mod types;
 

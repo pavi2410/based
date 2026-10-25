@@ -5,6 +5,7 @@ use std::time::Duration;
 use anyhow::{Result, anyhow};
 use futures::TryStreamExt;
 use sqlx::{AssertSqlSafe, Column, Row, SqliteConnection, SqlitePool};
+use tokio::time::timeout;
 
 use crate::page::sqlite_cell_display;
 
@@ -33,7 +34,7 @@ async fn run(
     sqlx::query("PRAGMA query_only = ON")
         .execute(&mut *conn)
         .await?;
-    let result = tokio::time::timeout(TIMEOUT, collect(&mut conn, sql, limit))
+    let result = timeout(TIMEOUT, collect(&mut conn, sql, limit))
         .await
         .unwrap_or_else(|_| Err(anyhow!("query timed out after {}s", TIMEOUT.as_secs())));
     // Pooled connections are reused, so the guard must always come off.

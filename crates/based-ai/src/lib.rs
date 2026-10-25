@@ -3,6 +3,7 @@
 pub mod context;
 pub mod error;
 mod http;
+pub mod patch;
 pub mod provider;
 pub mod providers;
 mod sse;

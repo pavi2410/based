@@ -682,6 +682,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "similar",
  "tokio",
 ]
 
@@ -1847,6 +1848,7 @@ name = "desktop"
 version = "0.0.0-dev"
 dependencies = [
  "anyhow",
+ "based-ai",
  "based-core",
  "based-mongo",
  "based-postgres",

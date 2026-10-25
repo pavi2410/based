@@ -7,6 +7,7 @@ pub mod inspector;
 pub mod object_info;
 pub mod query_ai;
 pub mod query_editor;
+pub mod query_view;
 pub mod release_notes;
 pub mod table_inspector;
 

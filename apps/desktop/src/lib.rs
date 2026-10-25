@@ -87,6 +87,8 @@ pub fn init_globals(cx: &mut App) {
     cx.set_global(TabOpenQueue::default());
     cx.set_global(WorkspaceNavQueue::default());
     cx.set_global(SqlInject::default());
+    // Empty until `init_project` loads the project's vars.
+    cx.set_global(ProjectVars::default());
     PopOutManager::init(cx);
     app::aux_windows::AuxWindows::init(cx);
 }

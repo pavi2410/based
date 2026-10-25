@@ -61,7 +61,7 @@ impl ObjectKind {
 }
 
 /// Schema browser row (PostgreSQL exposes `schema` + local name).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SchemaObject {
     pub name: String,
     pub schema: Option<String>,

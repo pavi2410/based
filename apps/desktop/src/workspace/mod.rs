@@ -324,6 +324,10 @@ impl Workspace {
         &self.tab_manager
     }
 
+    pub fn connection_tree(&self) -> &Entity<ConnectionTree> {
+        &self.connection_tree
+    }
+
     pub fn command_palette(&self) -> &Entity<CommandPalette> {
         &self.command_palette
     }

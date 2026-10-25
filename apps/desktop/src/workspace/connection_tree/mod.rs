@@ -32,10 +32,12 @@ mod icon_rail;
 mod object_list;
 mod open_workspace;
 mod schema_load;
+mod snapshot;
 mod types;
 
 pub(crate) use context_menu::connection_actions_menu;
 pub(crate) use icon_rail::ICON_RAIL_WIDTH;
+pub use snapshot::CatalogSnapshot;
 pub use types::{ObjectKind, SchemaObject, TreeEvent};
 
 use types::ConnState;

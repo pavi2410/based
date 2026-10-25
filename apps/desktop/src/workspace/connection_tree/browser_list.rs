@@ -11,8 +11,8 @@ use gpui_kit::component::{
     menu::ContextMenuExt,
 };
 use gpui_kit::{
-    App, Context, ElementId, Entity, IntoElement, MouseButton, ParentElement, RenderOnce,
-    SharedString, Task, WeakEntity, Window, div, prelude::*, px,
+    App, Context, Entity, IntoElement, MouseButton, ParentElement, RenderOnce, SharedString, Task,
+    WeakEntity, Window, div, prelude::*, px,
 };
 
 use crate::connection::EngineKind;
@@ -36,7 +36,6 @@ const DEPTH_KIND: u32 = 1;
 #[derive(Clone)]
 pub(crate) enum BrowserRow {
     Status {
-        conn_idx: usize,
         message: SharedString,
         depth: u32,
     },
@@ -70,6 +69,25 @@ impl BrowserListDelegate {
         }
     }
 
+    /// Object rows currently visible (after search and schema expansion).
+    pub(crate) fn visible_objects(&self) -> Vec<SchemaObject> {
+        self.rows
+            .iter()
+            .filter_map(|r| match r {
+                BrowserRow::Object { object, .. } => Some(object.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Text of the status row ("Connecting…", "Not connected", …), if shown.
+    pub(crate) fn status(&self) -> Option<String> {
+        self.rows.iter().find_map(|r| match r {
+            BrowserRow::Status { message, .. } => Some(message.to_string()),
+            _ => None,
+        })
+    }
+
     pub(crate) fn rebuild(&mut self, tree: &ConnectionTree, cx: &App) {
         let q = self.query.trim().to_lowercase();
         let Some(sel) = tree.selected_connection else {
@@ -101,13 +119,11 @@ impl BrowserListDelegate {
         let mut rows = Vec::new();
         if conn.is_connecting {
             rows.push(BrowserRow::Status {
-                conn_idx: conn.idx,
                 message: "Connecting…".into(),
                 depth: DEPTH_SCHEMA,
             });
         } else if conn.is_failed {
             rows.push(BrowserRow::Status {
-                conn_idx: conn.idx,
                 message: conn
                     .fail_reason
                     .as_deref()
@@ -117,7 +133,6 @@ impl BrowserListDelegate {
             });
         } else if !conn.is_connected {
             rows.push(BrowserRow::Status {
-                conn_idx: conn.idx,
                 message: "Not connected".into(),
                 depth: DEPTH_SCHEMA,
             });
@@ -125,14 +140,12 @@ impl BrowserListDelegate {
             match st.cache() {
                 ConnCache::Loading | ConnCache::Idle => {
                     rows.push(BrowserRow::Status {
-                        conn_idx: conn.idx,
                         message: "Loading objects…".into(),
                         depth: DEPTH_SCHEMA,
                     });
                 }
                 ConnCache::Error(err) => {
                     rows.push(BrowserRow::Status {
-                        conn_idx: conn.idx,
                         message: super::notify::error_one_liner(err),
                         depth: DEPTH_SCHEMA,
                     });
@@ -255,7 +268,6 @@ fn push_kind_rows(
 
 #[derive(IntoElement)]
 pub(crate) struct BrowserRowItem {
-    id: ElementId,
     row: BrowserRow,
     selected: bool,
     tree: WeakEntity<ConnectionTree>,
@@ -507,9 +519,7 @@ impl ListDelegate for BrowserListDelegate {
     ) -> Option<Self::Item> {
         let row = self.row_at(ix)?.clone();
         let selected = self.selected_index == Some(ix);
-        let id: ElementId = ("browser-row", ix.row).into();
         Some(BrowserRowItem {
-            id,
             row,
             selected,
             tree: self.tree.downgrade(),

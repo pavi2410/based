@@ -8,3 +8,4 @@ mod save;
 mod session;
 mod settings;
 mod tabs;
+mod tree;

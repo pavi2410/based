@@ -10,6 +10,7 @@
 #![allow(clippy::type_complexity)]
 
 mod about_window;
+mod ai;
 mod app;
 mod assets;
 mod bindings;

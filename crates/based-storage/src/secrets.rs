@@ -71,12 +71,14 @@ impl SecretStore {
     /// Cached for the process lifetime: each keychain read can raise an OS password prompt,
     /// and AI features read the key on every request.
     pub fn get_ai_key(&self, provider: &str) -> Result<Option<String>> {
-        if let Some(key) = ai_cache().get(provider) {
+        // Hold the lock across the read so concurrent callers share one keychain prompt.
+        let mut cache = ai_cache();
+        if let Some(key) = cache.get(provider) {
             return Ok(Some(key.clone()));
         }
         let key = self.get(&Self::ai_key_ref(provider))?;
         if let Some(key) = &key {
-            ai_cache().insert(provider.to_owned(), key.clone());
+            cache.insert(provider.to_owned(), key.clone());
         }
         Ok(key)
     }

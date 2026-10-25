@@ -86,8 +86,6 @@ pub struct ChatPane {
     /// Tables of the active connection, for tagging.
     tables: Vec<String>,
     tables_for: Option<ConnectionId>,
-    /// Tables tagged for the next message.
-    tags: Vec<String>,
     /// Connection label each tool call ran against.
     targets: HashMap<String, String>,
     /// Why chat can't be used right now; replaces the composer.
@@ -138,7 +136,6 @@ impl ChatPane {
             tools: None,
             tables: Vec::new(),
             tables_for: None,
-            tags: Vec::new(),
             targets: HashMap::new(),
             notice: None,
             job: None,
@@ -218,9 +215,8 @@ impl ChatPane {
         }
         self.tools = self.connection_tools(cx);
         self.round = 0;
-        let tags = self.take_tags(&text);
-        let content = tags::with_mentions(text, &tags);
-        self.turns.push(Message::user(content));
+        let tags = self.take_tags(&text, cx);
+        self.turns.push(Message::user(text));
         if self.tools.is_some() && !tags.is_empty() {
             // Tagged tables arrive as ordinary `describe_table` calls, so they show in the chat.
             let calls: Vec<ToolCall> = tags
@@ -343,7 +339,6 @@ impl ChatPane {
         self.turns.clear();
         self.draft.clear();
         self.targets.clear();
-        self.tags.clear();
         self.finish(Phase::Idle);
         self.sync(cx);
     }

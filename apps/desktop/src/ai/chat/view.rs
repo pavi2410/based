@@ -85,23 +85,6 @@ impl ChatPane {
             .into_any_element()
     }
 
-    fn tag_chips(&self, cx: &mut Context<Self>) -> AnyElement {
-        h_flex()
-            .flex_wrap()
-            .gap_1()
-            .px_2()
-            .children(self.tags.iter().enumerate().map(|(ix, tag)| {
-                Button::new(("chat-untag", ix))
-                    .ghost()
-                    .small()
-                    .label(format!("@{tag}"))
-                    .icon(IconName::Close)
-                    .tooltip("Remove tag")
-                    .on_click(cx.listener(move |this, _, _, cx| this.remove_tag(ix, cx)))
-            }))
-            .into_any_element()
-    }
-
     fn composer(&self, cx: &mut Context<Self>) -> AnyElement {
         let streaming = self.busy();
         let action = if streaming {
@@ -124,7 +107,6 @@ impl ChatPane {
             .border_t_1()
             .border_color(cx.theme().border.opacity(0.72))
             .child(self.status_line(cx))
-            .child(self.tag_chips(cx))
             .child(
                 h_flex()
                     .gap_1()

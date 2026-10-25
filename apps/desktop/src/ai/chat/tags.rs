@@ -1,14 +1,13 @@
 //! Tagging tables (`@name`) so their schema reaches the model with the message.
 
-use std::mem::take;
-
 use based_ai::tools::ToolCall;
 use gpui_kit::component::{
     Disableable as _, IconName, Sizable as _,
     button::{Button, ButtonVariants as _},
+    input::InlineToken,
     menu::{DropdownMenu as _, PopupMenuItem},
 };
-use gpui_kit::{Context, IntoElement, px};
+use gpui_kit::{Context, IntoElement, Window, px};
 
 use super::ChatPane;
 use crate::db;
@@ -52,9 +51,16 @@ impl ChatPane {
         .detach();
     }
 
-    /// Chips plus `@name` mentions in `text`, deduplicated and spelled as the database does.
-    pub(super) fn take_tags(&mut self, text: &str) -> Vec<String> {
-        let mut tags = take(&mut self.tags);
+    /// Tokens in the composer plus bare `@name` mentions in `text`, deduplicated.
+    pub(super) fn take_tags(&self, text: &str, cx: &Context<Self>) -> Vec<String> {
+        let mut tags: Vec<String> = Vec::new();
+        let tokens = self.input.read(cx).tokens().to_vec();
+        for span in &tokens {
+            let id = span.token().id().to_string();
+            if !tags.contains(&id) {
+                tags.push(id);
+            }
+        }
         for word in text.split_whitespace().filter_map(|w| w.strip_prefix('@')) {
             let word = word.trim_end_matches([',', ';', ':', '?', '!', ')', '.']);
             if let Some(name) = self.tables.iter().find(|t| t.eq_ignore_ascii_case(word))
@@ -66,18 +72,13 @@ impl ChatPane {
         tags
     }
 
-    pub(super) fn add_tag(&mut self, table: String, cx: &mut Context<Self>) {
-        if !self.tags.contains(&table) {
-            self.tags.push(table);
-            cx.notify();
-        }
-    }
-
-    pub(super) fn remove_tag(&mut self, ix: usize, cx: &mut Context<Self>) {
-        if ix < self.tags.len() {
-            self.tags.remove(ix);
-            cx.notify();
-        }
+    /// Inserts `table` as an atomic `@table` token at the caret.
+    fn add_tag(&mut self, table: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let token = InlineToken::new(table.to_owned(), format!("@{table}"));
+        self.input.update(cx, |input, cx| {
+            let _ = input.replace_with_token(token, window, cx);
+        });
+        self.focus(window, cx);
     }
 
     pub(super) fn tag_button(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -93,40 +94,13 @@ impl ChatPane {
                 let mut menu = menu.max_h(px(280.0)).scrollable(true);
                 for table in &tables {
                     let (table, pane) = (table.clone(), pane.clone());
-                    menu =
-                        menu.item(PopupMenuItem::new(table.clone()).on_click(move |_, _, cx| {
-                            let _ = pane.update(cx, |p, cx| p.add_tag(table.clone(), cx));
-                        }));
+                    menu = menu.item(PopupMenuItem::new(table.clone()).on_click(
+                        move |_, window, cx| {
+                            let _ = pane.update(cx, |p, cx| p.add_tag(&table, window, cx));
+                        },
+                    ));
                 }
                 menu
             })
-    }
-}
-
-/// `text` plus ` @table` for tags it does not already mention.
-pub(super) fn with_mentions(mut text: String, tags: &[String]) -> String {
-    let lower = text.to_lowercase();
-    let missing: Vec<&String> = tags
-        .iter()
-        .filter(|t| !lower.contains(&format!("@{}", t.to_lowercase())))
-        .collect();
-    for tag in missing {
-        text.push_str(" @");
-        text.push_str(tag);
-    }
-    text
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn mentions_are_appended_once() {
-        let tags = vec!["users".to_owned(), "orders".to_owned()];
-        assert_eq!(
-            with_mentions("join @Users with it".into(), &tags),
-            "join @Users with it @orders"
-        );
     }
 }

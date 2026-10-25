@@ -35,8 +35,9 @@ docker compose up -d          # PostgreSQL 18 → localhost:15432, MongoDB 8 →
 ### Workspace layout
 
 ```
-apps/desktop/src/        # GPUI app (package `desktop`, binary `based`)
-├── main.rs              # Entry: GPUI app/window setup
+apps/desktop/src/        # GPUI app (package `desktop`: lib `based_desktop` + binary `based`)
+├── lib.rs               # `run()` + `init_globals()`; all modules live here
+├── main.rs              # Thin wrapper calling `based_desktop::run()`
 ├── app/                 # Global state, actions, preferences
 ├── connection/          # Engine-agnostic connection registry & lifecycle
 ├── workspace/           # Workspace entity, tabs, dock, connection_tree
@@ -49,7 +50,10 @@ apps/desktop/src/        # GPUI app (package `desktop`, binary `based`)
 ├── theme/               # Visual theming
 ├── settings_window/     # Preferences UI
 └── db.rs                # Tokio ↔ GPUI async bridge
+apps/desktop/tests/ui/   # Headless UI integration tests (gpui-kit `test-support`)
 ```
+
+UI tests: `cargo test -p desktop --test ui`. Fixtures in `tests/ui/common` isolate env (project dir, XDG config, metadata db) and call `allow_parking()` because Tokio wakes GPUI tasks from other threads.
 
 A headless CLI is planned but does not exist yet; don't reference `apps/cli` or `-p cli`.
 

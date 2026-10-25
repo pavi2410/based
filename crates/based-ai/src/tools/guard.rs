@@ -65,11 +65,29 @@ fn check_redis(cmd: &str) -> Result<(), String> {
 }
 
 fn check_mongo(text: &str) -> Result<(), String> {
-    match MONGO_FORBIDDEN.iter().find(|op| text.contains(**op)) {
+    let value: serde_json::Value =
+        serde_json::from_str(text).map_err(|e| format!("query is not valid JSON: {e}"))?;
+    match forbidden_key(&value) {
         Some(op) => Err(format!(
             "mongo operator `{op}` is not allowed in read-only mode"
         )),
         None => Ok(()),
+    }
+}
+
+/// Walks decoded JSON keys, so escapes like `\u0024out` cannot hide an operator.
+fn forbidden_key(v: &serde_json::Value) -> Option<&'static str> {
+    use serde_json::Value;
+    match v {
+        Value::Object(map) => map.iter().find_map(|(k, v)| {
+            MONGO_FORBIDDEN
+                .iter()
+                .find(|op| k.eq_ignore_ascii_case(op))
+                .copied()
+                .or_else(|| forbidden_key(v))
+        }),
+        Value::Array(items) => items.iter().find_map(forbidden_key),
+        _ => None,
     }
 }
 
@@ -265,5 +283,14 @@ mod tests {
     fn mongo_blocks_write_stages() {
         assert!(check(EngineKind::MongoDB, r#"[{"$match":{"a":1}}]"#).is_ok());
         assert!(check(EngineKind::MongoDB, r#"[{"$out":"x"}]"#).is_err());
+        assert!(check(EngineKind::MongoDB, r#"[{"\u0024out":"x"}]"#).is_err());
+        assert!(
+            check(
+                EngineKind::MongoDB,
+                r#"{"collection":"c","pipeline":[{"$lookup":{"pipeline":[{"$merge":"x"}]}}]}"#
+            )
+            .is_err()
+        );
+        assert!(check(EngineKind::MongoDB, "not json").is_err());
     }
 }

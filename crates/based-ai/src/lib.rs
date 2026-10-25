@@ -4,6 +4,7 @@ pub mod context;
 pub mod error;
 mod http;
 pub mod patch;
+pub mod prompt;
 pub mod provider;
 pub mod providers;
 mod sse;

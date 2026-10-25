@@ -4,13 +4,15 @@ use std::path::PathBuf;
 
 use based_ai::history::{self, Chat, ChatMeta};
 use gpui_kit::component::{
-    IconName, Sizable as _,
+    Icon, Sizable as _,
     button::{Button, ButtonVariants as _},
     menu::{DropdownMenu as _, PopupMenuItem},
 };
 use gpui_kit::{AppContext as _, Context, IntoElement, px};
 
 use super::{ChatPane, Phase};
+
+const HISTORY_ICON: &str = "icons/history.svg";
 
 /// Chats offered in the menu.
 const MENU_MAX: usize = 30;
@@ -105,17 +107,26 @@ impl ChatPane {
         self.new_chat(cx);
     }
 
-    pub(super) fn history_button(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let chats: Vec<ChatMeta> = self.history.iter().take(MENU_MAX).cloned().collect();
-        let current = self.chat_id.clone();
+    /// Header button listing saved chats. The list is read when the menu opens, so it stays
+    /// current even though the header is drawn by the workspace.
+    pub fn history_button(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let pane = cx.weak_entity();
         Button::new("chat-history")
             .ghost()
             .small()
-            .icon(IconName::Inbox)
+            .icon(Icon::empty().path(HISTORY_ICON))
             .tooltip("Chat history")
-            .dropdown_menu(move |menu, _, _| {
+            .dropdown_menu(move |menu, _, cx| {
                 let mut menu = menu.max_h(px(320.0)).scrollable(true);
+                let Some(this) = pane.upgrade() else {
+                    return menu;
+                };
+                let (chats, current) = {
+                    let this = this.read(cx);
+                    let chats: Vec<ChatMeta> =
+                        this.history.iter().take(MENU_MAX).cloned().collect();
+                    (chats, this.chat_id.clone())
+                };
                 if chats.is_empty() {
                     return menu.item(PopupMenuItem::new("No saved chats").disabled(true));
                 }

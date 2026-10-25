@@ -117,7 +117,6 @@ impl ChatPane {
                     .items_end()
                     .p_2()
                     .child(self.tag_button(cx))
-                    .child(self.history_button(cx))
                     .child(div().flex_1().child(Textarea::new(&self.input).small()))
                     .child(action),
             )

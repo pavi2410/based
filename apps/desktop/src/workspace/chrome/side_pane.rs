@@ -7,8 +7,8 @@
 use crate::app::prefs::ui_font_family;
 use gpui_kit::component::{ActiveTheme, IconName, h_flex, v_flex};
 use gpui_kit::{
-    App, AppContext as _, Context, Empty, FontWeight, InteractiveElement as _, IntoElement,
-    ParentElement, Render, StatefulInteractiveElement as _, Styled, Window, div, px,
+    AnyElement, App, AppContext as _, Context, Empty, FontWeight, InteractiveElement as _,
+    IntoElement, ParentElement, Render, StatefulInteractiveElement as _, Styled, Window, div, px,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -77,6 +77,7 @@ pub fn render_side_pane(
     active: SidePane,
     body: impl IntoElement,
     width: f32,
+    action: Option<AnyElement>,
     cx: &App,
 ) -> impl IntoElement {
     let border = cx.theme().border;
@@ -117,7 +118,8 @@ pub fn render_side_pane(
                         .font_family(ui_font_family(cx))
                         .text_color(muted)
                         .child(active.label()),
-                ),
+                )
+                .children(action.map(|a| div().ml_auto().child(a))),
         )
         .child(div().flex_1().min_h_0().child(body))
 }

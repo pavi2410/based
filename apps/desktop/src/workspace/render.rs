@@ -89,7 +89,11 @@ impl Render for Workspace {
                 )
                 .into_any_element(),
             };
-            render_side_pane(pane, body, side_pane_width, cx).into_any_element()
+            let action = (pane == SidePane::Chat).then(|| {
+                self.chat
+                    .update(cx, |chat, cx| chat.history_button(cx).into_any_element())
+            });
+            render_side_pane(pane, body, side_pane_width, action, cx).into_any_element()
         });
 
         let content_rail_expanded = self.connection_tree.read(cx).content_rail_expanded;

@@ -9,4 +9,4 @@ file = "data/northwind.db"
 
 [ai]
 enabled = true
-context = "schema"
+context = "schema+rows"

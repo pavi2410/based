@@ -15,6 +15,7 @@ serde_json = { workspace = true }
 similar = "2"
 
 [dev-dependencies]
+tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt"] }
 
 [lints]

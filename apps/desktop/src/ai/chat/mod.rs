@@ -5,6 +5,7 @@
 //! [`MAX_ROUNDS`].
 
 mod conn;
+mod saved;
 mod tags;
 mod view;
 
@@ -13,6 +14,7 @@ use std::mem::take;
 use std::sync::Arc;
 
 use based_ai::context::ContextLevel;
+use based_ai::history::ChatMeta;
 use based_ai::tools::{ReadOnlyTools, ToolBackend, ToolCall, connection_specs};
 use based_ai::{AiError, Message, Role, prompt};
 use based_core::EngineKind;
@@ -88,6 +90,10 @@ pub struct ChatPane {
     tables_for: Option<ConnectionId>,
     /// Connection label each tool call ran against.
     targets: HashMap<String, String>,
+    /// File id of the open conversation once it has been saved.
+    chat_id: Option<String>,
+    /// Saved conversations, newest first.
+    history: Vec<ChatMeta>,
     /// Why chat can't be used right now; replaces the composer.
     notice: Option<SharedString>,
     /// Provider key lookup, then the stream. Dropping either cancels the request.
@@ -121,7 +127,7 @@ impl ChatPane {
             },
         )
         .detach();
-        Self {
+        let pane = Self {
             input,
             scroller: cx.new(|cx| MessageScrollerState::new(0, cx)),
             turns: Vec::new(),
@@ -137,11 +143,15 @@ impl ChatPane {
             tables: Vec::new(),
             tables_for: None,
             targets: HashMap::new(),
+            chat_id: None,
+            history: Vec::new(),
             notice: None,
             job: None,
             stream: None,
             tool_job: None,
-        }
+        };
+        pane.load_history(cx);
+        pane
     }
 
     /// Called on every workspace render; only notifies on a real change.
@@ -285,6 +295,7 @@ impl ChatPane {
                 if self.calls.is_empty() {
                     self.turns.push(Message::assistant(reply));
                     self.phase = Phase::Idle;
+                    self.persist(cx);
                 } else {
                     let calls = take(&mut self.calls);
                     self.turns
@@ -343,14 +354,7 @@ impl ChatPane {
             Phase::Idle | Phase::Failed(_) => return,
         }
         self.finish(Phase::Idle);
-        self.sync(cx);
-    }
-
-    fn clear(&mut self, cx: &mut Context<Self>) {
-        self.turns.clear();
-        self.draft.clear();
-        self.targets.clear();
-        self.finish(Phase::Idle);
+        self.persist(cx);
         self.sync(cx);
     }
 }

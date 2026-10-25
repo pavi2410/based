@@ -2,6 +2,7 @@
 
 pub mod context;
 pub mod error;
+pub mod history;
 mod http;
 pub mod patch;
 pub mod prompt;

@@ -95,13 +95,13 @@ impl ChatPane {
                 .tooltip("Stop")
                 .on_click(cx.listener(|this, _, _, cx| this.stop(cx)))
         } else {
-            Button::new("chat-clear")
+            Button::new("chat-new")
                 .ghost()
                 .small()
-                .icon(IconName::Delete)
-                .tooltip("Clear conversation")
+                .icon(IconName::Plus)
+                .tooltip("New chat")
                 .disabled(self.turns.is_empty())
-                .on_click(cx.listener(|this, _, _, cx| this.clear(cx)))
+                .on_click(cx.listener(|this, _, _, cx| this.new_chat(cx)))
         };
         v_flex()
             .border_t_1()
@@ -113,6 +113,7 @@ impl ChatPane {
                     .items_end()
                     .p_2()
                     .child(self.tag_button(cx))
+                    .child(self.history_button(cx))
                     .child(div().flex_1().child(Textarea::new(&self.input).small()))
                     .child(action),
             )

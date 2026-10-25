@@ -1,6 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 use crate::tools::{ToolCall, ToolResult, ToolSpec};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Role {
     User,
     Assistant,
@@ -9,14 +11,14 @@ pub enum Role {
 }
 
 /// Which call a [`Role::Tool`] message answers.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ToolOutcome {
     pub id: String,
     pub name: String,
     pub is_error: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Message {
     pub role: Role,
     pub content: String,

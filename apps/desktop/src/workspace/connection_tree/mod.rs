@@ -463,7 +463,7 @@ impl ConnectionTree {
         cx.emit(TreeEvent::OpenTab(TabSpec::ObjectInfo {
             conn_id,
             object_name: object.display_name(),
-            kind_label: object.kind.label().to_string(),
+            kind: object.kind,
         }));
     }
 

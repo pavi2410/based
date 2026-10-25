@@ -20,6 +20,7 @@ use crate::query_store::QueryStore;
 use crate::sqlite::pragmas::fetch_sqlite_pragmas;
 use crate::widgets::PANEL_RADIUS;
 use crate::widgets::{compact_description_list_vertical, engine_name, metadata_pill, panel_header};
+use crate::workspace::connection_tree::ObjectKind;
 use crate::workspace::tabs::render_strip_tab;
 
 pub struct ConnectionDashboardPanel {
@@ -231,19 +232,18 @@ impl Render for ConnectionDashboardPanel {
 pub struct ObjectInfoPanel {
     focus_handle: FocusHandle,
     name: String,
-    kind: String,
+    kind: ObjectKind,
     pub(crate) tab_label: gpui_kit::SharedString,
 }
 
 impl ObjectInfoPanel {
     pub fn new(
         name: String,
-        kind: impl Into<String>,
+        kind: ObjectKind,
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let kind = kind.into();
-        let tab_label = format!("{name} ({kind})").into();
+        let tab_label = format!("{name} ({})", kind.label()).into();
         Self {
             focus_handle: cx.focus_handle(),
             name,
@@ -285,7 +285,7 @@ impl Render for ObjectInfoPanel {
             .bg(cx.theme().background)
             .child(panel_header(
                 self.name.clone(),
-                format!("{} metadata", self.kind),
+                format!("{} metadata", self.kind.label()),
                 cx,
             ))
             .child(
@@ -293,7 +293,7 @@ impl Render for ObjectInfoPanel {
                     .p_4()
                     .gap_3()
                     .child(metadata_pill("object", self.name.clone(), cx))
-                    .child(metadata_pill("kind", self.kind.clone(), cx))
+                    .child(metadata_pill("kind", self.kind.label().to_string(), cx))
                     .child(dashboard_card(
                         "Inspector",
                         "Detailed schema, DDL, and dependency views will live here as the object model matures.",

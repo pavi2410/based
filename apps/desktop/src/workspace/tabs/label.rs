@@ -127,10 +127,8 @@ fn tab_info(label: &SharedString, spec: Option<&TabSpec>) -> SharedString {
         TabSpec::QueryEditor { .. } => "Query editor".into(),
         TabSpec::Pipeline { collection, .. } => format!("Aggregation pipeline · {collection}"),
         TabSpec::ObjectInfo {
-            object_name,
-            kind_label,
-            ..
-        } => format!("{kind_label} · {object_name}"),
+            object_name, kind, ..
+        } => format!("{} · {object_name}", kind.label()),
         TabSpec::DocumentInsert { collection, .. } => format!("Insert document · {collection}"),
         TabSpec::Dashboard { .. } => "Connection dashboard".into(),
         TabSpec::Home | TabSpec::ReleaseNotes { .. } | TabSpec::Builtin { .. } => String::new(),
@@ -174,10 +172,8 @@ pub fn tab_label_for_spec(spec: &TabSpec, dirty: bool) -> SharedString {
         TabSpec::Pipeline { collection, .. } => collection.clone(),
         TabSpec::Inspector { object, .. } => format!("{} (schema)", short_object_name(object)),
         TabSpec::ObjectInfo {
-            object_name,
-            kind_label,
-            ..
-        } => format!("{object_name} ({kind_label})"),
+            object_name, kind, ..
+        } => format!("{object_name} ({})", kind.label()),
         TabSpec::DocumentInsert { collection, .. } => format!("Insert · {collection}"),
         TabSpec::ReleaseNotes { version } => format!("What's New in v{version}"),
         TabSpec::Builtin { panel, .. } => panel.clone(),

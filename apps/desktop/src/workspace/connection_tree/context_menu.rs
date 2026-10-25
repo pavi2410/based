@@ -418,7 +418,7 @@ pub(crate) fn object_context_menu(
         }
     }));
 
-    if structure_supported(engine, object.kind.clone()) {
+    if structure_supported(engine, object.kind) {
         let object_struct = object.clone();
         menu = menu.item(PopupMenuItem::new("Open Structure").on_click({
             let tree = tree_menu.clone();

@@ -116,7 +116,6 @@ fn clicking_a_connection_lists_its_objects(cx: &mut TestAppContext) {
             .find(|o| o.name == n)
             .unwrap()
             .kind
-            .clone()
     };
     assert_eq!(kind("users", cx), ObjectKind::Table);
     assert_eq!(kind("user_names", cx), ObjectKind::View);

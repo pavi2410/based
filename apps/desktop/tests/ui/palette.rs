@@ -1,6 +1,7 @@
 //! Command palette: open/dismiss via real key bindings and run a command.
 
 use based_desktop::connection::ConnectionId;
+use based_desktop::workspace::connection_tree::ObjectKind;
 use based_desktop::workspace::{TabSpec, Workspace};
 use gpui_kit::test::TestWindowExt;
 use gpui_kit::{AnyWindowHandle, AppContext, Entity, TestAppContext};
@@ -39,7 +40,7 @@ fn show_home_command_activates_home(cx: &mut TestAppContext) {
     let info = TabSpec::ObjectInfo {
         conn_id: ConnectionId("t".into()),
         object_name: "a".into(),
-        kind_label: "Trigger".into(),
+        kind: ObjectKind::Trigger,
     };
     cx.update_window(win, |_, window, cx| {
         ws.update(cx, |ws, cx| ws.dispatch_open_tab(info, window, cx));

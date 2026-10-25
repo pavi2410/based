@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::connection::ConnectionId;
+use crate::workspace::connection_tree::ObjectKind;
 
 /// Typed initialization payload for a query editor tab.
 ///
@@ -80,7 +81,7 @@ pub enum TabSpec {
     ObjectInfo {
         conn_id: ConnectionId,
         object_name: String,
-        kind_label: String,
+        kind: ObjectKind,
     },
     /// MongoDB insert-document JSON editor for a collection.
     DocumentInsert {

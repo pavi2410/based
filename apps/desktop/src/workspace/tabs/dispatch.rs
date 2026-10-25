@@ -59,14 +59,12 @@ impl Workspace {
                 return true;
             }
             TabSpec::ObjectInfo {
-                object_name,
-                kind_label,
-                ..
+                object_name, kind, ..
             } => {
                 let label = tab_label_for_spec(&spec, false);
                 let on = object_name.clone();
-                let kl = kind_label.clone();
-                let panel = cx.new(|cx| ObjectInfoPanel::new(on, kl, window, cx));
+                let kind = *kind;
+                let panel = cx.new(|cx| ObjectInfoPanel::new(on, kind, window, cx));
                 panel.update(cx, |p, _| p.tab_label = label);
                 self.dock_add_and_register_tab(spec, Arc::new(panel), window, cx);
                 return true;

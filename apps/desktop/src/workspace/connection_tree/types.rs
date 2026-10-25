@@ -1,13 +1,18 @@
 use std::collections::HashSet;
 
+use serde::{Deserialize, Serialize};
+
 use crate::workspace::TabSpec;
 use gpui_kit::Hsla;
 use gpui_kit::component::{IconName, Theme};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// Serialized in saved sessions (`ObjectInfo` tabs): keep the names stable.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ObjectKind {
     Table,
     View,
+    #[serde(rename = "matview")]
     MaterializedView,
     Trigger,
     Collection,

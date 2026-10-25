@@ -10,6 +10,7 @@ use based_desktop::app::paths::AppPaths;
 use based_desktop::connection::{ConnectionConfig, ConnectionId, open_connection};
 use based_desktop::db::Tokio;
 use based_desktop::workspace::boot::WorkspaceEnv;
+use based_desktop::workspace::connection_tree::ObjectKind;
 use based_desktop::workspace::tabs::SessionSnapshot;
 use based_desktop::workspace::{TabSpec, Workspace};
 use based_desktop::{init_globals, query_store, storage};
@@ -209,6 +210,6 @@ pub fn info(name: &str) -> TabSpec {
     TabSpec::ObjectInfo {
         conn_id: ConnectionId("t".into()),
         object_name: name.into(),
-        kind_label: "Trigger".into(),
+        kind: ObjectKind::Trigger,
     }
 }

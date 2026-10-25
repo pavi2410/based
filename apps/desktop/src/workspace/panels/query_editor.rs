@@ -21,7 +21,7 @@ use gpui_kit::component::{
 };
 use gpui_kit::{App, Entity, prelude::*, *};
 
-use crate::ai::AiPrompt;
+use crate::ai::AiHost;
 use crate::app::prefs;
 use crate::bindings::AskAi;
 use crate::connection::{ConnectionId, is_connection_read_only};
@@ -116,10 +116,8 @@ pub struct QueryEditorPanel {
     bottom_tab: BottomTab,
     explain: ExplainView,
     dirty: bool,
-    pub(super) ai: Entity<AiPrompt>,
-    pub(super) ai_open: bool,
-    /// Text applied from an AI proposal; running it unchanged needs confirmation if it writes.
-    pub(super) ai_applied: Option<String>,
+    pub(super) ai: AiHost,
+    /// A write from an AI proposal is waiting on the confirmation banner.
     pub(super) ai_confirm: bool,
     pub(crate) tab_label: SharedString,
 }
@@ -160,9 +158,7 @@ impl QueryEditorPanel {
             bottom_tab: BottomTab::Results,
             explain: ExplainView::Empty,
             dirty: false,
-            ai: Self::new_ai(window, cx),
-            ai_open: false,
-            ai_applied: None,
+            ai: AiHost::new(window, cx, Self::on_ai_event),
             ai_confirm: false,
             tab_label: "Query".into(),
         };
@@ -618,7 +614,7 @@ impl QueryEditorPanel {
                     .small()
                     .icon(IconName::Bot)
                     .label("Ask AI")
-                    .selected(self.ai_open)
+                    .selected(self.ai.is_open())
                     .on_click(cx.listener(|panel, _, window, cx| panel.toggle_ai(window, cx))),
             )
             .when(read_only, |h| {
@@ -695,7 +691,7 @@ impl Render for QueryEditorPanel {
                 .min_h(px(0.0))
                 .on_action(cx.listener(|panel, _: &AskAi, window, cx| panel.toggle_ai(window, cx)))
                 .child(toolbar)
-                .when(self.ai_open, |v| v.child(self.ai.clone()))
+                .when_some(self.ai.bar(), |v, bar| v.child(bar))
                 .children(ai_confirm)
                 .child(
                     div().flex_1().min_h(px(0.0)).child(

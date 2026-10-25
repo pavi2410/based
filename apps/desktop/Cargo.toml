@@ -113,3 +113,4 @@ workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+gpui-kit = { workspace = true, features = ["test-support"] }

@@ -199,13 +199,17 @@ impl Workspace {
                 fallback: infer::fallback_spec(panel, cx),
             })
             .collect();
-        let active = self
-            .tab_manager
-            .read(cx)
-            .active_tab()
-            .filter(|t| self.center_panels.iter().any(|p| p.view() == t.view))
-            .map(|t| t.view.clone())
-            .or_else(|| active_live_center_panel(dock, cx).map(|p| p.view()));
+        // The dock owns activation (clicks, ⌘W, show_home); the manager's own
+        // active tab is only a fallback when the dock has no live panel.
+        let active = active_live_center_panel(dock, cx)
+            .map(|p| p.view())
+            .or_else(|| {
+                self.tab_manager
+                    .read(cx)
+                    .active_tab()
+                    .filter(|t| self.center_panels.iter().any(|p| p.view() == t.view))
+                    .map(|t| t.view.clone())
+            });
         self.tab_manager.update(cx, |tm, ecx| {
             tm.reconcile_dock_tabs(&entries, active, ecx);
         });

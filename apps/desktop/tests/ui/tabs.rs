@@ -155,10 +155,8 @@ fn pinned_tab_cannot_be_closed(cx: &mut TestAppContext) {
     assert_eq!(tab_count(&ws, cx), 2, "pinned tab must survive close");
 }
 
-// `sync_tab_manager_from_dock` prefers the manager's own active tab over the
-// dock's live one, so activating Home leaves the manager on the old tab.
+// Activation happens in the dock; the manager must mirror it.
 #[gpui_kit::test]
-#[ignore = "known bug: TabManager.active_idx does not follow dock activation"]
 fn tab_manager_active_follows_dock(cx: &mut TestAppContext) {
     let (win, ws) = open_workspace(cx);
     open(win, &ws, info("a"), cx);

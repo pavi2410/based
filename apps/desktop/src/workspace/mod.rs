@@ -114,8 +114,6 @@ pub struct Workspace {
     tab_navigation: TabNavigationHistory,
     /// Close request waiting on a discard-edits confirmation.
     close_prompt: Option<tabs::ClosePrompt>,
-    /// Live center tab panels, kept as styled handles for TabManager downcasts.
-    center_panels: Vec<Arc<dyn PanelView>>,
 }
 
 impl Workspace {
@@ -174,7 +172,7 @@ impl Workspace {
         let connection_tree =
             cx.new(|cx| ConnectionTree::new(registry.clone(), dock_area.clone(), cx));
 
-        let tab_manager = cx.new(|_| TabManager::default());
+        let tab_manager = cx.new(|_| TabManager::with_tab(TabSpec::Home, home_arc.clone()));
         cx.set_global(TabManagerRef(tab_manager.clone()));
         cx.set_global(DockAreaRef(dock_area.clone()));
         if let Some(root) = project_dir.clone() {
@@ -221,7 +219,6 @@ impl Workspace {
             pending_project_close_confirm: false,
             tab_navigation: TabNavigationHistory::default(),
             close_prompt: None,
-            center_panels: vec![home_arc],
         };
 
         cx.subscribe(&tree_observe, |ws, _, event, ecx| {

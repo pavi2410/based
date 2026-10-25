@@ -121,17 +121,20 @@ impl Workspace {
                 return;
             };
             let group_ids = tab_group_panel_ids(dock, node);
-            self.center_panels
+            self.tab_manager
+                .read(cx)
+                .panels()
                 .iter()
                 .filter(|p| group_ids.contains(&to_panel_id(panel_entity_id(p))))
                 .map(panel_entity_id)
                 .collect::<Vec<EntityId>>()
         };
         let to_remove: Vec<Arc<dyn PanelView>> = self
-            .center_panels
-            .iter()
+            .tab_manager
+            .read(cx)
+            .panels()
+            .into_iter()
             .filter(|p| removed_ids.contains(&panel_entity_id(p)))
-            .cloned()
             .collect();
         self.dock_area.update(cx, |dock, ecx| {
             for panel in &to_remove {
@@ -139,7 +142,7 @@ impl Workspace {
             }
         });
         for id in removed_ids {
-            self.unregister_center_panel(id);
+            self.unregister_center_panel(id, cx);
         }
         self.sync_tab_manager_from_dock(cx);
         self.ensure_home_tab(window, cx);
@@ -161,10 +164,9 @@ impl Workspace {
         };
 
         split_center_with_panel(&self.dock_area, panel_arc.clone(), placement, window, cx);
-        let view = panel_arc.view();
-        self.register_center_panel(panel_arc, cx);
+        self.register_center_panel(panel_arc.clone(), cx);
         self.tab_manager.update(cx, |tm, ecx| {
-            tm.open_or_focus(spec, view, ecx);
+            tm.open_or_focus(spec, panel_arc, ecx);
         });
         cx.notify();
     }

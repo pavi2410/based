@@ -63,7 +63,7 @@ fn open_viewer(cx: &mut TestAppContext, filter: Option<DrillFilter>) -> Viewer {
             .read(cx)
             .tabs
             .iter()
-            .find_map(|t| t.view.clone().downcast::<DataViewerPanel>().ok())
+            .find_map(|t| t.downcast::<DataViewerPanel>())
             .expect("data viewer tab")
     });
     Viewer {
@@ -128,7 +128,7 @@ fn page_size_pref_applies_to_new_viewers(cx: &mut TestAppContext) {
             .read(cx)
             .tabs
             .iter()
-            .find_map(|t| t.view.clone().downcast::<DataViewerPanel>().ok())
+            .find_map(|t| t.downcast::<DataViewerPanel>())
             .unwrap()
     });
     wait_until(cx, |cx| {

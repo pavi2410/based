@@ -51,7 +51,7 @@ fn open_editor(
             .read(cx)
             .tabs
             .iter()
-            .find_map(|t| t.view.clone().downcast::<QueryEditorPanel>().ok())
+            .find_map(|t| t.downcast::<QueryEditorPanel>())
             .expect("query editor tab")
     });
     (Editor { win, panel }, ws, dir)

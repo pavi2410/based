@@ -1,18 +1,32 @@
-use gpui_kit::{AnyView, Context, EntityId, EventEmitter};
+use std::sync::Arc;
+
+use gpui_kit::component::dock::PanelView;
+use gpui_kit::{AnyView, Context, Entity, EntityId, EventEmitter};
 
 use super::spec::TabSpec;
 
-/// An open tab — its spec (identity) and the live panel view.
+/// An open tab — its spec (identity) and the live panel.
 pub struct Tab {
     pub spec: TabSpec,
-    pub view: AnyView,
+    pub panel: Arc<dyn PanelView>,
     pub dirty: bool,
     pub pinned: bool,
 }
 
+impl Tab {
+    pub fn view(&self) -> AnyView {
+        self.panel.view()
+    }
+
+    /// The panel entity, if it is a `T`.
+    pub fn downcast<T: 'static>(&self) -> Option<Entity<T>> {
+        self.view().downcast::<T>().ok()
+    }
+}
+
 /// A live center panel as seen by dock sync.
 pub struct DockTab {
-    pub view: AnyView,
+    pub panel: Arc<dyn PanelView>,
     /// Spec derived from the panel; `None` keeps the spec the tab was opened with.
     pub inferred: Option<TabSpec>,
     /// Used only when the panel is not yet tracked and nothing was inferred.
@@ -25,21 +39,39 @@ pub enum TabEvent {
     ActiveChanged(usize),
 }
 
-#[derive(Default)]
 pub struct TabManager {
     pub tabs: Vec<Tab>,
     pub active_idx: Option<usize>,
 }
 
 impl TabManager {
+    /// A manager that starts with one open tab.
+    pub fn with_tab(spec: TabSpec, panel: Arc<dyn PanelView>) -> Self {
+        Self {
+            tabs: vec![Tab {
+                spec,
+                panel,
+                dirty: false,
+                pinned: false,
+            }],
+            active_idx: Some(0),
+        }
+    }
+
     /// Open a new tab or focus the existing one for this panel view or spec.
     ///
     /// Dock sync can register a panel's view before this is called, so the view
     /// is matched first and its spec upgraded to the authoritative one.
     /// QueryEditor never dedups by spec (callers pass a fresh spec each time).
-    pub fn open_or_focus(&mut self, spec: TabSpec, view: AnyView, cx: &mut Context<Self>) {
+    pub fn open_or_focus(
+        &mut self,
+        spec: TabSpec,
+        panel: Arc<dyn PanelView>,
+        cx: &mut Context<Self>,
+    ) {
+        let view = panel.view();
         let is_query = matches!(spec, TabSpec::QueryEditor { .. });
-        let existing = self.tabs.iter().position(|t| t.view == view).or_else(|| {
+        let existing = self.tabs.iter().position(|t| t.view() == view).or_else(|| {
             if is_query {
                 return None;
             }
@@ -55,7 +87,7 @@ impl TabManager {
         let idx = self.tabs.len();
         self.tabs.push(Tab {
             spec,
-            view,
+            panel,
             dirty: false,
             pinned: false,
         });
@@ -78,13 +110,18 @@ impl TabManager {
     }
 
     pub fn tab_for_panel_id(&self, panel_id: EntityId) -> Option<&Tab> {
-        self.tabs.iter().find(|t| t.view.entity_id() == panel_id)
+        self.tabs.iter().find(|t| t.view().entity_id() == panel_id)
     }
 
     pub fn tab_for_panel_id_mut(&mut self, panel_id: EntityId) -> Option<&mut Tab> {
         self.tabs
             .iter_mut()
-            .find(|t| t.view.entity_id() == panel_id)
+            .find(|t| t.view().entity_id() == panel_id)
+    }
+
+    /// Live panels in strip order.
+    pub fn panels(&self) -> Vec<Arc<dyn PanelView>> {
+        self.tabs.iter().map(|t| t.panel.clone()).collect()
     }
 
     pub fn apply_pinned_specs(&mut self, pinned: &[TabSpec], cx: &mut Context<Self>) {
@@ -109,22 +146,21 @@ impl TabManager {
         active: Option<gpui_kit::AnyView>,
         cx: &mut Context<Self>,
     ) {
-        let dock_views: Vec<_> = dock.iter().map(|d| d.view.clone()).collect();
+        let dock_views: Vec<_> = dock.iter().map(|d| d.panel.view()).collect();
         let before_len = self.tabs.len();
         let old_active = self.active_idx;
 
-        self.tabs
-            .retain(|t| dock_views.iter().any(|v| v == &t.view));
+        self.tabs.retain(|t| dock_views.contains(&t.view()));
 
         for d in dock {
-            if let Some(tab) = self.tabs.iter_mut().find(|t| t.view == d.view) {
+            if let Some(tab) = self.tabs.iter_mut().find(|t| t.view() == d.panel.view()) {
                 if let Some(spec) = &d.inferred {
                     tab.spec = spec.clone();
                 }
             } else {
                 self.tabs.push(Tab {
                     spec: d.inferred.clone().unwrap_or_else(|| d.fallback.clone()),
-                    view: d.view.clone(),
+                    panel: d.panel.clone(),
                     dirty: false,
                     pinned: false,
                 });
@@ -132,7 +168,7 @@ impl TabManager {
         }
 
         let new_active = active
-            .and_then(|av| self.tabs.iter().position(|t| t.view == av))
+            .and_then(|av| self.tabs.iter().position(|t| t.view() == av))
             .or(old_active.filter(|&i| i < self.tabs.len()));
 
         let changed = before_len != self.tabs.len() || old_active != new_active;

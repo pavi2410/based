@@ -51,7 +51,7 @@ impl Workspace {
         conn_id: &ConnectionId,
         cx: &App,
     ) -> Option<Arc<dyn PanelView>> {
-        for panel in &self.center_panels {
+        for panel in self.tab_manager.read(cx).panels() {
             if panel.panel_name(cx) != "ConnectionWizard" {
                 continue;
             }
@@ -82,14 +82,13 @@ impl Workspace {
         panel: Arc<dyn PanelView>,
         cx: &mut Context<Self>,
     ) {
-        let id = panel.view().entity_id();
-        if !self
-            .center_panels
+        let mut panels = self.tab_manager.read(cx).panels();
+        if !panels
             .iter()
-            .any(|p| p.view().entity_id() == id)
+            .any(|p| panel_entity_id(p) == panel_entity_id(&panel))
         {
-            self.center_panels.push(panel);
-            self.sync_tab_manager_from_dock(cx);
+            panels.push(panel);
+            self.sync_panels(panels, cx);
         }
     }
 
@@ -98,24 +97,22 @@ impl Workspace {
         panels: Vec<Arc<dyn PanelView>>,
         cx: &mut Context<Self>,
     ) {
-        self.center_panels = panels;
-        self.sync_tab_manager_from_dock(cx);
+        self.sync_panels(panels, cx);
     }
 
-    pub(crate) fn unregister_center_panel(&mut self, panel_id: EntityId) {
-        self.center_panels
-            .retain(|p| p.view().entity_id() != panel_id);
+    pub(crate) fn unregister_center_panel(&mut self, panel_id: EntityId, cx: &mut Context<Self>) {
+        let mut panels = self.tab_manager.read(cx).panels();
+        panels.retain(|p| panel_entity_id(p) != panel_id);
+        self.sync_panels(panels, cx);
     }
 
     pub(crate) fn find_center_panel(
         &self,
         panel_id: EntityId,
-        _cx: &App,
+        cx: &App,
     ) -> Option<Arc<dyn PanelView>> {
-        self.center_panels
-            .iter()
-            .find(|p| panel_entity_id(p) == panel_id)
-            .cloned()
+        let tm = self.tab_manager.read(cx);
+        tm.tab_for_panel_id(panel_id).map(|t| t.panel.clone())
     }
 
     /// Rebuild the center dock with a single Home tab (used after the last tab closes).
@@ -136,10 +133,7 @@ impl Workspace {
     /// Focus the Home tab, re-adding it to the center strip if it was replaced.
     pub fn show_home(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let home_id = self.home_panel.entity_id();
-        let home_present = self
-            .center_panels
-            .iter()
-            .any(|p| panel_entity_id(p) == home_id);
+        let home_present = self.find_center_panel(home_id, cx).is_some();
 
         if home_present {
             let home = self
@@ -172,28 +166,24 @@ impl Workspace {
             active_live_center_panel(dock, cx)
         };
         if let Some(live) = live {
-            if !self
-                .center_panels
-                .iter()
-                .any(|p| panel_entity_id(p) == panel_entity_id(&live))
-            {
-                self.register_center_panel(live, cx);
-            }
+            self.register_center_panel(live, cx);
             return;
-        }
-        if !self.center_panels.is_empty() {
-            self.center_panels.clear();
         }
         self.reset_center_to_home(window, cx);
     }
 
     pub(crate) fn sync_tab_manager_from_dock(&mut self, cx: &mut Context<Self>) {
+        let panels = self.tab_manager.read(cx).panels();
+        self.sync_panels(panels, cx);
+    }
+
+    /// Make `panels` the live center set: re-infer specs, drop the rest, follow the dock's active tab.
+    fn sync_panels(&mut self, panels: Vec<Arc<dyn PanelView>>, cx: &mut Context<Self>) {
         let dock = self.dock_area.read(cx);
-        let entries: Vec<_> = self
-            .center_panels
+        let entries: Vec<_> = panels
             .iter()
             .map(|panel| DockTab {
-                view: panel.view(),
+                panel: panel.clone(),
                 inferred: infer::infer_tab_spec(panel, cx),
                 fallback: infer::fallback_spec(panel, cx),
             })
@@ -206,8 +196,8 @@ impl Workspace {
                 self.tab_manager
                     .read(cx)
                     .active_tab()
-                    .filter(|t| self.center_panels.iter().any(|p| p.view() == t.view))
-                    .map(|t| t.view.clone())
+                    .filter(|t| panels.iter().any(|p| p.view() == t.view()))
+                    .map(|t| t.view())
             });
         self.tab_manager.update(cx, |tm, ecx| {
             tm.reconcile_dock_tabs(&entries, active, ecx);
@@ -221,9 +211,7 @@ impl Workspace {
         if self.is_tab_pinned(panel_id, cx) {
             return false;
         }
-        self.center_panels
-            .iter()
-            .any(|p| panel_entity_id(p) == panel_id)
+        self.find_center_panel(panel_id, cx).is_some()
     }
 
     pub fn active_center_panel_id(&self, cx: &App) -> Option<EntityId> {

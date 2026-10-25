@@ -175,13 +175,19 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Vec<EntityId> {
-        let order: Vec<EntityId> = self.center_panels.iter().map(panel_entity_id).collect();
+        let order: Vec<EntityId> = self
+            .tab_manager
+            .read(cx)
+            .panels()
+            .iter()
+            .map(panel_entity_id)
+            .collect();
         let pos = |id: EntityId| order.iter().position(|p| *p == id);
         let active = active_live_center_panel(self.dock_area.read(cx), cx)
             .map(|p| panel_entity_id(&p))
             .or_else(|| {
                 let tm = self.tab_manager.read(cx);
-                tm.active_tab().map(|t| t.view.entity_id())
+                tm.active_tab().map(|t| t.view().entity_id())
             });
         if scope == CloseScope::Active && active.is_none() {
             self.ensure_home_tab(window, cx);
@@ -228,7 +234,7 @@ impl Workspace {
             self.dock_area.update(cx, |dock, ecx| {
                 remove_presentation_panel(dock, &panel, window, ecx);
             });
-            self.unregister_center_panel(id);
+            self.unregister_center_panel(id, cx);
         }
         self.sync_tab_manager_from_dock(cx);
         self.ensure_home_tab(window, cx);

@@ -53,7 +53,7 @@ impl Strip {
                 .iter()
                 .find(|t| t.spec == *spec)
                 .expect("tab")
-                .view
+                .view()
                 .entity_id()
         })
     }
@@ -162,7 +162,7 @@ impl Sql {
                 .read(cx)
                 .tabs
                 .iter()
-                .find_map(|t| t.view.clone().downcast::<QueryEditorPanel>().ok())
+                .find_map(|t| t.downcast::<QueryEditorPanel>())
                 .expect("query editor")
         });
         cx.update_window(self.s.win, |_, window, cx| {

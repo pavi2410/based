@@ -52,7 +52,7 @@ fn show_home_command_activates_home(cx: &mut TestAppContext) {
         ws.read_with(cx, |ws, cx| {
             let tm = ws.tab_manager().read(cx);
             let home = tm.tabs.iter().find(|t| t.spec == TabSpec::Home).unwrap();
-            ws.active_center_panel_id(cx) == Some(home.view.entity_id())
+            ws.active_center_panel_id(cx) == Some(home.view().entity_id())
         })
     };
     assert!(!home_active(cx));

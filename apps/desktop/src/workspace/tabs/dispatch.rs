@@ -144,7 +144,7 @@ impl Workspace {
             .tabs
             .iter()
             .find(|t| t.spec == *spec)
-            .map(|t| t.view.entity_id())
+            .map(|t| t.view().entity_id())
         else {
             return false;
         };
@@ -164,9 +164,8 @@ impl Workspace {
     ) {
         add_center_panel_view(&self.dock_area, panel.clone(), window, cx);
         self.register_center_panel(panel.clone(), cx);
-        let view = panel.view();
         self.tab_manager.update(cx, |tm, ecx| {
-            tm.open_or_focus(spec, view, ecx);
+            tm.open_or_focus(spec, panel, ecx);
         });
         cx.notify();
     }

@@ -27,7 +27,7 @@ fn tab_count(ws: &Entity<Workspace>, cx: &mut TestAppContext) -> usize {
             .read(cx)
             .tabs
             .iter()
-            .map(|t| t.view.entity_id())
+            .map(|t| t.view().entity_id())
             .collect();
         ids.sort();
         ids.dedup();
@@ -107,7 +107,7 @@ fn reopening_a_tab_focuses_it(cx: &mut TestAppContext) {
             .iter()
             .find(|t| t.spec == info("a"))
             .expect("tab a");
-        ws.active_center_panel_id(cx) == Some(a.view.entity_id())
+        ws.active_center_panel_id(cx) == Some(a.view().entity_id())
     });
     assert!(a_is_active, "re-opening should activate the existing tab");
     assert_eq!(tab_count(&ws, cx), 3);

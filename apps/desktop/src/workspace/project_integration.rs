@@ -3,7 +3,7 @@
 use std::mem;
 use std::path::PathBuf;
 
-use based_project::{ProjectQuery, load_env_file};
+use based_project::{AiSettings, ProjectQuery, load_env_file};
 use gpui_kit::Context;
 
 use crate::connection::registry::ConnectionRegistry;
@@ -130,6 +130,7 @@ impl Workspace {
         destination: ConnectionDestination,
         session_id: Option<ConnectionId>,
         tags: Vec<String>,
+        ai: Option<AiSettings>,
         cx: &mut Context<Self>,
     ) -> Result<(ConnectionId, bool), String> {
         let based_dir = destination
@@ -179,12 +180,12 @@ impl Workspace {
                 config.label()
             ));
         }
-        let mut entry = match persist_config_to_based_dir(&based_dir, &config, &tags, keep_id) {
+        let mut entry = match persist_config_to_based_dir(&based_dir, &config, &tags, keep_id, ai) {
             Ok(conn) => {
                 let vars = load_env_file(&based_dir.join(".env")).unwrap_or_default();
                 entry_from_tree(&conn, origin, &vars).unwrap_or_else(|err| {
                     log::warn!("resolve persisted connection failed: {err:#}");
-                    entry_from_config(&config, &conn.id, origin, tags.clone())
+                    entry_from_config(&config, &conn.id, origin, tags.clone(), ai)
                 })
             }
             Err(err) => {
@@ -220,6 +221,9 @@ impl Workspace {
                     e.config = entry.config.clone();
                     e.origin = entry.origin;
                     e.tags = entry.tags.clone();
+                    if !replace_live {
+                        e.ai = entry.ai;
+                    }
                     if replace_live
                         || matches!(entry.state, ConnectionState::Connected(_))
                         || matches!(e.state, ConnectionState::Disconnected)
@@ -264,7 +268,10 @@ fn entry_from_config(
     relative_id: &str,
     origin: ConnectionOrigin,
     tags: Vec<String>,
+    ai: Option<AiSettings>,
 ) -> ConnectionEntry {
     let key = super::wizard_logic::saved_id_for_destination(origin, relative_id).0;
-    ConnectionEntry::with_origin(config.clone(), &key, tags, origin)
+    let mut entry = ConnectionEntry::with_origin(config.clone(), &key, tags, origin);
+    entry.ai = ai;
+    entry
 }

@@ -24,6 +24,7 @@ use tokio::task::spawn_blocking;
 use uuid::Uuid;
 
 use based_core::SshTunnelConfig;
+use based_project::AiSettings;
 
 use crate::app::prefs;
 use crate::connection::{
@@ -97,6 +98,8 @@ pub struct ConnectionWizardPanel {
     name: Entity<InputState>,
     tag_input: Entity<InputState>,
     tags: Vec<String>,
+    /// Edited by the AI section; carried through save so `[ai]` is never dropped.
+    ai: Option<AiSettings>,
     destination: Option<ConnectionDestination>,
     session_id: Option<ConnectionId>,
     status: WizardStatus,
@@ -188,6 +191,7 @@ impl ConnectionWizardPanel {
             tags: Vec::new(),
             destination: None,
             session_id: None,
+            ai: None,
             status: WizardStatus::Idle,
             tab_label: "New connection".into(),
         }
@@ -198,14 +202,21 @@ impl ConnectionWizardPanel {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let (id, config, tags, origin) = {
+        let (id, config, tags, origin, ai) = {
             let e = entry.read(cx);
-            (e.id.clone(), e.config.clone(), e.tags.clone(), e.origin)
+            (
+                e.id.clone(),
+                e.config.clone(),
+                e.tags.clone(),
+                e.origin,
+                e.ai,
+            )
         };
         let mut panel = Self::new(window, cx);
         panel.session_id = Some(id);
         panel.destination = Some(ConnectionDestination::from_origin(origin));
         panel.tags = tags;
+        panel.ai = ai;
         panel.tab_label = config.label().to_string().into();
         panel.apply_config(&config, window, cx);
         panel

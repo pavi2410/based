@@ -78,12 +78,9 @@ pub fn entry_from_tree(
         ConnectionOrigin::Project => conn.id.clone(),
         ConnectionOrigin::Personal => ConnectionId::personal(&conn.id).0,
     };
-    Ok(ConnectionEntry::with_origin(
-        config,
-        &stable_key,
-        conn.tags.clone(),
-        origin,
-    ))
+    let mut entry = ConnectionEntry::with_origin(config, &stable_key, conn.tags.clone(), origin);
+    entry.ai = conn.ai;
+    Ok(entry)
 }
 
 pub fn load_entries_from_based_dir(

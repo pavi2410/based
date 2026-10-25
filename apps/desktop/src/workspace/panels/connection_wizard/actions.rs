@@ -78,7 +78,14 @@ impl ConnectionWizardPanel {
         let config = self.labeled_config(cx);
         let session_id = self.session_id.clone();
         let result = ws.update(cx, |workspace, cx| {
-            workspace.save_wizard_connection(config, destination, session_id, self.tags.clone(), cx)
+            workspace.save_wizard_connection(
+                config,
+                destination,
+                session_id,
+                self.tags.clone(),
+                self.ai,
+                cx,
+            )
         });
         match result {
             Ok((id, reconnect)) => {

@@ -3,8 +3,7 @@
 use std::path::Path;
 
 use based_project::{
-    AiSettings, ConnectionSpec, EnvOrString, PragmaSettings, ProjectConnection, SshSettings,
-    load_connections_from_based_dir, secret_env_key, slug_from_label, upsert_env_file,
+    AiSettings, ConnectionSpec, EnvOrString, PragmaSettings, ProjectConnection, SshSettings, secret_env_key, slug_from_label, upsert_env_file,
     write_connection_file,
 };
 
@@ -17,6 +16,7 @@ pub fn persist_config_to_based_dir(
     config: &ConnectionConfig,
     tags: &[String],
     relative_id: Option<&str>,
+    ai: Option<AiSettings>,
 ) -> anyhow::Result<ProjectConnection> {
     let relative_id = relative_id
         .filter(|id| !id.is_empty())
@@ -24,18 +24,9 @@ pub fn persist_config_to_based_dir(
         .unwrap_or_else(|| slug_from_label(config.label()));
     persist_secret(based_dir, &relative_id, config)?;
     let mut conn = project_connection_from_config(config, relative_id, tags);
-    // The wizard doesn't edit `[ai]`; keep whatever the file already has.
-    conn.ai = existing_ai(based_dir, &conn.id);
+    conn.ai = ai;
     write_connection_file(based_dir, &conn)?;
     Ok(conn)
-}
-
-fn existing_ai(based_dir: &Path, id: &str) -> Option<AiSettings> {
-    load_connections_from_based_dir(based_dir)
-        .ok()?
-        .into_iter()
-        .find(|c| c.id == id)?
-        .ai
 }
 
 fn persist_secret(
@@ -213,7 +204,7 @@ mod tests {
             ssl_mode: SslMode::Require,
             ssh: None,
         });
-        let conn = persist_config_to_based_dir(based, &config, &[], None).unwrap();
+        let conn = persist_config_to_based_dir(based, &config, &[], None, None).unwrap();
         assert_eq!(conn.id, "analytics");
         let loaded = load_connections_from_based_dir(based).unwrap();
         assert_eq!(loaded.len(), 1);
@@ -228,7 +219,7 @@ mod tests {
     }
 
     #[test]
-    fn persist_preserves_existing_ai_table() {
+    fn persist_writes_ai_table_when_given() {
         let dir = tempfile::tempdir().unwrap();
         let based = dir.path();
         let config = ConnectionConfig::SQLite(SqliteConfig {
@@ -237,16 +228,17 @@ mod tests {
             read_only: false,
             pragma: None,
         });
-        let mut conn = persist_config_to_based_dir(based, &config, &[], None).unwrap();
-        conn.ai = Some(AiSettings {
+        let ai = AiSettings {
             enabled: true,
             ..AiSettings::default()
-        });
-        write_connection_file(based, &conn).unwrap();
-
-        persist_config_to_based_dir(based, &config, &[], Some("notes")).unwrap();
+        };
+        persist_config_to_based_dir(based, &config, &[], None, Some(ai)).unwrap();
         let loaded = load_connections_from_based_dir(based).unwrap();
-        assert!(loaded[0].ai.is_some_and(|a| a.enabled));
+        assert_eq!(loaded[0].ai, Some(ai));
+
+        persist_config_to_based_dir(based, &config, &[], Some("notes"), None).unwrap();
+        let loaded = load_connections_from_based_dir(based).unwrap();
+        assert_eq!(loaded[0].ai, None);
     }
 
     #[test]
@@ -259,7 +251,7 @@ mod tests {
             read_only: false,
             pragma: None,
         });
-        persist_config_to_based_dir(based, &config, &[], None).unwrap();
+        persist_config_to_based_dir(based, &config, &[], None, None).unwrap();
         assert!(!based.join(".env").exists());
         let loaded = load_connections_from_based_dir(based).unwrap();
         assert_eq!(loaded[0].id, "northwind");
@@ -279,7 +271,8 @@ mod tests {
             ssl_mode: SslMode::Disable,
             ssh: None,
         });
-        persist_config_to_based_dir(based, &config, &["local".into(), "dev".into()], None).unwrap();
+        persist_config_to_based_dir(based, &config, &["local".into(), "dev".into()], None, None)
+            .unwrap();
         let loaded = load_connections_from_based_dir(based).unwrap();
         assert_eq!(loaded[0].tags, vec!["local", "dev"]);
         let raw = fs::read_to_string(based.join("connections/analytics.toml")).unwrap();
@@ -301,7 +294,7 @@ mod tests {
             ssl_mode: SslMode::Disable,
             ssh: None,
         });
-        persist_config_to_based_dir(based, &original, &[], None).unwrap();
+        persist_config_to_based_dir(based, &original, &[], None, None).unwrap();
         let renamed = ConnectionConfig::Postgres(PostgresConfig {
             label: "Reporting".into(),
             host: "db.example".into(),
@@ -312,7 +305,8 @@ mod tests {
             ssl_mode: SslMode::Disable,
             ssh: None,
         });
-        let conn = persist_config_to_based_dir(based, &renamed, &[], Some("analytics")).unwrap();
+        let conn =
+            persist_config_to_based_dir(based, &renamed, &[], Some("analytics"), None).unwrap();
         assert_eq!(conn.id, "analytics");
         assert_eq!(conn.label, "Reporting");
         assert!(based.join("connections/analytics.toml").exists());
@@ -343,7 +337,7 @@ mod tests {
                 key_passphrase: Some("keypass".into()),
             }),
         });
-        persist_config_to_based_dir(based, &config, &[], None).unwrap();
+        persist_config_to_based_dir(based, &config, &[], None, None).unwrap();
         let raw = fs::read_to_string(based.join("connections/prod.toml")).unwrap();
         assert!(raw.contains("[ssh]"));
         assert!(raw.contains("bastion.example.com"));

@@ -7,7 +7,7 @@ use based_core::EngineKind;
 use based_project::{AiContext, AiSettings};
 
 use crate::editor::SchemaCache;
-use crate::editor::schema_cache::ObjectKind;
+use crate::editor::schema_cache::{ObjectKind, SchemaObject};
 
 pub fn level(ai: Option<AiSettings>) -> ContextLevel {
     match ai.map(|a| a.effective_context()) {
@@ -17,28 +17,28 @@ pub fn level(ai: Option<AiSettings>) -> ContextLevel {
     }
 }
 
-fn snapshot(cache: &SchemaCache) -> SchemaSnapshot {
-    let entities = cache
-        .objects
+/// One table or view as a prompt entity.
+pub fn entity(o: &SchemaObject) -> Entity {
+    let kind = match o.kind {
+        ObjectKind::Table => EntityKind::Table,
+        ObjectKind::View => EntityKind::View,
+    };
+    let fields = o
+        .columns
         .iter()
-        .map(|o| {
-            let kind = match o.kind {
-                ObjectKind::Table => EntityKind::Table,
-                ObjectKind::View => EntityKind::View,
-            };
-            let fields = o
-                .columns
-                .iter()
-                .map(|c| Field {
-                    name: c.name.clone(),
-                    ty: Some(c.data_type.clone()),
-                    ..Field::default()
-                })
-                .collect();
-            Entity::new(o.display(), kind, fields)
+        .map(|c| Field {
+            name: c.name.clone(),
+            ty: Some(c.data_type.clone()),
+            ..Field::default()
         })
         .collect();
-    SchemaSnapshot { entities }
+    Entity::new(o.display(), kind, fields)
+}
+
+fn snapshot(cache: &SchemaCache) -> SchemaSnapshot {
+    SchemaSnapshot {
+        entities: cache.objects.iter().map(entity).collect(),
+    }
 }
 
 /// Prompt-ready schema text. Tables named in `text` are rendered first and in full.

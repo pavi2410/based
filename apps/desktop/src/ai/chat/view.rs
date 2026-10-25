@@ -1,4 +1,5 @@
-use based_ai::Role;
+use based_ai::tools::ToolCall;
+use based_ai::{Message, Role};
 use gpui_kit::component::{
     ActiveTheme, Disableable as _, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants as _},
@@ -14,38 +15,17 @@ use gpui_kit::{
 
 use super::{ChatPane, Phase};
 use crate::ai::launch::error_text;
+use crate::app::prefs;
 
 impl ChatPane {
     fn row(&self, ix: usize, cx: &App) -> AnyElement {
-        let theme = cx.theme();
         let Some(turn) = self.turns.get(ix) else {
             return self.live_row(ix, cx);
         };
         match turn.role {
-            Role::User => h_flex()
-                .justify_end()
-                .px_3()
-                .py_1p5()
-                .child(
-                    div()
-                        .max_w(px(260.0))
-                        .px_3()
-                        .py_2()
-                        .rounded_lg()
-                        .bg(theme.primary.opacity(0.14))
-                        .text_sm()
-                        .child(turn.content.clone()),
-                )
-                .into_any_element(),
-            Role::Tool => div().into_any_element(),
-            Role::Assistant => div()
-                .px_3()
-                .py_1p5()
-                .text_sm()
-                .child(
-                    TextView::markdown(("chat-reply", ix), turn.content.clone()).selectable(true),
-                )
-                .into_any_element(),
+            Role::User => user_row(turn, cx),
+            Role::Assistant => assistant_row(turn, ix, cx),
+            Role::Tool => tool_row(turn, cx),
         }
     }
 
@@ -58,11 +38,8 @@ impl ChatPane {
                 .text_color(theme.danger)
                 .child(error_text(e))
                 .into_any_element(),
-            _ if self.draft.is_empty() => div()
-                .text_sm()
-                .text_color(theme.muted_foreground)
-                .child("Thinking...")
-                .into_any_element(),
+            Phase::Tools => muted_line("Running tools...", cx),
+            _ if self.draft.is_empty() => muted_line("Thinking...", cx),
             _ => div()
                 .text_sm()
                 .child(TextView::markdown(("chat-reply", ix), self.draft.clone()).stream_fade(true))
@@ -99,7 +76,7 @@ impl ChatPane {
                 .child(notice.clone())
                 .into_any_element();
         }
-        let streaming = self.streaming();
+        let streaming = self.busy();
         let action = if streaming {
             Button::new("chat-stop")
                 .ghost()
@@ -143,5 +120,92 @@ impl Render for ChatPane {
             .size_full()
             .child(div().flex_1().min_h_0().child(list))
             .child(self.composer(cx))
+    }
+}
+
+fn muted_line(text: &'static str, cx: &App) -> AnyElement {
+    div()
+        .text_sm()
+        .text_color(cx.theme().muted_foreground)
+        .child(text)
+        .into_any_element()
+}
+
+fn user_row(turn: &Message, cx: &App) -> AnyElement {
+    h_flex()
+        .justify_end()
+        .px_3()
+        .py_1p5()
+        .child(
+            div()
+                .max_w(px(260.0))
+                .px_3()
+                .py_2()
+                .rounded_lg()
+                .bg(cx.theme().primary.opacity(0.14))
+                .text_sm()
+                .child(turn.content.clone()),
+        )
+        .into_any_element()
+}
+
+fn assistant_row(turn: &Message, ix: usize, cx: &App) -> AnyElement {
+    let mut col = v_flex().px_3().py_1p5().gap_1().text_sm();
+    if !turn.content.is_empty() {
+        col = col
+            .child(TextView::markdown(("chat-reply", ix), turn.content.clone()).selectable(true));
+    }
+    for call in &turn.calls {
+        col = col.child(
+            div()
+                .text_xs()
+                .font_family(prefs::code_font_family(cx))
+                .text_color(cx.theme().muted_foreground)
+                .child(format!("> {}", call_summary(call))),
+        );
+    }
+    col.into_any_element()
+}
+
+fn tool_row(turn: &Message, cx: &App) -> AnyElement {
+    let theme = cx.theme();
+    let failed = turn.outcome.as_ref().is_some_and(|o| o.is_error);
+    let color = if failed {
+        theme.danger
+    } else {
+        theme.muted_foreground
+    };
+    div()
+        .mx_3()
+        .my_0p5()
+        .px_2()
+        .py_1()
+        .rounded_md()
+        .bg(theme.muted.opacity(0.25))
+        .text_xs()
+        .font_family(prefs::code_font_family(cx))
+        .text_color(color)
+        .line_clamp(3)
+        .child(turn.content.clone())
+        .into_any_element()
+}
+
+/// `name arg1 arg2`, clipped to one short line.
+fn call_summary(call: &ToolCall) -> String {
+    const MAX: usize = 80;
+    let args = call.args.as_object().into_iter().flat_map(|o| o.values());
+    let mut out = call.name.clone();
+    for v in args {
+        out.push(' ');
+        match v.as_str() {
+            Some(s) => out.push_str(s),
+            None => out.push_str(&v.to_string()),
+        }
+    }
+    let out = out.replace('\n', " ");
+    if out.chars().count() > MAX {
+        format!("{}...", out.chars().take(MAX).collect::<String>())
+    } else {
+        out
     }
 }

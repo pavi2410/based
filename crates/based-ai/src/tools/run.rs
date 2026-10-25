@@ -9,6 +9,8 @@ use super::spec::{ToolCall, ToolResult, ToolSpec, specs};
 use crate::context::{ContextLevel, Entity, RenderOptions, SchemaSnapshot, render};
 use crate::error::AiError;
 
+const ROWS_TOOL: &str = "run_readonly_query";
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct QueryOutput {
     pub columns: Vec<String>,
@@ -79,6 +81,8 @@ impl Default for ToolLimits {
 pub struct ReadOnlyTools<B> {
     backend: B,
     limits: ToolLimits,
+    /// Whether tools may return row data (`ContextLevel::SchemaRows`).
+    rows: bool,
 }
 
 impl<B: ToolBackend> ReadOnlyTools<B> {
@@ -86,7 +90,14 @@ impl<B: ToolBackend> ReadOnlyTools<B> {
         Self {
             backend,
             limits: ToolLimits::default(),
+            rows: true,
         }
+    }
+
+    /// Withholds `run_readonly_query` when the connection only shares its schema.
+    pub fn with_rows(mut self, rows: bool) -> Self {
+        self.rows = rows;
+        self
     }
 
     pub fn with_limits(mut self, limits: ToolLimits) -> Self {
@@ -96,6 +107,9 @@ impl<B: ToolBackend> ReadOnlyTools<B> {
 
     pub fn specs(&self) -> Vec<ToolSpec> {
         specs()
+            .into_iter()
+            .filter(|s| self.rows || s.name != ROWS_TOOL)
+            .collect()
     }
 
     pub async fn call(&self, call: &ToolCall) -> ToolResult {
@@ -136,7 +150,10 @@ impl<B: ToolBackend> ReadOnlyTools<B> {
                 check(self.backend.engine(), &q)?;
                 self.backend.explain(&q).await.map_err(|e| e.message)
             }
-            "run_readonly_query" => {
+            ROWS_TOOL if !self.rows => {
+                Err("this connection does not share row data with the assistant".into())
+            }
+            ROWS_TOOL => {
                 let q = arg("query")?;
                 check(self.backend.engine(), &q)?;
                 let out = self
@@ -255,6 +272,18 @@ mod tests {
             .await;
         assert!(r.is_error);
         assert_eq!(tools.backend.queries.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn schema_only_connections_withhold_row_data() {
+        let tools = ReadOnlyTools::new(Fake::default()).with_rows(false);
+        assert!(tools.specs().iter().all(|s| s.name != "run_readonly_query"));
+        let r = tools
+            .call(&call("run_readonly_query", json!({ "query": "SELECT 1" })))
+            .await;
+        assert!(r.is_error);
+        assert_eq!(tools.backend.queries.load(Ordering::SeqCst), 0);
+        assert!(!tools.call(&call("list_tables", json!({}))).await.is_error);
     }
 
     #[tokio::test]

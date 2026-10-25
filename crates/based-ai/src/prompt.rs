@@ -2,6 +2,7 @@
 
 use based_core::EngineKind;
 
+use crate::tools::ToolSpec;
 use crate::types::{ChatRequest, Message};
 
 fn dialect(engine: EngineKind) -> &'static str {
@@ -44,25 +45,33 @@ pub fn edit_request(
     ChatRequest::new(model, vec![Message::user(user)]).with_system(system(engine, schema))
 }
 
-fn chat_system(engine: Option<EngineKind>, label: &str) -> String {
+fn chat_system(engine: Option<EngineKind>, label: &str, tools: bool) -> String {
     let target = engine.map_or_else(String::new, |e| {
         format!(" The user is working with {} ({label}).", dialect(e))
     });
+    let lookup = if tools {
+        " Use the tools to look up tables and columns before writing a query."
+    } else {
+        ""
+    };
     format!(
-        "You are a database assistant inside the Based desktop client.{target} \
+        "You are a database assistant inside the Based desktop client.{target}{lookup} \
          Be concise. Put any query in a fenced code block. \
          Never invent tables or columns; say so when you do not know the schema."
     )
 }
 
-/// Request continuing a conversation, optionally scoped to a connection.
+/// Request continuing a conversation, optionally scoped to a connection and offering `tools`.
 pub fn chat_request(
     model: &str,
     engine: Option<EngineKind>,
     label: &str,
     history: Vec<Message>,
+    tools: Vec<ToolSpec>,
 ) -> ChatRequest {
-    ChatRequest::new(model, history).with_system(chat_system(engine, label))
+    ChatRequest::new(model, history)
+        .with_system(chat_system(engine, label, !tools.is_empty()))
+        .with_tools(tools)
 }
 
 /// Pulls the code out of a reply: the first fenced block, or the whole text if unfenced.
@@ -95,9 +104,11 @@ mod tests {
 
     #[test]
     fn chat_system_names_the_connection() {
-        let scoped = chat_system(Some(EngineKind::Postgres), "prod");
+        let scoped = chat_system(Some(EngineKind::Postgres), "prod", false);
         assert!(scoped.contains("PostgreSQL") && scoped.contains("prod"));
-        assert!(!chat_system(None, "").contains("working with"));
+        assert!(!scoped.contains("tools"));
+        assert!(chat_system(Some(EngineKind::Postgres), "prod", true).contains("tools"));
+        assert!(!chat_system(None, "", false).contains("working with"));
     }
 
     #[test]

@@ -432,14 +432,16 @@ impl Workspace {
         let entry = self
             .focused_conn_id(cx)
             .and_then(|id| self.registry.read(cx).get(&id, cx).cloned());
-        let (ctx, notice) = match entry.map(|e| e.read(cx)) {
-            Some(entry) => {
+        let (ctx, notice) = match entry.as_ref().map(|e| (e, e.read(cx))) {
+            Some((entity, entry)) => {
+                let level = schema::level(entry.ai);
                 let ctx = ChatContext {
+                    entry: entity.clone(),
                     engine: entry.engine(),
                     label: entry.config.label().to_owned(),
+                    level,
                 };
-                let notice = (schema::level(entry.ai) == ContextLevel::Off)
-                    .then(|| SharedString::from(OFF_NOTICE));
+                let notice = (level == ContextLevel::Off).then(|| SharedString::from(OFF_NOTICE));
                 (Some(ctx), notice)
             }
             None => (None, None),

@@ -8,8 +8,10 @@ use std::{fs, thread};
 
 use based_desktop::app::paths::AppPaths;
 use based_desktop::connection::{ConnectionConfig, ConnectionId, open_connection};
+use based_desktop::db::Tokio;
 use based_desktop::workspace::Workspace;
 use based_desktop::workspace::boot::WorkspaceEnv;
+use based_desktop::workspace::tabs::SessionSnapshot;
 use based_desktop::{init_globals, query_store, storage};
 use based_sqlite::config::SqliteConfig;
 use gpui_kit::test::TestWindowExt;
@@ -72,12 +74,23 @@ pub fn no_project_env() -> WorkspaceEnv {
     }
 }
 
-/// Open the production [`Workspace`] in a 1200×800 headless window.
+/// Initialise the app, then open a workspace window.
 pub fn open_with(
     cx: &mut TestAppContext,
     workspace_env: WorkspaceEnv,
 ) -> (AnyWindowHandle, Entity<Workspace>) {
     init_app(cx, &workspace_env.personal_root);
+    open_window(cx, workspace_env)
+}
+
+/// Open another production [`Workspace`] window (1200×800) in an already initialised app.
+///
+/// Sharing the app means sharing its metadata store: a second window is a relaunch
+/// as far as session restore is concerned.
+pub fn open_window(
+    cx: &mut TestAppContext,
+    workspace_env: WorkspaceEnv,
+) -> (AnyWindowHandle, Entity<Workspace>) {
     let opened = cx.update(|cx| {
         let bounds = Bounds {
             origin: Point::default(),
@@ -171,4 +184,22 @@ pub fn wait_until(cx: &mut TestAppContext, mut done: impl FnMut(&mut TestAppCont
         thread::sleep(Duration::from_millis(10));
     }
     panic!("condition not reached in time");
+}
+
+/// The session snapshot as currently stored (what the next launch would restore).
+pub fn saved_session(cx: &mut TestAppContext) -> SessionSnapshot {
+    cx.update(|cx| {
+        let store = storage::store(cx);
+        Tokio::handle(cx).block_on(SessionSnapshot::load(&store))
+    })
+}
+
+/// Store `snapshot` as if a previous run had saved it.
+pub fn store_session(cx: &mut TestAppContext, snapshot: &SessionSnapshot) {
+    cx.update(|cx| {
+        let store = storage::store(cx);
+        Tokio::handle(cx)
+            .block_on(snapshot.save(&store))
+            .expect("save session");
+    });
 }

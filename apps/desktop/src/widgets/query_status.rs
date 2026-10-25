@@ -118,13 +118,14 @@ pub fn tab_breadcrumb_query_trailing(
     )
 }
 
-/// Danger-bordered mono error card with a copy button.
+/// Danger-bordered mono error card with a copy button and an optional leading action.
 ///
 /// Wrap the returned element in a `div().flex_1().min_h(px(0.0)).p_3()` to get
 /// the standard padded full-height messages-pane layout.
 pub fn query_error_card(
     id: impl Into<ElementId>,
     error: SharedString,
+    action: Option<AnyElement>,
     cx: &App,
 ) -> impl IntoElement {
     let theme = cx.theme();
@@ -158,6 +159,7 @@ pub fn query_error_card(
                 .text_color(err_fg)
                 .child(error),
         )
+        .children(action)
         .child(
             Button::new("error-copy")
                 .ghost()

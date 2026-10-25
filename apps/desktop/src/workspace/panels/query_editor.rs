@@ -111,7 +111,7 @@ pub struct QueryEditorPanel {
     pub(super) schema: Arc<SchemaCache>,
     lint_seq: u64,
     result: Entity<TableState<RowDelegate>>,
-    status: QueryStatus,
+    pub(super) status: QueryStatus,
     split_state: Entity<ResizableState>,
     bottom_tab: BottomTab,
     explain: ExplainView,
@@ -496,6 +496,17 @@ impl QueryEditorPanel {
                 .child(query_error_card(
                     format!("{}-query-error-card", self.source.id()),
                     full.clone().into(),
+                    Some(
+                        Button::new(format!("{}-fix-ai", self.source.id()))
+                            .ghost()
+                            .xsmall()
+                            .icon(IconName::Bot)
+                            .label("Fix with AI")
+                            .on_click(cx.listener(|panel, _, window, cx| {
+                                panel.fix_with_ai(window, cx);
+                            }))
+                            .into_any_element(),
+                    ),
                     cx,
                 ))
                 .into_any_element(),

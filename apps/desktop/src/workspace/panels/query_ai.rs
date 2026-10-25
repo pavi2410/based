@@ -4,11 +4,14 @@ use based_ai::context::ContextLevel;
 use based_project::AiSettings;
 use gpui_kit::{App, AppContext as _, Context, Entity, Window};
 
-use super::query_editor::QueryEditorPanel;
+use super::query_editor::{QueryEditorPanel, QueryStatus};
 use crate::ai::{AiPrompt, AiPromptEvent, schema};
 use crate::widgets::sql_editor::{set_input_text, text_from_input};
 use crate::workspace::WorkspaceRef;
 
+const FIX_LABEL: &str = "Fix the error";
+const FIX_PROMPT: &str = "Fix this error without changing what the query does:";
+const MAX_ERROR_CHARS: usize = 2000;
 const OFF_NOTICE: &str = "AI is off for this connection. Enable it in the connection settings.";
 
 impl QueryEditorPanel {
@@ -24,11 +27,32 @@ impl QueryEditorPanel {
         registry.get(&self.conn_id, cx)?.read(cx).ai
     }
 
+    fn ai_off(&self, cx: &App) -> bool {
+        schema::level(self.ai_settings(cx)) == ContextLevel::Off
+    }
+
+    /// Opens the bar and asks the model to repair the query from the last error.
+    pub(super) fn fix_with_ai(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let QueryStatus::Error(error) = &self.status else {
+            return;
+        };
+        let error: String = error.chars().take(MAX_ERROR_CHARS).collect();
+        if !self.ai_open {
+            self.toggle_ai(window, cx);
+        }
+        if self.ai_off(cx) {
+            return;
+        }
+        self.ai
+            .update(cx, |ai, cx| ai.set_instruction(FIX_LABEL, window, cx));
+        self.ask_ai(format!("{FIX_PROMPT}\n{error}"), cx);
+    }
+
     pub(super) fn toggle_ai(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.ai_open {
             return self.close_ai(window, cx);
         }
-        let off = schema::level(self.ai_settings(cx)) == ContextLevel::Off;
+        let off = self.ai_off(cx);
         self.ai.update(cx, |ai, cx| {
             ai.set_notice(off.then(|| OFF_NOTICE.into()), cx)
         });

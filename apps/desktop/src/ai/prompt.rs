@@ -83,6 +83,11 @@ impl AiPrompt {
         cx.notify();
     }
 
+    pub fn set_instruction(&self, text: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.input
+            .update(cx, |input, cx| input.set_value(text, window, cx));
+    }
+
     pub fn focus(&self, window: &mut Window, cx: &mut Context<Self>) {
         self.input.update(cx, |input, cx| input.focus(window, cx));
     }

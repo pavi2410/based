@@ -112,13 +112,13 @@ pub struct DataViewerPanel {
     focus_handle: FocusHandle,
     source: Arc<dyn DataSource>,
     conn_id: ConnectionId,
-    table: Entity<TableState<RowDelegate>>,
+    pub(super) table: Entity<TableState<RowDelegate>>,
     cell_detail: Entity<CellDetail>,
     filter_bar: Entity<FilterBar>,
-    offset: u64,
-    page_size: u64,
-    total_rows: u64,
-    loading: bool,
+    pub(super) offset: u64,
+    pub(super) page_size: u64,
+    pub(super) total_rows: u64,
+    pub(super) loading: bool,
     last_load_ms: Option<u64>,
     last_fetched: Option<OffsetDateTime>,
     column_catalog: HashMap<String, ColumnMeta>,
@@ -388,7 +388,7 @@ impl DataViewerPanel {
         .detach();
     }
 
-    fn go_to_page(&mut self, page_1_based: usize, cx: &mut Context<Self>) {
+    pub(super) fn go_to_page(&mut self, page_1_based: usize, cx: &mut Context<Self>) {
         self.load_page(offset_for_page(page_1_based, self.page_size), cx);
     }
 }

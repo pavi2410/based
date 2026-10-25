@@ -9,3 +9,4 @@ mod session;
 mod settings;
 mod tabs;
 mod tree;
+mod viewer;

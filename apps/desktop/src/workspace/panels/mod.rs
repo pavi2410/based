@@ -1,6 +1,7 @@
 //! Built-in workspace panels (not engine-specific).
 
 pub mod connection_wizard;
+pub mod data_view;
 pub mod data_viewer;
 pub mod home;
 pub mod inspector;

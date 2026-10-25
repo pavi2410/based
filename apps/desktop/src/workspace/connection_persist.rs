@@ -3,8 +3,9 @@
 use std::path::Path;
 
 use based_project::{
-    ConnectionSpec, EnvOrString, PragmaSettings, ProjectConnection, SshSettings, secret_env_key,
-    slug_from_label, upsert_env_file, write_connection_file,
+    AiSettings, ConnectionSpec, EnvOrString, PragmaSettings, ProjectConnection, SshSettings,
+    load_connections_from_based_dir, secret_env_key, slug_from_label, upsert_env_file,
+    write_connection_file,
 };
 
 use crate::connection::ConnectionConfig;
@@ -22,9 +23,19 @@ pub fn persist_config_to_based_dir(
         .map(str::to_string)
         .unwrap_or_else(|| slug_from_label(config.label()));
     persist_secret(based_dir, &relative_id, config)?;
-    let conn = project_connection_from_config(config, relative_id, tags);
+    let mut conn = project_connection_from_config(config, relative_id, tags);
+    // The wizard doesn't edit `[ai]`; keep whatever the file already has.
+    conn.ai = existing_ai(based_dir, &conn.id);
     write_connection_file(based_dir, &conn)?;
     Ok(conn)
+}
+
+fn existing_ai(based_dir: &Path, id: &str) -> Option<AiSettings> {
+    load_connections_from_based_dir(based_dir)
+        .ok()?
+        .into_iter()
+        .find(|c| c.id == id)?
+        .ai
 }
 
 fn persist_secret(
@@ -111,6 +122,7 @@ fn project_connection_from_config(
                     ssl: !matches!(c.ssl_mode, SslMode::Disable),
                 },
                 ssh,
+                ai: None,
             }
         }
         ConnectionConfig::MongoDB(c) => {
@@ -132,6 +144,7 @@ fn project_connection_from_config(
                     database: c.database.clone(),
                 },
                 ssh: None,
+                ai: None,
             }
         }
         ConnectionConfig::Redis(c) => ProjectConnection {
@@ -150,6 +163,7 @@ fn project_connection_from_config(
                 },
             },
             ssh: None,
+            ai: None,
         },
         ConnectionConfig::SQLite(c) => ProjectConnection {
             id: relative_id,
@@ -162,6 +176,7 @@ fn project_connection_from_config(
                 pragma: c.pragma.as_ref().map(pragma_from_sqlite),
             },
             ssh: None,
+            ai: None,
         },
     }
 }
@@ -210,6 +225,28 @@ mod tests {
         let raw = fs::read_to_string(based.join("connections/analytics.toml")).unwrap();
         assert!(raw.contains("env = \"BASED_ANALYTICS_PASSWORD\""));
         assert!(!raw.contains("s3cret"));
+    }
+
+    #[test]
+    fn persist_preserves_existing_ai_table() {
+        let dir = tempfile::tempdir().unwrap();
+        let based = dir.path();
+        let config = ConnectionConfig::SQLite(SqliteConfig {
+            label: "Notes".into(),
+            path: PathBuf::from("/tmp/notes.db"),
+            read_only: false,
+            pragma: None,
+        });
+        let mut conn = persist_config_to_based_dir(based, &config, &[], None).unwrap();
+        conn.ai = Some(AiSettings {
+            enabled: true,
+            ..AiSettings::default()
+        });
+        write_connection_file(based, &conn).unwrap();
+
+        persist_config_to_based_dir(based, &config, &[], Some("notes")).unwrap();
+        let loaded = load_connections_from_based_dir(based).unwrap();
+        assert!(loaded[0].ai.is_some_and(|a| a.enabled));
     }
 
     #[test]

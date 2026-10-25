@@ -159,6 +159,7 @@ mod tests {
                 pragma: None,
             },
             ssh: None,
+            ai: None,
         };
         write_connection_file(based, &conn).unwrap();
         let entries = load_entries_from_based_dir(based, ConnectionOrigin::Personal);
@@ -186,6 +187,7 @@ mod tests {
                 ssl: false,
             },
             ssh: None,
+            ai: None,
         };
         let mut vars = HashMap::new();
         vars.insert("BASED_PG_PASSWORD".into(), "from-file".into());
@@ -221,6 +223,7 @@ mod tests {
                     var: "BASED_PG_SSH_KEY_PASSPHRASE".into(),
                 }),
             }),
+            ai: None,
         };
         let mut vars = HashMap::new();
         vars.insert("BASED_PG_SSH_KEY_PASSPHRASE".into(), "from-file".into());

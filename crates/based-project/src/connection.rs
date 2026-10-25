@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 
+use crate::ai::AiSettings;
 use crate::env_value::EnvOrString;
 use crate::walk::{rel_id, walk_toml_files};
 
@@ -18,6 +19,7 @@ pub struct ProjectConnection {
     pub read_only: bool,
     pub spec: ConnectionSpec,
     pub ssh: Option<SshSettings>,
+    pub ai: Option<AiSettings>,
 }
 
 /// Optional SSH hop persisted as `[ssh]` on a connection file.
@@ -92,6 +94,8 @@ struct RawConnectionFile {
     read_only: Option<bool>,
     #[serde(default)]
     ssh: Option<RawSsh>,
+    #[serde(default)]
+    ai: Option<AiSettings>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -190,6 +194,8 @@ struct WriteConnectionFile {
     pragma: Option<PragmaSettings>,
     #[serde(skip_serializing_if = "Option::is_none")]
     ssh: Option<RawSsh>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ai: Option<AiSettings>,
 }
 
 impl From<&ProjectConnection> for WriteConnectionFile {
@@ -216,6 +222,7 @@ impl From<&ProjectConnection> for WriteConnectionFile {
                 key_path: s.key_path.clone(),
                 key_passphrase: s.key_passphrase.clone(),
             }),
+            ai: conn.ai,
         };
         match &conn.spec {
             ConnectionSpec::Sqlite { file, pragma } => {
@@ -328,6 +335,7 @@ fn parse_connection_file(connections_dir: &Path, path: &Path) -> Result<ProjectC
         read_only,
         spec,
         ssh,
+        ai: file.ai,
     })
 }
 
@@ -428,6 +436,7 @@ file = "data/index.db"
                 },
             },
             ssh: None,
+            ai: None,
         };
         write_connection_file(based, &conn).unwrap();
         let loaded = load_connections_from_based_dir(based).unwrap();
@@ -576,6 +585,7 @@ ssl = false
                     var: "BASED_PROD_SSH_KEY_PASSPHRASE".into(),
                 }),
             }),
+            ai: None,
         };
         write_connection_file(based, &conn).unwrap();
         let raw = fs::read_to_string(based.join("connections/prod.toml")).unwrap();
@@ -615,6 +625,7 @@ ssl = false
                 ssl: true,
             },
             ssh: None,
+            ai: None,
         };
         let sqlite = ProjectConnection {
             id: "northwind".into(),
@@ -627,6 +638,7 @@ ssl = false
                 pragma: None,
             },
             ssh: None,
+            ai: None,
         };
         let pg_path = write_connection_file(based, &postgres).unwrap();
         let sqlite_path = write_connection_file(based, &sqlite).unwrap();
@@ -674,5 +686,43 @@ ssl = false
             }
             other => panic!("expected sqlite, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn ai_table_round_trips_and_is_omitted_when_absent() {
+        use crate::ai::{AiContext, AiSettings};
+        let dir = tempfile::tempdir().unwrap();
+        let based = dir.path();
+        let mut conn = ProjectConnection {
+            id: "dev".into(),
+            label: "Dev".into(),
+            engine: "redis".into(),
+            tags: vec![],
+            read_only: false,
+            spec: ConnectionSpec::Redis {
+                url: EnvOrString::Literal("redis://localhost".into()),
+            },
+            ssh: None,
+            ai: None,
+        };
+        let path = write_connection_file(based, &conn).unwrap();
+        assert!(!fs::read_to_string(&path).unwrap().contains("[ai]"));
+        assert!(
+            load_connections_from_based_dir(based).unwrap()[0]
+                .ai
+                .is_none()
+        );
+
+        conn.ai = Some(AiSettings {
+            enabled: true,
+            context: AiContext::SchemaRows,
+        });
+        let path = write_connection_file(based, &conn).unwrap();
+        let raw = fs::read_to_string(&path).unwrap();
+        assert!(raw.contains("[ai]") && raw.contains("schema+rows"));
+        assert_eq!(
+            load_connections_from_based_dir(based).unwrap()[0].ai,
+            conn.ai
+        );
     }
 }

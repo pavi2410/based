@@ -6,7 +6,9 @@ use gpui_kit::component::{
 };
 use gpui_kit::{App, Entity, IntoElement, RenderOnce, SharedString, div, prelude::*, px};
 
-use crate::app::prefs::update_check_settings_locked;
+use crate::ai::AiStatus;
+use crate::app::prefs::{self, update_check_settings_locked};
+use crate::app::shell::open_settings;
 use crate::app::updater::UpdateBarSnapshot;
 use crate::app::updater::{self, UpdatePhase};
 use crate::bindings::{ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane};
@@ -168,6 +170,58 @@ fn connection_chip(
                 false,
             )
         })
+}
+
+/// Model in use and AI activity; click opens Settings, where provider and keys live.
+fn ai_item(cx: &App) -> impl IntoElement {
+    let status = AiStatus::get(cx);
+    let ai = prefs::ai_prefs(cx);
+    let provider = ai.provider();
+    let model: SharedString = ai.model().to_string().into();
+    let streaming = status.streaming();
+    let tokens = status.tokens();
+    let color = if streaming {
+        cx.theme().accent_foreground
+    } else {
+        cx.theme().muted_foreground
+    };
+    let tooltip = match tokens {
+        0 => format!("AI: {} · {model}", provider.label()),
+        n => format!(
+            "AI: {} · {model} · {n} tokens this session",
+            provider.label()
+        ),
+    };
+
+    Button::new("status-ai")
+        .ghost()
+        .small()
+        .tooltip(tooltip)
+        .on_click(|_, _, cx| open_settings(cx))
+        .child(
+            h_flex()
+                .items_center()
+                .gap(px(4.0))
+                .child(Icon::new(IconName::Bot).small().text_color(color))
+                .child(
+                    div()
+                        .max_w(px(140.0))
+                        .truncate()
+                        .text_xs()
+                        .text_color(color)
+                        .child(model),
+                )
+                .when(streaming, |row| {
+                    row.child(
+                        div()
+                            .w(px(5.0))
+                            .h(px(5.0))
+                            .rounded_full()
+                            .flex_shrink_0()
+                            .bg(color),
+                    )
+                }),
+        )
 }
 
 /// Version label doubling as the update entry point; the click menu depends on the phase.
@@ -361,6 +415,8 @@ impl RenderOnce for StatusBar {
                     .gap(px(6.0))
                     .items_center()
                     .flex_shrink_0()
+                    .child(ai_item(cx))
+                    .child(status_divider(muted))
                     .child(version_item(&update_snapshot, registry, cx))
                     .child(status_divider(muted))
                     .child(h_flex().gap(px(2.0)).items_center().children(

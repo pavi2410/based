@@ -51,7 +51,7 @@ impl QueryEditorPanel {
         }
     }
 
-    fn focus_editor(&self, window: &mut Window, cx: &mut Context<Self>) {
+    pub fn focus_editor(&self, window: &mut Window, cx: &mut Context<Self>) {
         self.sql_input.update(cx, |s, cx| s.focus(window, cx));
     }
 

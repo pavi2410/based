@@ -163,21 +163,17 @@ impl QueryEditorPanel {
             ai_confirm: false,
             tab_label: "Query".into(),
         };
-        let conn_for_dirty = panel.conn_id.clone();
-        cx.observe(&sql_input, move |panel, _, cx| {
-            if !panel.dirty {
-                panel.dirty = true;
-                mark_query_tab_dirty(&conn_for_dirty, cx);
-            }
-            cx.notify();
-        })
-        .detach();
         cx.subscribe_in(&sql_input, window, |panel, _, event, _, cx| match event {
             InputEvent::PressEnter {
                 secondary: true,
                 shift: false,
             } => panel.run(cx),
-            InputEvent::Change => panel.schedule_lint(cx),
+            InputEvent::Change => {
+                // Edits only: focus and selection changes also notify the editor.
+                panel.dirty = true;
+                mark_query_tab_dirty(&panel.conn_id, cx);
+                panel.schedule_lint(cx);
+            }
             _ => {}
         })
         .detach();

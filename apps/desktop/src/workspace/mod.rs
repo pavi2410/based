@@ -439,6 +439,14 @@ impl Workspace {
         }
     }
 
+    /// Shows the assistant (never hides it) and focuses its input.
+    pub fn open_chat(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.active_side_pane != Some(SidePane::Chat) {
+            self.toggle_side_pane(SidePane::Chat, cx);
+        }
+        self.chat.update(cx, |chat, cx| chat.focus(window, cx));
+    }
+
     /// Connection the assistant talks about: an explicit ask, else the focused tab's.
     fn chat_conn(&mut self, cx: &App) -> Option<ConnectionId> {
         let focused = self.focused_conn_id(cx);

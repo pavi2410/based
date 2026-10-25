@@ -18,7 +18,7 @@ use crate::app::shell::OpenSettingsMenu;
 use crate::app::shell::open_settings;
 use crate::based_panel_dropdown;
 use crate::based_panel_tab_chrome;
-use crate::bindings::{NewQuery, ToggleCommandPalette};
+use crate::bindings::{NewQuery, ToggleChatPane, ToggleCommandPalette};
 use crate::project::prompt_open_project_in_window;
 use crate::widgets::kbd_for_action;
 use crate::workspace::WorkspaceRef;
@@ -69,6 +69,7 @@ impl Render for HomePanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let palette_kbd = kbd_for_action(&ToggleCommandPalette, window);
         let new_query_kbd = kbd_for_action(&NewQuery, window);
+        let chat_kbd = kbd_for_action(&ToggleChatPane, window);
         let settings_kbd = kbd_for_action(&OpenSettingsMenu, window);
 
         v_flex()
@@ -129,6 +130,20 @@ impl Render for HomePanel {
                                         ws.update(cx, |ws, cx| {
                                             ws.open_connection_picker_tab(window, cx);
                                         });
+                                    }
+                                },
+                            ))
+                            .child(home_row(
+                                cx,
+                                "home-ai-assistant",
+                                IconName::Bot,
+                                "AI Assistant",
+                                chat_kbd,
+                                |_, window, cx| {
+                                    if let Some(ws) =
+                                        cx.try_global::<WorkspaceRef>().map(|w| w.0.clone())
+                                    {
+                                        ws.update(cx, |ws, cx| ws.open_chat(window, cx));
                                     }
                                 },
                             ))

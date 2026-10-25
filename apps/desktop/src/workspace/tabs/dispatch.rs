@@ -26,7 +26,7 @@ impl Workspace {
             .cloned()
     }
 
-    pub(crate) fn dispatch_open_tab(
+    pub fn dispatch_open_tab(
         &mut self,
         spec: TabSpec,
         window: &mut Window,

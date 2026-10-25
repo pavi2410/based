@@ -312,6 +312,10 @@ impl Workspace {
         &self.registry
     }
 
+    pub fn tab_manager(&self) -> &Entity<TabManager> {
+        &self.tab_manager
+    }
+
     fn save_session(&mut self, cx: &mut Context<Self>) {
         let tm = self.tab_manager.read(cx);
         let mut tabs = Vec::new();

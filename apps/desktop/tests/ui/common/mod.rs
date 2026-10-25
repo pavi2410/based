@@ -1,19 +1,23 @@
 //! Shared fixtures: isolated process env, app globals, and a Workspace window.
 #![allow(dead_code)]
 
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
+use std::time::Duration;
+use std::{fs, thread};
 
 use based_desktop::app::paths::AppPaths;
+use based_desktop::connection::{ConnectionConfig, ConnectionId, open_connection};
 use based_desktop::workspace::Workspace;
 use based_desktop::workspace::boot::WorkspaceEnv;
 use based_desktop::{init_globals, query_store, storage};
+use based_sqlite::config::SqliteConfig;
 use gpui_kit::test::TestWindowExt;
 use gpui_kit::{
     AnyWindowHandle, App, AppContext, Bounds, Entity, Focusable, Point, TestAppContext,
     WindowBounds, WindowHandle, WindowOptions, base::Root, px, size,
 };
+use tokio::runtime::Builder;
 
 /// Per-process scratch dir for fixtures that need no cleanup (metadata DBs, empty trees).
 fn sandbox() -> &'static PathBuf {
@@ -105,4 +109,66 @@ pub fn open_with(
 /// Drain deferred effects (dock layout sync, session save) so reads see settled state.
 pub fn settle(cx: &mut TestAppContext) {
     cx.run_until_parked();
+}
+
+/// Create a SQLite file at `path` and run `statements` against it.
+pub fn seed_sqlite(path: &Path, statements: &[&str]) {
+    use sqlx::{AssertSqlSafe, Connection, SqliteConnection, sqlite::SqliteConnectOptions};
+    let rt = Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("seed runtime");
+    rt.block_on(async {
+        let opts = SqliteConnectOptions::new()
+            .filename(path)
+            .create_if_missing(true);
+        let mut conn = SqliteConnection::connect_with(&opts)
+            .await
+            .expect("seed db");
+        for sql in statements {
+            sqlx::query(AssertSqlSafe(*sql))
+                .execute(&mut conn)
+                .await
+                .expect("seed sql");
+        }
+    });
+}
+
+/// Open the SQLite file at `path` and attach it to the workspace as a live connection.
+pub fn connect_sqlite(
+    cx: &mut TestAppContext,
+    ws: &Entity<Workspace>,
+    id: &str,
+    path: &Path,
+) -> ConnectionId {
+    let config = ConnectionConfig::SQLite(SqliteConfig {
+        label: id.into(),
+        path: path.to_path_buf(),
+        read_only: false,
+        pragma: None,
+    });
+    let task = cx.update(|cx| open_connection(config.clone(), cx));
+    let opened = cx
+        .foreground_executor()
+        .block_test(task)
+        .expect("open sqlite");
+    let conn_id = ConnectionId(id.into());
+    let session = conn_id.clone();
+    ws.update(cx, |ws, cx| {
+        ws.attach_wizard_session(config, opened, session, vec![], false, cx)
+    });
+    settle(cx);
+    conn_id
+}
+
+/// Poll until `done` holds: Tokio work finishes off the test scheduler's thread.
+pub fn wait_until(cx: &mut TestAppContext, mut done: impl FnMut(&mut TestAppContext) -> bool) {
+    for _ in 0..300 {
+        cx.run_until_parked();
+        if done(cx) {
+            return;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+    panic!("condition not reached in time");
 }

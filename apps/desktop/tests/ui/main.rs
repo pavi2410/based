@@ -3,5 +3,6 @@
 mod common;
 mod palette;
 mod project;
+mod query;
 mod save;
 mod tabs;

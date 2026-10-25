@@ -106,7 +106,9 @@ fn check_sql(sql: &str, dollar_quotes: bool) -> Result<(), String> {
         return Err("EXPLAIN ANALYZE executes the statement and is not allowed".into());
     }
     match words.iter().find(|w| SQL_FORBIDDEN.contains(&w.as_str())) {
-        Some(w) => Err(format!("`{w}` is not allowed in read-only mode")),
+        Some(w) => Err(format!(
+            "`{w}` is not allowed in read-only mode (if it is a column or table name, quote it)"
+        )),
         None => Ok(()),
     }
 }

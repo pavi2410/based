@@ -3,6 +3,7 @@
 pub mod close;
 pub mod commands;
 pub mod dispatch;
+pub mod inbox;
 pub mod infer;
 pub mod label;
 pub mod manager;
@@ -13,13 +14,10 @@ pub mod session;
 pub mod spec;
 
 pub use close::{CloseOutcome, ClosePrompt, CloseScope};
+pub use inbox::{Inbox, Request, request_workspace_flush};
 pub use label::render_strip_tab;
 pub use manager::{TabEvent, TabManager};
 pub use navigation::TabNavigationHistory;
-pub use open::{
-    DockAreaRef, SqlInject, TabManagerRef, TabOpenQueue, WorkspaceNavQueue, WorkspaceRef,
-    enqueue_open_release_notes, enqueue_open_tab, enqueue_show_home, enqueue_sql_inject,
-    enqueue_toggle_side_pane, mark_query_tab_dirty, request_workspace_flush, take_sql_inject,
-};
+pub use open::{DockAreaRef, TabManagerRef, WorkspaceRef, mark_tab_dirty};
 pub use session::{SessionSnapshot, SessionState, merge_live_and_pending};
 pub use spec::{DrillFilter, QueryEditorInit, TabSpec};

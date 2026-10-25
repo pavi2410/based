@@ -13,7 +13,7 @@ use crate::query_store::QueryStore;
 use crate::widgets::empty_state::pane_empty_hint;
 use crate::workspace::Workspace;
 use crate::workspace::project_query::{OpenQueryResult, open_project_query, target_hint};
-use crate::workspace::tabs::enqueue_open_tab;
+use crate::workspace::tabs::inbox;
 
 pub fn render_saved_pane(
     conn_id: Option<ConnectionId>,
@@ -96,7 +96,7 @@ pub fn render_saved_pane(
                         return;
                     }
                     match open_project_query(&query, reg.read(cx), cx, conn_for_row.as_ref()) {
-                        OpenQueryResult::Open(spec) => enqueue_open_tab(spec, cx),
+                        OpenQueryResult::Open(spec) => inbox::open_tab(spec, cx),
                         OpenQueryResult::PickConnection {
                             query_path,
                             candidates,

@@ -19,7 +19,7 @@ use crate::widgets::status_item::{STATUS_BAR_HEIGHT, status_divider, status_text
 use crate::workspace::ConnectionTree;
 use crate::workspace::chrome::side_pane::SidePane;
 use crate::workspace::connection_tree::connection_actions_menu;
-use crate::workspace::tabs::{WorkspaceRef, enqueue_toggle_side_pane};
+use crate::workspace::tabs::{WorkspaceRef, inbox};
 
 /// Focused connection shown as a status-bar chip.
 #[derive(Clone, Debug)]
@@ -111,7 +111,7 @@ fn side_pane_button(pane: SidePane, active: Option<SidePane>, cx: &App) -> impl 
         .icon(Icon::new(pane.icon()).text_color(color))
         .tooltip_with_action(tooltip_text, action, None)
         .on_click(move |_, _, cx| {
-            enqueue_toggle_side_pane(pane, cx);
+            inbox::toggle_side_pane(pane, cx);
             if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
                 ws.update(cx, |_, cx| cx.notify());
             }

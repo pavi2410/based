@@ -16,7 +16,7 @@ use crate::query_store::QueryStore;
 use crate::widgets::empty_state::pane_empty_hint;
 use crate::widgets::query_panel_extras::{HistoryFilter, filtered_history};
 use crate::workspace::Workspace;
-use crate::workspace::tabs::enqueue_open_tab;
+use crate::workspace::tabs::inbox;
 use crate::workspace::{QueryEditorInit, TabSpec};
 
 pub fn render_history_pane(
@@ -78,7 +78,7 @@ pub fn render_history_pane(
             .text_color(muted)
             .child(preview)
             .on_mouse_down(MouseButton::Left, move |_, _, cx| {
-                enqueue_open_tab(
+                inbox::open_tab(
                     TabSpec::QueryEditor {
                         conn_id: conn_for_open.clone(),
                         init: QueryEditorInit::Sql {

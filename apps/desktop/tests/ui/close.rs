@@ -1,21 +1,12 @@
 //! Bulk close commands, pinned tabs and unsaved (dirty) query tabs.
 
-use based_desktop::connection::ConnectionId;
 use based_desktop::workspace::panels::query_editor::QueryEditorPanel;
 use based_desktop::workspace::tabs::{CloseOutcome, CloseScope};
 use based_desktop::workspace::{TabSpec, Workspace};
 use gpui_kit::test::TestWindowExt;
 use gpui_kit::{AnyWindowHandle, AppContext, Entity, EntityId, TestAppContext};
 
-use crate::common::{connect_sqlite, open_workspace, seed_sqlite, settle};
-
-fn info(name: &str) -> TabSpec {
-    TabSpec::ObjectInfo {
-        conn_id: ConnectionId("t".into()),
-        object_name: name.into(),
-        kind_label: "Trigger".into(),
-    }
-}
+use crate::common::{connect_sqlite, info, open_workspace, seed_sqlite, settle};
 
 struct Strip {
     win: AnyWindowHandle,

@@ -9,16 +9,9 @@ use gpui_kit::test::TestWindowExt;
 use gpui_kit::{AnyWindowHandle, AppContext, Entity, TestAppContext};
 
 use crate::common::{
-    no_project_env, open_window, open_workspace, saved_session, settle, store_session, wait_until,
+    info, no_project_env, open_window, open_workspace, saved_session, settle, store_session,
+    wait_until,
 };
-
-fn info(name: &str) -> TabSpec {
-    TabSpec::ObjectInfo {
-        conn_id: ConnectionId("t".into()),
-        object_name: name.into(),
-        kind_label: "Trigger".into(),
-    }
-}
 
 fn open(win: AnyWindowHandle, ws: &Entity<Workspace>, spec: TabSpec, cx: &mut TestAppContext) {
     cx.update_window(win, |_, window, cx| {

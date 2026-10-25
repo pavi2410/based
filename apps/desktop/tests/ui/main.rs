@@ -2,6 +2,7 @@
 
 mod close;
 mod common;
+mod inbox;
 mod palette;
 mod project;
 mod query;

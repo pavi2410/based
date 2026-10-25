@@ -36,7 +36,7 @@ use project::{
     ProjectContext, ProjectVars, find_project_root, install_reload_watcher,
     settings::apply_project_settings, variables::load_variables,
 };
-use workspace::{PopOutManager, SqlInject, TabOpenQueue, WorkspaceNavQueue};
+use workspace::{Inbox, PopOutManager};
 
 /// Launch the desktop app (blocks until quit).
 pub fn run() {
@@ -84,9 +84,7 @@ pub fn init_globals(cx: &mut App) {
     db::init(cx);
     ai::init(cx);
 
-    cx.set_global(TabOpenQueue::default());
-    cx.set_global(WorkspaceNavQueue::default());
-    cx.set_global(SqlInject::default());
+    cx.set_global(Inbox::default());
     // Empty until `init_project` loads the project's vars.
     cx.set_global(ProjectVars::default());
     PopOutManager::init(cx);

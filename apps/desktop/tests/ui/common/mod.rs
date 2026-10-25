@@ -9,9 +9,9 @@ use std::{fs, thread};
 use based_desktop::app::paths::AppPaths;
 use based_desktop::connection::{ConnectionConfig, ConnectionId, open_connection};
 use based_desktop::db::Tokio;
-use based_desktop::workspace::Workspace;
 use based_desktop::workspace::boot::WorkspaceEnv;
 use based_desktop::workspace::tabs::SessionSnapshot;
+use based_desktop::workspace::{TabSpec, Workspace};
 use based_desktop::{init_globals, query_store, storage};
 use based_sqlite::config::SqliteConfig;
 use gpui_kit::test::TestWindowExt;
@@ -202,4 +202,13 @@ pub fn store_session(cx: &mut TestAppContext, snapshot: &SessionSnapshot) {
             .block_on(snapshot.save(&store))
             .expect("save session");
     });
+}
+
+/// An object-info tab spec on a placeholder connection (needs no live connection).
+pub fn info(name: &str) -> TabSpec {
+    TabSpec::ObjectInfo {
+        conn_id: ConnectionId("t".into()),
+        object_name: name.into(),
+        kind_label: "Trigger".into(),
+    }
 }

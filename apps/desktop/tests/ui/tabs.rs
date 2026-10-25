@@ -3,21 +3,12 @@
 //! Assertions use tab counts on the settled state; specs are re-inferred from
 //! panels on dock sync, so they are not a stable identity for every tab kind.
 
-use based_desktop::connection::ConnectionId;
 use based_desktop::workspace::tabs::CloseScope;
 use based_desktop::workspace::{TabSpec, Workspace};
 use gpui_kit::test::TestWindowExt;
 use gpui_kit::{AnyWindowHandle, AppContext, Entity, TestAppContext};
 
-use crate::common::{open_workspace, settle};
-
-fn info(name: &str) -> TabSpec {
-    TabSpec::ObjectInfo {
-        conn_id: ConnectionId("t".into()),
-        object_name: name.into(),
-        kind_label: "Trigger".into(),
-    }
-}
+use crate::common::{info, open_workspace, settle};
 
 /// Number of distinct tab panels (see `one_manager_entry_per_panel` for why not `tabs.len()`).
 fn tab_count(ws: &Entity<Workspace>, cx: &mut TestAppContext) -> usize {

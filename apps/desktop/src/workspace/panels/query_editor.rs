@@ -47,7 +47,7 @@ use crate::widgets::virtual_table::{
     RowDelegate, data_column, meta_from_query_type, replace_table_data,
 };
 use crate::workspace::pop_out::PopOutWindowTitle;
-use crate::workspace::{WorkspaceRef, mark_query_tab_dirty, tabs::take_sql_inject};
+use crate::workspace::{WorkspaceRef, tabs::mark_tab_dirty};
 
 pub type Fut<T> = BoxFuture<'static, anyhow::Result<T>>;
 
@@ -171,7 +171,7 @@ impl QueryEditorPanel {
             InputEvent::Change => {
                 // Edits only: focus and selection changes also notify the editor.
                 panel.dirty = true;
-                mark_query_tab_dirty(&panel.conn_id, cx);
+                mark_tab_dirty(cx.entity_id(), cx);
                 panel.schedule_lint(cx);
             }
             _ => {}
@@ -274,6 +274,13 @@ impl QueryEditorPanel {
 
     pub(crate) fn connection_id(&self) -> &ConnectionId {
         &self.conn_id
+    }
+
+    /// Replace the editor text (palette history, saved queries).
+    pub fn set_sql(&mut self, sql: &str, window: &mut Window, cx: &mut Context<Self>) {
+        set_input_text(&self.sql_input, sql, window, cx);
+        self.dirty = true;
+        mark_tab_dirty(cx.entity_id(), cx);
     }
 
     pub fn current_sql(&self, cx: &App) -> String {
@@ -641,10 +648,7 @@ impl QueryEditorPanel {
 }
 
 impl Render for QueryEditorPanel {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if let Some(sql) = take_sql_inject(&self.conn_id, cx) {
-            set_input_text(&self.sql_input, &sql, window, cx);
-        }
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let id = self.source.id();
         let has_error = matches!(self.status, QueryStatus::Error(_));
         let toolbar = self.render_toolbar(cx);

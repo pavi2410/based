@@ -39,7 +39,7 @@ use crate::widgets::virtual_table::{
 };
 use crate::workspace::WorkspaceRef;
 use crate::workspace::pop_out::PopOutWindowTitle;
-use crate::workspace::tabs::{DrillFilter, TabSpec, enqueue_open_tab, request_workspace_flush};
+use crate::workspace::tabs::{DrillFilter, TabSpec, inbox, request_workspace_flush};
 
 fn is_array_type(ty: Option<&str>) -> bool {
     ty.is_some_and(|t| t.trim().ends_with("[]") || t.trim().eq_ignore_ascii_case("array"))
@@ -330,7 +330,7 @@ impl DataViewerPanel {
         let Some((object, filter)) = self.fk_jump.clone() else {
             return;
         };
-        enqueue_open_tab(
+        inbox::open_tab(
             TabSpec::DataViewer {
                 conn_id: self.conn_id.clone(),
                 object,

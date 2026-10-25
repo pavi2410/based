@@ -20,6 +20,7 @@ use super::Workspace;
 use super::connection_destination::ConnectionDestination;
 use super::connection_persist::persist_config_to_based_dir;
 use super::project_query::{OpenQueryResult, open_project_query, tab_spec_for_query};
+use super::tabs::inbox;
 
 impl Workspace {
     pub fn set_pending_target_pick(&mut self, query: ProjectQuery, candidates: Vec<ConnectionId>) {
@@ -28,7 +29,7 @@ impl Workspace {
 
     pub fn resolve_pending_target(&mut self, conn_id: ConnectionId, cx: &mut Context<Self>) {
         if let Some((query, _)) = self.pending_target_pick.take() {
-            self.pending_open_tab = Some(tab_spec_for_query(&query, conn_id));
+            inbox::open_tab(tab_spec_for_query(&query, conn_id), cx);
             cx.notify();
         }
     }
@@ -48,7 +49,7 @@ impl Workspace {
         let focused = self.focused_conn_id(cx);
         match open_project_query(query, self.registry.read(cx), cx, focused.as_ref()) {
             OpenQueryResult::Open(spec) => {
-                self.pending_open_tab = Some(spec);
+                inbox::open_tab(spec, cx);
             }
             OpenQueryResult::PickConnection { candidates, .. } => {
                 self.pending_target_pick = Some((query.clone(), candidates));

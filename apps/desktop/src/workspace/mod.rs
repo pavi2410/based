@@ -7,8 +7,7 @@ pub mod tabs;
 
 pub use pop_out::PopOutManager;
 pub use tabs::{
-    DockAreaRef, QueryEditorInit, SqlInject, TabManager, TabManagerRef, TabOpenQueue, TabSpec,
-    WorkspaceNavQueue, WorkspaceRef, enqueue_sql_inject, mark_query_tab_dirty,
+    DockAreaRef, Inbox, QueryEditorInit, TabManager, TabManagerRef, TabSpec, WorkspaceRef,
 };
 
 pub mod connection_tree;
@@ -64,7 +63,7 @@ use crate::widgets::query_panel_extras::HistoryFilter;
 use boot::WorkspaceEnv;
 use context::WorkspaceContext;
 
-use tabs::TabNavigationHistory;
+use tabs::{TabNavigationHistory, inbox};
 
 use chrome::{
     left_pane::LeftPane,
@@ -102,7 +101,6 @@ pub struct Workspace {
     project_title: SharedString,
     project_dir: Option<PathBuf>,
     session: tabs::SessionState,
-    pending_open_tab: Option<TabSpec>,
     pending_target_pick: Option<(ProjectQuery, Vec<ConnectionId>)>,
     /// Set by platform close; dialog is shown on the next [`Render`] (see `app::quit`).
     pub(crate) pending_close_confirm: bool,
@@ -211,7 +209,6 @@ impl Workspace {
             project_title,
             project_dir,
             session: tabs::SessionState::default(),
-            pending_open_tab: None,
             pending_target_pick: None,
             pending_close_confirm: false,
             pending_project_switch: None,
@@ -221,38 +218,18 @@ impl Workspace {
             close_prompt: None,
         };
 
-        cx.subscribe(&tree_observe, |ws, _, event, ecx| {
+        cx.subscribe(&tree_observe, |_ws, _, event, ecx| {
             let connection_tree::TreeEvent::OpenTab(spec) = event;
-            ws.pending_open_tab = Some(spec.clone());
+            inbox::open_tab(spec.clone(), ecx);
             ecx.notify();
         })
         .detach();
 
         cx.subscribe(&palette_observe, |ws, _, event, ecx| {
             match event {
-                OpenTab(spec) => {
-                    ws.pending_open_tab = Some(spec.clone());
-                }
+                OpenTab(spec) => inbox::open_tab(spec.clone(), ecx),
                 InjectSql { conn_id, sql } => {
-                    let active_matches = ws.tab_manager.read(ecx).active_tab().is_some_and(|t| {
-                        matches!(
-                            &t.spec,
-                            TabSpec::QueryEditor {
-                                conn_id: active, ..
-                            } if active == conn_id
-                        )
-                    });
-                    if active_matches {
-                        enqueue_sql_inject(conn_id.clone(), sql.clone(), ecx);
-                    } else {
-                        ws.pending_open_tab = Some(TabSpec::QueryEditor {
-                            conn_id: conn_id.clone(),
-                            init: QueryEditorInit::Sql {
-                                sql: Some(sql.clone()),
-                                auto_run: false,
-                            },
-                        });
-                    }
+                    inbox::inject_sql(conn_id.clone(), sql.clone(), ecx);
                 }
                 OpenProjectQuery(path) => {
                     ws.open_project_query_by_path(path, ecx);

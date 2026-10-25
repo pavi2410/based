@@ -5,7 +5,8 @@
 use gpui_kit::{BorrowAppContext, Context};
 
 use super::Workspace;
-use super::tabs::{TabOpenQueue, TabSpec, WorkspaceNavQueue, enqueue_open_tab, enqueue_show_home};
+use super::panels::query_editor::QueryEditorPanel;
+use super::tabs::{Inbox, QueryEditorInit, Request, TabSpec, inbox};
 use crate::app::logging::open_logs;
 use crate::app::updater::check_now;
 use crate::command_palette::WorkspacePaletteAction;
@@ -28,7 +29,7 @@ impl Workspace {
                 super::query_lane::create_collection_from_palette(cx);
             }
             WorkspacePaletteAction::SelectNoEnvironment => {}
-            WorkspacePaletteAction::OpenHome => enqueue_show_home(cx),
+            WorkspacePaletteAction::OpenHome => inbox::show_home(cx),
             WorkspacePaletteAction::OpenLogs => open_logs(),
             WorkspacePaletteAction::CheckForUpdates => check_now(cx),
             WorkspacePaletteAction::OpenProject => {
@@ -43,22 +44,49 @@ impl Workspace {
         }
     }
 
-    pub(crate) fn drain_tab_open_queue(&mut self, cx: &mut Context<Self>) {
-        if let Some(spec) = cx.update_global(|q: &mut TabOpenQueue, _| q.pending.take()) {
-            self.pending_open_tab = Some(spec);
+    /// Apply every queued [`Request`], oldest first.
+    pub(crate) fn drain_inbox(&mut self, window: &mut gpui_kit::Window, cx: &mut Context<Self>) {
+        while let Some(request) = cx.update_global(|inbox: &mut Inbox, _| inbox.pop()) {
+            match request {
+                Request::OpenTab(spec) => {
+                    self.dispatch_open_tab(spec, window, cx);
+                }
+                Request::InjectSql { conn_id, sql } => self.inject_sql(conn_id, sql, window, cx),
+                Request::ShowHome => self.show_home(window, cx),
+                Request::ToggleSidePane(pane) => self.toggle_side_pane(pane, cx),
+                Request::ToggleLeftPane(pane) => self.toggle_left_pane(pane, cx),
+                Request::OpenReleaseNotes { version } => {
+                    self.dispatch_open_tab(TabSpec::ReleaseNotes { version }, window, cx);
+                }
+            }
         }
+        self.flush_pending_session_tabs(window, cx);
     }
 
-    pub(crate) fn flush_pending_open_tab(
+    /// Replace the SQL in the active editor for `conn_id`, or open a tab holding it.
+    fn inject_sql(
         &mut self,
+        conn_id: ConnectionId,
+        sql: String,
         window: &mut gpui_kit::Window,
         cx: &mut Context<Self>,
     ) {
-        self.drain_tab_open_queue(cx);
-        if let Some(spec) = self.pending_open_tab.take() {
-            self.dispatch_open_tab(spec, window, cx);
+        let editor = self
+            .tab_manager
+            .read(cx)
+            .active_tab()
+            .and_then(|t| t.downcast::<QueryEditorPanel>())
+            .filter(|e| e.read(cx).connection_id() == &conn_id);
+        match editor {
+            Some(editor) => editor.update(cx, |e, cx| e.set_sql(&sql, window, cx)),
+            None => {
+                let init = QueryEditorInit::Sql {
+                    sql: Some(sql),
+                    auto_run: false,
+                };
+                self.dispatch_open_tab(TabSpec::QueryEditor { conn_id, init }, window, cx);
+            }
         }
-        self.flush_pending_session_tabs(window, cx);
     }
 
     pub(crate) fn flush_pending_session_tabs(
@@ -85,42 +113,5 @@ impl Workspace {
 
     pub(crate) fn should_preserve_restored_tabs(&self, conn_id: &ConnectionId) -> bool {
         self.session.awaits(conn_id)
-    }
-
-    pub(crate) fn flush_nav_queue(
-        &mut self,
-        window: &mut gpui_kit::Window,
-        cx: &mut Context<Self>,
-    ) {
-        let (show_home, open_wizard, toggle_side, toggle_left, open_notes, notes_version) = cx
-            .update_global(|q: &mut WorkspaceNavQueue, _| {
-                let home = q.show_home;
-                let wizard = q.open_connection_wizard;
-                let side = q.toggle_side_pane.take();
-                let left = q.toggle_left_pane.take();
-                let notes = q.open_release_notes;
-                let notes_version = q.pending_release_notes_version.take();
-                q.show_home = false;
-                q.open_connection_wizard = false;
-                q.open_release_notes = false;
-                (home, wizard, side, left, notes, notes_version)
-            });
-        if let Some(pane) = toggle_side {
-            self.toggle_side_pane(pane, cx);
-        }
-        if let Some(pane) = toggle_left {
-            self.toggle_left_pane(pane, cx);
-        }
-        if show_home {
-            self.show_home(window, cx);
-        }
-        if open_wizard {
-            self.open_connection_picker_tab(window, cx);
-        }
-        if open_notes && let Some(version) = notes_version {
-            enqueue_open_tab(TabSpec::ReleaseNotes { version }, cx);
-            self.drain_tab_open_queue(cx);
-            self.flush_pending_open_tab(window, cx);
-        }
     }
 }

@@ -34,7 +34,7 @@ use crate::project::{
 use crate::settings_window::SettingsWindow;
 use crate::workspace::{
     WorkspaceRef,
-    tabs::{enqueue_show_home, request_workspace_flush},
+    tabs::{inbox, request_workspace_flush},
 };
 
 pub const APP_NAME: &str = "Based";
@@ -234,7 +234,7 @@ pub fn open_home(cx: &mut App) {
     if cx.try_global::<WorkspaceRef>().is_none() {
         return;
     }
-    enqueue_show_home(cx);
+    inbox::show_home(cx);
     request_workspace_flush(cx);
 }
 

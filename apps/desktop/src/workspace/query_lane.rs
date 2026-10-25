@@ -19,7 +19,7 @@ use crate::widgets::section_eyebrow::section_eyebrow;
 use crate::workspace::WorkspaceRef;
 use crate::workspace::context::WorkspaceContext;
 use crate::workspace::context::refresh_context;
-use crate::workspace::tabs::enqueue_open_tab;
+use crate::workspace::tabs::inbox;
 use crate::workspace::{QueryEditorInit, TabSpec};
 
 pub fn render_query_lane(cx: &mut App) -> AnyElement {
@@ -197,7 +197,7 @@ fn new_actions(cx: &mut App) -> impl IntoElement {
 
 fn open_loose_query(sql: &str, cx: &mut App) {
     let conn_id = first_connected_conn_id(cx).unwrap_or_else(|| ConnectionId("pg".into()));
-    enqueue_open_tab(
+    inbox::open_tab(
         TabSpec::QueryEditor {
             conn_id,
             init: QueryEditorInit::Sql {

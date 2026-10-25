@@ -25,7 +25,7 @@ use crate::connection::live_connection_count;
 use crate::connection::registry::ConnectionRegistry;
 use crate::db::{run, run_infallible};
 use crate::workspace::notify;
-use crate::workspace::tabs::{WorkspaceRef, enqueue_open_release_notes};
+use crate::workspace::tabs::{WorkspaceRef, inbox};
 
 use super::paths::AppPaths;
 use super::prefs::{self, UpdatePreferences};
@@ -177,7 +177,7 @@ fn handle_pending_release_notes(state: &mut UpdaterStateFile, cx: &mut App) {
     let show = UpdateCoordinator::prefs(cx).show_release_notes_after_update;
     if show {
         uinfo(format!("pending release notes: opening tab for v{version}"));
-        enqueue_open_release_notes(version, cx);
+        inbox::open_release_notes(version, cx);
         cx.refresh_windows();
     } else {
         udebug(format!(
@@ -320,7 +320,7 @@ pub fn install_and_restart(
 
 pub fn open_release_notes_for_current(cx: &mut App) {
     let version = config::current_version_string().to_string();
-    enqueue_open_release_notes(version, cx);
+    inbox::open_release_notes(version, cx);
     cx.refresh_windows();
 }
 
@@ -329,7 +329,7 @@ pub fn open_release_notes_for_available(cx: &mut App) {
     let Some(version) = cx.global::<UpdateCoordinator>().available_version.clone() else {
         return;
     };
-    enqueue_open_release_notes(version.trim_start_matches('v').to_string(), cx);
+    inbox::open_release_notes(version.trim_start_matches('v').to_string(), cx);
     cx.refresh_windows();
 }
 

@@ -118,6 +118,9 @@ pub struct QueryEditorPanel {
     dirty: bool,
     pub(super) ai: Entity<AiPrompt>,
     pub(super) ai_open: bool,
+    /// Text applied from an AI proposal; running it unchanged needs confirmation if it writes.
+    pub(super) ai_applied: Option<String>,
+    pub(super) ai_confirm: bool,
     pub(crate) tab_label: SharedString,
 }
 
@@ -159,6 +162,8 @@ impl QueryEditorPanel {
             dirty: false,
             ai: Self::new_ai(window, cx),
             ai_open: false,
+            ai_applied: None,
+            ai_confirm: false,
             tab_label: "Query".into(),
         };
         let conn_for_dirty = panel.conn_id.clone();
@@ -313,9 +318,12 @@ impl QueryEditorPanel {
         .detach();
     }
 
-    fn run(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn run(&mut self, cx: &mut Context<Self>) {
         let sql_raw = self.current_sql(cx);
         if sql_raw.trim().is_empty() {
+            return;
+        }
+        if self.gate_ai_run(&sql_raw, cx) {
             return;
         }
         let project_vars = cx.global::<ProjectVars>().vars.clone();
@@ -642,6 +650,7 @@ impl Render for QueryEditorPanel {
         let id = self.source.id();
         let has_error = matches!(self.status, QueryStatus::Error(_));
         let toolbar = self.render_toolbar(cx);
+        let ai_confirm = self.render_ai_confirm(cx);
         let editor_pane = div().size_full().p_2().child(sql_editor::code_editor_flex(
             &self.sql_input,
             has_error,
@@ -687,6 +696,7 @@ impl Render for QueryEditorPanel {
                 .on_action(cx.listener(|panel, _: &AskAi, window, cx| panel.toggle_ai(window, cx)))
                 .child(toolbar)
                 .when(self.ai_open, |v| v.child(self.ai.clone()))
+                .children(ai_confirm)
                 .child(
                     div().flex_1().min_h(px(0.0)).child(
                         v_resizable(SharedString::from(format!("{id}-query-split")))

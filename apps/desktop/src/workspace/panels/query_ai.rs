@@ -1,8 +1,18 @@
 //! AI prompt bar wiring for [`QueryEditorPanel`]: open/close, context, applying proposals.
 
 use based_ai::context::ContextLevel;
+use based_ai::tools::check;
+use based_core::EngineKind;
 use based_project::AiSettings;
-use gpui_kit::{App, AppContext as _, Context, Entity, Window};
+use gpui_kit::component::{
+    ActiveTheme, Icon, IconName, Sizable as _,
+    button::{Button, ButtonVariants as _},
+    h_flex,
+};
+use gpui_kit::{
+    AnyElement, App, AppContext as _, Context, Entity, IntoElement, ParentElement, Styled, Window,
+    div, prelude::*,
+};
 
 use super::query_editor::{QueryEditorPanel, QueryStatus};
 use crate::ai::{AiPrompt, AiPromptEvent, schema};
@@ -78,6 +88,8 @@ impl QueryEditorPanel {
         match event {
             AiPromptEvent::Submit(instruction) => self.ask_ai(instruction.clone(), cx),
             AiPromptEvent::Apply(text) => {
+                self.ai_applied = Some(text.clone());
+                self.ai_confirm = false;
                 set_input_text(&self.sql_input, text, window, cx);
                 self.close_ai(window, cx);
             }
@@ -94,5 +106,106 @@ impl QueryEditorPanel {
         self.ai.update(cx, |ai, cx| {
             ai.start(engine, schema, current, instruction, cx)
         });
+    }
+}
+
+/// AI-written text that writes or changes schema must be confirmed before its first run.
+/// Text the user edited after applying is theirs and runs normally.
+fn needs_confirm(engine: EngineKind, applied: Option<&str>, current: &str) -> bool {
+    applied.is_some_and(|a| a.trim() == current.trim()) && check(engine, current).is_err()
+}
+
+impl QueryEditorPanel {
+    /// `true` when the run was held back for confirmation.
+    pub(super) fn gate_ai_run(&mut self, sql: &str, cx: &mut Context<Self>) -> bool {
+        let hold = needs_confirm(self.source.engine(), self.ai_applied.as_deref(), sql);
+        if self.ai_confirm != hold {
+            self.ai_confirm = hold;
+            cx.notify();
+        }
+        hold
+    }
+
+    fn confirm_ai_run(&mut self, cx: &mut Context<Self>) {
+        self.ai_applied = None;
+        self.ai_confirm = false;
+        self.run(cx);
+    }
+
+    pub(super) fn render_ai_confirm(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        if !self.ai_confirm {
+            return None;
+        }
+        let id = self.source.id();
+        let warn = cx.theme().warning;
+        Some(
+            h_flex()
+                .gap_2()
+                .px_2()
+                .py_1p5()
+                .items_center()
+                .border_b_1()
+                .border_color(warn.opacity(0.4))
+                .bg(warn.opacity(0.08))
+                .child(Icon::new(IconName::TriangleAlert).small().text_color(warn))
+                .child(
+                    div()
+                        .flex_1()
+                        .text_sm()
+                        .child("This query came from AI and may change data or schema. Run it?"),
+                )
+                .child(
+                    Button::new(format!("{id}-ai-run"))
+                        .primary()
+                        .small()
+                        .label("Run anyway")
+                        .on_click(cx.listener(|this, _, _, cx| this.confirm_ai_run(cx))),
+                )
+                .child(
+                    Button::new(format!("{id}-ai-cancel"))
+                        .ghost()
+                        .small()
+                        .label("Cancel")
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.ai_confirm = false;
+                            cx.notify();
+                        })),
+                )
+                .into_any_element(),
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const PG: EngineKind = EngineKind::Postgres;
+
+    #[test]
+    fn unchanged_ai_write_needs_confirmation() {
+        assert!(needs_confirm(PG, Some("DELETE FROM t"), "DELETE FROM t\n"));
+        assert!(needs_confirm(PG, Some("DROP TABLE t"), "DROP TABLE t"));
+    }
+
+    #[test]
+    fn ai_reads_run_freely() {
+        assert!(!needs_confirm(PG, Some("SELECT 1"), "SELECT 1"));
+    }
+
+    #[test]
+    fn edited_or_manual_text_is_not_gated() {
+        assert!(!needs_confirm(
+            PG,
+            Some("DELETE FROM t"),
+            "DELETE FROM t WHERE id = 1"
+        ));
+        assert!(!needs_confirm(PG, None, "DELETE FROM t"));
+    }
+
+    #[test]
+    fn redis_writes_are_gated() {
+        assert!(needs_confirm(EngineKind::Redis, Some("DEL k"), "DEL k"));
+        assert!(!needs_confirm(EngineKind::Redis, Some("GET k"), "GET k"));
     }
 }

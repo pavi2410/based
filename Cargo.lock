@@ -678,6 +678,7 @@ name = "based-ai"
 version = "0.0.0-dev"
 dependencies = [
  "futures",
+ "reqwest",
  "serde",
  "serde_json",
  "tokio",

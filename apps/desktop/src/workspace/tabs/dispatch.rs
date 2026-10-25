@@ -132,7 +132,7 @@ impl Workspace {
     }
 
     /// Activate the open tab for `spec`, if any.
-    fn focus_existing_tab(
+    pub(crate) fn focus_existing_tab(
         &mut self,
         spec: &TabSpec,
         window: &mut Window,

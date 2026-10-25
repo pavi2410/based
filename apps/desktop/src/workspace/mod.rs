@@ -390,11 +390,7 @@ impl Workspace {
             .collect();
         self.flush_pending_session_tabs(window, cx);
         if let Some(spec) = active_spec.filter(TabSpec::persist_in_session) {
-            self.tab_manager.update(cx, |tm, ecx| {
-                if let Some(idx) = tm.tabs.iter().position(|t| t.spec == spec) {
-                    tm.activate(idx, ecx);
-                }
-            });
+            self.focus_existing_tab(&spec, window, cx);
         }
         let pinned: Vec<TabSpec> = session
             .pinned_tabs

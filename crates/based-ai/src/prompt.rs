@@ -46,17 +46,20 @@ pub fn edit_request(
 }
 
 fn chat_system(engine: Option<EngineKind>, label: &str, tools: bool) -> String {
-    let target = engine.map_or_else(String::new, |e| {
-        format!(" The user is working with {} ({label}).", dialect(e))
-    });
-    let target = if target.is_empty() && tools {
-        " No database is active yet; list the connections and connect one.".to_owned()
-    } else {
-        target
+    let target = match engine {
+        Some(e) => format!(
+            " The user's focused tab is {} ({label}); this is context only, you have not \
+             connected or run anything.",
+            dialect(e)
+        ),
+        None if tools => " No database is active.".to_owned(),
+        None => String::new(),
     };
     let lookup = if tools {
-        " Use the tools to list and connect databases, and to look up tables and columns \
-         before writing a query. Say which connection you are using."
+        " Only use tools when the request needs database information: list_connections and \
+         connect to pick a database, then look up tables and columns before writing a query. \
+         Answer greetings and general questions directly without tools, and never claim an \
+         action you did not do with a tool."
     } else {
         ""
     };

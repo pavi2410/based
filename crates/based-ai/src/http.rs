@@ -61,3 +61,30 @@ pub fn lazy_stream(
         .flatten()
         .boxed()
 }
+
+/// Turns a response body into a stream of non-empty lines (NDJSON).
+pub fn ndjson_lines(resp: Response) -> BoxStream<'static, Result<String, AiError>> {
+    let state = (resp.bytes_stream().boxed(), Vec::<u8>::new());
+    stream::unfold(state, |(mut body, mut buf)| async move {
+        loop {
+            if let Some(pos) = buf.iter().position(|&b| b == b'\n') {
+                let raw: Vec<u8> = buf.drain(..=pos).collect();
+                let line = String::from_utf8_lossy(&raw).trim().to_owned();
+                if line.is_empty() {
+                    continue;
+                }
+                return Some((Ok(line), (body, buf)));
+            }
+            match body.next().await {
+                Some(Ok(bytes)) => buf.extend_from_slice(&bytes),
+                Some(Err(e)) => return Some((Err(net_err(e)), (body, buf))),
+                None => {
+                    let line = String::from_utf8_lossy(&buf).trim().to_owned();
+                    buf.clear();
+                    return (!line.is_empty()).then_some((Ok(line), (body, buf)));
+                }
+            }
+        }
+    })
+    .boxed()
+}

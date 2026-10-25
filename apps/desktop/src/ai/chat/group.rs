@@ -5,10 +5,10 @@ use std::mem::take;
 use std::ops::Range;
 
 use based_ai::{Message, Role};
-use gpui_kit::component::{message::MessageGroup, text::TextView, v_flex};
+use gpui_kit::component::{message::MessageGroup, v_flex};
 use gpui_kit::{AnyElement, App, Entity, IntoElement, ParentElement, Styled, div, px};
 
-use super::{ChatPane, Phase};
+use super::{ChatPane, Phase, style};
 use crate::ai::launch::error_text;
 use gpui_kit::component::ActiveTheme;
 
@@ -73,8 +73,8 @@ impl ChatPane {
             }
             group = flush(group, &mut calls);
             if !turn.content.is_empty() {
-                group = group.child(div().text_sm().child(
-                    TextView::markdown(("chat-reply", ix), turn.content.clone()).selectable(true),
+                group = group.child(div().text_size(style::body(cx)).child(
+                    style::markdown(("chat-reply", ix), turn.content.clone(), cx).selectable(true),
                 ));
             }
         }
@@ -90,7 +90,7 @@ impl ChatPane {
         let theme = cx.theme();
         match &self.phase {
             Phase::Failed(e) => div()
-                .text_sm()
+                .text_size(style::body(cx))
                 .text_color(theme.danger)
                 .child(error_text(e))
                 .into_any_element(),
@@ -105,9 +105,9 @@ impl ChatPane {
                 .into_any_element(),
             _ if self.draft.is_empty() => super::view::muted_line("Thinking...", cx),
             _ => div()
-                .text_sm()
+                .text_size(style::body(cx))
                 .child(
-                    TextView::markdown(("chat-reply", self.turns.len()), self.draft.clone())
+                    style::markdown(("chat-reply", self.turns.len()), self.draft.clone(), cx)
                         .stream_fade(true),
                 )
                 .into_any_element(),

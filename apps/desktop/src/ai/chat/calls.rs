@@ -8,7 +8,7 @@ use gpui_kit::{
     StatefulInteractiveElement as _, Styled, div, px,
 };
 
-use super::ChatPane;
+use super::{ChatPane, style};
 use crate::app::prefs;
 
 const SUMMARY_MAX: usize = 80;
@@ -69,7 +69,7 @@ impl ChatPane {
             .items_center()
             .rounded_md()
             .cursor_pointer()
-            .text_xs()
+            .text_size(style::small(cx))
             .text_color(muted)
             .hover(move |s| s.bg(hover))
             .on_click(move |_, _, cx| this.update(cx, |p, cx| p.toggle_call(ix, cx)))
@@ -110,7 +110,7 @@ impl ChatPane {
             .py_1()
             .rounded_md()
             .bg(theme.muted.opacity(0.25))
-            .text_xs()
+            .text_size(style::small(cx))
             .font_family(prefs::code_font_family(cx));
         if let Some(args) = call.map(args_text).filter(|a| !a.is_empty()) {
             col = col.child(
@@ -138,7 +138,7 @@ impl ChatPane {
                 h_flex()
                     .gap_1p5()
                     .items_center()
-                    .text_xs()
+                    .text_size(style::small(cx))
                     .text_color(muted)
                     .child(Icon::new(IconName::Loader).xsmall())
                     .child(

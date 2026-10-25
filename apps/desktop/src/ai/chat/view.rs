@@ -12,7 +12,7 @@ use gpui_kit::{
     div, px,
 };
 
-use super::ChatPane;
+use super::{ChatPane, style};
 
 impl ChatPane {
     fn empty_state(&self, cx: &App) -> AnyElement {
@@ -26,7 +26,7 @@ impl ChatPane {
             .child(Icon::new(IconName::Bot).size_6().text_color(muted))
             .child(
                 div()
-                    .text_sm()
+                    .text_size(style::body(cx))
                     .text_color(muted)
                     .text_center()
                     .child("Ask about SQL, Mongo pipelines or Redis commands."),
@@ -44,7 +44,7 @@ impl ChatPane {
         div()
             .px_3()
             .pt_1p5()
-            .text_xs()
+            .text_size(style::small(cx))
             .text_color(cx.theme().muted_foreground)
             .child(text)
             .into_any_element()
@@ -100,7 +100,7 @@ impl Render for ChatPane {
 
 pub(super) fn muted_line(text: &'static str, cx: &App) -> AnyElement {
     div()
-        .text_sm()
+        .text_size(style::body(cx))
         .text_color(cx.theme().muted_foreground)
         .child(text)
         .into_any_element()
@@ -117,7 +117,7 @@ pub(super) fn user_row(turn: &Message, cx: &App) -> AnyElement {
                 .py_2()
                 .rounded_lg()
                 .bg(cx.theme().primary.opacity(0.14))
-                .text_sm()
+                .text_size(style::body(cx))
                 .child(turn.content.clone()),
         )
         .into_any_element()

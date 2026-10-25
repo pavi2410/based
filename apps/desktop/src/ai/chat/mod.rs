@@ -9,6 +9,7 @@ mod calls;
 mod conn;
 mod group;
 mod saved;
+mod style;
 mod tags;
 mod view;
 

@@ -11,7 +11,7 @@ use gpui_kit::component::{
 };
 use gpui_kit::{AnyElement, Context, FontWeight, IntoElement, ParentElement, Styled, div};
 
-use super::ChatPane;
+use super::{ChatPane, style};
 use crate::app::prefs;
 use crate::connection::ConnectionState;
 
@@ -88,6 +88,11 @@ impl ChatPane {
     /// The question and its buttons, shown above the composer.
     pub(super) fn approval_card(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let a = self.pending.as_ref()?;
+        let (body, small, code) = (
+            style::body(cx),
+            style::small(cx),
+            prefs::code_font_family(cx),
+        );
         let theme = cx.theme();
         let mut card = v_flex()
             .gap_1p5()
@@ -99,15 +104,15 @@ impl ChatPane {
             .bg(theme.muted.opacity(0.25))
             .child(
                 div()
-                    .text_sm()
+                    .text_size(body)
                     .font_weight(FontWeight::SEMIBOLD)
                     .child(a.title.clone()),
             );
         if !a.detail.is_empty() {
             card = card.child(
                 div()
-                    .text_xs()
-                    .font_family(prefs::code_font_family(cx))
+                    .text_size(small)
+                    .font_family(code)
                     .line_clamp(8)
                     .child(a.detail.clone()),
             );

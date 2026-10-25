@@ -72,7 +72,7 @@ impl ChatPane {
         ToolResult::ok(out)
     }
 
-    fn find(&self, name: &str, cx: &Context<Self>) -> Option<Entity<ConnectionEntry>> {
+    pub(super) fn find(&self, name: &str, cx: &Context<Self>) -> Option<Entity<ConnectionEntry>> {
         let conns = self.registry.read(cx).connections();
         let by = |exact: bool| {
             conns.iter().find(|e| {

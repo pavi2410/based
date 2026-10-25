@@ -4,6 +4,7 @@
 //! read-only against the focused connection and the results go back to it, up to
 //! [`MAX_ROUNDS`].
 
+mod approve;
 mod conn;
 mod saved;
 mod tags;
@@ -15,7 +16,7 @@ use std::sync::Arc;
 
 use based_ai::context::ContextLevel;
 use based_ai::history::ChatMeta;
-use based_ai::tools::{ReadOnlyTools, ToolBackend, ToolCall, connection_specs};
+use based_ai::tools::{ReadOnlyTools, ToolBackend, ToolCall, ToolResult, connection_specs};
 use based_ai::{AiError, Message, Role, prompt};
 use based_core::EngineKind;
 use gpui_kit::component::{
@@ -24,6 +25,7 @@ use gpui_kit::component::{
 };
 use gpui_kit::{App, AppContext as _, Context, Entity, SharedString, Task, Window};
 
+use self::approve::{Approval, Trusted, Verdict};
 use super::launch::launch;
 use super::stream::{AiStream, StreamEvent};
 use super::{schema, tools};
@@ -92,6 +94,10 @@ pub struct ChatPane {
     targets: HashMap<String, String>,
     /// File id of the open conversation once it has been saved.
     chat_id: Option<String>,
+    /// A tool call waiting for the user's answer.
+    pending: Option<Approval>,
+    /// Actions the user allowed for this conversation.
+    trusted: Trusted,
     /// Saved conversations, newest first.
     history: Vec<ChatMeta>,
     /// Why chat can't be used right now; replaces the composer.
@@ -144,6 +150,8 @@ impl ChatPane {
             tables_for: None,
             targets: HashMap::new(),
             chat_id: None,
+            pending: None,
+            trusted: Trusted::new(),
             history: Vec::new(),
             notice: None,
             job: None,
@@ -314,10 +322,27 @@ impl ChatPane {
         self.tool_job = Some(cx.spawn(async move |this, cx| {
             let mut done = Vec::with_capacity(calls.len());
             for call in calls {
-                let Ok(job) = this.update(cx, |this, cx| this.start_call(&call, cx)) else {
+                let Ok(gate) = this.update(cx, |this, cx| this.gate(&call, cx)) else {
                     return;
                 };
-                done.push((call, job.await));
+                let allowed = match gate {
+                    Some(answer) => matches!(
+                        answer.await,
+                        Ok(Verdict::Once | Verdict::Always)
+                    ),
+                    None => true,
+                };
+                let result = if allowed {
+                    let Ok(job) = this.update(cx, |this, cx| this.start_call(&call, cx)) else {
+                        return;
+                    };
+                    job.await
+                } else {
+                    ToolResult::err(
+                        "The user declined this request. Do not retry it; ask what they want instead.",
+                    )
+                };
+                done.push((call, result));
             }
             let _ = this.update(cx, |this, cx| {
                 this.tool_job = None;
@@ -334,6 +359,7 @@ impl ChatPane {
         self.job = None;
         self.stream = None;
         self.tool_job = None;
+        self.pending = None;
     }
 
     /// Cancels the running request, keeping what was received as a reply.

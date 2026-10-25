@@ -40,6 +40,9 @@ impl ChatPane {
                 .text_color(theme.danger)
                 .child(error_text(e))
                 .into_any_element(),
+            Phase::Tools if self.pending.is_some() => {
+                muted_line("Waiting for your approval...", cx)
+            }
             Phase::Tools => muted_line("Running tools...", cx),
             _ if self.draft.is_empty() => muted_line("Thinking...", cx),
             _ => div()
@@ -106,6 +109,7 @@ impl ChatPane {
         v_flex()
             .border_t_1()
             .border_color(cx.theme().border.opacity(0.72))
+            .children(self.approval_card(cx))
             .child(self.status_line(cx))
             .child(
                 h_flex()

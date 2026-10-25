@@ -60,7 +60,7 @@ pub fn specs() -> Vec<ToolSpec> {
             schema: one("query", QUERY),
         },
         ToolSpec {
-            name: "run_readonly_query",
+            name: RUN_QUERY,
             description: "Run a read-only query and return up to a limited number of rows.",
             schema: one("query", QUERY),
         },
@@ -69,6 +69,7 @@ pub fn specs() -> Vec<ToolSpec> {
 
 pub const LIST_CONNECTIONS: &str = "list_connections";
 pub const CONNECT: &str = "connect";
+pub const RUN_QUERY: &str = "run_readonly_query";
 
 /// Tools for choosing the database; the app runs them, not a backend.
 pub fn connection_specs() -> Vec<ToolSpec> {

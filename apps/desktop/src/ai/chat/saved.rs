@@ -62,6 +62,7 @@ impl ChatPane {
         self.draft.clear();
         self.targets.clear();
         self.chat_id = None;
+        self.trusted.clear();
         self.finish(Phase::Idle);
         self.sync(cx);
     }

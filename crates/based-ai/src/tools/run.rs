@@ -5,11 +5,9 @@ use based_core::EngineKind;
 use futures::future::BoxFuture;
 
 use super::guard::check;
-use super::spec::{ToolCall, ToolResult, ToolSpec, specs};
+use super::spec::{RUN_QUERY as ROWS_TOOL, ToolCall, ToolResult, ToolSpec, specs};
 use crate::context::{ContextLevel, Entity, RenderOptions, SchemaSnapshot, render};
 use crate::error::AiError;
-
-const ROWS_TOOL: &str = "run_readonly_query";
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct QueryOutput {

@@ -51,11 +51,37 @@ impl SecretStore {
     pub fn template_password_ref(template_id: uuid::Uuid) -> String {
         format!("connection-template:{template_id}:password")
     }
+
+    /// Stable ref for an AI provider API key (`anthropic`, `openai`, ...).
+    pub fn ai_key_ref(provider: &str) -> String {
+        format!("ai:{provider}:api-key")
+    }
+
+    pub fn get_ai_key(&self, provider: &str) -> Result<Option<String>> {
+        self.get(&Self::ai_key_ref(provider))
+    }
+
+    pub fn set_ai_key(&self, provider: &str, key: &str) -> Result<()> {
+        self.set(&Self::ai_key_ref(provider), key)
+    }
+
+    pub fn delete_ai_key(&self, provider: &str) -> Result<()> {
+        self.delete(&Self::ai_key_ref(provider))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ai_key_ref_is_namespaced_per_provider() {
+        assert_eq!(SecretStore::ai_key_ref("anthropic"), "ai:anthropic:api-key");
+        assert_ne!(
+            SecretStore::ai_key_ref("openai"),
+            SecretStore::ai_key_ref("anthropic")
+        );
+    }
 
     #[test]
     fn template_password_ref_is_stable() {

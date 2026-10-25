@@ -24,7 +24,7 @@ use crate::about_window::AboutWindow;
 use crate::bindings::{
     CloseAllTabs, CloseCleanTabs, CloseOtherTabs, CloseTab, CycleAppearance, GoBackTab,
     GoForwardTab, NewQuery, OpenHome, SplitPaneBottom, SplitPaneLeft, SplitPaneRight, SplitPaneTop,
-    ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane,
+    ToggleChatPane, ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane,
     ToggleSidebarRail,
 };
 use crate::project::{
@@ -173,6 +173,7 @@ fn view_menu_items() -> Vec<MenuItem> {
         MenuItem::action("Inspector", ToggleInspectorPane),
         MenuItem::action("History", ToggleHistoryPane),
         MenuItem::action("Saved Queries", ToggleSavedPane),
+        MenuItem::action("AI Assistant", ToggleChatPane),
         MenuItem::separator(),
         MenuItem::action("Cycle Appearance", CycleAppearance),
         MenuItem::action("Back", GoBackTab),

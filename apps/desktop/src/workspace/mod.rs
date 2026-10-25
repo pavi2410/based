@@ -34,6 +34,9 @@ use std::sync::Arc;
 
 use dock_utils::tabs_layout;
 
+use crate::ai::chat::{ChatContext, ChatPane};
+use crate::ai::{OFF_NOTICE, schema};
+use based_ai::context::ContextLevel;
 use gpui_kit::component::dock::{DockArea, DockEvent, DockSkin, PanelStyle, PanelView};
 use gpui_kit::{App, Context, Entity, FocusHandle, Focusable, SharedString, Window, prelude::*};
 
@@ -77,6 +80,7 @@ pub struct Workspace {
     active_side_pane: Option<SidePane>,
     /// History pane filter chip (All / Today).
     history_filter: HistoryFilter,
+    chat: Entity<ChatPane>,
     focus_handle: FocusHandle,
     project_title: SharedString,
     project_dir: Option<PathBuf>,
@@ -183,6 +187,7 @@ impl Workspace {
             active_left_pane: LeftPane::Browser,
             active_side_pane: None,
             history_filter: HistoryFilter::default(),
+            chat: cx.new(|cx| ChatPane::new(window, cx)),
             focus_handle: cx.focus_handle(),
             project_title,
             project_dir,
@@ -412,6 +417,35 @@ impl Workspace {
             Some(pane)
         };
         cx.notify();
+    }
+
+    /// Toggles the assistant pane and focuses its composer when it opens.
+    pub fn toggle_chat(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.toggle_side_pane(SidePane::Chat, cx);
+        if self.active_side_pane == Some(SidePane::Chat) {
+            self.chat.update(cx, |chat, cx| chat.focus(window, cx));
+        }
+    }
+
+    /// Points the assistant at the focused connection (and gates it on that connection's AI setting).
+    fn sync_chat_context(&self, cx: &mut Context<Self>) {
+        let entry = self
+            .focused_conn_id(cx)
+            .and_then(|id| self.registry.read(cx).get(&id, cx).cloned());
+        let (ctx, notice) = match entry.map(|e| e.read(cx)) {
+            Some(entry) => {
+                let ctx = ChatContext {
+                    engine: entry.engine(),
+                    label: entry.config.label().to_owned(),
+                };
+                let notice = (schema::level(entry.ai) == ContextLevel::Off)
+                    .then(|| SharedString::from(OFF_NOTICE));
+                (Some(ctx), notice)
+            }
+            None => (None, None),
+        };
+        self.chat
+            .update(cx, |chat, cx| chat.set_context(ctx, notice, cx));
     }
 
     pub fn set_history_filter(&mut self, filter: HistoryFilter, cx: &mut Context<Self>) {

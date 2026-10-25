@@ -6,7 +6,7 @@ use gpui_kit::component::{
     button::{Button, ButtonVariants as _},
     h_flex,
 };
-use gpui_kit::{AnyElement, Context, IntoElement, ParentElement, Styled, Window, div, prelude::*};
+use gpui_kit::{AnyElement, Context, IntoElement, ParentElement, Styled, Window, div};
 
 use super::query_editor::{QueryEditorPanel, QueryStatus};
 use crate::ai::{AiPromptEvent, connection_ai, schema};

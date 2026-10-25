@@ -3,9 +3,8 @@
 
 use std::mem::take;
 
-use based_ai::{AiError, AiErrorKind, prompt};
+use based_ai::{AiError, prompt};
 use based_core::EngineKind;
-use based_storage::SecretStore;
 use gpui_kit::component::{
     ActiveTheme, Disableable as _, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants as _},
@@ -18,8 +17,8 @@ use gpui_kit::{
     Styled, Task, Window, div, prelude::*, px,
 };
 
+use super::launch::{error_text, launch};
 use super::stream::{AiStream, StreamEvent};
-use crate::app::prefs;
 use crate::widgets::ai_diff::AiDiff;
 
 pub enum AiPromptEvent {
@@ -110,36 +109,15 @@ impl AiPrompt {
         instruction: String,
         cx: &mut Context<Self>,
     ) {
-        let prefs = prefs::ai_prefs(cx);
-        let (kind, base_url) = (prefs.provider(), prefs.base_url().map(str::to_owned));
-        let request = prompt::edit_request(prefs.model(), engine, &schema, &current, &instruction);
         self.reset(cx);
-        self.original = current;
+        self.original = current.clone();
         self.phase = Phase::Streaming;
-        self.job = Some(cx.spawn(async move |this, cx| {
-            let key = cx
-                .background_executor()
-                .spawn(async move {
-                    if kind.needs_key() {
-                        SecretStore::new().get_ai_key(kind.as_str())
-                    } else {
-                        Ok(None)
-                    }
-                })
-                .await;
-            let _ = this.update(cx, |this, cx| {
-                let provider = key
-                    .map_err(|e| AiError::new(AiErrorKind::Other, format!("{e:#}")))
-                    .and_then(|key| kind.build(key.as_deref(), base_url.as_deref()));
-                match provider {
-                    Ok(provider) => {
-                        this.stream =
-                            Some(super::stream::start(provider, request, cx, Self::on_event));
-                    }
-                    Err(e) => this.fail(e, cx),
-                }
-            });
-        }));
+        self.job = Some(launch(
+            cx,
+            move |model| prompt::edit_request(model, engine, &schema, &current, &instruction),
+            |this, stream| this.stream = Some(stream),
+            Self::on_event,
+        ));
         cx.notify();
     }
 
@@ -261,13 +239,6 @@ impl AiPrompt {
                 )
             }
         }
-    }
-}
-
-fn error_text(e: &AiError) -> String {
-    match e.kind {
-        AiErrorKind::Auth => format!("{} Set the key in Settings > AI.", e.message),
-        _ => e.message.clone(),
     }
 }
 

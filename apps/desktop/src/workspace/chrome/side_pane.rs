@@ -13,16 +13,18 @@ pub enum SidePane {
     Inspector,
     History,
     Saved,
+    Chat,
 }
 
 impl SidePane {
-    pub const ALL: [Self; 3] = [Self::Inspector, Self::History, Self::Saved];
+    pub const ALL: [Self; 4] = [Self::Inspector, Self::History, Self::Saved, Self::Chat];
 
     pub fn label(self) -> &'static str {
         match self {
             Self::Inspector => "INSPECTOR",
             Self::History => "HISTORY",
             Self::Saved => "SAVED",
+            Self::Chat => "ASSISTANT",
         }
     }
 
@@ -31,6 +33,7 @@ impl SidePane {
             Self::Inspector => IconName::Inspector,
             Self::History => IconName::Inbox,
             Self::Saved => IconName::Star,
+            Self::Chat => IconName::Bot,
         }
     }
 
@@ -39,6 +42,7 @@ impl SidePane {
             Self::Inspector => "Inspector",
             Self::History => "Query history",
             Self::Saved => "Saved queries",
+            Self::Chat => "AI assistant",
         }
     }
 }

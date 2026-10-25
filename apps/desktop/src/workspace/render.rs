@@ -11,7 +11,7 @@ use crate::bindings::{
     CloseAllTabs, CloseCleanTabs, CloseOtherTabs, CloseTab, CloseTabsLeft, CloseTabsRight,
     CycleAppearance, DismissCommandPalette, GoBackTab, GoForwardTab, NewQuery, OpenHome,
     OpenSettings, PinTab, SplitPaneBottom, SplitPaneLeft, SplitPaneRight, SplitPaneTop,
-    ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane,
+    ToggleChatPane, ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane,
     ToggleSidebarRail,
 };
 use crate::project::ProjectContext;
@@ -59,6 +59,9 @@ impl Render for Workspace {
         let selected_connection = self.connection_tree.read(cx).selected_connection_entry(cx);
         let focused_conn_id = self.focused_conn_id(cx);
         let active_pane = self.active_side_pane;
+        if active_pane == Some(SidePane::Chat) {
+            self.sync_chat_context(cx);
+        }
         let history_filter = self.history_filter;
         let workspace_for_panes = this.clone();
         let target_pick = self.pending_target_pick.clone();
@@ -76,6 +79,7 @@ impl Render for Workspace {
                     cx,
                 )
                 .into_any_element(),
+                SidePane::Chat => self.chat.clone().into_any_element(),
                 SidePane::Saved => render_saved_pane(
                     focused_conn_id.clone(),
                     self.registry.clone(),
@@ -224,6 +228,11 @@ impl Render for Workspace {
             .on_action(
                 window.listener_for(&this, |ws, _: &ToggleHistoryPane, _, cx| {
                     ws.toggle_side_pane(SidePane::History, cx);
+                }),
+            )
+            .on_action(
+                window.listener_for(&this, |ws, _: &ToggleChatPane, window, cx| {
+                    ws.toggle_chat(window, cx);
                 }),
             )
             .on_action(

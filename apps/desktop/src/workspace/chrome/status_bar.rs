@@ -11,7 +11,7 @@ use crate::app::prefs::{self, update_check_settings_locked};
 use crate::app::shell::open_settings;
 use crate::app::updater::UpdateBarSnapshot;
 use crate::app::updater::{self, UpdatePhase};
-use crate::bindings::{ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane};
+use crate::bindings::{ToggleChatPane, ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane};
 use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{ConnectionEntry, ConnectionId, ConnectionState, EngineKind};
 use crate::widgets::engine_icon;
@@ -93,6 +93,7 @@ fn side_pane_button(pane: SidePane, active: Option<SidePane>, cx: &App) -> impl 
         SidePane::Inspector => "status-inspector",
         SidePane::History => "status-history",
         SidePane::Saved => "status-saved",
+        SidePane::Chat => "status-chat",
     };
     let (action, tooltip_text) = match pane {
         SidePane::Inspector => (
@@ -101,6 +102,7 @@ fn side_pane_button(pane: SidePane, active: Option<SidePane>, cx: &App) -> impl 
         ),
         SidePane::History => (&ToggleHistoryPane as &dyn gpui_kit::Action, pane.tooltip()),
         SidePane::Saved => (&ToggleSavedPane as &dyn gpui_kit::Action, pane.tooltip()),
+        SidePane::Chat => (&ToggleChatPane as &dyn gpui_kit::Action, pane.tooltip()),
     };
 
     Button::new(id)

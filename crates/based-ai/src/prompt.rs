@@ -1,4 +1,4 @@
-//! Prompt for rewriting the text in a query editor.
+//! Prompts: rewriting the text in a query editor, and the conversational assistant.
 
 use based_core::EngineKind;
 
@@ -44,6 +44,27 @@ pub fn edit_request(
     ChatRequest::new(model, vec![Message::user(user)]).with_system(system(engine, schema))
 }
 
+fn chat_system(engine: Option<EngineKind>, label: &str) -> String {
+    let target = engine.map_or_else(String::new, |e| {
+        format!(" The user is working with {} ({label}).", dialect(e))
+    });
+    format!(
+        "You are a database assistant inside the Based desktop client.{target} \
+         Be concise. Put any query in a fenced code block. \
+         Never invent tables or columns; say so when you do not know the schema."
+    )
+}
+
+/// Request continuing a conversation, optionally scoped to a connection.
+pub fn chat_request(
+    model: &str,
+    engine: Option<EngineKind>,
+    label: &str,
+    history: Vec<Message>,
+) -> ChatRequest {
+    ChatRequest::new(model, history).with_system(chat_system(engine, label))
+}
+
 /// Pulls the code out of a reply: the first fenced block, or the whole text if unfenced.
 /// An unterminated fence (a cut-off stream) yields what was received.
 pub fn extract_code(reply: &str) -> String {
@@ -71,6 +92,13 @@ pub fn match_final_newline(original: &str, mut code: String) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn chat_system_names_the_connection() {
+        let scoped = chat_system(Some(EngineKind::Postgres), "prod");
+        assert!(scoped.contains("PostgreSQL") && scoped.contains("prod"));
+        assert!(!chat_system(None, "").contains("working with"));
+    }
 
     #[test]
     fn final_newline_follows_the_original() {

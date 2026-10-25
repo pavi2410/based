@@ -26,6 +26,7 @@ gpui_kit::actions!([
     ToggleInspectorPane,
     ToggleHistoryPane,
     ToggleSavedPane,
+    ToggleChatPane,
     AskAi,
 ]);
 
@@ -54,6 +55,8 @@ pub fn init(cx: &mut App) {
         KeyBinding::new("ctrl-alt-n", NewQuery, None),
         KeyBinding::new("cmd-alt-i", ToggleInspectorPane, None),
         KeyBinding::new("ctrl-alt-i", ToggleInspectorPane, None),
+        KeyBinding::new("cmd-l", ToggleChatPane, None),
+        KeyBinding::new("ctrl-l", ToggleChatPane, None),
         KeyBinding::new("cmd-alt-h", ToggleHistoryPane, None),
         KeyBinding::new("ctrl-alt-h", ToggleHistoryPane, None),
         KeyBinding::new("cmd-alt-s", ToggleSavedPane, None),

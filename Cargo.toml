@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "apps/desktop",
+    "crates/based-ai",
     "crates/based-core",
     "crates/based-mongo",
     "crates/based-postgres",

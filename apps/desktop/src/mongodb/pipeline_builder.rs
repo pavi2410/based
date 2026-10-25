@@ -2,8 +2,12 @@
 
 use std::collections::HashMap;
 
+use based_ai::context::{
+    ContextLevel, Entity as AiEntity, EntityKind, RenderOptions, SchemaSnapshot, render,
+};
+use based_core::EngineKind;
 use gpui_kit::component::{
-    Sizable as _,
+    IconName, Selectable as _, Sizable as _,
     button::{Button, ButtonVariants},
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
@@ -16,12 +20,14 @@ use gpui_kit::{prelude::*, *};
 use mongodb::Collection;
 use mongodb::bson::{Document, to_document};
 
+use crate::ai::{AiHost, AiPromptEvent, connection_ai, schema};
+use crate::bindings::AskAi;
 use crate::connection::ConnectionId;
 use crate::db;
 use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export;
-use crate::widgets::sql_editor::{self, new_json_input, text_from_input};
+use crate::widgets::sql_editor::{self, new_json_input, set_input_text, text_from_input};
 use crate::widgets::virtual_table::{
     RowDelegate, align_meta_to_columns, data_column, replace_table_data,
 };
@@ -33,6 +39,9 @@ pub struct PipelineBuilderPanel {
     collection: Collection<Document>,
     conn_id: ConnectionId,
     pipeline_input: Entity<EditorState>,
+    ai: AiHost,
+    /// An AI-written pipeline that writes is waiting for a second Run.
+    ai_hold: bool,
     result: Entity<TableState<RowDelegate>>,
     status: SharedString,
     pub(crate) tab_label: SharedString,
@@ -66,6 +75,8 @@ impl PipelineBuilderPanel {
             collection,
             conn_id,
             pipeline_input,
+            ai: AiHost::new(window, cx, Self::on_ai_event),
+            ai_hold: false,
             result,
             status: SharedString::from(""),
             tab_label,
@@ -83,6 +94,17 @@ impl PipelineBuilderPanel {
     fn run(&mut self, cx: &mut Context<Self>) {
         let coll = self.collection.clone();
         let raw = text_from_input(&self.pipeline_input, cx);
+        if self.ai.needs_confirm(EngineKind::MongoDB, &raw) {
+            if !self.ai_hold {
+                self.ai_hold = true;
+                self.status =
+                    "This pipeline came from AI and writes data. Run again to confirm.".into();
+                cx.notify();
+                return;
+            }
+            self.ai.confirmed();
+        }
+        self.ai_hold = false;
         let conn_id = self.conn_id.clone();
         cx.spawn(async move |this, cx| {
             let vals: Vec<serde_json::Value> = match serde_json::from_str(&raw) {
@@ -195,6 +217,53 @@ impl PipelineBuilderPanel {
     }
 }
 
+impl PipelineBuilderPanel {
+    fn toggle_ai(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let off = schema::level(connection_ai(&self.conn_id, cx)) == ContextLevel::Off;
+        let was_open = self.ai.is_open();
+        self.ai.toggle(off, window, cx);
+        if was_open {
+            self.pipeline_input.update(cx, |s, cx| s.focus(window, cx));
+        }
+    }
+
+    fn ai_schema(&self, cx: &App) -> String {
+        let level = schema::level(connection_ai(&self.conn_id, cx));
+        let name = self.collection.name();
+        let snapshot = SchemaSnapshot {
+            entities: vec![AiEntity::new(name, EntityKind::Collection, Vec::new())],
+        };
+        render(&snapshot, &RenderOptions::new(EngineKind::MongoDB, level))
+    }
+
+    fn on_ai_event(&mut self, event: &AiPromptEvent, window: &mut Window, cx: &mut Context<Self>) {
+        match event {
+            AiPromptEvent::Submit(instruction) => {
+                let current = text_from_input(&self.pipeline_input, cx);
+                let schema = self.ai_schema(cx);
+                self.ai.ask(
+                    EngineKind::MongoDB,
+                    schema,
+                    current,
+                    instruction.clone(),
+                    cx,
+                );
+            }
+            AiPromptEvent::Apply(text) => {
+                self.ai.note_applied(text);
+                self.ai_hold = false;
+                set_input_text(&self.pipeline_input, text, window, cx);
+                self.ai.close(cx);
+                self.pipeline_input.update(cx, |s, cx| s.focus(window, cx));
+            }
+            AiPromptEvent::Close => {
+                self.ai.close(cx);
+                self.pipeline_input.update(cx, |s, cx| s.focus(window, cx));
+            }
+        }
+    }
+}
+
 impl EventEmitter<PanelEvent> for PipelineBuilderPanel {}
 
 impl Focusable for PipelineBuilderPanel {
@@ -240,6 +309,8 @@ impl Render for PipelineBuilderPanel {
 
         v_flex()
             .size_full()
+            .on_action(cx.listener(|p, _: &AskAi, w, cx| p.toggle_ai(w, cx)))
+            .when_some(self.ai.bar(), |v, bar| v.child(bar))
             .child(
                 div()
                     .flex_1()
@@ -261,6 +332,15 @@ impl Render for PipelineBuilderPanel {
                             .primary()
                             .label("Run pipeline")
                             .on_click(cx.listener(|p, _, _, cx| p.run(cx))),
+                    )
+                    .child(
+                        Button::new("mongo-ask-ai")
+                            .ghost()
+                            .small()
+                            .icon(IconName::Bot)
+                            .label("Ask AI")
+                            .selected(self.ai.is_open())
+                            .on_click(cx.listener(|p, _, w, cx| p.toggle_ai(w, cx))),
                     )
                     .child(
                         Button::new("mongo-pipe-export-json")

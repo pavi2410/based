@@ -14,6 +14,7 @@ pub use tabs::{
 pub mod connection_tree;
 pub use connection_tree::ConnectionTree;
 
+pub mod boot;
 pub mod connection_destination;
 pub mod connection_persist;
 pub mod context;
@@ -54,12 +55,12 @@ use crate::db::{self, Tokio};
 use based_project::ProjectQuery;
 
 use crate::project::{
-    ProjectContext, ProjectRoot, RegistryRef, find_project_root,
-    loader::load_entries_from_based_dir, personal::personal_root,
+    ProjectContext, ProjectRoot, RegistryRef, loader::load_entries_from_based_dir,
 };
 
 use crate::storage;
 use crate::widgets::query_panel_extras::HistoryFilter;
+use boot::WorkspaceEnv;
 use context::WorkspaceContext;
 
 use tabs::TabNavigationHistory;
@@ -123,7 +124,14 @@ pub struct Workspace {
 
 impl Workspace {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let project_dir = find_project_root();
+        Self::with_env(WorkspaceEnv::from_process(), window, cx)
+    }
+
+    pub fn with_env(env: WorkspaceEnv, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let WorkspaceEnv {
+            project_dir,
+            personal_root,
+        } = env;
         let project_context = project_dir
             .as_ref()
             .and_then(|root| ProjectContext::load(root.clone()).ok());
@@ -144,8 +152,7 @@ impl Workspace {
 
         let registry = cx.new(ConnectionRegistry::new);
         registry.update(cx, |reg, cx| {
-            let personal =
-                load_entries_from_based_dir(&personal_root(), ConnectionOrigin::Personal);
+            let personal = load_entries_from_based_dir(&personal_root, ConnectionOrigin::Personal);
             reg.sync_origin_entries(ConnectionOrigin::Personal, personal, cx);
             if let Some(root) = project_dir.as_ref() {
                 let project =

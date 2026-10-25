@@ -50,7 +50,7 @@ impl ChatPane {
         };
         let first = &self.turns[range.start];
         if first.role == Role::User {
-            return super::view::user_row(first, cx);
+            return super::view::user_row(first, None, cx);
         }
         let live = ix + 1 == groups.len() && self.live_joins_last();
         self.assistant_group(range, live, this, cx)

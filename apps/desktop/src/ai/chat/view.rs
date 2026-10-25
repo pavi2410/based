@@ -91,9 +91,17 @@ impl Render for ChatPane {
             .with_row_style(StyleRefinement::default().pb(px(12.0)).px_0())
             .into_any_element()
         };
+        let sticky = self.sticky_user(cx);
         v_flex()
             .size_full()
-            .child(div().flex_1().min_h_0().child(list))
+            .child(
+                div()
+                    .relative()
+                    .flex_1()
+                    .min_h_0()
+                    .child(list)
+                    .children(sticky.map(|s| div().absolute().top_0().left_0().right_0().child(s))),
+            )
             .child(self.composer(cx))
     }
 }
@@ -106,19 +114,23 @@ pub(super) fn muted_line(text: &'static str, cx: &App) -> AnyElement {
         .into_any_element()
 }
 
-pub(super) fn user_row(turn: &Message, cx: &App) -> AnyElement {
-    h_flex()
-        .justify_end()
+/// The user's message as a full-width filled block; `lines` clips it (pinned copy).
+pub(super) fn user_row(turn: &Message, lines: Option<usize>, cx: &App) -> AnyElement {
+    let mut text = div().child(turn.content.clone());
+    if let Some(lines) = lines {
+        text = text.line_clamp(lines);
+    }
+    div()
         .px_3()
         .child(
             div()
-                .max_w(px(260.0))
+                .w_full()
                 .px_3()
                 .py_2()
                 .rounded_lg()
                 .bg(cx.theme().primary.opacity(0.14))
                 .text_size(style::body(cx))
-                .child(turn.content.clone()),
+                .child(text),
         )
         .into_any_element()
 }

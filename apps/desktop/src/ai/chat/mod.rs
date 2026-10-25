@@ -10,6 +10,7 @@ mod conn;
 mod footer;
 mod group;
 mod saved;
+mod sticky;
 mod style;
 mod tags;
 mod view;
@@ -140,9 +141,12 @@ impl ChatPane {
             },
         )
         .detach();
+        let scroller = cx.new(|cx| MessageScrollerState::new(0, cx));
+        // Scrolling decides which user message is pinned.
+        cx.observe(&scroller, |_, _, cx| cx.notify()).detach();
         let pane = Self {
             input,
-            scroller: cx.new(|cx| MessageScrollerState::new(0, cx)),
+            scroller,
             turns: Vec::new(),
             draft: String::new(),
             calls: Vec::new(),

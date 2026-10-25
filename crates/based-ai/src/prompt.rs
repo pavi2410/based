@@ -8,8 +8,8 @@ fn dialect(engine: EngineKind) -> &'static str {
     match engine {
         EngineKind::Postgres => "PostgreSQL SQL",
         EngineKind::SQLite => "SQLite SQL",
-        EngineKind::MongoDB => "a MongoDB shell query (JSON filter or aggregation pipeline)",
-        EngineKind::Redis => "Redis commands, one per line",
+        EngineKind::MongoDB => "a MongoDB aggregation pipeline written as a JSON array",
+        EngineKind::Redis => "a single Redis command",
     }
 }
 

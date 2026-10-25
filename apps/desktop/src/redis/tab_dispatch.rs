@@ -6,6 +6,7 @@ use based_redis::Conn;
 use gpui_kit::component::dock::PanelView;
 use gpui_kit::{Context, Window, prelude::*};
 
+use crate::connection::ConnectionId;
 use crate::workspace::Workspace;
 use crate::workspace::tabs::label::tab_label_for_spec;
 use crate::workspace::tabs::spec::{QueryEditorInit, TabSpec};
@@ -17,6 +18,7 @@ use super::key_view::KeyViewPanel;
 pub fn build_panel(
     spec: &TabSpec,
     conn: Conn,
+    conn_id: &ConnectionId,
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) -> Option<Arc<dyn PanelView>> {
@@ -32,7 +34,7 @@ pub fn build_panel(
                 QueryEditorInit::Sql { sql, .. } => sql.clone(),
                 QueryEditorInit::MongoPipeline { .. } => None,
             };
-            let panel = cx.new(|cx| ConsolePanel::new(conn, initial, window, cx));
+            let panel = cx.new(|cx| ConsolePanel::new(conn, conn_id.clone(), initial, window, cx));
             Some(Arc::new(panel))
         }
         _ => None,

@@ -1,8 +1,10 @@
 // redis::console — raw command REPL (newest output first).
 
+use based_ai::context::ContextLevel;
+use based_core::EngineKind;
 use based_redis::{Conn, exec, is_dangerous};
 use gpui_kit::component::{
-    ActiveTheme, IconName,
+    ActiveTheme, IconName, Selectable as _,
     button::{Button, ButtonVariants},
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
@@ -13,7 +15,10 @@ use gpui_kit::component::{
 };
 use gpui_kit::{prelude::*, *};
 
+use crate::ai::{AiHost, AiPromptEvent, connection_ai, schema};
 use crate::app::prefs;
+use crate::bindings::AskAi;
+use crate::connection::ConnectionId;
 use crate::db;
 use crate::editor::redis_completion::RedisCompletionProvider;
 use crate::widgets::sql_editor::{set_input_text, text_from_input};
@@ -27,10 +32,13 @@ struct Output {
 pub struct ConsolePanel {
     focus_handle: FocusHandle,
     conn: Conn,
+    conn_id: ConnectionId,
     input: Entity<EditorState>,
     outputs: Vec<Output>,
-    /// Dangerous command awaiting a second Enter.
+    ai: AiHost,
+    /// Command awaiting a second Enter: destructive, or a write that came from AI.
     pending: Option<String>,
+    pending_ai: bool,
     running: bool,
     pub(crate) tab_label: SharedString,
 }
@@ -38,6 +46,7 @@ pub struct ConsolePanel {
 impl ConsolePanel {
     pub fn new(
         conn: Conn,
+        conn_id: ConnectionId,
         initial: Option<String>,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -66,9 +75,12 @@ impl ConsolePanel {
         Self {
             focus_handle: cx.focus_handle(),
             conn,
+            conn_id,
             input,
             outputs: Vec::new(),
+            ai: AiHost::new(window, cx, Self::on_ai_event),
             pending: None,
+            pending_ai: false,
             running: false,
             tab_label: "Console".into(),
         }
@@ -79,10 +91,15 @@ impl ConsolePanel {
         if line.is_empty() || self.running {
             return;
         }
-        if is_dangerous(&line) && self.pending.as_deref() != Some(line.as_str()) {
+        let ai_hold = self.ai.needs_confirm(EngineKind::Redis, &line);
+        if (ai_hold || is_dangerous(&line)) && self.pending.as_deref() != Some(line.as_str()) {
             self.pending = Some(line);
+            self.pending_ai = ai_hold;
             cx.notify();
             return;
+        }
+        if ai_hold {
+            self.ai.confirmed();
         }
         self.pending = None;
         self.running = true;
@@ -108,6 +125,40 @@ impl ConsolePanel {
             });
         })
         .detach();
+    }
+}
+
+impl ConsolePanel {
+    fn toggle_ai(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let off = schema::level(connection_ai(&self.conn_id, cx)) == ContextLevel::Off;
+        let was_open = self.ai.is_open();
+        self.ai.toggle(off, window, cx);
+        if was_open {
+            self.input.update(cx, |s, cx| s.focus(window, cx));
+        }
+    }
+
+    fn on_ai_event(&mut self, event: &AiPromptEvent, window: &mut Window, cx: &mut Context<Self>) {
+        match event {
+            AiPromptEvent::Submit(instruction) => {
+                let current = text_from_input(&self.input, cx);
+                // Redis has no schema to describe; the model only needs the dialect.
+                let engine = EngineKind::Redis;
+                self.ai
+                    .ask(engine, String::new(), current, instruction.clone(), cx);
+            }
+            AiPromptEvent::Apply(text) => {
+                self.ai.note_applied(text);
+                self.pending = None;
+                set_input_text(&self.input, text, window, cx);
+                self.ai.close(cx);
+                self.input.update(cx, |s, cx| s.focus(window, cx));
+            }
+            AiPromptEvent::Close => {
+                self.ai.close(cx);
+                self.input.update(cx, |s, cx| s.focus(window, cx));
+            }
+        }
     }
 }
 
@@ -148,10 +199,13 @@ impl Render for ConsolePanel {
         let danger = cx.theme().danger;
         let border = cx.theme().border.opacity(0.6);
         let mono = prefs::code_font_family(cx);
+        let pending_ai = self.pending_ai;
 
         v_flex()
             .size_full()
             .bg(cx.theme().background)
+            .on_action(cx.listener(|p, _: &AskAi, w, cx| p.toggle_ai(w, cx)))
+            .when_some(self.ai.bar(), |v, bar| v.child(bar))
             .child(
                 h_flex()
                     .flex_shrink_0()
@@ -165,6 +219,14 @@ impl Render for ConsolePanel {
                             .h(px(64.0))
                             .font_family(mono.clone())
                             .child(Editor::new(&self.input).h_full()),
+                    )
+                    .child(
+                        Button::new("redis-ask-ai")
+                            .ghost()
+                            .icon(IconName::Bot)
+                            .tooltip("Ask AI")
+                            .selected(self.ai.is_open())
+                            .on_click(cx.listener(|p, _, w, cx| p.toggle_ai(w, cx))),
                     )
                     .child(
                         Button::new("redis-run")
@@ -181,9 +243,11 @@ impl Render for ConsolePanel {
                         .py_1()
                         .text_xs()
                         .text_color(danger)
-                        .child(format!(
-                            "`{cmd}` is destructive. Press Enter again to run it."
-                        )),
+                        .child(if pending_ai {
+                            format!("`{cmd}` came from AI and may change data. Press Enter again to run it.")
+                        } else {
+                            format!("`{cmd}` is destructive. Press Enter again to run it.")
+                        }),
                 )
             })
             .child(

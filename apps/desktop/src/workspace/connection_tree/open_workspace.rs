@@ -93,7 +93,8 @@ impl ConnectionTree {
             }
             AnyConnection::Redis(ent) => {
                 let conn = ent.read(cx).conn();
-                let console = cx.new(|cx| RedisConsolePanel::new(conn, None, window, cx));
+                let console =
+                    cx.new(|cx| RedisConsolePanel::new(conn, conn_id.clone(), None, window, cx));
                 vec![Arc::new(dashboard) as Arc<dyn PanelView>, Arc::new(console)]
             }
         };

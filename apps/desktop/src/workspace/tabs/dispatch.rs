@@ -111,7 +111,7 @@ impl Workspace {
             }
             AnyConnection::Redis(conn) => {
                 let conn = conn.read(cx).conn();
-                redis_tab_dispatch::build_panel(&spec, conn, window, cx)
+                redis_tab_dispatch::build_panel(&spec, conn, &conn_id, window, cx)
             }
         };
 

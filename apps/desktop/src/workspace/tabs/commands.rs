@@ -214,7 +214,8 @@ impl Workspace {
             }
             Redis(conn) => {
                 let conn = conn.read(cx).conn();
-                let panel = cx.new(|cx| RedisConsolePanel::new(conn, None, window, cx));
+                let panel =
+                    cx.new(|cx| RedisConsolePanel::new(conn, conn_id.clone(), None, window, cx));
                 Some(Arc::new(panel))
             }
         }

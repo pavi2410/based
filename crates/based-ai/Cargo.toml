@@ -7,6 +7,7 @@ license = "MIT"
 publish = false
 
 [dependencies]
+based-core = { path = "../based-core" }
 futures = { workspace = true }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
 serde = { workspace = true }

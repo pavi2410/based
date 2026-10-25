@@ -1,5 +1,6 @@
 //! LLM providers, schema context and tools for Based (no UI dependencies).
 
+pub mod context;
 pub mod error;
 mod http;
 pub mod provider;

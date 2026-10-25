@@ -11,7 +11,6 @@ based-core = { path = "../based-core" }
 based-workspace = { path = "../based-workspace" }
 anyhow = { workspace = true }
 dirs = { workspace = true }
-keyring = "3"
 log = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -19,6 +18,17 @@ sqlx = { workspace = true, features = ["sqlite", "migrate"] }
 time = { workspace = true }
 tokio = { workspace = true }
 uuid = { workspace = true, features = ["serde"] }
+
+# keyring v3 has no default backend: without one it silently uses an in-memory mock, so
+# secrets written in one call are not found by the next. Pick the OS store per platform.
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", features = ["apple-native"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3", features = ["linux-native"] }
 
 [dev-dependencies]
 tempfile = { workspace = true }

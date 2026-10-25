@@ -83,6 +83,20 @@ mod tests {
         );
     }
 
+    /// Guards against a missing keyring backend (silent in-memory mock): a value written by
+    /// one store must be readable by a fresh one. Needs a real keychain, so run with
+    /// `cargo test -p based-storage -- --ignored`.
+    #[test]
+    #[ignore = "touches the OS keychain"]
+    fn secrets_persist_across_store_instances() {
+        let key = format!("test:roundtrip:{}", uuid::Uuid::new_v4());
+        SecretStore::new().set(&key, "s3cret").unwrap();
+        let read = SecretStore::new().get(&key);
+        SecretStore::new().delete(&key).unwrap();
+        assert_eq!(read.unwrap().as_deref(), Some("s3cret"));
+        assert_eq!(SecretStore::new().get(&key).unwrap(), None);
+    }
+
     #[test]
     fn template_password_ref_is_stable() {
         let id = uuid::Uuid::nil();

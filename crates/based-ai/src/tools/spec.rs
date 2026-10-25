@@ -65,3 +65,24 @@ pub fn specs() -> Vec<ToolSpec> {
         },
     ]
 }
+
+pub const LIST_CONNECTIONS: &str = "list_connections";
+pub const CONNECT: &str = "connect";
+
+/// Tools for choosing the database; the app runs them, not a backend.
+pub fn connection_specs() -> Vec<ToolSpec> {
+    vec![
+        ToolSpec {
+            name: LIST_CONNECTIONS,
+            description: "List the project's database connections with engine, state and \
+                whether the assistant may use them.",
+            schema: json!({ "type": "object", "properties": {} }),
+        },
+        ToolSpec {
+            name: CONNECT,
+            description: "Connect to a database by connection name (opening it if needed) and \
+                make it the one the other tools use.",
+            schema: json!({ "type": "object", "properties": { "connection": { "type": "string", "description": "Connection name from list_connections" } }, "required": ["connection"] }),
+        },
+    ]
+}

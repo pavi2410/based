@@ -49,8 +49,14 @@ fn chat_system(engine: Option<EngineKind>, label: &str, tools: bool) -> String {
     let target = engine.map_or_else(String::new, |e| {
         format!(" The user is working with {} ({label}).", dialect(e))
     });
+    let target = if target.is_empty() && tools {
+        " No database is active yet; list the connections and connect one.".to_owned()
+    } else {
+        target
+    };
     let lookup = if tools {
-        " Use the tools to look up tables and columns before writing a query."
+        " Use the tools to list and connect databases, and to look up tables and columns \
+         before writing a query. Say which connection you are using."
     } else {
         ""
     };

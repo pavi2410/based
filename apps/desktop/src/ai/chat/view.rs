@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use based_ai::tools::ToolCall;
 use based_ai::{Message, Role};
 use gpui_kit::component::{
@@ -24,7 +26,7 @@ impl ChatPane {
         };
         match turn.role {
             Role::User => user_row(turn, cx),
-            Role::Assistant => assistant_row(turn, ix, cx),
+            Role::Assistant => assistant_row(turn, ix, &self.targets, cx),
             Role::Tool => tool_row(turn, cx),
         }
     }
@@ -67,15 +69,40 @@ impl ChatPane {
             .into_any_element()
     }
 
+    /// Active database, plus the notice when assistant access is off.
+    fn status_line(&self, cx: &App) -> AnyElement {
+        let text = match (self.active(), &self.notice) {
+            (Some(c), None) => format!("{} · {}", c.label, c.engine.short_label()),
+            (Some(c), Some(n)) => format!("{} · {n}", c.label),
+            (None, _) => "No database active".to_owned(),
+        };
+        div()
+            .px_3()
+            .pt_1p5()
+            .text_xs()
+            .text_color(cx.theme().muted_foreground)
+            .child(text)
+            .into_any_element()
+    }
+
+    fn tag_chips(&self, cx: &mut Context<Self>) -> AnyElement {
+        h_flex()
+            .flex_wrap()
+            .gap_1()
+            .px_2()
+            .children(self.tags.iter().enumerate().map(|(ix, tag)| {
+                Button::new(("chat-untag", ix))
+                    .ghost()
+                    .small()
+                    .label(format!("@{tag}"))
+                    .icon(IconName::Close)
+                    .tooltip("Remove tag")
+                    .on_click(cx.listener(move |this, _, _, cx| this.remove_tag(ix, cx)))
+            }))
+            .into_any_element()
+    }
+
     fn composer(&self, cx: &mut Context<Self>) -> AnyElement {
-        if let Some(notice) = &self.notice {
-            return div()
-                .p_3()
-                .text_sm()
-                .text_color(cx.theme().muted_foreground)
-                .child(notice.clone())
-                .into_any_element();
-        }
         let streaming = self.busy();
         let action = if streaming {
             Button::new("chat-stop")
@@ -93,14 +120,20 @@ impl ChatPane {
                 .disabled(self.turns.is_empty())
                 .on_click(cx.listener(|this, _, _, cx| this.clear(cx)))
         };
-        h_flex()
-            .gap_1()
-            .items_end()
-            .p_2()
+        v_flex()
             .border_t_1()
             .border_color(cx.theme().border.opacity(0.72))
-            .child(div().flex_1().child(Textarea::new(&self.input).small()))
-            .child(action)
+            .child(self.status_line(cx))
+            .child(self.tag_chips(cx))
+            .child(
+                h_flex()
+                    .gap_1()
+                    .items_end()
+                    .p_2()
+                    .child(self.tag_button(cx))
+                    .child(div().flex_1().child(Textarea::new(&self.input).small()))
+                    .child(action),
+            )
             .into_any_element()
     }
 }
@@ -149,7 +182,12 @@ fn user_row(turn: &Message, cx: &App) -> AnyElement {
         .into_any_element()
 }
 
-fn assistant_row(turn: &Message, ix: usize, cx: &App) -> AnyElement {
+fn assistant_row(
+    turn: &Message,
+    ix: usize,
+    targets: &HashMap<String, String>,
+    cx: &App,
+) -> AnyElement {
     let mut col = v_flex().px_3().py_1p5().gap_1().text_sm();
     if !turn.content.is_empty() {
         col = col
@@ -161,7 +199,13 @@ fn assistant_row(turn: &Message, ix: usize, cx: &App) -> AnyElement {
                 .text_xs()
                 .font_family(prefs::code_font_family(cx))
                 .text_color(cx.theme().muted_foreground)
-                .child(format!("> {}", call_summary(call))),
+                .child(format!(
+                    "> {}{}",
+                    call_summary(call),
+                    targets
+                        .get(&call.id)
+                        .map_or_else(String::new, |t| format!("  @ {t}"))
+                )),
         );
     }
     col.into_any_element()

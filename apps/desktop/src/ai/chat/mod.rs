@@ -4,13 +4,16 @@
 //! read-only against the focused connection and the results go back to it, up to
 //! [`MAX_ROUNDS`].
 
+mod conn;
+mod tags;
 mod view;
 
+use std::collections::HashMap;
 use std::mem::take;
 use std::sync::Arc;
 
 use based_ai::context::ContextLevel;
-use based_ai::tools::{ReadOnlyTools, ToolBackend, ToolCall};
+use based_ai::tools::{ReadOnlyTools, ToolBackend, ToolCall, connection_specs};
 use based_ai::{AiError, Message, Role, prompt};
 use based_core::EngineKind;
 use gpui_kit::component::{
@@ -21,9 +24,9 @@ use gpui_kit::{App, AppContext as _, Context, Entity, SharedString, Task, Window
 
 use super::launch::launch;
 use super::stream::{AiStream, StreamEvent};
-use super::tools;
-use crate::connection::ConnectionEntry;
-use crate::db;
+use super::{schema, tools};
+use crate::connection::registry::ConnectionRegistry;
+use crate::connection::{ConnectionEntry, ConnectionId};
 
 /// Model rounds per user message; the last one is offered no tools so it must answer.
 const MAX_ROUNDS: usize = 8;
@@ -37,6 +40,18 @@ pub struct ChatContext {
     pub engine: EngineKind,
     pub label: String,
     pub level: ContextLevel,
+}
+
+impl ChatContext {
+    pub fn of(entity: &Entity<ConnectionEntry>, cx: &App) -> Self {
+        let entry = entity.read(cx);
+        Self {
+            entry: entity.clone(),
+            engine: entry.engine(),
+            label: entry.config.label().to_owned(),
+            level: schema::level(entry.ai),
+        }
+    }
 }
 
 enum Phase {
@@ -62,8 +77,19 @@ pub struct ChatPane {
     phase: Phase,
     /// Rows the scroller has been told about.
     shown: usize,
+    registry: Entity<ConnectionRegistry>,
+    /// The connection following the focused tab.
     ctx: Option<ChatContext>,
+    /// A connection the model switched to; replaces `ctx` until the focus moves.
+    pinned: Option<ChatContext>,
     tools: Option<Tools>,
+    /// Tables of the active connection, for tagging.
+    tables: Vec<String>,
+    tables_for: Option<ConnectionId>,
+    /// Tables tagged for the next message.
+    tags: Vec<String>,
+    /// Connection label each tool call ran against.
+    targets: HashMap<String, String>,
     /// Why chat can't be used right now; replaces the composer.
     notice: Option<SharedString>,
     /// Provider key lookup, then the stream. Dropping either cancels the request.
@@ -73,7 +99,11 @@ pub struct ChatPane {
 }
 
 impl ChatPane {
-    pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        registry: Entity<ConnectionRegistry>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let input = cx.new(|cx| {
             TextareaState::new(window, cx)
                 .auto_grow(1, 6)
@@ -102,8 +132,14 @@ impl ChatPane {
             round: 0,
             phase: Phase::Idle,
             shown: 0,
+            registry,
             ctx: None,
+            pinned: None,
             tools: None,
+            tables: Vec::new(),
+            tables_for: None,
+            tags: Vec::new(),
+            targets: HashMap::new(),
             notice: None,
             job: None,
             stream: None,
@@ -120,13 +156,20 @@ impl ChatPane {
     ) {
         if self.ctx != ctx || self.notice != notice {
             self.ctx = ctx;
+            self.pinned = None;
             self.notice = notice;
             cx.notify();
         }
+        self.ensure_tables(cx);
     }
 
     pub fn focus(&self, window: &mut Window, cx: &mut Context<Self>) {
         self.input.update(cx, |state, cx| state.focus(window, cx));
+    }
+
+    /// The connection tools and prompts are about.
+    fn active(&self) -> Option<&ChatContext> {
+        self.pinned.as_ref().or(self.ctx.as_ref())
     }
 
     fn busy(&self) -> bool {
@@ -157,7 +200,7 @@ impl ChatPane {
 
     /// Tools for the focused connection, honouring its `[ai]` context level.
     fn connection_tools(&self, cx: &App) -> Option<Tools> {
-        let ctx = self.ctx.as_ref().filter(|c| c.level != ContextLevel::Off)?;
+        let ctx = self.active().filter(|c| c.level != ContextLevel::Off)?;
         let backend = tools::backend(ctx.entry.read(cx), cx)?;
         let rows = ctx.level == ContextLevel::SchemaRows;
         Some(Arc::new(ReadOnlyTools::new(backend).with_rows(rows)))
@@ -170,13 +213,32 @@ impl ChatPane {
 
     /// `true` when the message was accepted.
     fn send(&mut self, text: String, cx: &mut Context<Self>) -> bool {
-        if self.busy() || self.notice.is_some() {
+        if self.busy() {
             return false;
         }
-        self.turns.push(Message::user(text));
         self.tools = self.connection_tools(cx);
         self.round = 0;
-        self.begin_round(cx);
+        let tags = self.take_tags(&text);
+        let content = tags::with_mentions(text, &tags);
+        self.turns.push(Message::user(content));
+        if self.tools.is_some() && !tags.is_empty() {
+            // Tagged tables arrive as ordinary `describe_table` calls, so they show in the chat.
+            let calls: Vec<ToolCall> = tags
+                .into_iter()
+                .enumerate()
+                .map(|(i, table)| ToolCall {
+                    id: format!("tag_{i}"),
+                    name: "describe_table".into(),
+                    args: serde_json::json!({ "table": table }),
+                })
+                .collect();
+            self.turns
+                .push(Message::assistant_calls(String::new(), calls.clone()));
+            self.run_tools(calls, cx);
+            self.sync(cx);
+        } else {
+            self.begin_round(cx);
+        }
         true
     }
 
@@ -187,12 +249,14 @@ impl ChatPane {
         self.phase = Phase::Streaming;
         let history = self.turns.clone();
         let (engine, label) = self
-            .ctx
-            .as_ref()
+            .active()
             .map_or((None, String::new()), |c| (Some(c.engine), c.label.clone()));
-        let specs = match &self.tools {
-            Some(tools) if self.round < MAX_ROUNDS => tools.specs(),
-            _ => Vec::new(),
+        let specs = if self.round < MAX_ROUNDS {
+            let mut specs = connection_specs();
+            specs.extend(self.tools.iter().flat_map(|t| t.specs()));
+            specs
+        } else {
+            Vec::new()
         };
         self.job = Some(launch(
             cx,
@@ -226,38 +290,23 @@ impl ChatPane {
         self.sync(cx);
     }
 
-    /// Runs the model's tool calls on Tokio, then starts the next round.
+    /// Runs the model's tool calls in order, then starts the next round.
     fn run_tools(&mut self, calls: Vec<ToolCall>, cx: &mut Context<Self>) {
-        let Some(tools) = self.tools.clone() else {
-            self.finish(Phase::Idle);
-            return;
-        };
         self.phase = Phase::Tools;
         self.tool_job = Some(cx.spawn(async move |this, cx| {
-            let ran = db::run_infallible(cx, async move {
-                let mut done = Vec::with_capacity(calls.len());
-                for call in calls {
-                    let result = tools.call(&call).await;
-                    done.push((call, result));
-                }
-                done
-            })
-            .await;
+            let mut done = Vec::with_capacity(calls.len());
+            for call in calls {
+                let Ok(job) = this.update(cx, |this, cx| this.start_call(&call, cx)) else {
+                    return;
+                };
+                done.push((call, job.await));
+            }
             let _ = this.update(cx, |this, cx| {
                 this.tool_job = None;
-                match ran {
-                    Ok(done) => {
-                        this.turns
-                            .extend(done.iter().map(|(call, r)| Message::tool(call, r.clone())));
-                        this.round += 1;
-                        this.begin_round(cx);
-                    }
-                    Err(e) => {
-                        let e = AiError::new(based_ai::AiErrorKind::Other, format!("{e:#}"));
-                        this.finish(Phase::Failed(e));
-                        this.sync(cx);
-                    }
-                }
+                this.turns
+                    .extend(done.iter().map(|(call, r)| Message::tool(call, r.clone())));
+                this.round += 1;
+                this.begin_round(cx);
             });
         }));
     }
@@ -293,6 +342,8 @@ impl ChatPane {
     fn clear(&mut self, cx: &mut Context<Self>) {
         self.turns.clear();
         self.draft.clear();
+        self.targets.clear();
+        self.tags.clear();
         self.finish(Phase::Idle);
         self.sync(cx);
     }

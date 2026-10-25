@@ -34,8 +34,8 @@ use std::sync::Arc;
 
 use dock_utils::tabs_layout;
 
+use crate::ai::OFF_NOTICE;
 use crate::ai::chat::{ChatContext, ChatPane};
-use crate::ai::{OFF_NOTICE, schema};
 use based_ai::context::ContextLevel;
 use gpui_kit::component::dock::{DockArea, DockEvent, DockSkin, PanelStyle, PanelView};
 use gpui_kit::{App, Context, Entity, FocusHandle, Focusable, SharedString, Window, prelude::*};
@@ -197,7 +197,7 @@ impl Workspace {
             active_left_pane: LeftPane::Browser,
             active_side_pane: None,
             history_filter: HistoryFilter::default(),
-            chat: cx.new(|cx| ChatPane::new(window, cx)),
+            chat: cx.new(|cx| ChatPane::new(registry.clone(), window, cx)),
             chat_scope: None,
             last_chat_conn: None,
             focus_handle: cx.focus_handle(),
@@ -460,14 +460,9 @@ impl Workspace {
             .chat_conn(cx)
             .and_then(|id| self.registry.read(cx).get(&id, cx).cloned());
         let (ctx, notice) = match entry.as_ref().map(|e| (e, e.read(cx))) {
-            Some((entity, entry)) => {
-                let level = schema::level(entry.ai);
-                let ctx = ChatContext {
-                    entry: entity.clone(),
-                    engine: entry.engine(),
-                    label: entry.config.label().to_owned(),
-                    level,
-                };
+            Some((entity, _)) => {
+                let ctx = ChatContext::of(entity, cx);
+                let level = ctx.level;
                 let notice = (level == ContextLevel::Off).then(|| SharedString::from(OFF_NOTICE));
                 (Some(ctx), notice)
             }

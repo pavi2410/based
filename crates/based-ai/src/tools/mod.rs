@@ -6,4 +6,6 @@ mod spec;
 
 pub use guard::check;
 pub use run::{QueryOutput, ReadOnlyTools, ToolBackend, ToolLimits};
-pub use spec::{ToolCall, ToolResult, ToolSpec, specs};
+pub use spec::{
+    CONNECT, LIST_CONNECTIONS, ToolCall, ToolResult, ToolSpec, connection_specs, specs,
+};

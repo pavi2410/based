@@ -119,6 +119,8 @@ pub struct Workspace {
     /// Queued Close Project; confirm dialog on next [`Render`].
     pub(crate) pending_project_close_confirm: bool,
     tab_navigation: TabNavigationHistory,
+    /// Close request waiting on a discard-edits confirmation.
+    close_prompt: Option<tabs::ClosePrompt>,
     /// Live center tab panels, kept as styled handles for TabManager downcasts.
     center_panels: Vec<Arc<dyn PanelView>>,
 }
@@ -229,6 +231,7 @@ impl Workspace {
             pending_project_switch_confirm: false,
             pending_project_close_confirm: false,
             tab_navigation: TabNavigationHistory::default(),
+            close_prompt: None,
             center_panels: vec![home_arc],
         };
 

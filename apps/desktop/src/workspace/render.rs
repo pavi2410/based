@@ -28,6 +28,7 @@ use super::chrome::{
 };
 use super::connection_tree::ICON_RAIL_WIDTH;
 use super::panels::inspector::render_inspector_body;
+use super::tabs::CloseScope;
 use crate::app::prefs::cycle_theme;
 use crate::app::quit::maybe_show_pending_close_dialog;
 use crate::app::updater::coordinator_snapshot;
@@ -42,6 +43,7 @@ impl Render for Workspace {
         maybe_show_pending_close_dialog(self, window, cx);
         maybe_show_pending_project_switch_dialog(self, window, cx);
         maybe_show_pending_project_close_dialog(self, window, cx);
+        self.show_close_prompt(window, cx);
         if drain_pending_reload(cx)
             && let Some(pctx) = cx.try_global::<ProjectContext>()
         {
@@ -164,7 +166,7 @@ impl Render for Workspace {
                 ws.show_home(window, cx);
             }))
             .on_action(window.listener_for(&this, |ws, _: &CloseTab, window, cx| {
-                ws.close_active_center_tab(window, cx);
+                ws.close_tabs(CloseScope::Active, window, cx);
             }))
             .on_action(window.listener_for(&this, |ws, _: &GoBackTab, window, cx| {
                 ws.go_back_tab(window, cx);
@@ -179,32 +181,32 @@ impl Render for Workspace {
             }))
             .on_action(
                 window.listener_for(&this, |ws, _: &CloseAllTabs, window, cx| {
-                    ws.close_all_tabs(window, cx);
+                    ws.close_tabs(CloseScope::All, window, cx);
                 }),
             )
             .on_action(
                 window.listener_for(&this, |ws, _: &CloseCleanTabs, window, cx| {
-                    ws.close_clean_tabs(window, cx);
+                    ws.close_tabs(CloseScope::Clean, window, cx);
                 }),
             )
             .on_action(
                 window.listener_for(&this, |ws, _: &CloseOtherTabs, window, cx| {
                     if let Some(id) = ws.active_center_panel_id(cx) {
-                        ws.close_other_tabs(id, window, cx);
+                        ws.close_tabs(CloseScope::Others(id), window, cx);
                     }
                 }),
             )
             .on_action(
                 window.listener_for(&this, |ws, _: &CloseTabsLeft, window, cx| {
                     if let Some(id) = ws.active_center_panel_id(cx) {
-                        ws.close_tabs_to_left(id, window, cx);
+                        ws.close_tabs(CloseScope::Left(id), window, cx);
                     }
                 }),
             )
             .on_action(
                 window.listener_for(&this, |ws, _: &CloseTabsRight, window, cx| {
                     if let Some(id) = ws.active_center_panel_id(cx) {
-                        ws.close_tabs_to_right(id, window, cx);
+                        ws.close_tabs(CloseScope::Right(id), window, cx);
                     }
                 }),
             )

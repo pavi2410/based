@@ -26,6 +26,7 @@ use crate::query_store::QueryStore;
 use crate::workspace::Workspace;
 use crate::workspace::WorkspaceRef;
 use crate::workspace::notify;
+use crate::workspace::tabs::CloseScope;
 
 use super::pick;
 use super::settings::apply_project_settings;
@@ -330,7 +331,7 @@ pub fn complete_project_switch_in_window(root: PathBuf, window: &mut Window, cx:
     }
 
     ws.update(cx, |workspace, cx| {
-        workspace.close_all_tabs(window, cx);
+        workspace.force_close_tabs(CloseScope::All, window, cx);
         workspace.sync_tab_manager_from_dock(cx);
     });
 
@@ -376,7 +377,7 @@ fn close_project_in_workspace(
         return;
     }
 
-    workspace.close_project_tabs(window, cx);
+    workspace.force_close_tabs(CloseScope::Project, window, cx);
     workspace.sync_tab_manager_from_dock(cx);
     unbind_project(&registry, cx);
     prefs::clear_last_opened_project(cx);

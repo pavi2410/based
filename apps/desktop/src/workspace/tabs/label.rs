@@ -11,6 +11,7 @@ use gpui_kit::{App, EntityId, Hsla, IntoElement, SharedString, div, prelude::*, 
 
 use crate::workspace::WorkspaceRef;
 
+use super::CloseScope;
 use super::menu::tab_context_menu;
 use super::open::TabManagerRef;
 use super::spec::TabSpec;
@@ -154,7 +155,9 @@ fn close_button(panel_id: EntityId, color: gpui_kit::Hsla) -> impl IntoElement {
         .on_click(move |_, window, cx| {
             cx.stop_propagation();
             if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
-                ws.update(cx, |ws, cx| ws.close_center_panel(panel_id, window, cx));
+                ws.update(cx, |ws, cx| {
+                    ws.close_tabs(CloseScope::Tab(panel_id), window, cx);
+                });
             }
         })
 }

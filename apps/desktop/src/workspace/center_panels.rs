@@ -15,7 +15,6 @@ use crate::workspace::wizard_logic::can_edit_saved_connection;
 
 use super::dock_utils::{
     activate_center_panel, active_live_center_panel, add_center_panel_view, panel_entity_id,
-    remove_presentation_panel,
 };
 
 impl Workspace {
@@ -225,53 +224,6 @@ impl Workspace {
         self.center_panels
             .iter()
             .any(|p| panel_entity_id(p) == panel_id)
-    }
-
-    /// Close a specific panel in the center tab strip (tab ⋮ menu).
-    pub fn close_center_panel(
-        &mut self,
-        panel_id: EntityId,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if !self.can_close_center_panel(panel_id, cx) {
-            return;
-        }
-        let Some(panel) = self.find_center_panel(panel_id, cx) else {
-            return;
-        };
-        if let Some(spec) = self
-            .tab_manager
-            .read(cx)
-            .tab_for_panel_id(panel_id)
-            .map(|t| t.spec.clone())
-        {
-            self.forget_session_tab(&spec);
-        }
-        self.dock_area.update(cx, |dock, ecx| {
-            remove_presentation_panel(dock, &panel, window, ecx);
-        });
-        self.unregister_center_panel(panel_id);
-        self.sync_tab_manager_from_dock(cx);
-        self.ensure_home_tab(window, cx);
-    }
-
-    /// Close the active center tab (⌘W / CloseTab).
-    pub fn close_active_center_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let dock = self.dock_area.read(cx);
-        let active_id = active_live_center_panel(dock, cx)
-            .map(|p| panel_entity_id(&p))
-            .or_else(|| {
-                self.tab_manager
-                    .read(cx)
-                    .active_tab()
-                    .map(|t| t.view.entity_id())
-            });
-        let Some(panel_id) = active_id else {
-            self.ensure_home_tab(window, cx);
-            return;
-        };
-        self.close_center_panel(panel_id, window, cx);
     }
 
     pub fn active_center_panel_id(&self, cx: &App) -> Option<EntityId> {

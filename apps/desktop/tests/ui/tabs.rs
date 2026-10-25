@@ -4,6 +4,7 @@
 //! panels on dock sync, so they are not a stable identity for every tab kind.
 
 use based_desktop::connection::ConnectionId;
+use based_desktop::workspace::tabs::CloseScope;
 use based_desktop::workspace::{TabSpec, Workspace};
 use gpui_kit::test::TestWindowExt;
 use gpui_kit::{AnyWindowHandle, AppContext, Entity, TestAppContext};
@@ -53,7 +54,7 @@ fn open(win: AnyWindowHandle, ws: &Entity<Workspace>, spec: TabSpec, cx: &mut Te
 
 fn close_active(win: AnyWindowHandle, ws: &Entity<Workspace>, cx: &mut TestAppContext) {
     cx.update_window(win, |_, window, cx| {
-        ws.update(cx, |ws, cx| ws.close_active_center_tab(window, cx));
+        ws.update(cx, |ws, cx| ws.close_tabs(CloseScope::Active, window, cx));
         window.render_frame(cx);
     })
     .unwrap();
@@ -147,7 +148,7 @@ fn pinned_tab_cannot_be_closed(cx: &mut TestAppContext) {
             let id = ws.active_center_panel_id(cx).expect("active panel");
             ws.toggle_pin_tab(id, cx);
             assert!(ws.is_tab_pinned(id, cx));
-            ws.close_center_panel(id, window, cx);
+            ws.close_tabs(CloseScope::Tab(id), window, cx);
         });
     })
     .unwrap();

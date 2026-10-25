@@ -3,6 +3,7 @@
 use gpui_kit::component::menu::{PopupMenu, PopupMenuItem};
 use gpui_kit::{App, Context, EntityId, Window};
 
+use super::CloseScope;
 use super::label::is_panel_pinned;
 use super::open::WorkspaceRef;
 use crate::workspace::Workspace;
@@ -29,7 +30,7 @@ fn item(
 pub(crate) fn tab_context_menu(menu: PopupMenu, panel_id: EntityId, cx: &App) -> PopupMenu {
     let pinned = is_panel_pinned(panel_id, cx);
     menu.item(item("Close Tab", pinned, move |ws, w, cx| {
-        ws.close_center_panel(panel_id, w, cx)
+        ws.close_tabs(CloseScope::Tab(panel_id), w, cx);
     }))
     .item(item(
         if pinned { "Unpin Tab" } else { "Pin Tab" },
@@ -38,15 +39,15 @@ pub(crate) fn tab_context_menu(menu: PopupMenu, panel_id: EntityId, cx: &App) ->
     ))
     .separator()
     .item(item("Close Others", false, move |ws, w, cx| {
-        ws.close_other_tabs(panel_id, w, cx)
+        ws.close_tabs(CloseScope::Others(panel_id), w, cx);
     }))
     .item(item("Close Tabs to the Left", false, move |ws, w, cx| {
-        ws.close_tabs_to_left(panel_id, w, cx)
+        ws.close_tabs(CloseScope::Left(panel_id), w, cx);
     }))
     .item(item("Close Tabs to the Right", false, move |ws, w, cx| {
-        ws.close_tabs_to_right(panel_id, w, cx)
+        ws.close_tabs(CloseScope::Right(panel_id), w, cx);
     }))
     .item(item("Close All", false, |ws, w, cx| {
-        ws.close_all_tabs(w, cx)
+        ws.close_tabs(CloseScope::All, w, cx);
     }))
 }

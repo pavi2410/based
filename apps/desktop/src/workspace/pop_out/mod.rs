@@ -27,7 +27,7 @@ use crate::bindings::{
     CloseAllTabs, CloseCleanTabs, CloseOtherTabs, CloseTab, CloseTabsLeft, CloseTabsRight, PinTab,
     SplitPaneBottom, SplitPaneLeft, SplitPaneRight, SplitPaneTop,
 };
-use crate::workspace::tabs::{DockAreaRef, TabManagerRef, WorkspaceRef};
+use crate::workspace::tabs::{CloseScope, DockAreaRef, TabManagerRef, WorkspaceRef};
 
 /// Human-readable OS window title for a popped-out panel.
 pub trait PopOutWindowTitle: Panel {
@@ -119,7 +119,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
                         return;
                     };
                     workspace.update(app, |ws, cx| {
-                        ws.close_center_panel(panel_id, window, cx);
+                        ws.close_tabs(CloseScope::Tab(panel_id), window, cx);
                     });
                 }),
         )
@@ -147,7 +147,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
                         return;
                     };
                     workspace.update(app, |ws, cx| {
-                        ws.close_other_tabs(panel_id, window, cx);
+                        ws.close_tabs(CloseScope::Others(panel_id), window, cx);
                     });
                 }),
         )
@@ -160,7 +160,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
                         return;
                     };
                     workspace.update(app, |ws, cx| {
-                        ws.close_tabs_to_left(panel_id, window, cx);
+                        ws.close_tabs(CloseScope::Left(panel_id), window, cx);
                     });
                 }),
         )
@@ -173,7 +173,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
                         return;
                     };
                     workspace.update(app, |ws, cx| {
-                        ws.close_tabs_to_right(panel_id, window, cx);
+                        ws.close_tabs(CloseScope::Right(panel_id), window, cx);
                     });
                 }),
         )
@@ -186,7 +186,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
                         return;
                     };
                     workspace.update(app, |ws, cx| {
-                        ws.close_all_tabs(window, cx);
+                        ws.close_tabs(CloseScope::All, window, cx);
                     });
                 }),
         )
@@ -199,7 +199,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
                         return;
                     };
                     workspace.update(app, |ws, cx| {
-                        ws.close_clean_tabs(window, cx);
+                        ws.close_tabs(CloseScope::Clean, window, cx);
                     });
                 }),
         )

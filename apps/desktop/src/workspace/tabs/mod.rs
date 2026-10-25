@@ -1,5 +1,6 @@
 //! Tab lifecycle: spec, manager, labels, dispatch, commands, navigation, queuing, session.
 
+pub mod close;
 pub mod commands;
 pub mod dispatch;
 pub mod infer;
@@ -11,6 +12,7 @@ pub mod open;
 pub mod session;
 pub mod spec;
 
+pub use close::{CloseOutcome, ClosePrompt, CloseScope};
 pub use label::render_strip_tab;
 pub use manager::{TabEvent, TabManager};
 pub use navigation::TabNavigationHistory;

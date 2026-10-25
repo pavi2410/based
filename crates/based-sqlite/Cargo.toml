@@ -12,7 +12,7 @@ futures = { workspace = true }
 based-core = { path = "../based-core" }
 serde = { workspace = true }
 sqlx = { workspace = true, features = ["sqlite"] }
-tokio = { workspace = true, features = ["rt"] }
+tokio = { workspace = true, features = ["rt", "time"] }
 
 [dev-dependencies]
 tempfile = { workspace = true }

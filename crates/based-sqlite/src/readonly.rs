@@ -1,14 +1,30 @@
 //! Query execution that cannot write, for AI tools.
 
-use anyhow::Result;
+use std::time::Duration;
+
+use anyhow::{Result, anyhow};
 use futures::TryStreamExt;
 use sqlx::{AssertSqlSafe, Column, Row, SqliteConnection, SqlitePool};
 
 use crate::page::sqlite_cell_display;
 
-/// Runs `sql` on a connection with `PRAGMA query_only` set (restored afterwards).
-/// Stops after `limit + 1` rows so callers can tell the result was cut off.
+const TIMEOUT: Duration = Duration::from_secs(15);
+
+/// Runs `sql` on a connection with `PRAGMA query_only` set (restored afterwards) and a
+/// timeout. Stops after `limit + 1` rows so callers can tell the result was cut off.
+///
+/// Runs on a spawned task so cancelling the caller cannot return a connection to the
+/// pool with `query_only` still on.
 pub async fn query_readonly(
+    pool: &SqlitePool,
+    sql: &str,
+    limit: usize,
+) -> Result<(Vec<String>, Vec<Vec<String>>)> {
+    let (pool, sql) = (pool.clone(), sql.to_owned());
+    tokio::spawn(async move { run(&pool, &sql, limit).await }).await?
+}
+
+async fn run(
     pool: &SqlitePool,
     sql: &str,
     limit: usize,
@@ -17,11 +33,17 @@ pub async fn query_readonly(
     sqlx::query("PRAGMA query_only = ON")
         .execute(&mut *conn)
         .await?;
-    let result = collect(&mut conn, sql, limit).await;
+    let result = tokio::time::timeout(TIMEOUT, collect(&mut conn, sql, limit))
+        .await
+        .unwrap_or_else(|_| Err(anyhow!("query timed out after {}s", TIMEOUT.as_secs())));
     // Pooled connections are reused, so the guard must always come off.
-    sqlx::query("PRAGMA query_only = OFF")
+    if let Err(e) = sqlx::query("PRAGMA query_only = OFF")
         .execute(&mut *conn)
-        .await?;
+        .await
+    {
+        conn.close_on_drop();
+        return result.and(Err(e.into()));
+    }
     result
 }
 

@@ -10,6 +10,15 @@ pub struct Tab {
     pub pinned: bool,
 }
 
+/// A live center panel as seen by dock sync.
+pub struct DockTab {
+    pub view: AnyView,
+    /// Spec derived from the panel; `None` keeps the spec the tab was opened with.
+    pub inferred: Option<TabSpec>,
+    /// Used only when the panel is not yet tracked and nothing was inferred.
+    pub fallback: TabSpec,
+}
+
 pub enum TabEvent {
     TabOpened(usize), // index of new tab
     TabClosed(usize),
@@ -96,24 +105,26 @@ impl TabManager {
     /// Drop tabs whose panel views are no longer in the dock; register any center tabs missing from the manager.
     pub fn reconcile_dock_tabs(
         &mut self,
-        dock: &[(gpui_kit::AnyView, TabSpec)],
+        dock: &[DockTab],
         active: Option<gpui_kit::AnyView>,
         cx: &mut Context<Self>,
     ) {
-        let dock_views: Vec<_> = dock.iter().map(|(v, _)| v.clone()).collect();
+        let dock_views: Vec<_> = dock.iter().map(|d| d.view.clone()).collect();
         let before_len = self.tabs.len();
         let old_active = self.active_idx;
 
         self.tabs
             .retain(|t| dock_views.iter().any(|v| v == &t.view));
 
-        for (view, spec) in dock {
-            if let Some(tab) = self.tabs.iter_mut().find(|t| t.view == *view) {
-                tab.spec = spec.clone();
+        for d in dock {
+            if let Some(tab) = self.tabs.iter_mut().find(|t| t.view == d.view) {
+                if let Some(spec) = &d.inferred {
+                    tab.spec = spec.clone();
+                }
             } else {
                 self.tabs.push(Tab {
-                    spec: spec.clone(),
-                    view: view.clone(),
+                    spec: d.inferred.clone().unwrap_or_else(|| d.fallback.clone()),
+                    view: d.view.clone(),
                     dirty: false,
                     pinned: false,
                 });

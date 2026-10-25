@@ -74,10 +74,8 @@ fn distinct_specs_open_distinct_tabs(cx: &mut TestAppContext) {
     assert_eq!(tab_count(&ws, cx), 3, "Home + two tabs");
 }
 
-// `infer_tab_spec` maps ObjectInfo panels to `Builtin`, so dock sync overwrites
-// the spec and `tab_has_spec` no longer matches the second open.
+// Dock sync must not overwrite specs of panels it cannot infer, or dedup stops matching.
 #[gpui_kit::test]
-#[ignore = "known bug: infer_tab_spec loses ObjectInfo/DataViewer/Inspector specs"]
 fn opening_same_spec_twice_does_not_duplicate(cx: &mut TestAppContext) {
     let (win, ws) = open_workspace(cx);
     open(win, &ws, info("a"), cx);
@@ -92,6 +90,26 @@ fn one_manager_entry_per_panel(cx: &mut TestAppContext) {
     open(win, &ws, info("a"), cx);
     let entries = ws.read_with(cx, |ws, cx| ws.tab_manager().read(cx).tabs.len());
     assert_eq!(entries, 2, "Home + one tab");
+}
+
+#[gpui_kit::test]
+fn reopening_a_tab_focuses_it(cx: &mut TestAppContext) {
+    let (win, ws) = open_workspace(cx);
+    open(win, &ws, info("a"), cx);
+    open(win, &ws, info("b"), cx);
+    open(win, &ws, info("a"), cx);
+    let a_is_active = ws.read_with(cx, |ws, cx| {
+        let a = ws
+            .tab_manager()
+            .read(cx)
+            .tabs
+            .iter()
+            .find(|t| t.spec == info("a"))
+            .expect("tab a");
+        ws.active_center_panel_id(cx) == Some(a.view.entity_id())
+    });
+    assert!(a_is_active, "re-opening should activate the existing tab");
+    assert_eq!(tab_count(&ws, cx), 3);
 }
 
 #[gpui_kit::test]

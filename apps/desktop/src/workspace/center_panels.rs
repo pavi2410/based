@@ -7,6 +7,8 @@ use gpui_kit::component::dock::{Panel, PanelView};
 use gpui_kit::{App, Context, Entity, EntityId, Focusable, Window, prelude::*};
 
 use super::Workspace;
+use super::tabs::infer;
+use super::tabs::manager::DockTab;
 use crate::connection::ConnectionId;
 use crate::workspace::panels::ConnectionWizardPanel;
 use crate::workspace::wizard_logic::can_edit_saved_connection;
@@ -191,10 +193,10 @@ impl Workspace {
         let entries: Vec<_> = self
             .center_panels
             .iter()
-            .map(|panel| {
-                let view = panel.view();
-                let spec = super::tabs::infer::infer_tab_spec(panel, cx);
-                (view, spec)
+            .map(|panel| DockTab {
+                view: panel.view(),
+                inferred: infer::infer_tab_spec(panel, cx),
+                fallback: infer::fallback_spec(panel, cx),
             })
             .collect();
         let active = self

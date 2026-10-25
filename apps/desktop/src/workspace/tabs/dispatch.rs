@@ -12,7 +12,7 @@ use crate::postgres::tab_dispatch as pg_tab_dispatch;
 use crate::redis::tab_dispatch as redis_tab_dispatch;
 use crate::sqlite::tab_dispatch as sqlite_tab_dispatch;
 use crate::workspace::Workspace;
-use crate::workspace::dock_utils::add_center_panel_view;
+use crate::workspace::dock_utils::{activate_center_panel, add_center_panel_view};
 use crate::workspace::panels::object_info::{ConnectionDashboardPanel, ObjectInfoPanel};
 use crate::workspace::panels::release_notes::ReleaseNotesPanel;
 
@@ -32,6 +32,18 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
+        // Re-opening an existing tab focuses it. Dashboard focuses its connection first.
+        if !matches!(
+            spec,
+            TabSpec::Home
+                | TabSpec::Builtin { .. }
+                | TabSpec::QueryEditor { .. }
+                | TabSpec::Dashboard { .. }
+        ) && self.focus_existing_tab(&spec, window, cx)
+        {
+            return true;
+        }
+
         // ── Connection-independent tabs ───────────────────────────────────────────
         match &spec {
             TabSpec::Home => {
@@ -63,7 +75,7 @@ impl Workspace {
                 self.connection_tree.update(cx, |tree, ecx| {
                     tree.focus_connection_by_id(conn_id, ecx);
                 });
-                if self.tab_has_spec(&spec, cx) {
+                if self.focus_existing_tab(&spec, window, cx) {
                     return true;
                 }
                 let Some(ent) = self.find_connection(conn_id, cx) else {
@@ -75,10 +87,6 @@ impl Workspace {
             }
             TabSpec::Builtin { .. } => return true,
             _ => {}
-        }
-
-        if !matches!(spec, TabSpec::QueryEditor { .. }) && self.tab_has_spec(&spec, cx) {
-            return true;
         }
 
         // ── Connection-scoped tabs ────────────────────────────────────────────────
@@ -123,12 +131,28 @@ impl Workspace {
         }
     }
 
-    fn tab_has_spec(&self, spec: &TabSpec, cx: &App) -> bool {
-        self.tab_manager
+    /// Activate the open tab for `spec`, if any.
+    fn focus_existing_tab(
+        &mut self,
+        spec: &TabSpec,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let Some(panel_id) = self
+            .tab_manager
             .read(cx)
             .tabs
             .iter()
-            .any(|t| t.spec == *spec)
+            .find(|t| t.spec == *spec)
+            .map(|t| t.view.entity_id())
+        else {
+            return false;
+        };
+        if let Some(panel) = self.find_center_panel(panel_id, cx) {
+            activate_center_panel(&self.dock_area, panel, window, cx);
+            cx.notify();
+        }
+        true
     }
 
     fn dock_add_and_register_tab(

@@ -6,10 +6,11 @@ use std::sync::OnceLock;
 use std::{env, fs};
 
 use based_desktop::workspace::Workspace;
-use based_desktop::{init_globals, storage};
+use based_desktop::{init_globals, query_store, storage};
+use gpui_kit::test::TestWindowExt;
 use gpui_kit::{
-    AnyWindowHandle, App, AppContext, Bounds, Entity, Point, TestAppContext, WindowBounds,
-    WindowHandle, WindowOptions, base::Root, px, size,
+    AnyWindowHandle, App, AppContext, Bounds, Entity, Focusable, Point, TestAppContext,
+    WindowBounds, WindowHandle, WindowOptions, base::Root, px, size,
 };
 
 /// Per-process scratch dir; keeps tests off the real project and `~/.config/based`.
@@ -37,13 +38,14 @@ pub fn init_app(cx: &mut TestAppContext) {
         init_globals(cx);
         let db = dir.join(format!("meta-{}.db", uuid::Uuid::new_v4()));
         storage::init_at(cx, &db).expect("metadata store");
+        query_store::init(None, None, cx);
     });
 }
 
 /// Open the production [`Workspace`] in a 1200×800 headless window.
 pub fn open_workspace(cx: &mut TestAppContext) -> (AnyWindowHandle, Entity<Workspace>) {
     init_app(cx);
-    cx.update(|cx| {
+    let opened = cx.update(|cx| {
         let bounds = Bounds {
             origin: Point::default(),
             size: size(px(1200.), px(800.)),
@@ -59,5 +61,19 @@ pub fn open_workspace(cx: &mut TestAppContext) -> (AnyWindowHandle, Entity<Works
         .expect("open workspace window");
         let _: WindowHandle<Root> = window.downcast().expect("Root");
         (window, ws)
+    });
+    // Key bindings route through the focused element.
+    let (win, ws) = opened;
+    cx.update_window(win, |_, window, cx| {
+        ws.read(cx).focus_handle(cx).focus(window, cx);
+        window.render_frame(cx);
     })
+    .unwrap();
+    settle(cx);
+    (win, ws)
+}
+
+/// Drain deferred effects (dock layout sync, session save) so reads see settled state.
+pub fn settle(cx: &mut TestAppContext) {
+    cx.run_until_parked();
 }

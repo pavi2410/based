@@ -10,8 +10,8 @@ use gpui_kit::component::{
     setting::{SettingField, SettingGroup, SettingItem, SettingPage},
 };
 use gpui_kit::{
-    App, Context, Entity, IntoElement, ParentElement, Render, SharedString, Styled, Window, div,
-    prelude::*,
+    App, Axis, Context, Entity, IntoElement, ParentElement, Render, SharedString, Styled, Window,
+    div, prelude::*,
 };
 
 use crate::app::prefs;
@@ -49,7 +49,8 @@ fn model_group() -> SettingGroup {
                 |val: SharedString, cx: &mut App| prefs::set_ai_model(val.to_string(), cx),
             ),
         )
-        .description("Resets to the provider default when the provider changes."),
+        .description("Resets to the provider default when the provider changes.")
+        .layout(Axis::Vertical),
         SettingItem::new(
             "Endpoint",
             SettingField::input(
@@ -63,7 +64,8 @@ fn model_group() -> SettingGroup {
                 |val: SharedString, cx: &mut App| prefs::set_ai_base_url(val.to_string(), cx),
             ),
         )
-        .description("Optional base URL for proxies, OpenAI-compatible servers or remote Ollama."),
+        .description("Optional base URL for proxies, OpenAI-compatible servers or remote Ollama.")
+        .layout(Axis::Vertical),
     ])
 }
 

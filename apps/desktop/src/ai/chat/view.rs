@@ -1,6 +1,3 @@
-use std::collections::HashMap;
-
-use based_ai::tools::ToolCall;
 use based_ai::{Message, Role};
 use gpui_kit::component::{
     ActiveTheme, Icon, IconName, Sizable as _,
@@ -12,22 +9,22 @@ use gpui_kit::component::{
     v_flex,
 };
 use gpui_kit::{
-    AnyElement, App, Context, IntoElement, ParentElement, Render, Styled, Window, div, px,
+    AnyElement, App, Context, Entity, IntoElement, ParentElement, Render, StyleRefinement, Styled,
+    Window, div, px,
 };
 
 use super::{ChatPane, Phase};
 use crate::ai::launch::error_text;
-use crate::app::prefs;
 
 impl ChatPane {
-    fn row(&self, ix: usize, cx: &App) -> AnyElement {
+    fn row(&self, ix: usize, this: &Entity<Self>, cx: &App) -> AnyElement {
         let Some(turn) = self.turns.get(ix) else {
             return self.live_row(ix, cx);
         };
         match turn.role {
             Role::User => user_row(turn, cx),
-            Role::Assistant => assistant_row(turn, ix, &self.targets, cx),
-            Role::Tool => tool_row(turn, cx),
+            Role::Assistant => assistant_row(turn, ix),
+            Role::Tool => self.call_row(ix, this, cx),
         }
     }
 
@@ -40,10 +37,15 @@ impl ChatPane {
                 .text_color(theme.danger)
                 .child(error_text(e))
                 .into_any_element(),
-            Phase::Tools if self.pending.is_some() => {
-                muted_line("Waiting for your approval...", cx)
-            }
-            Phase::Tools => muted_line("Running tools...", cx),
+            Phase::Tools => v_flex()
+                .gap_1()
+                .child(self.running_calls(cx))
+                .children(
+                    self.pending
+                        .is_some()
+                        .then(|| muted_line("Waiting for your approval...", cx)),
+                )
+                .into_any_element(),
             _ if self.draft.is_empty() => muted_line("Thinking...", cx),
             _ => div()
                 .text_sm()
@@ -123,8 +125,10 @@ impl Render for ChatPane {
             self.empty_state(cx)
         } else {
             MessageScroller::new("chat-scroll", self.scroller.clone(), move |ix, _, cx| {
-                this.read(cx).row(ix, cx)
+                this.read(cx).row(ix, &this, cx)
             })
+            // Rows carry their own spacing so consecutive tool calls sit together.
+            .with_row_style(StyleRefinement::default().pb_0().px_0())
             .into_any_element()
         };
         v_flex()
@@ -160,74 +164,15 @@ fn user_row(turn: &Message, cx: &App) -> AnyElement {
         .into_any_element()
 }
 
-fn assistant_row(
-    turn: &Message,
-    ix: usize,
-    targets: &HashMap<String, String>,
-    cx: &App,
-) -> AnyElement {
-    let mut col = v_flex().px_3().py_1p5().gap_1().text_sm();
-    if !turn.content.is_empty() {
-        col = col
-            .child(TextView::markdown(("chat-reply", ix), turn.content.clone()).selectable(true));
+fn assistant_row(turn: &Message, ix: usize) -> AnyElement {
+    if turn.content.is_empty() {
+        // Tool-call-only turn: the calls render as their own rows.
+        return div().h(px(0.0)).into_any_element();
     }
-    for call in &turn.calls {
-        col = col.child(
-            div()
-                .text_xs()
-                .font_family(prefs::code_font_family(cx))
-                .text_color(cx.theme().muted_foreground)
-                .child(format!(
-                    "> {}{}",
-                    call_summary(call),
-                    targets
-                        .get(&call.id)
-                        .map_or_else(String::new, |t| format!("  @ {t}"))
-                )),
-        );
-    }
-    col.into_any_element()
-}
-
-fn tool_row(turn: &Message, cx: &App) -> AnyElement {
-    let theme = cx.theme();
-    let failed = turn.outcome.as_ref().is_some_and(|o| o.is_error);
-    let color = if failed {
-        theme.danger
-    } else {
-        theme.muted_foreground
-    };
     div()
-        .mx_3()
-        .my_0p5()
-        .px_2()
-        .py_1()
-        .rounded_md()
-        .bg(theme.muted.opacity(0.25))
-        .text_xs()
-        .font_family(prefs::code_font_family(cx))
-        .text_color(color)
-        .line_clamp(3)
-        .child(turn.content.clone())
+        .px_3()
+        .py_1p5()
+        .text_sm()
+        .child(TextView::markdown(("chat-reply", ix), turn.content.clone()).selectable(true))
         .into_any_element()
-}
-
-/// `name arg1 arg2`, clipped to one short line.
-fn call_summary(call: &ToolCall) -> String {
-    const MAX: usize = 80;
-    let args = call.args.as_object().into_iter().flat_map(|o| o.values());
-    let mut out = call.name.clone();
-    for v in args {
-        out.push(' ');
-        match v.as_str() {
-            Some(s) => out.push_str(s),
-            None => out.push_str(&v.to_string()),
-        }
-    }
-    let out = out.replace('\n', " ");
-    if out.chars().count() > MAX {
-        format!("{}...", out.chars().take(MAX).collect::<String>())
-    } else {
-        out
-    }
 }

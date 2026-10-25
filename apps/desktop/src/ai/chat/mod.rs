@@ -5,12 +5,13 @@
 //! [`MAX_ROUNDS`].
 
 mod approve;
+mod calls;
 mod conn;
 mod saved;
 mod tags;
 mod view;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::mem::take;
 use std::sync::Arc;
 
@@ -94,6 +95,8 @@ pub struct ChatPane {
     targets: HashMap<String, String>,
     /// File id of the open conversation once it has been saved.
     chat_id: Option<String>,
+    /// Tool-result rows shown expanded.
+    expanded: HashSet<usize>,
     /// A tool call waiting for the user's answer.
     pending: Option<Approval>,
     /// Actions the user allowed for this conversation.
@@ -150,6 +153,7 @@ impl ChatPane {
             tables_for: None,
             targets: HashMap::new(),
             chat_id: None,
+            expanded: HashSet::new(),
             pending: None,
             trusted: Trusted::new(),
             history: Vec::new(),

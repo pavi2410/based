@@ -66,6 +66,7 @@ impl ChatPane {
         self.targets.clear();
         self.chat_id = None;
         self.trusted.clear();
+        self.expanded.clear();
         self.finish(Phase::Idle);
         self.sync(cx);
     }
@@ -88,6 +89,7 @@ impl ChatPane {
                     this.turns = chat.messages;
                     this.targets = chat.targets;
                     this.chat_id = Some(chat.id);
+                    this.expanded.clear();
                     this.sync(cx);
                 }
                 Err(e) => log::warn!("could not open chat {id}: {e}"),

@@ -34,10 +34,12 @@ pub(super) fn default_true() -> bool {
     true
 }
 
+mod ai;
 mod appearance;
 mod table;
 mod update;
 
+pub use ai::*;
 pub use appearance::*;
 pub use table::*;
 pub use update::*;
@@ -63,6 +65,8 @@ pub struct NativePreferences {
     #[serde(default)]
     pub update: UpdatePreferences,
     #[serde(default)]
+    pub ai: AiPreferences,
+    #[serde(default)]
     pub last_opened_project: Option<PathBuf>,
     #[serde(default)]
     pub recent_projects: Vec<PathBuf>,
@@ -80,6 +84,7 @@ impl Default for NativePreferences {
             query_timeout_secs: DEFAULT_QUERY_TIMEOUT_SECS,
             table_prefs: TablePreferences::default(),
             update: UpdatePreferences::default(),
+            ai: AiPreferences::default(),
             last_opened_project: None,
             recent_projects: Vec::new(),
         }

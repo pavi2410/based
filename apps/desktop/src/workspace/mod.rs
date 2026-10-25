@@ -89,6 +89,8 @@ pub struct Workspace {
     chat: Entity<ChatPane>,
     /// Connection an explicit ask pinned the assistant to, valid while the same tab is focused.
     chat_scope: Option<ChatScope>,
+    /// Last connection a focused tab belonged to; the assistant keeps it on Home/non-connection tabs.
+    last_chat_conn: Option<ConnectionId>,
     focus_handle: FocusHandle,
     project_title: SharedString,
     project_dir: Option<PathBuf>,
@@ -197,6 +199,7 @@ impl Workspace {
             history_filter: HistoryFilter::default(),
             chat: cx.new(|cx| ChatPane::new(window, cx)),
             chat_scope: None,
+            last_chat_conn: None,
             focus_handle: cx.focus_handle(),
             project_title,
             project_dir,
@@ -445,7 +448,10 @@ impl Workspace {
             }
             self.chat_scope = None;
         }
-        focused
+        if focused.is_some() {
+            self.last_chat_conn.clone_from(&focused);
+        }
+        focused.or_else(|| self.last_chat_conn.clone())
     }
 
     /// Points the assistant at its connection (and gates it on that connection's AI setting).

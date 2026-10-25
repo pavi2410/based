@@ -6,6 +6,7 @@ mod http;
 pub mod provider;
 pub mod providers;
 mod sse;
+pub mod tools;
 pub mod types;
 
 pub use error::{AiError, AiErrorKind};

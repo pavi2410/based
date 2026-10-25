@@ -30,6 +30,16 @@ impl AiPreferences {
         }
     }
 
+    /// Switching provider drops the model, which belongs to the old provider.
+    fn set_provider(&mut self, kind: ProviderKind) -> bool {
+        if self.provider() == kind && self.provider == kind.as_str() {
+            return false;
+        }
+        self.provider = kind.as_str().to_owned();
+        self.model.clear();
+        true
+    }
+
     pub fn base_url(&self) -> Option<&str> {
         Some(self.base_url.trim()).filter(|u| !u.is_empty())
     }
@@ -53,17 +63,7 @@ fn update_ai(update: impl FnOnce(&mut AiPreferences) -> bool, cx: &mut App) {
 }
 
 pub fn set_ai_provider(kind: ProviderKind, cx: &mut App) {
-    update_ai(
-        |p| {
-            let id = kind.as_str();
-            if p.provider == id {
-                return false;
-            }
-            p.provider = id.to_owned();
-            true
-        },
-        cx,
-    );
+    update_ai(|p| p.set_provider(kind), cx);
 }
 
 pub fn set_ai_model(model: String, cx: &mut App) {
@@ -126,6 +126,19 @@ mod tests {
         assert_eq!(p.provider(), ProviderKind::Ollama);
         assert_eq!(p.model(), "qwen2.5");
         assert_eq!(p.base_url(), Some("http://box:11434"));
+    }
+
+    #[test]
+    fn switching_provider_resets_model() {
+        let mut p = AiPreferences {
+            provider: "openai".into(),
+            model: "gpt-x".into(),
+            base_url: String::new(),
+        };
+        assert!(!p.set_provider(ProviderKind::OpenAi));
+        assert_eq!(p.model(), "gpt-x");
+        assert!(p.set_provider(ProviderKind::Ollama));
+        assert_eq!(p.model(), ProviderKind::Ollama.default_model());
     }
 
     #[test]

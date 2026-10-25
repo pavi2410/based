@@ -1,5 +1,7 @@
 //! Separate settings window (theme, typography, query defaults).
 
+mod ai;
+
 use gpui_kit::component::{
     ActiveTheme, Icon, IconName, Sizable as _, ThemeMode,
     button::Button,
@@ -491,6 +493,7 @@ impl SettingsWindow {
                 ]),
         ];
         #[cfg(debug_assertions)]
+        pages.push(ai::page());
         pages.push(dev_settings_page());
         pages
     }

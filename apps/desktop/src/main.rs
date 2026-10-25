@@ -55,6 +55,7 @@ fn main() {
             app::prefs::install(cx);
 
             db::init(cx);
+            ai::init(cx);
 
             cx.set_global(TabOpenQueue::default());
             cx.set_global(WorkspaceNavQueue::default());

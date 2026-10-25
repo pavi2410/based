@@ -11,6 +11,7 @@ use futures::StreamExt;
 use futures::channel::mpsc;
 use gpui_kit::{Context, Task};
 
+use super::status::AiStatus;
 use crate::db::Tokio;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,6 +39,8 @@ pub fn start<T: 'static>(
     cx: &mut Context<T>,
     mut on_event: impl FnMut(&mut T, StreamEvent, &mut Context<T>) + 'static,
 ) -> AiStream {
+    let status = AiStatus::get(cx);
+    let guard = status.begin();
     let (tx, mut rx) = mpsc::unbounded();
     let pump = Tokio::spawn(&*cx, async move {
         let mut chunks = provider.stream(request);
@@ -49,6 +52,7 @@ pub fn start<T: 'static>(
     });
     AiStream(cx.spawn(async move |this, cx| {
         let _pump = pump;
+        let _guard = guard;
         let mut finished = false;
         while !finished {
             let mut batch = Vec::new();
@@ -61,6 +65,11 @@ pub fn start<T: 'static>(
             }
             let events = merge(batch);
             finished = events.last().is_some_and(StreamEvent::is_terminal);
+            for event in &events {
+                if let StreamEvent::Done(usage) = event {
+                    status.add_usage(*usage);
+                }
+            }
             let delivered = this.update(cx, |t, cx| {
                 for event in events {
                     on_event(t, event, cx);
@@ -69,10 +78,14 @@ pub fn start<T: 'static>(
             if delivered.is_err() {
                 return;
             }
+            if finished {
+                cx.update(|app| app.refresh_windows());
+            }
         }
         if !finished {
             let ended = StreamEvent::Failed(AiError::protocol("response ended unexpectedly"));
             let _ = this.update(cx, |t, cx| on_event(t, ended, cx));
+            cx.update(|app| app.refresh_windows());
         }
     }))
 }

@@ -66,36 +66,25 @@ impl Workspace {
         window: &mut gpui_kit::Window,
         cx: &mut Context<Self>,
     ) {
-        let pending = self.pending_session_tabs.clone();
-        for spec in pending {
-            if self.session_tabs_opened.iter().any(|open| open == &spec) {
-                continue;
-            }
-            if self
+        for spec in self.session.to_open() {
+            let open = self
                 .tab_manager
                 .read(cx)
                 .tabs
                 .iter()
-                .any(|t| t.spec == spec)
-            {
-                self.session_tabs_opened.push(spec);
-                continue;
-            }
-            if self.dispatch_open_tab(spec.clone(), window, cx) {
-                self.session_tabs_opened.push(spec);
+                .any(|t| t.spec == spec);
+            if open || self.dispatch_open_tab(spec.clone(), window, cx) {
+                self.session.mark_opened(spec);
             }
         }
     }
 
     pub(crate) fn forget_session_tab(&mut self, spec: &TabSpec) {
-        self.pending_session_tabs.retain(|open| open != spec);
-        self.session_tabs_opened.retain(|open| open != spec);
+        self.session.forget(spec);
     }
 
     pub(crate) fn should_preserve_restored_tabs(&self, conn_id: &ConnectionId) -> bool {
-        self.pending_session_tabs
-            .iter()
-            .any(|spec| spec.conn_id() == Some(conn_id))
+        self.session.awaits(conn_id)
     }
 
     pub(crate) fn flush_nav_queue(

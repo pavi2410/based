@@ -101,15 +101,8 @@ pub struct Workspace {
     focus_handle: FocusHandle,
     project_title: SharedString,
     project_dir: Option<PathBuf>,
-    session_restored: bool,
-    /// Latest session snapshot waiting for the writer task (newer snapshots replace older ones).
-    session_pending_save: Option<tabs::SessionSnapshot>,
-    session_saving: bool,
+    session: tabs::SessionState,
     pending_open_tab: Option<TabSpec>,
-    /// Session tabs waiting for their connection to come up. Kept until the user closes them.
-    pending_session_tabs: Vec<TabSpec>,
-    /// Restore specs already dispatched this session so infer/SQL edits do not spawn duplicates.
-    session_tabs_opened: Vec<TabSpec>,
     pending_target_pick: Option<(ProjectQuery, Vec<ConnectionId>)>,
     /// Set by platform close; dialog is shown on the next [`Render`] (see `app::quit`).
     pub(crate) pending_close_confirm: bool,
@@ -219,12 +212,8 @@ impl Workspace {
             focus_handle: cx.focus_handle(),
             project_title,
             project_dir,
-            session_restored: false,
-            session_pending_save: None,
-            session_saving: false,
+            session: tabs::SessionState::default(),
             pending_open_tab: None,
-            pending_session_tabs: Vec::new(),
-            session_tabs_opened: Vec::new(),
             pending_target_pick: None,
             pending_close_confirm: false,
             pending_project_switch: None,
@@ -336,48 +325,27 @@ impl Workspace {
     }
 
     fn save_session(&mut self, cx: &mut Context<Self>) {
+        let active_conn = self.focused_conn_id(cx).map(|id| id.0.clone());
         let tm = self.tab_manager.read(cx);
-        let mut tabs = Vec::new();
-        let mut active = None;
-        for (i, t) in tm.tabs.iter().enumerate() {
-            if !t.spec.persist_in_session() {
-                continue;
-            }
-            if tm.active_idx == Some(i) {
-                active = Some(tabs.len());
-            }
-            tabs.push(t.spec.clone());
-        }
-        tabs = tabs::merge_live_and_pending(tabs, &self.pending_session_tabs);
-        if tabs.is_empty() {
+        let Some(snapshot) =
+            tabs::SessionSnapshot::capture(tm, self.session.pending(), active_conn)
+        else {
             return;
-        }
-        let snapshot = tabs::SessionSnapshot {
-            tabs,
-            active,
-            active_connection_id: self.focused_conn_id(cx).map(|id| id.0.clone()),
-            pinned_tabs: tm
-                .pinned_specs()
-                .into_iter()
-                .filter(TabSpec::persist_in_session)
-                .collect(),
         };
-        self.session_pending_save = Some(snapshot);
-        if self.session_saving {
+        if !self.session.enqueue(snapshot) {
             return;
         }
-        self.session_saving = true;
         let store = storage::store(cx);
         cx.spawn(async move |this, cx| {
             // Coalesce: keep writing until no newer snapshot arrived during the last write.
-            while let Ok(Some(snapshot)) = this.update(cx, |ws, _| ws.session_pending_save.take()) {
+            while let Ok(Some(snapshot)) = this.update(cx, |ws, _| ws.session.take_queued()) {
                 let store = store.clone();
                 let saved = db::run(cx, async move { snapshot.save(&store).await }).await;
                 if let Err(err) = saved {
                     log::warn!("session save failed: {err:#}");
                 }
             }
-            let _ = this.update(cx, |ws, _| ws.session_saving = false);
+            let _ = this.update(cx, |ws, _| ws.session.finish_writing());
         })
         .detach();
     }
@@ -390,11 +358,7 @@ impl Workspace {
         let active_spec = session
             .active
             .and_then(|idx| session.tabs.get(idx).cloned());
-        self.pending_session_tabs = session
-            .tabs
-            .into_iter()
-            .filter(|spec| !matches!(spec, TabSpec::Home) && spec.persist_in_session())
-            .collect();
+        self.session.set_pending(session.tabs);
         self.flush_pending_session_tabs(window, cx);
         if let Some(spec) = active_spec.filter(TabSpec::persist_in_session) {
             self.focus_existing_tab(&spec, window, cx);

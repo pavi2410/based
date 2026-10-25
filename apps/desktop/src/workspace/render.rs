@@ -49,8 +49,7 @@ impl Render for Workspace {
         {
             self.project_title = pctx.project_name().into();
         }
-        if !self.session_restored {
-            self.session_restored = true;
+        if self.session.begin_restore() {
             self.restore_session(window, cx);
         }
         self.flush_nav_queue(window, cx);

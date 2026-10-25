@@ -2,9 +2,13 @@
 
 use serde::{Deserialize, Serialize};
 
+use std::mem;
+
 use based_storage::{ACTIVE_CONNECTION_ID, ACTIVE_TAB_INDEX, MetadataStore, OPEN_TABS};
 
+use super::manager::TabManager;
 use super::spec::TabSpec;
+use crate::connection::ConnectionId;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SessionSnapshot {
@@ -77,6 +81,112 @@ impl SessionSnapshot {
     }
 }
 
+impl SessionSnapshot {
+    /// Snapshot of the open tabs; `pending` are restored tabs whose connection is still down.
+    /// `None` when there is nothing worth saving.
+    pub fn capture(
+        tm: &TabManager,
+        pending: &[TabSpec],
+        active_connection_id: Option<String>,
+    ) -> Option<Self> {
+        let mut tabs = Vec::new();
+        let mut active = None;
+        for (i, t) in tm.tabs.iter().enumerate() {
+            if !t.spec.persist_in_session() {
+                continue;
+            }
+            if tm.active_idx == Some(i) {
+                active = Some(tabs.len());
+            }
+            tabs.push(t.spec.clone());
+        }
+        let tabs = merge_live_and_pending(tabs, pending);
+        if tabs.is_empty() {
+            return None;
+        }
+        Some(Self {
+            tabs,
+            active,
+            active_connection_id,
+            pinned_tabs: tm
+                .pinned_specs()
+                .into_iter()
+                .filter(TabSpec::persist_in_session)
+                .collect(),
+        })
+    }
+}
+
+/// Restore bookkeeping and the coalescing write queue for one workspace.
+#[derive(Default)]
+pub struct SessionState {
+    restored: bool,
+    /// Saved tabs waiting for their connection. Kept until the user closes them.
+    pending: Vec<TabSpec>,
+    /// Pending specs already dispatched this run, so edits do not spawn duplicates.
+    opened: Vec<TabSpec>,
+    /// Newest snapshot waiting for the writer (newer replaces older).
+    queued: Option<SessionSnapshot>,
+    writing: bool,
+}
+
+impl SessionState {
+    /// `true` exactly once: the first call, when the saved session should be restored.
+    pub fn begin_restore(&mut self) -> bool {
+        !mem::replace(&mut self.restored, true)
+    }
+
+    /// Tabs to bring back (Home and non-persistent specs are skipped).
+    pub fn set_pending(&mut self, tabs: impl IntoIterator<Item = TabSpec>) {
+        self.pending = tabs
+            .into_iter()
+            .filter(|s| !matches!(s, TabSpec::Home) && s.persist_in_session())
+            .collect();
+    }
+
+    pub fn pending(&self) -> &[TabSpec] {
+        &self.pending
+    }
+
+    /// Pending specs that have not been dispatched yet.
+    pub fn to_open(&self) -> Vec<TabSpec> {
+        self.pending
+            .iter()
+            .filter(|s| !self.opened.contains(s))
+            .cloned()
+            .collect()
+    }
+
+    pub fn mark_opened(&mut self, spec: TabSpec) {
+        self.opened.push(spec);
+    }
+
+    /// The user closed this tab: stop restoring and re-saving it.
+    pub fn forget(&mut self, spec: &TabSpec) {
+        self.pending.retain(|s| s != spec);
+        self.opened.retain(|s| s != spec);
+    }
+
+    /// Whether a restored tab for `conn` is still pending (so its tabs must not be reset).
+    pub fn awaits(&self, conn: &ConnectionId) -> bool {
+        self.pending.iter().any(|s| s.conn_id() == Some(conn))
+    }
+
+    /// Queue a snapshot. Returns `true` when the caller must start the writer.
+    pub fn enqueue(&mut self, snapshot: SessionSnapshot) -> bool {
+        self.queued = Some(snapshot);
+        !mem::replace(&mut self.writing, true)
+    }
+
+    pub fn take_queued(&mut self) -> Option<SessionSnapshot> {
+        self.queued.take()
+    }
+
+    pub fn finish_writing(&mut self) {
+        self.writing = false;
+    }
+}
+
 /// Live dock tabs plus session tabs that have not opened yet (connection still down).
 pub fn merge_live_and_pending(live: Vec<TabSpec>, pending: &[TabSpec]) -> Vec<TabSpec> {
     let mut tabs = live;
@@ -90,6 +200,8 @@ pub fn merge_live_and_pending(live: Vec<TabSpec>, pending: &[TabSpec]) -> Vec<Ta
 
 #[cfg(test)]
 mod tests {
+    use std::slice;
+
     use super::*;
     use crate::connection::ConnectionId;
     use crate::workspace::tabs::spec::QueryEditorInit;
@@ -161,5 +273,50 @@ mod tests {
             )),
             "data viewer must survive dashboard+blank snapshot: {tabs:?}"
         );
+    }
+
+    #[test]
+    fn restore_runs_once() {
+        let mut st = SessionState::default();
+        assert!(st.begin_restore());
+        assert!(!st.begin_restore());
+    }
+
+    #[test]
+    fn pending_tabs_open_once_until_forgotten() {
+        let mut st = SessionState::default();
+        let viewer = TabSpec::DataViewer {
+            conn_id: ConnectionId("c".into()),
+            object: "t".into(),
+            filter: None,
+        };
+        st.set_pending([TabSpec::Home, viewer.clone()]);
+        assert_eq!(
+            st.pending(),
+            slice::from_ref(&viewer),
+            "Home is never restored"
+        );
+        assert_eq!(st.to_open(), slice::from_ref(&viewer));
+        st.mark_opened(viewer.clone());
+        assert!(st.to_open().is_empty());
+        assert!(st.awaits(&ConnectionId("c".into())));
+        st.forget(&viewer);
+        assert!(st.pending().is_empty());
+        assert!(!st.awaits(&ConnectionId("c".into())));
+    }
+
+    #[test]
+    fn writer_starts_once_and_keeps_only_the_newest_snapshot() {
+        let mut st = SessionState::default();
+        let snap = |n: usize| SessionSnapshot {
+            active: Some(n),
+            ..Default::default()
+        };
+        assert!(st.enqueue(snap(1)), "first enqueue starts the writer");
+        assert!(!st.enqueue(snap(2)), "writer already running");
+        assert_eq!(st.take_queued().unwrap().active, Some(2));
+        assert!(st.take_queued().is_none());
+        st.finish_writing();
+        assert!(st.enqueue(snap(3)));
     }
 }

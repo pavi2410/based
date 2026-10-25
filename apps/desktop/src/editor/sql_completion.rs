@@ -2,18 +2,29 @@
 
 use std::rc::Rc;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Result;
+use based_ai::context::ContextLevel;
+use based_ai::prompt;
+use based_core::EngineKind;
 use gpui_kit::component::Rope;
 use gpui_kit::component::input::{CompletionProvider, RopeExt};
 use gpui_kit::{App, AppContext as _, Task, Window};
 use lsp_types::{
     CompletionContext, CompletionItem, CompletionItemKind, CompletionResponse, CompletionTextEdit,
-    Range, TextEdit,
+    InlineCompletionContext, InlineCompletionItem, InlineCompletionResponse, Range, TextEdit,
 };
+
+use crate::ai::{complete, connection_ai, schema};
+use crate::app::prefs;
+use crate::connection::ConnectionId;
 
 use super::schema_cache::{ObjectKind, SchemaCache, quote_ident, unquote};
 use super::sql_scope::{previous_word, tables_in_scope};
+
+/// Pause after the last keystroke before asking the model.
+const INLINE_DEBOUNCE: Duration = Duration::from_millis(700);
 
 const SQL_KEYWORDS: &[&str] = &[
     "SELECT",
@@ -116,13 +127,21 @@ const SQL_FUNCTIONS: &[&str] = &[
     "bm25",
 ];
 
+/// The connection ghost-text suggestions are generated for.
+#[derive(Clone)]
+pub struct InlineAi {
+    pub conn: ConnectionId,
+    pub engine: EngineKind,
+}
+
 pub struct SqlCompletionProvider {
     cache: Arc<SchemaCache>,
+    ai: Option<InlineAi>,
 }
 
 impl SqlCompletionProvider {
-    pub fn new(cache: Arc<SchemaCache>) -> Rc<Self> {
-        Rc::new(Self { cache })
+    pub fn new(cache: Arc<SchemaCache>, ai: Option<InlineAi>) -> Rc<Self> {
+        Rc::new(Self { cache, ai })
     }
 }
 
@@ -237,6 +256,64 @@ impl CompletionProvider for SqlCompletionProvider {
             };
             Ok(CompletionResponse::Array(items))
         })
+    }
+
+    fn inline_completion(
+        &self,
+        rope: &Rope,
+        offset: usize,
+        _: InlineCompletionContext,
+        _: &mut Window,
+        cx: &mut App,
+    ) -> Task<Result<InlineCompletionResponse>> {
+        let none = || Task::ready(Ok(InlineCompletionResponse::Array(vec![])));
+        let Some(ai) = &self.ai else {
+            return none();
+        };
+        let level = schema::level(connection_ai(&ai.conn, cx));
+        if !prefs::ai_prefs(cx).inline() || level == ContextLevel::Off {
+            return none();
+        }
+        let text = rope.to_string();
+        let mut end = offset.min(text.len());
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        let (prefix, suffix) = text.split_at(end);
+        // Nothing to continue from yet.
+        if prefix.trim().chars().count() < 3 {
+            return none();
+        }
+        let schema = schema::context(ai.engine, &self.cache, level, prefix);
+        let engine = ai.engine;
+        let (prefix, suffix) = (prefix.to_owned(), suffix.to_owned());
+        let sent_prefix = prefix.clone();
+        let reply = complete(cx, move |model| {
+            prompt::complete_request(model, engine, &schema, &sent_prefix, &suffix)
+        });
+        cx.spawn(async move |_| {
+            // A failed suggestion is not worth interrupting typing for.
+            let text = reply
+                .await
+                .map(|r| prompt::clean_completion(&r, &prefix))
+                .unwrap_or_default();
+            let items = if text.is_empty() {
+                vec![]
+            } else {
+                vec![InlineCompletionItem {
+                    insert_text: text,
+                    filter_text: None,
+                    range: None,
+                    command: None,
+                    insert_text_format: None,
+                }]
+            };
+            Ok(InlineCompletionResponse::Array(items))
+        })
+    }
+
+    fn inline_completion_debounce(&self) -> Duration {
+        INLINE_DEBOUNCE
     }
 
     fn is_completion_trigger(&self, _: usize, new_text: &str, _: &mut App) -> bool {

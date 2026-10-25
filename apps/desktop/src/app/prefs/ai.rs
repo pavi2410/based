@@ -14,6 +14,10 @@ pub struct AiPreferences {
     /// Empty means the provider's default endpoint.
     #[serde(default)]
     base_url: String,
+    /// Suggest completions as ghost text while typing. Off by default: it sends the text
+    /// around the cursor to the provider on every pause.
+    #[serde(default)]
+    inline: bool,
 }
 
 impl AiPreferences {
@@ -38,6 +42,10 @@ impl AiPreferences {
         self.provider = kind.as_str().to_owned();
         self.model.clear();
         true
+    }
+
+    pub fn inline(&self) -> bool {
+        self.inline
     }
 
     pub fn base_url(&self) -> Option<&str> {
@@ -79,6 +87,17 @@ pub fn set_ai_model(model: String, cx: &mut App) {
     );
 }
 
+pub fn set_ai_inline(on: bool, cx: &mut App) {
+    update_ai(
+        |p| {
+            let changed = p.inline != on;
+            p.inline = on;
+            changed
+        },
+        cx,
+    );
+}
+
 pub fn set_ai_base_url(url: String, cx: &mut App) {
     update_ai(
         |p| {
@@ -110,6 +129,7 @@ mod tests {
             provider: "nope".into(),
             model: "  ".into(),
             base_url: " ".into(),
+            ..AiPreferences::default()
         };
         assert_eq!(p.provider(), ProviderKind::Anthropic);
         assert_eq!(p.model(), ProviderKind::Anthropic.default_model());
@@ -122,6 +142,7 @@ mod tests {
             provider: "ollama".into(),
             model: " qwen2.5 ".into(),
             base_url: "http://box:11434".into(),
+            ..AiPreferences::default()
         };
         assert_eq!(p.provider(), ProviderKind::Ollama);
         assert_eq!(p.model(), "qwen2.5");
@@ -134,6 +155,7 @@ mod tests {
             provider: "openai".into(),
             model: "gpt-x".into(),
             base_url: String::new(),
+            ..AiPreferences::default()
         };
         assert!(!p.set_provider(ProviderKind::OpenAi));
         assert_eq!(p.model(), "gpt-x");

@@ -74,6 +74,61 @@ pub fn chat_request(
         .with_tools(tools)
 }
 
+const PREFIX_CHARS: usize = 2000;
+const SUFFIX_CHARS: usize = 500;
+
+/// Request for the text to insert at the cursor (fill in the middle). Context is clipped
+/// around the cursor so a large script stays cheap.
+pub fn complete_request(
+    model: &str,
+    engine: EngineKind,
+    schema: &str,
+    prefix: &str,
+    suffix: &str,
+) -> ChatRequest {
+    let prefix = tail_chars(prefix, PREFIX_CHARS);
+    let suffix: String = suffix.chars().take(SUFFIX_CHARS).collect();
+    let mut system = format!(
+        "You complete {} in a query editor. Reply with only the text to insert at <cursor>: \
+         no explanation, no code fences, no repetition of the surrounding text. Keep it short, \
+         at most a few lines. Reply with nothing if no sensible completion exists.",
+        dialect(engine)
+    );
+    if !schema.is_empty() {
+        system.push_str("\n\nSchema:\n");
+        system.push_str(schema);
+    }
+    let mut req = ChatRequest::new(
+        model,
+        vec![Message::user(format!("{prefix}<cursor>{suffix}"))],
+    )
+    .with_system(system);
+    req.max_tokens = 128;
+    req.temperature = Some(0.0);
+    req
+}
+
+fn tail_chars(s: &str, n: usize) -> &str {
+    let skip = s.chars().count().saturating_sub(n);
+    s.char_indices().nth(skip).map_or(s, |(i, _)| &s[i..])
+}
+
+/// The insertable part of a completion reply: unfenced, without an echo of the text
+/// before the cursor. Empty when there is nothing worth showing.
+pub fn clean_completion(reply: &str, prefix: &str) -> String {
+    let code = if reply.contains("```") {
+        extract_code(reply)
+    } else {
+        reply.trim_end().to_owned()
+    };
+    let code = code.strip_prefix(prefix).map_or(code.as_str(), |rest| rest);
+    if code.trim().is_empty() {
+        String::new()
+    } else {
+        code.to_owned()
+    }
+}
+
 /// Pulls the code out of a reply: the first fenced block, or the whole text if unfenced.
 /// An unterminated fence (a cut-off stream) yields what was received.
 pub fn extract_code(reply: &str) -> String {
@@ -101,6 +156,25 @@ pub fn match_final_newline(original: &str, mut code: String) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn completion_request_clips_context_around_the_cursor() {
+        let prefix = "x".repeat(5000);
+        let req = complete_request("m", EngineKind::SQLite, "", &prefix, &"y".repeat(900));
+        let text = &req.messages[0].content;
+        assert_eq!(text.matches('x').count(), PREFIX_CHARS);
+        assert_eq!(text.matches('y').count(), SUFFIX_CHARS);
+        assert!(text.contains("<cursor>"));
+        assert_eq!(req.temperature, Some(0.0));
+    }
+
+    #[test]
+    fn cleans_completions() {
+        assert_eq!(clean_completion("id, name", "SELECT "), "id, name");
+        assert_eq!(clean_completion("```sql\nid\n```", "SELECT "), "id");
+        assert_eq!(clean_completion("SELECT id", "SELECT "), "id");
+        assert_eq!(clean_completion("  \n", "SELECT "), "");
+    }
 
     #[test]
     fn chat_system_names_the_connection() {

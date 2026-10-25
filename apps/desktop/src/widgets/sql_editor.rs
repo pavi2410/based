@@ -10,7 +10,8 @@ use gpui_kit::component::{
 use gpui_kit::{App, Entity, IntoElement, ParentElement, Window, div, prelude::*, px};
 
 use crate::app::prefs;
-use crate::editor::{SchemaCache, sql_completion::SqlCompletionProvider};
+use crate::editor::SchemaCache;
+use crate::editor::sql_completion::{InlineAi, SqlCompletionProvider};
 
 pub fn new_code_input(
     language: &'static str,
@@ -38,9 +39,10 @@ pub fn new_sql_input(initial: &str, window: &mut Window, cx: &mut App) -> Entity
 pub fn attach_sql_completion(
     input: &Entity<EditorState>,
     schema_cache: Arc<SchemaCache>,
+    ai: Option<InlineAi>,
     cx: &mut App,
 ) {
-    let provider: Rc<dyn CompletionProvider> = SqlCompletionProvider::new(schema_cache);
+    let provider: Rc<dyn CompletionProvider> = SqlCompletionProvider::new(schema_cache, ai);
     input.update(cx, |state, _| {
         state.lsp_mut().completion_provider = Some(provider);
     });

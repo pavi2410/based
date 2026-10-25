@@ -26,6 +26,7 @@ use crate::app::prefs;
 use crate::bindings::AskAi;
 use crate::connection::{ConnectionId, is_connection_read_only};
 use crate::db;
+use crate::editor::sql_completion::InlineAi;
 use crate::editor::{SchemaCache, lint::lint};
 use crate::project::{ProjectRoot, ProjectVars, substitute};
 use crate::query_store::{HistoryEntry, QueryStore};
@@ -255,14 +256,18 @@ impl QueryEditorPanel {
             return;
         };
         let sql_input = self.sql_input.clone();
+        let ai = Some(InlineAi {
+            conn: self.conn_id.clone(),
+            engine: self.source.engine(),
+        });
         let empty = Arc::new(SchemaCache::new(self.source.engine()));
-        sql_editor::attach_sql_completion(&sql_input, empty, cx);
+        sql_editor::attach_sql_completion(&sql_input, empty, ai.clone(), cx);
         cx.spawn(async move |this, cx| {
             let Ok(cache) = db::run(cx, load).await else {
                 return;
             };
             let cache = Arc::new(cache);
-            cx.update(|cx| sql_editor::attach_sql_completion(&sql_input, cache.clone(), cx));
+            cx.update(|cx| sql_editor::attach_sql_completion(&sql_input, cache.clone(), ai, cx));
             let _ = this.update(cx, |p, cx| {
                 p.schema = cache;
                 p.schedule_lint(cx);

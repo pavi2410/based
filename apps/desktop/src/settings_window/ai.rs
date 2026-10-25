@@ -20,7 +20,7 @@ use crate::app::prefs;
 pub fn page() -> SettingPage {
     SettingPage::new("AI")
         .icon(Icon::new(IconName::Bot))
-        .groups(vec![model_group(), keys_group()])
+        .groups(vec![model_group(), editor_group(), keys_group()])
 }
 
 fn model_group() -> SettingGroup {
@@ -67,6 +67,19 @@ fn model_group() -> SettingGroup {
         )
         .description("Optional base URL for proxies, OpenAI-compatible servers or remote Ollama.")
         .layout(Axis::Vertical),
+    ])
+}
+
+fn editor_group() -> SettingGroup {
+    SettingGroup::new().title("Editor").items(vec![
+        SettingItem::new(
+            "Inline suggestions",
+            SettingField::switch(|cx| prefs::ai_prefs(cx).inline(), prefs::set_ai_inline),
+        )
+        .description(
+            "Suggest the rest of a SQL query as ghost text; accept with Tab. Sends the text \
+             around the cursor to the provider on every pause.",
+        ),
     ])
 }
 

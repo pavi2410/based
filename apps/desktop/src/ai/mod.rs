@@ -12,5 +12,6 @@ pub mod tools;
 
 pub use ask::ask_assistant;
 pub use host::{AiHost, OFF_NOTICE, connection_ai};
+pub use launch::complete;
 pub use prompt::AiPromptEvent;
 pub use status::{AiStatus, init};

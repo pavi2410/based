@@ -6,6 +6,7 @@
 
 use std::sync::Arc;
 
+use based_ai::tools::ToolCall;
 use based_ai::{AiError, ChatRequest, Chunk, Provider, Usage};
 use futures::StreamExt;
 use futures::channel::mpsc;
@@ -17,13 +18,15 @@ use crate::db::Tokio;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StreamEvent {
     Text(String),
+    /// The model asked to run a tool.
+    Tool(ToolCall),
     Done(Usage),
     Failed(AiError),
 }
 
 impl StreamEvent {
     fn is_terminal(&self) -> bool {
-        !matches!(self, Self::Text(_))
+        !matches!(self, Self::Text(_) | Self::Tool(_))
     }
 }
 
@@ -96,6 +99,7 @@ fn merge(batch: Vec<Result<Chunk, AiError>>) -> Vec<StreamEvent> {
     for item in batch {
         let event = match item {
             Ok(Chunk::Text(t)) => StreamEvent::Text(t),
+            Ok(Chunk::ToolCall(c)) => StreamEvent::Tool(c),
             Ok(Chunk::Done(u)) => StreamEvent::Done(u),
             Err(e) => StreamEvent::Failed(e),
         };

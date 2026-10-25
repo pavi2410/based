@@ -8,7 +8,7 @@ pub struct ToolSpec {
     pub schema: Value,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ToolCall {
     pub id: String,
     pub name: String,
@@ -39,6 +39,8 @@ impl ToolResult {
 }
 
 pub fn specs() -> Vec<ToolSpec> {
+    const QUERY: &str = "A read-only query. SQL for Postgres/SQLite; for MongoDB a JSON object \
+        {\"collection\": \"name\", \"pipeline\": [...]}; for Redis a single read command.";
     let one = |key: &str, desc: &str| json!({ "type": "object", "properties": { key: { "type": "string", "description": desc } }, "required": [key] });
     vec![
         ToolSpec {
@@ -54,12 +56,12 @@ pub fn specs() -> Vec<ToolSpec> {
         ToolSpec {
             name: "explain",
             description: "Show the query plan for a read-only statement without executing it.",
-            schema: one("query", "A read-only query"),
+            schema: one("query", QUERY),
         },
         ToolSpec {
             name: "run_readonly_query",
             description: "Run a read-only query and return up to a limited number of rows.",
-            schema: one("query", "A read-only query"),
+            schema: one("query", QUERY),
         },
     ]
 }

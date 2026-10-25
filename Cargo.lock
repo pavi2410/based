@@ -713,6 +713,7 @@ version = "0.0.0-dev"
 dependencies = [
  "anyhow",
  "based-core",
+ "futures",
  "serde",
  "serde_json",
  "sqlx",
@@ -764,6 +765,7 @@ version = "0.0.0-dev"
 dependencies = [
  "anyhow",
  "based-core",
+ "futures",
  "serde",
  "sqlx",
  "tempfile",

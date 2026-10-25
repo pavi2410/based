@@ -7,6 +7,7 @@ pub mod explain;
 pub mod inspect;
 pub mod mutations;
 pub mod page;
+pub mod readonly;
 
 pub use catalog::column_catalog;
 pub use config::{
@@ -17,3 +18,4 @@ pub use explain::{PlanNode, parse_pg_explain_json};
 pub use inspect::inspect_table;
 pub use mutations::{QueryColumn, delete_row, execute_sql, insert_row};
 pub use page::fetch_page;
+pub use readonly::query_readonly;

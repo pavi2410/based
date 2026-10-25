@@ -6,7 +6,8 @@ use crate::error::{AiError, AiErrorKind};
 use crate::http::{lazy_stream, sse_events};
 use crate::provider::{ChunkStream, Provider};
 use crate::sse::SseEvent;
-use crate::types::{ChatRequest, Chunk, Usage};
+use crate::tools::{ToolCall, ToolSpec};
+use crate::types::{ChatRequest, Chunk, Message, Role, Usage};
 
 const DEFAULT_URL: &str = "https://api.anthropic.com";
 const VERSION: &str = "2023-06-01";
@@ -63,8 +64,11 @@ fn body(r: &ChatRequest) -> Value {
         "model": r.model,
         "max_tokens": r.max_tokens,
         "stream": true,
-        "messages": r.messages,
+        "messages": wire_messages(&r.messages),
     });
+    if !r.tools.is_empty() {
+        v["tools"] = r.tools.iter().map(wire_tool).collect();
+    }
     if let Some(s) = &r.system {
         v["system"] = json!(s);
     }
@@ -74,9 +78,50 @@ fn body(r: &ChatRequest) -> Value {
     v
 }
 
+fn wire_tool(t: &ToolSpec) -> Value {
+    json!({ "name": t.name, "description": t.description, "input_schema": t.schema })
+}
+
+fn wire_messages(messages: &[Message]) -> Vec<Value> {
+    messages
+        .iter()
+        .map(|m| match (&m.role, &m.outcome) {
+            (Role::Tool, Some(o)) => json!({
+                "role": "user",
+                "content": [{
+                    "type": "tool_result",
+                    "tool_use_id": o.id,
+                    "content": m.content,
+                    "is_error": o.is_error,
+                }],
+            }),
+            (Role::Assistant, _) if !m.calls.is_empty() => {
+                let mut blocks = Vec::new();
+                if !m.content.is_empty() {
+                    blocks.push(json!({ "type": "text", "text": m.content }));
+                }
+                blocks.extend(m.calls.iter().map(
+                    |c| json!({ "type": "tool_use", "id": c.id, "name": c.name, "input": c.args }),
+                ));
+                json!({ "role": "assistant", "content": blocks })
+            }
+            (role, _) => {
+                let role = if *role == Role::Assistant {
+                    "assistant"
+                } else {
+                    "user"
+                };
+                json!({ "role": role, "content": m.content })
+            }
+        })
+        .collect()
+}
+
 #[derive(Default)]
 struct StreamState {
     usage: Usage,
+    /// Tool call being streamed: id, name and the JSON text received so far.
+    tool: Option<(String, String, String)>,
 }
 
 impl StreamState {
@@ -90,9 +135,35 @@ impl StreamState {
                 self.usage.input_tokens = tokens(&v["message"]["usage"]["input_tokens"]);
                 None
             }
+            "content_block_start" => {
+                let block = &v["content_block"];
+                if block["type"] == "tool_use" {
+                    let field = |k: &str| block[k].as_str().unwrap_or_default().to_owned();
+                    self.tool = Some((field("id"), field("name"), String::new()));
+                }
+                None
+            }
             "content_block_delta" => {
-                let text = v["delta"]["text"].as_str()?;
-                Some(Ok(Chunk::Text(text.to_owned())))
+                let delta = &v["delta"];
+                if let Some(part) = delta["partial_json"].as_str() {
+                    if let Some((_, _, json)) = &mut self.tool {
+                        json.push_str(part);
+                    }
+                    return None;
+                }
+                Some(Ok(Chunk::Text(delta["text"].as_str()?.to_owned())))
+            }
+            "content_block_stop" => {
+                let (id, name, json) = self.tool.take()?;
+                let args = if json.trim().is_empty() {
+                    Ok(json!({}))
+                } else {
+                    serde_json::from_str(&json)
+                };
+                Some(match args {
+                    Ok(args) => Ok(Chunk::ToolCall(ToolCall { id, name, args })),
+                    Err(e) => Err(AiError::protocol(format!("bad tool arguments: {e}"))),
+                })
             }
             "message_delta" => {
                 self.usage.output_tokens = tokens(&v["usage"]["output_tokens"]);
@@ -124,7 +195,7 @@ fn stream_error(e: &Value) -> AiError {
 mod tests {
     use super::*;
     use crate::sse::SseParser;
-    use crate::types::Message;
+    use crate::tools::ToolResult;
 
     const STREAM: &str = "\
 event: message_start
@@ -167,6 +238,54 @@ data: {\"type\":\"message_stop\"}
                 }),
             ]
         );
+    }
+
+    const TOOL_STREAM: &str = "\
+data: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_use\",\"id\":\"tu_1\",\"name\":\"describe_table\"}}
+
+data: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"tab\"}}
+
+data: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"le\\\":\\\"users\\\"}\"}}
+
+data: {\"type\":\"content_block_stop\",\"index\":1}
+
+";
+
+    #[test]
+    fn assembles_streamed_tool_call() {
+        let mut state = StreamState::default();
+        let chunks: Vec<_> = SseParser::default()
+            .feed(TOOL_STREAM.as_bytes())
+            .iter()
+            .filter_map(|e| state.handle(e))
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(
+            chunks,
+            vec![Chunk::ToolCall(ToolCall {
+                id: "tu_1".into(),
+                name: "describe_table".into(),
+                args: json!({ "table": "users" }),
+            })]
+        );
+    }
+
+    #[test]
+    fn wires_tool_turns() {
+        let call = ToolCall {
+            id: "tu_1".into(),
+            name: "list_tables".into(),
+            args: json!({}),
+        };
+        let msgs = vec![
+            Message::user("q"),
+            Message::assistant_calls("", vec![call.clone()]),
+            Message::tool(&call, ToolResult::ok("users")),
+        ];
+        let w = wire_messages(&msgs);
+        assert_eq!(w[1]["content"][0]["type"], "tool_use");
+        assert_eq!(w[2]["role"], "user");
+        assert_eq!(w[2]["content"][0]["tool_use_id"], "tu_1");
     }
 
     #[test]

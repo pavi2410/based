@@ -1,11 +1,12 @@
-use futures::{StreamExt, future};
+use futures::{StreamExt, stream};
 use reqwest::Client;
 use serde_json::{Value, json};
 
 use crate::error::{AiError, AiErrorKind};
 use crate::http::{lazy_stream, ndjson_lines};
 use crate::provider::{ChunkStream, Provider};
-use crate::types::{ChatRequest, Chunk, Usage};
+use crate::tools::{ToolCall, ToolSpec};
+use crate::types::{ChatRequest, Chunk, Message, Role, Usage};
 
 const DEFAULT_URL: &str = "http://localhost:11434";
 
@@ -43,10 +44,10 @@ impl Provider for Ollama {
             .json(&body(&request));
         lazy_stream(req, |resp| {
             ndjson_lines(resp)
-                .filter_map(|line| {
-                    future::ready(match line {
+                .flat_map(|line| {
+                    stream::iter(match line {
                         Ok(line) => handle(&line),
-                        Err(e) => Some(Err(e)),
+                        Err(e) => vec![Err(e)],
                     })
                 })
                 .boxed()
@@ -59,42 +60,92 @@ fn body(r: &ChatRequest) -> Value {
     if let Some(s) = &r.system {
         messages.push(json!({ "role": "system", "content": s }));
     }
-    messages.extend(r.messages.iter().map(|m| json!(m)));
+    messages.extend(r.messages.iter().map(wire_message));
     let mut options = json!({ "num_predict": r.max_tokens });
     if let Some(t) = r.temperature {
         options["temperature"] = json!(t);
     }
-    json!({
+    let mut v = json!({
         "model": r.model,
         "stream": true,
         "messages": messages,
         "options": options,
+    });
+    if !r.tools.is_empty() {
+        v["tools"] = r.tools.iter().map(wire_tool).collect();
+    }
+    v
+}
+
+fn wire_tool(t: &ToolSpec) -> Value {
+    json!({
+        "type": "function",
+        "function": { "name": t.name, "description": t.description, "parameters": t.schema },
     })
 }
 
-fn handle(line: &str) -> Option<Result<Chunk, AiError>> {
+fn wire_message(m: &Message) -> Value {
+    match (&m.role, &m.outcome) {
+        (Role::Tool, Some(o)) => {
+            json!({ "role": "tool", "tool_name": o.name, "content": m.content })
+        }
+        (Role::Assistant, _) if !m.calls.is_empty() => json!({
+            "role": "assistant",
+            "content": m.content,
+            "tool_calls": m.calls.iter().map(|c| json!({
+                "function": { "name": c.name, "arguments": c.args },
+            })).collect::<Vec<_>>(),
+        }),
+        (role, _) => {
+            let role = if *role == Role::Assistant {
+                "assistant"
+            } else {
+                "user"
+            };
+            json!({ "role": role, "content": m.content })
+        }
+    }
+}
+
+fn handle(line: &str) -> Vec<Result<Chunk, AiError>> {
     let v: Value = match serde_json::from_str(line) {
         Ok(v) => v,
-        Err(e) => return Some(Err(AiError::protocol(format!("bad line json: {e}")))),
+        Err(e) => return vec![Err(AiError::protocol(format!("bad line json: {e}")))],
     };
     if let Some(msg) = v["error"].as_str() {
-        return Some(Err(AiError::new(AiErrorKind::BadRequest, msg)));
+        return vec![Err(AiError::new(AiErrorKind::BadRequest, msg))];
+    }
+    let mut out = Vec::new();
+    if let Some(text) = v["message"]["content"].as_str().filter(|t| !t.is_empty()) {
+        out.push(Ok(Chunk::Text(text.to_owned())));
+    }
+    // Ollama sends whole calls with object arguments and no ids.
+    for (i, call) in v["message"]["tool_calls"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .enumerate()
+    {
+        let f = &call["function"];
+        out.push(Ok(Chunk::ToolCall(ToolCall {
+            id: format!("call_{i}"),
+            name: f["name"].as_str().unwrap_or_default().to_owned(),
+            args: f["arguments"].clone(),
+        })));
     }
     if v["done"].as_bool() == Some(true) {
         let count = |k: &str| v[k].as_u64().unwrap_or(0) as u32;
-        return Some(Ok(Chunk::Done(Usage {
+        out.push(Ok(Chunk::Done(Usage {
             input_tokens: count("prompt_eval_count"),
             output_tokens: count("eval_count"),
         })));
     }
-    let text = v["message"]["content"].as_str()?;
-    (!text.is_empty()).then(|| Ok(Chunk::Text(text.to_owned())))
+    out
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::Message;
 
     #[test]
     fn maps_lines_to_chunks() {
@@ -105,7 +156,7 @@ mod tests {
         ];
         let chunks: Vec<_> = lines
             .iter()
-            .filter_map(|l| handle(l))
+            .flat_map(|l| handle(l))
             .collect::<Result<_, _>>()
             .unwrap();
         assert_eq!(
@@ -122,9 +173,22 @@ mod tests {
     }
 
     #[test]
+    fn maps_tool_call_line() {
+        let line = r#"{"message":{"role":"assistant","content":"","tool_calls":[{"function":{"name":"describe_table","arguments":{"table":"users"}}}]},"done":false}"#;
+        assert_eq!(
+            handle(line),
+            vec![Ok(Chunk::ToolCall(ToolCall {
+                id: "call_0".into(),
+                name: "describe_table".into(),
+                args: json!({ "table": "users" }),
+            }))]
+        );
+    }
+
+    #[test]
     fn maps_error_line() {
         let err = handle(r#"{"error":"model not found"}"#)
-            .unwrap()
+            .remove(0)
             .unwrap_err();
         assert_eq!(err.kind, AiErrorKind::BadRequest);
     }

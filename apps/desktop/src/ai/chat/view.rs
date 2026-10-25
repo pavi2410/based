@@ -37,6 +37,7 @@ impl ChatPane {
                         .child(turn.content.clone()),
                 )
                 .into_any_element(),
+            Role::Tool => div().into_any_element(),
             Role::Assistant => div()
                 .px_3()
                 .py_1p5()

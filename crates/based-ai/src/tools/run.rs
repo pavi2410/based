@@ -1,4 +1,5 @@
 use std::fmt::Write;
+use std::sync::Arc;
 
 use based_core::EngineKind;
 use futures::future::BoxFuture;
@@ -29,6 +30,35 @@ pub trait ToolBackend: Send + Sync {
         limit: usize,
     ) -> BoxFuture<'a, Result<QueryOutput, AiError>>;
     fn explain<'a>(&'a self, query: &'a str) -> BoxFuture<'a, Result<String, AiError>>;
+}
+
+impl<T: ToolBackend + ?Sized> ToolBackend for Arc<T> {
+    fn engine(&self) -> EngineKind {
+        (**self).engine()
+    }
+
+    fn list_tables(&self) -> BoxFuture<'_, Result<Vec<String>, AiError>> {
+        (**self).list_tables()
+    }
+
+    fn describe_table<'a>(
+        &'a self,
+        table: &'a str,
+    ) -> BoxFuture<'a, Result<Option<Entity>, AiError>> {
+        (**self).describe_table(table)
+    }
+
+    fn query<'a>(
+        &'a self,
+        query: &'a str,
+        limit: usize,
+    ) -> BoxFuture<'a, Result<QueryOutput, AiError>> {
+        (**self).query(query, limit)
+    }
+
+    fn explain<'a>(&'a self, query: &'a str) -> BoxFuture<'a, Result<String, AiError>> {
+        (**self).explain(query)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

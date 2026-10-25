@@ -124,6 +124,7 @@ impl AiPrompt {
     fn on_event(&mut self, event: StreamEvent, cx: &mut Context<Self>) {
         match event {
             StreamEvent::Text(t) => self.reply.push_str(&t),
+            StreamEvent::Tool(_) => {}
             StreamEvent::Done(_) => self.finish(cx),
             StreamEvent::Failed(e) => self.fail(e, cx),
         }

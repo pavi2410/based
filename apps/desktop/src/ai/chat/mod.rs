@@ -152,6 +152,7 @@ impl ChatPane {
     fn on_event(&mut self, event: StreamEvent, cx: &mut Context<Self>) {
         match event {
             StreamEvent::Text(text) => self.draft.push_str(&text),
+            StreamEvent::Tool(_) => {}
             StreamEvent::Done(_) => {
                 let reply = take(&mut self.draft);
                 self.turns.push(Message::assistant(reply));

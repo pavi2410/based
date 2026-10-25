@@ -1,11 +1,12 @@
 //! Shared fixtures: isolated process env, app globals, and a Workspace window.
 #![allow(dead_code)]
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use std::{env, fs};
 
 use based_desktop::workspace::Workspace;
+use based_desktop::workspace::boot::WorkspaceEnv;
 use based_desktop::{init_globals, query_store, storage};
 use gpui_kit::test::TestWindowExt;
 use gpui_kit::{
@@ -18,11 +19,10 @@ fn sandbox() -> &'static PathBuf {
     static DIR: OnceLock<PathBuf> = OnceLock::new();
     DIR.get_or_init(|| {
         let dir = tempfile::tempdir().expect("tempdir").keep();
-        let project = dir.join("project");
-        fs::create_dir_all(project.join(".based")).expect("project dir");
+        fs::create_dir_all(dir.join("personal")).expect("personal dir");
+        // Guards code outside `Workspace` that still reads the personal root from the env.
         // SAFETY: runs once, inside `get_or_init`, before any test reads these vars.
         unsafe {
-            env::set_var("BASED_PROJECT_DIR", &project);
             env::set_var("XDG_CONFIG_HOME", dir.join("config"));
         }
         dir
@@ -42,8 +42,37 @@ pub fn init_app(cx: &mut TestAppContext) {
     });
 }
 
-/// Open the production [`Workspace`] in a 1200×800 headless window.
+/// Workspace with no project and an empty personal tree.
 pub fn open_workspace(cx: &mut TestAppContext) -> (AnyWindowHandle, Entity<Workspace>) {
+    open_with(cx, no_project_env())
+}
+
+/// Workspace over the project at `project_dir` (a folder containing `.based/`).
+pub fn open_project(
+    cx: &mut TestAppContext,
+    project_dir: &Path,
+) -> (AnyWindowHandle, Entity<Workspace>) {
+    open_with(
+        cx,
+        WorkspaceEnv {
+            project_dir: Some(project_dir.to_path_buf()),
+            ..no_project_env()
+        },
+    )
+}
+
+pub fn no_project_env() -> WorkspaceEnv {
+    WorkspaceEnv {
+        project_dir: None,
+        personal_root: sandbox().join("personal"),
+    }
+}
+
+/// Open the production [`Workspace`] in a 1200×800 headless window.
+pub fn open_with(
+    cx: &mut TestAppContext,
+    workspace_env: WorkspaceEnv,
+) -> (AnyWindowHandle, Entity<Workspace>) {
     init_app(cx);
     let opened = cx.update(|cx| {
         let bounds = Bounds {
@@ -56,7 +85,7 @@ pub fn open_workspace(cx: &mut TestAppContext) -> (AnyWindowHandle, Entity<Works
                 ..Default::default()
             },
             cx,
-            |window, cx| cx.new(|cx| Workspace::new(window, cx)),
+            |window, cx| cx.new(|cx| Workspace::with_env(workspace_env, window, cx)),
         )
         .expect("open workspace window");
         let _: WindowHandle<Root> = window.downcast().expect("Root");

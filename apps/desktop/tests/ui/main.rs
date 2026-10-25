@@ -2,4 +2,5 @@
 
 mod common;
 mod palette;
+mod project;
 mod tabs;

@@ -7,6 +7,7 @@
 mod approve;
 mod calls;
 mod conn;
+mod group;
 mod saved;
 mod tags;
 mod view;
@@ -193,11 +194,6 @@ impl ChatPane {
 
     fn busy(&self) -> bool {
         matches!(self.phase, Phase::Streaming | Phase::Tools)
-    }
-
-    /// Conversation turns plus the live row while a reply is pending or failed.
-    fn rows(&self) -> usize {
-        self.turns.len() + usize::from(!matches!(self.phase, Phase::Idle))
     }
 
     /// Tells the scroller how the row count changed and re-measures the growing last row.

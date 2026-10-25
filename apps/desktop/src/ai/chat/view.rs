@@ -1,60 +1,20 @@
-use based_ai::{Message, Role};
+use based_ai::Message;
 use gpui_kit::component::{
     ActiveTheme, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex,
     input::Textarea,
     message_scroller::MessageScroller,
-    text::TextView,
     v_flex,
 };
 use gpui_kit::{
-    AnyElement, App, Context, Entity, IntoElement, ParentElement, Render, StyleRefinement, Styled,
-    Window, div, px,
+    AnyElement, App, Context, IntoElement, ParentElement, Render, StyleRefinement, Styled, Window,
+    div, px,
 };
 
-use super::{ChatPane, Phase};
-use crate::ai::launch::error_text;
+use super::ChatPane;
 
 impl ChatPane {
-    fn row(&self, ix: usize, this: &Entity<Self>, cx: &App) -> AnyElement {
-        let Some(turn) = self.turns.get(ix) else {
-            return self.live_row(ix, cx);
-        };
-        match turn.role {
-            Role::User => user_row(turn, cx),
-            Role::Assistant => assistant_row(turn, ix),
-            Role::Tool => self.call_row(ix, this, cx),
-        }
-    }
-
-    /// The row after the last turn: reply in progress, or why it failed.
-    fn live_row(&self, ix: usize, cx: &App) -> AnyElement {
-        let theme = cx.theme();
-        let body = match &self.phase {
-            Phase::Failed(e) => div()
-                .text_sm()
-                .text_color(theme.danger)
-                .child(error_text(e))
-                .into_any_element(),
-            Phase::Tools => v_flex()
-                .gap_1()
-                .child(self.running_calls(cx))
-                .children(
-                    self.pending
-                        .is_some()
-                        .then(|| muted_line("Waiting for your approval...", cx)),
-                )
-                .into_any_element(),
-            _ if self.draft.is_empty() => muted_line("Thinking...", cx),
-            _ => div()
-                .text_sm()
-                .child(TextView::markdown(("chat-reply", ix), self.draft.clone()).stream_fade(true))
-                .into_any_element(),
-        };
-        div().px_3().py_1p5().child(body).into_any_element()
-    }
-
     fn empty_state(&self, cx: &App) -> AnyElement {
         let muted = cx.theme().muted_foreground;
         v_flex()
@@ -128,7 +88,7 @@ impl Render for ChatPane {
                 this.read(cx).row(ix, &this, cx)
             })
             // Rows carry their own spacing so consecutive tool calls sit together.
-            .with_row_style(StyleRefinement::default().pb_0().px_0())
+            .with_row_style(StyleRefinement::default().pb(px(12.0)).px_0())
             .into_any_element()
         };
         v_flex()
@@ -138,7 +98,7 @@ impl Render for ChatPane {
     }
 }
 
-fn muted_line(text: &'static str, cx: &App) -> AnyElement {
+pub(super) fn muted_line(text: &'static str, cx: &App) -> AnyElement {
     div()
         .text_sm()
         .text_color(cx.theme().muted_foreground)
@@ -146,11 +106,10 @@ fn muted_line(text: &'static str, cx: &App) -> AnyElement {
         .into_any_element()
 }
 
-fn user_row(turn: &Message, cx: &App) -> AnyElement {
+pub(super) fn user_row(turn: &Message, cx: &App) -> AnyElement {
     h_flex()
         .justify_end()
         .px_3()
-        .py_1p5()
         .child(
             div()
                 .max_w(px(260.0))
@@ -161,18 +120,5 @@ fn user_row(turn: &Message, cx: &App) -> AnyElement {
                 .text_sm()
                 .child(turn.content.clone()),
         )
-        .into_any_element()
-}
-
-fn assistant_row(turn: &Message, ix: usize) -> AnyElement {
-    if turn.content.is_empty() {
-        // Tool-call-only turn: the calls render as their own rows.
-        return div().h(px(0.0)).into_any_element();
-    }
-    div()
-        .px_3()
-        .py_1p5()
-        .text_sm()
-        .child(TextView::markdown(("chat-reply", ix), turn.content.clone()).selectable(true))
         .into_any_element()
 }

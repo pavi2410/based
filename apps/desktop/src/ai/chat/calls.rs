@@ -5,7 +5,7 @@ use based_ai::{Message, Role};
 use gpui_kit::component::{ActiveTheme, Icon, IconName, Sizable as _, h_flex, v_flex};
 use gpui_kit::{
     AnyElement, App, Context, Entity, InteractiveElement as _, IntoElement, ParentElement,
-    StatefulInteractiveElement as _, Styled, div,
+    StatefulInteractiveElement as _, Styled, div, px,
 };
 
 use super::ChatPane;
@@ -63,7 +63,7 @@ impl ChatPane {
         let line = h_flex()
             .id(("chat-call", ix))
             .gap_1p5()
-            .mx_2()
+            .ml(px(-4.0))
             .px_1()
             .py_0p5()
             .items_center()
@@ -105,9 +105,7 @@ impl ChatPane {
         };
         let mut col = v_flex()
             .gap_1()
-            .mx_3()
-            .mt_0p5()
-            .mb_1()
+            .mt_1()
             .px_2()
             .py_1()
             .rounded_md()
@@ -163,8 +161,10 @@ impl ChatPane {
         if !self.expanded.remove(&ix) {
             self.expanded.insert(ix);
         }
-        self.scroller
-            .update(cx, |s, cx| s.remeasure_items(ix..ix + 1, cx));
+        if let Some(row) = self.row_of_turn(ix) {
+            self.scroller
+                .update(cx, |s, cx| s.remeasure_items(row..row + 1, cx));
+        }
         cx.notify();
     }
 }

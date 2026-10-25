@@ -5,6 +5,7 @@ pub mod commands;
 pub mod dispatch;
 pub mod inbox;
 pub mod infer;
+pub mod kind;
 pub mod label;
 pub mod manager;
 pub mod menu;
@@ -15,6 +16,7 @@ pub mod spec;
 
 pub use close::{CloseOutcome, ClosePrompt, CloseScope};
 pub use inbox::{Inbox, Request, request_workspace_flush};
+pub use kind::PanelKind;
 pub use label::render_strip_tab;
 pub use manager::{TabEvent, TabManager};
 pub use navigation::TabNavigationHistory;

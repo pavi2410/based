@@ -16,25 +16,24 @@ use crate::workspace::panels::object_info::ConnectionDashboardPanel;
 use crate::workspace::panels::query_editor::QueryEditorPanel;
 use crate::workspace::panels::release_notes::ReleaseNotesPanel;
 
+use super::kind::PanelKind;
 use super::spec::{QueryEditorInit, TabSpec};
 
 pub(crate) fn infer_tab_spec(panel: &Arc<dyn PanelView>, cx: &App) -> Option<TabSpec> {
-    match panel.panel_name(cx) {
-        "HomePanel" => Some(TabSpec::Home),
-        "ConnectionDashboard" => panel
+    match PanelKind::of(panel, cx) {
+        PanelKind::Home => Some(TabSpec::Home),
+        PanelKind::Dashboard => panel
             .view()
             .downcast::<ConnectionDashboardPanel>()
             .ok()
             .map(|ent| TabSpec::Dashboard {
                 conn_id: ent.read(cx).connection_id(cx),
             }),
-        "PgQueryEditor" | "SqliteQueryEditor" => {
-            panel.view().downcast::<QueryEditorPanel>().ok().map(|ent| {
-                let panel = ent.read(cx);
-                query_editor_spec(panel.connection_id().clone(), panel.current_sql(cx))
-            })
-        }
-        "MongoPipelineBuilder" => panel
+        PanelKind::QueryEditor => panel.view().downcast::<QueryEditorPanel>().ok().map(|ent| {
+            let panel = ent.read(cx);
+            query_editor_spec(panel.connection_id().clone(), panel.current_sql(cx))
+        }),
+        PanelKind::Pipeline => panel
             .view()
             .downcast::<PipelineBuilderPanel>()
             .ok()
@@ -45,14 +44,14 @@ pub(crate) fn infer_tab_spec(panel: &Arc<dyn PanelView>, cx: &App) -> Option<Tab
                     collection: panel.pipeline_collection().to_string(),
                 }
             }),
-        "ReleaseNotesPanel" => panel
+        PanelKind::ReleaseNotes => panel
             .view()
             .downcast::<ReleaseNotesPanel>()
             .ok()
             .map(|ent| TabSpec::ReleaseNotes {
                 version: ent.read(cx).version_label(cx),
             }),
-        "ConnectionWizard" => panel
+        PanelKind::Wizard => panel
             .view()
             .downcast::<ConnectionWizardPanel>()
             .ok()

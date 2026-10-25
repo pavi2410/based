@@ -7,6 +7,7 @@ use gpui_kit::component::dock::{Panel, PanelView};
 use gpui_kit::{App, Context, Entity, EntityId, Focusable, Window, prelude::*};
 
 use super::Workspace;
+use super::tabs::PanelKind;
 use super::tabs::infer;
 use super::tabs::manager::DockTab;
 use crate::connection::ConnectionId;
@@ -52,7 +53,7 @@ impl Workspace {
         cx: &App,
     ) -> Option<Arc<dyn PanelView>> {
         for panel in self.tab_manager.read(cx).panels() {
-            if panel.panel_name(cx) != "ConnectionWizard" {
+            if PanelKind::of(&panel, cx) != PanelKind::Wizard {
                 continue;
             }
             let Ok(ent) = panel.view().downcast::<ConnectionWizardPanel>() else {

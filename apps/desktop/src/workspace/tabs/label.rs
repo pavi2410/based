@@ -12,6 +12,7 @@ use gpui_kit::{App, EntityId, Hsla, IntoElement, SharedString, div, prelude::*, 
 use crate::workspace::WorkspaceRef;
 
 use super::CloseScope;
+use super::kind::PanelKind;
 use super::menu::tab_context_menu;
 use super::open::TabManagerRef;
 use super::spec::TabSpec;
@@ -103,16 +104,23 @@ fn tab_icon(spec: &TabSpec, theme: &Theme) -> (IconName, Hsla) {
 
 fn builtin_icon(panel: &str, theme: &Theme) -> (IconName, Hsla) {
     let (blue, green, red) = (theme.blue_light, theme.green_light, theme.red_light);
-    match panel {
-        p if p.ends_with("DataViewer") => (IconName::LayoutDashboard, blue),
-        p if p.ends_with("Inspector") => (IconName::Inspector, blue),
-        p if p.ends_with("DocumentViewer") => (IconName::Inbox, green),
-        p if p.ends_with("DocumentEditor") => (IconName::Plus, green),
-        p if p.ends_with("ChangeStream") => (IconName::Redo2, green),
-        p if p.starts_with("Redis") && p.ends_with("Console") => (IconName::SquareTerminal, red),
-        p if p.starts_with("Redis") => (IconName::Asterisk, red),
-        "ObjectInfo" => (IconName::Info, theme.muted_foreground),
-        _ => (IconName::Settings, theme.muted_foreground),
+    let muted = theme.muted_foreground;
+    match PanelKind::from_name(panel) {
+        PanelKind::DataViewer => (IconName::LayoutDashboard, blue),
+        PanelKind::Inspector => (IconName::Inspector, blue),
+        PanelKind::DocumentViewer => (IconName::Inbox, green),
+        PanelKind::DocumentEditor => (IconName::Plus, green),
+        PanelKind::ChangeStream => (IconName::Redo2, green),
+        PanelKind::RedisConsole => (IconName::SquareTerminal, red),
+        PanelKind::Redis => (IconName::Asterisk, red),
+        PanelKind::ObjectInfo => (IconName::Info, muted),
+        PanelKind::Home
+        | PanelKind::Dashboard
+        | PanelKind::Wizard
+        | PanelKind::ReleaseNotes
+        | PanelKind::QueryEditor
+        | PanelKind::Pipeline
+        | PanelKind::Other => (IconName::Settings, muted),
     }
 }
 

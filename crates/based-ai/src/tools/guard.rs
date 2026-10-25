@@ -91,13 +91,13 @@ fn forbidden_key(v: &serde_json::Value) -> Option<&'static str> {
     }
 }
 
-fn check_sql(sql: &str, dollar_quotes: bool) -> Result<(), String> {
-    let (words, statements) = scan(sql, dollar_quotes);
+fn check_sql(sql: &str, postgres: bool) -> Result<(), String> {
+    let (words, statements) = scan(sql, postgres);
     if statements > 1 {
         return Err("multiple statements are not allowed".into());
     }
     let first = words.first().map(String::as_str).unwrap_or("");
-    if !SQL_START.contains(&first) {
+    if !SQL_START.contains(&first) || (first == "show" && !postgres) {
         return Err(format!(
             "`{first}` statements are not allowed in read-only mode"
         ));
@@ -115,7 +115,7 @@ fn check_sql(sql: &str, dollar_quotes: bool) -> Result<(), String> {
 
 /// Lowercased bare words outside strings/identifiers/comments, plus the number of
 /// non-empty statements.
-fn scan(sql: &str, dollar_quotes: bool) -> (Vec<String>, usize) {
+fn scan(sql: &str, postgres: bool) -> (Vec<String>, usize) {
     let chars: Vec<char> = sql.chars().collect();
     let mut words = Vec::new();
     let mut statements = 0;
@@ -143,7 +143,7 @@ fn scan(sql: &str, dollar_quotes: bool) -> (Vec<String>, usize) {
                 i += 2;
                 continue;
             }
-            '$' if dollar_quotes => {
+            '$' if postgres => {
                 if let Some(end) = dollar_quote_end(&chars, i) {
                     i = end;
                     has_content = true;
@@ -255,6 +255,12 @@ mod tests {
         ] {
             assert!(sql(q).is_err(), "{q}");
         }
+    }
+
+    #[test]
+    fn show_is_postgres_only() {
+        assert!(sql("SHOW search_path").is_ok());
+        assert!(check(EngineKind::SQLite, "SHOW tables").is_err());
     }
 
     #[test]

@@ -56,6 +56,7 @@ depends = [
 [dependencies]
 based-core = { path = "../../crates/based-core" }
 based-mongo = { path = "../../crates/based-mongo" }
+based-ai = { path = "../../crates/based-ai" }
 based-project = { path = "../../crates/based-project" }
 based-query = { path = "../../crates/based-query" }
 based-postgres = { path = "../../crates/based-postgres" }

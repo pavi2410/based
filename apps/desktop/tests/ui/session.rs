@@ -121,6 +121,8 @@ fn tabs_for_unavailable_connections_survive_a_save(cx: &mut TestAppContext) {
         filter: None,
     };
     let (win, ws) = open_workspace(cx);
+    // Let the first window's own save land, or it could overwrite the seeded snapshot.
+    wait_saved(cx, &TabSpec::Home);
     store_session(
         cx,
         &SessionSnapshot {

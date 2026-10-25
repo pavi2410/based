@@ -5,6 +5,7 @@ pub mod data_viewer;
 pub mod home;
 pub mod inspector;
 pub mod object_info;
+pub mod query_ai;
 pub mod query_editor;
 pub mod release_notes;
 pub mod table_inspector;

@@ -5,4 +5,5 @@ pub mod schema;
 mod status;
 mod stream;
 
+pub use prompt::{AiPrompt, AiPromptEvent};
 pub use status::{AiStatus, init};

@@ -9,7 +9,7 @@ use based_core::EngineKind;
 use based_query::{Lint, Severity};
 use futures::future::BoxFuture;
 use gpui_kit::component::{
-    ActiveTheme, IconName, Sizable as _, Theme,
+    ActiveTheme, IconName, Selectable as _, Sizable as _, Theme,
     button::{Button, ButtonVariants},
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
@@ -21,7 +21,9 @@ use gpui_kit::component::{
 };
 use gpui_kit::{App, Entity, prelude::*, *};
 
+use crate::ai::AiPrompt;
 use crate::app::prefs;
+use crate::bindings::AskAi;
 use crate::connection::{ConnectionId, is_connection_read_only};
 use crate::db;
 use crate::editor::{SchemaCache, lint::lint};
@@ -103,10 +105,10 @@ enum ExplainView {
 
 pub struct QueryEditorPanel {
     focus_handle: FocusHandle,
-    source: Arc<dyn QuerySource>,
-    conn_id: ConnectionId,
-    sql_input: Entity<EditorState>,
-    schema: Arc<SchemaCache>,
+    pub(super) source: Arc<dyn QuerySource>,
+    pub(super) conn_id: ConnectionId,
+    pub(super) sql_input: Entity<EditorState>,
+    pub(super) schema: Arc<SchemaCache>,
     lint_seq: u64,
     result: Entity<TableState<RowDelegate>>,
     status: QueryStatus,
@@ -114,6 +116,8 @@ pub struct QueryEditorPanel {
     bottom_tab: BottomTab,
     explain: ExplainView,
     dirty: bool,
+    pub(super) ai: Entity<AiPrompt>,
+    pub(super) ai_open: bool,
     pub(crate) tab_label: SharedString,
 }
 
@@ -153,6 +157,8 @@ impl QueryEditorPanel {
             bottom_tab: BottomTab::Results,
             explain: ExplainView::Empty,
             dirty: false,
+            ai: Self::new_ai(window, cx),
+            ai_open: false,
             tab_label: "Query".into(),
         };
         let conn_for_dirty = panel.conn_id.clone();
@@ -587,6 +593,15 @@ impl QueryEditorPanel {
                     .label("Explain")
                     .on_click(cx.listener(|panel, _, _, cx| panel.switch_to_explain(cx))),
             )
+            .child(
+                Button::new(format!("{id}-ai"))
+                    .ghost()
+                    .small()
+                    .icon(IconName::Bot)
+                    .label("Ask AI")
+                    .selected(self.ai_open)
+                    .on_click(cx.listener(|panel, _, window, cx| panel.toggle_ai(window, cx))),
+            )
             .when(read_only, |h| {
                 h.child(metadata_pill("access", "Read-only", cx)).child(
                     div()
@@ -658,7 +673,9 @@ impl Render for QueryEditorPanel {
                 .w_full()
                 .h_full()
                 .min_h(px(0.0))
+                .on_action(cx.listener(|panel, _: &AskAi, window, cx| panel.toggle_ai(window, cx)))
                 .child(toolbar)
+                .when(self.ai_open, |v| v.child(self.ai.clone()))
                 .child(
                     div().flex_1().min_h(px(0.0)).child(
                         v_resizable(SharedString::from(format!("{id}-query-split")))

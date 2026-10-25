@@ -1,6 +1,8 @@
 //! Inline AI prompt bar: instruction in, reviewable diff out. Never edits the editor itself;
 //! the host applies the proposal after the user accepts it.
 
+use std::mem::take;
+
 use based_ai::{AiError, AiErrorKind, prompt};
 use based_core::EngineKind;
 use based_storage::SecretStore;
@@ -163,7 +165,7 @@ impl AiPrompt {
     }
 
     fn apply(&mut self, cx: &mut Context<Self>) {
-        let text = std::mem::take(&mut self.proposal);
+        let text = take(&mut self.proposal);
         self.reset(cx);
         cx.emit(AiPromptEvent::Apply(text));
     }

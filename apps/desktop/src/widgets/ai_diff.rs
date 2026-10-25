@@ -2,7 +2,11 @@
 
 use based_ai::patch;
 use gpui_kit::component::diff::{Diff, DiffFile, DiffState};
-use gpui_kit::{Entity, IntoElement, Pixels, Styled, prelude::*};
+use gpui_kit::{Entity, IntoElement, Pixels, Styled, div, prelude::*, px};
+
+/// Approximate row height and the hunk header plus surrounding context rows.
+const ROW_PX: f32 = 22.0;
+const CONTEXT_ROWS: usize = 7;
 
 pub struct AiDiff {
     state: Entity<DiffState>,
@@ -34,11 +38,14 @@ impl AiDiff {
         (self.additions, self.deletions)
     }
 
-    /// The diff surface. It owns its scrolling, so the height must be bounded.
+    /// The diff surface. It is a virtualized list that fills its parent, so it needs a
+    /// definite height (a max height collapses it): sized to the change, capped at `max_height`.
     pub fn view(&self, max_height: Pixels) -> impl IntoElement {
-        Diff::new(&self.state)
-            .header_visible(false)
-            .max_h(max_height)
+        let rows = (self.additions + self.deletions + CONTEXT_ROWS) as f32;
+        div()
+            .w_full()
+            .h((px(rows * ROW_PX)).min(max_height))
+            .child(Diff::new(&self.state).header_visible(false))
     }
 }
 

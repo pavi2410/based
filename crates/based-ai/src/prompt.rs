@@ -56,9 +56,29 @@ pub fn extract_code(reply: &str) -> String {
     code.trim_end().to_owned()
 }
 
+/// Gives `code` the same trailing-newline state as `original`, so a diff doesn't flag the
+/// model's habit of dropping (or adding) the final newline as a change.
+pub fn match_final_newline(original: &str, mut code: String) -> String {
+    let wants = original.ends_with('\n');
+    if wants && !code.ends_with('\n') {
+        code.push('\n');
+    } else if !wants && code.ends_with('\n') {
+        code.truncate(code.trim_end_matches('\n').len());
+    }
+    code
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn final_newline_follows_the_original() {
+        assert_eq!(match_final_newline("a\n", "b".into()), "b\n");
+        assert_eq!(match_final_newline("a", "b\n".into()), "b");
+        assert_eq!(match_final_newline("a\n", "b\n".into()), "b\n");
+        assert_eq!(match_final_newline("", "b".into()), "b");
+    }
 
     #[test]
     fn extracts_fenced_block_ignoring_chatter() {

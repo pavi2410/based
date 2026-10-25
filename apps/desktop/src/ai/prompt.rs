@@ -152,6 +152,7 @@ impl AiPrompt {
         if code.trim().is_empty() {
             return self.fail(AiError::protocol("the model returned no query"), cx);
         }
+        let code = prompt::match_final_newline(&self.original, code);
         self.diff = AiDiff::new("query.sql", "sql", &self.original, &code, cx);
         self.proposal = code;
         self.phase = Phase::Proposal;

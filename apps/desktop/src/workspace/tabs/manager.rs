@@ -23,12 +23,21 @@ pub struct TabManager {
 }
 
 impl TabManager {
-    /// Open a new tab or focus the existing one for this spec.
-    /// QueryEditor always opens a new tab (caller passes a fresh spec each time).
+    /// Open a new tab or focus the existing one for this panel view or spec.
+    ///
+    /// Dock sync can register a panel's view before this is called, so the view
+    /// is matched first and its spec upgraded to the authoritative one.
+    /// QueryEditor never dedups by spec (callers pass a fresh spec each time).
     pub fn open_or_focus(&mut self, spec: TabSpec, view: AnyView, cx: &mut Context<Self>) {
-        // QueryEditor: always new
         let is_query = matches!(spec, TabSpec::QueryEditor { .. });
-        if !is_query && let Some(idx) = self.tabs.iter().position(|t| t.spec == spec) {
+        let existing = self.tabs.iter().position(|t| t.view == view).or_else(|| {
+            if is_query {
+                return None;
+            }
+            self.tabs.iter().position(|t| t.spec == spec)
+        });
+        if let Some(idx) = existing {
+            self.tabs[idx].spec = spec;
             self.active_idx = Some(idx);
             cx.emit(TabEvent::ActiveChanged(idx));
             cx.notify();

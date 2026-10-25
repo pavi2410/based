@@ -85,10 +85,8 @@ fn opening_same_spec_twice_does_not_duplicate(cx: &mut TestAppContext) {
     assert_eq!(tab_count(&ws, cx), 2, "Home + one tab");
 }
 
-// Dock sync registers the panel with an inferred `Builtin` spec first, then
-// `open_or_focus` pushes a second entry for the same view.
+// Dock sync registers the panel before `open_or_focus` runs; both must share one entry.
 #[gpui_kit::test]
-#[ignore = "known bug: TabManager gets two entries for one ObjectInfo panel"]
 fn one_manager_entry_per_panel(cx: &mut TestAppContext) {
     let (win, ws) = open_workspace(cx);
     open(win, &ws, info("a"), cx);

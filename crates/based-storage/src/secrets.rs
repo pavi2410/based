@@ -3,6 +3,9 @@
 //! Non-secret metadata lives in SQLite; literal passwords and other secrets are
 //! stored under `based/<ref>` accounts in the platform credential store.
 
+use std::collections::HashMap;
+use std::sync::{Mutex, MutexGuard, OnceLock};
+
 use anyhow::{Context, Result};
 use keyring::Entry;
 
@@ -15,6 +18,14 @@ impl Default for SecretStore {
     fn default() -> Self {
         Self
     }
+}
+
+fn ai_cache() -> MutexGuard<'static, HashMap<String, String>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+    CACHE
+        .get_or_init(Mutex::default)
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 impl SecretStore {
@@ -57,15 +68,27 @@ impl SecretStore {
         format!("ai:{provider}:api-key")
     }
 
+    /// Cached for the process lifetime: each keychain read can raise an OS password prompt,
+    /// and AI features read the key on every request.
     pub fn get_ai_key(&self, provider: &str) -> Result<Option<String>> {
-        self.get(&Self::ai_key_ref(provider))
+        if let Some(key) = ai_cache().get(provider) {
+            return Ok(Some(key.clone()));
+        }
+        let key = self.get(&Self::ai_key_ref(provider))?;
+        if let Some(key) = &key {
+            ai_cache().insert(provider.to_owned(), key.clone());
+        }
+        Ok(key)
     }
 
     pub fn set_ai_key(&self, provider: &str, key: &str) -> Result<()> {
-        self.set(&Self::ai_key_ref(provider), key)
+        self.set(&Self::ai_key_ref(provider), key)?;
+        ai_cache().insert(provider.to_owned(), key.to_owned());
+        Ok(())
     }
 
     pub fn delete_ai_key(&self, provider: &str) -> Result<()> {
+        ai_cache().remove(provider);
         self.delete(&Self::ai_key_ref(provider))
     }
 }

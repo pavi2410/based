@@ -60,115 +60,125 @@ impl Render for ConnectionWizardPanel {
             .items_center()
             .overflow_y_scrollbar()
             .child(
-                v_flex()
-                    .w(px(WIZARD_COLUMN_W))
-                    .gap_3()
-                    .py_4()
-                    .px_4()
-                    .child(
-                        h_flex()
-                            .w_full()
-                            .items_center()
-                            .justify_between()
-                            .child(
-                                div()
-                                    .text_sm()
-                                    .font_weight(FontWeight::SEMIBOLD)
-                                    .child(heading),
-                            )
-                            .when(engine == EngineKind::Postgres, |h| {
-                                h.child(
-                                    Button::new("wizard-import-url")
-                                        .ghost()
-                                        .label("Import from URL")
-                                        .on_click(cx.listener(|panel, _, window, cx| {
-                                            panel.open_import_url_dialog(window, cx);
-                                        })),
-                                )
-                            }),
-                    )
-                    .child(labeled_field(
-                        "Engine",
-                        muted,
-                        Select::new(&self.engine).disabled(editing).w_full(),
-                    ))
-                    .when(engine == EngineKind::Postgres, |v| {
-                        self.postgres_fields(v, muted, cx)
-                    })
-                    .when(engine == EngineKind::MongoDB, |v| {
-                        self.mongo_fields(v, muted, cx)
-                    })
-                    .when(engine == EngineKind::Redis, |v| {
-                        self.redis_fields(v, muted, cx)
-                    })
-                    .when(engine == EngineKind::SQLite, |v| {
-                        self.sqlite_fields(v, muted, cx)
-                    })
-                    .child(
-                        h_flex()
-                            .gap_2()
-                            .child(
-                                Button::new("wizard-test")
-                                    .label("Test")
-                                    .disabled(busy)
-                                    .on_click(
-                                        cx.listener(|panel, _, _, cx| panel.test_connection(cx)),
-                                    ),
-                            )
-                            .when(!editing, |h| {
-                                h.child(
-                                    Button::new("wizard-connect")
-                                        .primary()
-                                        .label("Connect")
-                                        .disabled(busy)
-                                        .on_click(cx.listener(|panel, _, window, cx| {
-                                            panel.connect(window, cx)
-                                        })),
-                                )
-                            }),
-                    )
-                    .when(show_status, |v| {
-                        v.child(
+            v_flex()
+                .w(px(WIZARD_COLUMN_W))
+                .gap_3()
+                .py_4()
+                .px_4()
+                .child(
+                    h_flex()
+                        .w_full()
+                        .items_center()
+                        .justify_between()
+                        .child(
                             div()
                                 .text_sm()
-                                .when(is_err, |d| d.text_color(cx.theme().red))
-                                .child(status),
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .child(heading),
                         )
-                    })
-                    .child(Separator::horizontal())
-                    .child(labeled_field(
-                        "Name",
-                        muted,
-                        Input::new(&self.name)
-                            .cleanable(true)
-                            .aria_label("Connection name"),
-                    ))
-                    .child(
-                        v_flex()
-                            .gap_1()
-                            .child(div().text_xs().text_color(muted).child("Tags"))
-                            .child(h_flex().gap_1().flex_wrap().children(tag_chips))
-                            .child(
-                                Input::new(&self.tag_input)
-                                    .cleanable(true)
-                                    .aria_label("Add a tag"),
-                            ),
+                        .when(engine == EngineKind::Postgres, |h| {
+                            h.child(
+                                Button::new("wizard-import-url")
+                                    .ghost()
+                                    .label("Import from URL")
+                                    .on_click(cx.listener(|panel, _, window, cx| {
+                                        panel.open_import_url_dialog(window, cx);
+                                    })),
+                            )
+                        }),
+                )
+                .child(labeled_field(
+                    "Engine",
+                    muted,
+                    Select::new(&self.engine).disabled(editing).w_full(),
+                ))
+                .when(engine == EngineKind::Postgres, |v| {
+                    self.postgres_fields(v, muted, cx)
+                })
+                .when(engine == EngineKind::MongoDB, |v| {
+                    self.mongo_fields(v, muted, cx)
+                })
+                .when(engine == EngineKind::Redis, |v| {
+                    self.redis_fields(v, muted, cx)
+                })
+                .when(engine == EngineKind::SQLite, |v| {
+                    self.sqlite_fields(v, muted, cx)
+                })
+                .child(
+                    h_flex()
+                        .gap_2()
+                        .child(
+                            Button::new("wizard-test")
+                                .label("Test")
+                                .disabled(busy)
+                                .on_click(cx.listener(|panel, _, _, cx| panel.test_connection(cx))),
+                        )
+                        .when(!editing, |h| {
+                            h.child(
+                                Button::new("wizard-connect")
+                                    .primary()
+                                    .label("Connect")
+                                    .disabled(busy)
+                                    .on_click(cx.listener(|panel, _, window, cx| {
+                                        panel.connect(window, cx)
+                                    })),
+                            )
+                        }),
+                )
+                .when(show_status, |v| {
+                    v.child(
+                        div()
+                            .text_sm()
+                            .when(is_err, |d| d.text_color(cx.theme().red))
+                            .child(status),
                     )
-                    .when(cx.has_global::<ProjectRoot>() && !editing, |v| {
-                        v.child(destination_row(
-                            self.destination,
+                })
+                .child(Separator::horizontal())
+                .child(labeled_field(
+                    "Name",
+                    muted,
+                    Input::new(&self.name)
+                        .cleanable(true)
+                        .aria_label("Connection name"),
+                ))
+                .child(
+                    v_flex()
+                        .gap_1()
+                        .child(div().text_xs().text_color(muted).child("Tags"))
+                        .child(h_flex().gap_1().flex_wrap().children(tag_chips))
+                        .child(
+                            Input::new(&self.tag_input)
+                                .cleanable(true)
+                                .aria_label("Add a tag"),
+                        ),
+                )
+                .child(
+                    v_flex()
+                        .gap_1()
+                        .child(labeled_field(
+                            "AI assistant",
                             muted,
-                            cx,
-                            |panel, dest| panel.destination = Some(dest),
+                            Select::new(&self.ai_select).w_full(),
                         ))
-                    })
-                    .child(
-                        Button::new("wizard-save")
-                            .when(editing, |b| b.primary())
-                            .label("Save")
-                            .disabled(busy)
-                            .on_click(cx.listener(|panel, _, window, cx| panel.save(window, cx))),
-                    ),
-            )
+                        .child(div().text_xs().text_color(muted).child(
+                            "What the model may see. Queries are never run without confirmation.",
+                        )),
+                )
+                .when(cx.has_global::<ProjectRoot>() && !editing, |v| {
+                    v.child(destination_row(
+                        self.destination,
+                        muted,
+                        cx,
+                        |panel, dest| panel.destination = Some(dest),
+                    ))
+                })
+                .child(
+                    Button::new("wizard-save")
+                        .when(editing, |b| b.primary())
+                        .label("Save")
+                        .disabled(busy)
+                        .on_click(cx.listener(|panel, _, window, cx| panel.save(window, cx))),
+                ),
+        )
     }
 }

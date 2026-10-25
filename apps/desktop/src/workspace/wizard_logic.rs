@@ -2,6 +2,8 @@
 
 use std::path::Path;
 
+use based_project::{AiContext, AiSettings};
+
 use crate::connection::{ConnectionConfig, ConnectionId, ConnectionOrigin, EngineKind};
 use crate::postgres::SslMode;
 
@@ -85,6 +87,30 @@ pub fn ssl_mode_from_toggle(enabled: bool, selected: Option<SslMode>) -> SslMode
 
 pub fn ssl_toggle_enabled(mode: SslMode) -> bool {
     !matches!(mode, SslMode::Disable)
+}
+
+pub const AI_LABELS: &[&str] = &["Off", "Schema only", "Schema and sample rows"];
+
+/// Form label for a connection's `[ai]` settings.
+pub fn ai_label(ai: Option<AiSettings>) -> &'static str {
+    match ai.map(|a| a.effective_context()) {
+        None | Some(AiContext::Off) => AI_LABELS[0],
+        Some(AiContext::Schema) => AI_LABELS[1],
+        Some(AiContext::SchemaRows) => AI_LABELS[2],
+    }
+}
+
+/// `None` (no `[ai]` table) for Off.
+pub fn ai_from_label(label: &str) -> Option<AiSettings> {
+    let context = match AI_LABELS.iter().position(|l| *l == label)? {
+        1 => AiContext::Schema,
+        2 => AiContext::SchemaRows,
+        _ => return None,
+    };
+    Some(AiSettings {
+        enabled: true,
+        context,
+    })
 }
 
 pub fn wizard_engine_label(engine: EngineKind) -> &'static str {
@@ -217,6 +243,21 @@ fn sqlite_stem(path: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn ai_labels_round_trip() {
+        assert_eq!(ai_from_label("Off"), None);
+        assert_eq!(ai_from_label("nonsense"), None);
+        for label in &AI_LABELS[1..] {
+            assert_eq!(ai_label(ai_from_label(label)), *label);
+        }
+        let disabled = AiSettings {
+            enabled: false,
+            context: AiContext::SchemaRows,
+        };
+        assert_eq!(ai_label(Some(disabled)), "Off");
+        assert_eq!(ai_label(None), "Off");
+    }
+
     use super::*;
     use crate::postgres::PostgresConfig;
     use crate::sqlite::SqliteConfig;

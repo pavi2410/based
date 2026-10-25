@@ -113,6 +113,11 @@ impl ConnectionWizardPanel {
         })
     }
 
+    pub(super) fn current_ai(&self, cx: &App) -> Option<AiSettings> {
+        let label = self.ai_select.read(cx).selected_value().copied()?;
+        ai_from_label(label)
+    }
+
     pub(super) fn current_ssl_mode(&self, cx: &App) -> SslMode {
         let selected = self
             .ssl_mode

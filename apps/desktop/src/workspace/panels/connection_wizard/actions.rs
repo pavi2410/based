@@ -83,7 +83,7 @@ impl ConnectionWizardPanel {
                 destination,
                 session_id,
                 self.tags.clone(),
-                self.ai,
+                self.current_ai(cx),
                 cx,
             )
         });

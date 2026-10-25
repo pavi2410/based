@@ -3,8 +3,8 @@
 use std::path::Path;
 
 use based_project::{
-    AiSettings, ConnectionSpec, EnvOrString, PragmaSettings, ProjectConnection, SshSettings, secret_env_key, slug_from_label, upsert_env_file,
-    write_connection_file,
+    AiSettings, ConnectionSpec, EnvOrString, PragmaSettings, ProjectConnection, SshSettings,
+    secret_env_key, slug_from_label, upsert_env_file, write_connection_file,
 };
 
 use crate::connection::ConnectionConfig;

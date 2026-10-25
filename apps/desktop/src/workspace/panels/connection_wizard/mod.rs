@@ -46,8 +46,9 @@ use crate::workspace::connection_destination::{
     ConnectionDestination, destination_row, resolve_wizard_destination,
 };
 use crate::workspace::wizard_logic::{
-    add_wizard_tag, can_edit_saved_connection, remove_wizard_tag, save_label_from_config,
-    ssl_mode_from_toggle, ssl_toggle_enabled, wizard_engine_label, wizard_session_id,
+    AI_LABELS, add_wizard_tag, ai_from_label, ai_label, can_edit_saved_connection,
+    remove_wizard_tag, save_label_from_config, ssl_mode_from_toggle, ssl_toggle_enabled,
+    wizard_engine_label, wizard_session_id,
 };
 
 mod actions;
@@ -98,8 +99,7 @@ pub struct ConnectionWizardPanel {
     name: Entity<InputState>,
     tag_input: Entity<InputState>,
     tags: Vec<String>,
-    /// Edited by the AI section; carried through save so `[ai]` is never dropped.
-    ai: Option<AiSettings>,
+    ai_select: Entity<SelectState<Vec<&'static str>>>,
     destination: Option<ConnectionDestination>,
     session_id: Option<ConnectionId>,
     status: WizardStatus,
@@ -191,7 +191,9 @@ impl ConnectionWizardPanel {
             tags: Vec::new(),
             destination: None,
             session_id: None,
-            ai: None,
+            ai_select: cx.new(|cx| {
+                SelectState::new(AI_LABELS.to_vec(), Some(IndexPath::new(0)), window, cx)
+            }),
             status: WizardStatus::Idle,
             tab_label: "New connection".into(),
         }
@@ -216,7 +218,9 @@ impl ConnectionWizardPanel {
         panel.session_id = Some(id);
         panel.destination = Some(ConnectionDestination::from_origin(origin));
         panel.tags = tags;
-        panel.ai = ai;
+        panel.ai_select.update(cx, |select, cx| {
+            select.set_selected_value(&ai_label(ai), window, cx);
+        });
         panel.tab_label = config.label().to_string().into();
         panel.apply_config(&config, window, cx);
         panel

@@ -6,8 +6,9 @@ use gpui_kit::component::{
     ActiveTheme, Disableable as _, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex,
-    input::{Input, InputState},
+    input::{Input, InputEvent, InputState},
     setting::{SettingField, SettingGroup, SettingItem, SettingPage},
+    v_flex,
 };
 use gpui_kit::{
     App, Axis, Context, Entity, IntoElement, ParentElement, Render, SharedString, Styled, Window,
@@ -81,6 +82,8 @@ fn keys_group() -> SettingGroup {
                     window.use_keyed_state(id, cx, |window, cx| KeyField::new(kind, window, cx))
                 }),
             )
+            .description("Kept in your system keychain, never written to the project.")
+            .layout(Axis::Vertical)
         })
         .collect();
     SettingGroup::new().title("API keys").items(items)
@@ -108,6 +111,13 @@ impl KeyField {
                 .masked(true)
                 .placeholder("Paste API key")
         });
+        cx.observe(&input, |_, _, cx| cx.notify()).detach();
+        cx.subscribe_in(&input, window, |this, _, event: &InputEvent, window, cx| {
+            if let InputEvent::PressEnter { .. } = event {
+                this.save(window, cx);
+            }
+        })
+        .detach();
         let mut field = Self {
             provider,
             input,
@@ -164,39 +174,63 @@ impl KeyField {
 
 impl Render for KeyField {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let (text, busy, is_set) = match &self.status {
-            KeyStatus::Checking => ("Checking...".into(), true, false),
-            KeyStatus::Busy => ("Working...".into(), true, false),
-            KeyStatus::Set => ("Saved in keychain".into(), false, true),
-            KeyStatus::Unset => ("Not set".into(), false, false),
-            KeyStatus::Failed(e) => (e.clone(), false, false),
+        let theme = cx.theme();
+        let (muted, success, danger) = (theme.muted_foreground, theme.success, theme.danger);
+        let (icon, color, text): (_, _, SharedString) = match &self.status {
+            KeyStatus::Checking => (Some(IconName::Loader), muted, "Checking keychain...".into()),
+            KeyStatus::Busy => (Some(IconName::Loader), muted, "Updating keychain...".into()),
+            KeyStatus::Set => (
+                Some(IconName::CircleCheck),
+                success,
+                "Saved in system keychain".into(),
+            ),
+            KeyStatus::Unset => (None, muted, "No key saved".into()),
+            KeyStatus::Failed(e) => (Some(IconName::CircleAlert), danger, e.clone()),
         };
-        h_flex()
-            .gap_2()
-            .items_center()
-            .child(Input::new(&self.input).mask_toggle().w_64())
+        let busy = matches!(self.status, KeyStatus::Checking | KeyStatus::Busy);
+        let is_set = matches!(self.status, KeyStatus::Set);
+        let empty = self.input.read(cx).value().trim().is_empty();
+        let id = self.provider.as_str();
+
+        v_flex()
+            .w_full()
+            .gap_1p5()
             .child(
-                Button::new("ai-key-save")
-                    .small()
-                    .label("Save")
-                    .disabled(busy)
-                    .on_click(cx.listener(|this, _, window, cx| this.save(window, cx))),
+                h_flex()
+                    .gap_2()
+                    .items_center()
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .child(Input::new(&self.input).mask_toggle()),
+                    )
+                    .child(
+                        Button::new(format!("ai-key-save-{id}"))
+                            .primary()
+                            .label("Save")
+                            .disabled(busy || empty)
+                            .on_click(cx.listener(|this, _, window, cx| this.save(window, cx))),
+                    )
+                    .when(is_set, |row| {
+                        row.child(
+                            Button::new(format!("ai-key-remove-{id}"))
+                                .ghost()
+                                .icon(IconName::Delete)
+                                .tooltip("Remove key")
+                                .disabled(busy)
+                                .on_click(cx.listener(|this, _, _, cx| this.remove(cx))),
+                        )
+                    }),
             )
-            .when(is_set, |row| {
-                row.child(
-                    Button::new("ai-key-remove")
-                        .small()
-                        .ghost()
-                        .label("Remove")
-                        .disabled(busy)
-                        .on_click(cx.listener(|this, _, _, cx| this.remove(cx))),
-                )
-            })
             .child(
-                div()
+                h_flex()
+                    .gap_1p5()
+                    .items_center()
                     .text_xs()
-                    .text_color(cx.theme().muted_foreground)
-                    .child(text),
+                    .text_color(color)
+                    .when_some(icon, |row, icon| row.child(Icon::new(icon).small()))
+                    .child(div().min_w_0().child(text)),
             )
     }
 }

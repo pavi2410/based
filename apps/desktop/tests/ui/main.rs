@@ -5,4 +5,5 @@ mod palette;
 mod project;
 mod query;
 mod save;
+mod settings;
 mod tabs;

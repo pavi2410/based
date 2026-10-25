@@ -61,6 +61,11 @@ jobs:
       - name: Clippy
         run: cargo clippy --locked --workspace --all-targets
 
+      # Headless GPUI windows (no display server needed); own step so UI
+      # failures are easy to spot. The full run below re-runs them cheaply.
+      - name: UI tests
+        run: cargo test --locked -p desktop --test ui
+
       - name: Tests
         run: cargo test --locked --workspace
 

@@ -42,7 +42,8 @@ const MONGO_FORBIDDEN: &[&str] = &["$out", "$merge", "$function", "$accumulator"
 /// Returns `Err(reason)` when `text` is not provably read-only for `engine`.
 pub fn check(engine: EngineKind, text: &str) -> Result<(), String> {
     match engine {
-        EngineKind::Postgres | EngineKind::SQLite => check_sql(text),
+        EngineKind::Postgres => check_sql(text, true),
+        EngineKind::SQLite => check_sql(text, false),
         EngineKind::Redis => check_redis(text),
         EngineKind::MongoDB => check_mongo(text),
     }
@@ -72,8 +73,8 @@ fn check_mongo(text: &str) -> Result<(), String> {
     }
 }
 
-fn check_sql(sql: &str) -> Result<(), String> {
-    let (words, statements) = scan(sql);
+fn check_sql(sql: &str, dollar_quotes: bool) -> Result<(), String> {
+    let (words, statements) = scan(sql, dollar_quotes);
     if statements > 1 {
         return Err("multiple statements are not allowed".into());
     }
@@ -94,7 +95,7 @@ fn check_sql(sql: &str) -> Result<(), String> {
 
 /// Lowercased bare words outside strings/identifiers/comments, plus the number of
 /// non-empty statements.
-fn scan(sql: &str) -> (Vec<String>, usize) {
+fn scan(sql: &str, dollar_quotes: bool) -> (Vec<String>, usize) {
     let chars: Vec<char> = sql.chars().collect();
     let mut words = Vec::new();
     let mut statements = 0;
@@ -122,7 +123,7 @@ fn scan(sql: &str) -> (Vec<String>, usize) {
                 i += 2;
                 continue;
             }
-            '$' => {
+            '$' if dollar_quotes => {
                 if let Some(end) = dollar_quote_end(&chars, i) {
                     i = end;
                     has_content = true;
@@ -176,13 +177,14 @@ fn skip_quoted(chars: &[char], start: usize, quote: char) -> usize {
     chars.len()
 }
 
-/// For `$tag$ ... $tag$`, returns the index past the closing tag.
+/// For `$tag$ ... $tag$`, returns the index past the closing tag. Tags cannot start
+/// with a digit, so `$1` stays a bind parameter.
 fn dollar_quote_end(chars: &[char], start: usize) -> Option<usize> {
     let tag_end = chars[start + 1..].iter().position(|&c| c == '$')? + start + 1;
     let tag = &chars[start..=tag_end];
-    if !tag[1..tag.len() - 1]
-        .iter()
-        .all(|c| c.is_ascii_alphanumeric() || *c == '_')
+    let inner = &tag[1..tag.len() - 1];
+    if inner.first().is_some_and(|c| c.is_ascii_digit())
+        || !inner.iter().all(|c| c.is_ascii_alphanumeric() || *c == '_')
     {
         return None;
     }
@@ -233,6 +235,16 @@ mod tests {
         ] {
             assert!(sql(q).is_err(), "{q}");
         }
+    }
+
+    #[test]
+    fn dollar_tags_do_not_hide_statements() {
+        // SQLite has no dollar quoting: `$a$` is a bind parameter.
+        let lite = |s| check(EngineKind::SQLite, s);
+        assert!(lite("SELECT $a$; DELETE FROM t; SELECT $a$").is_err());
+        // Postgres tags cannot start with a digit.
+        assert!(sql("SELECT $1$; DELETE FROM t; SELECT $1$").is_err());
+        assert!(sql("SELECT $$; DROP TABLE x$$").is_ok());
     }
 
     #[test]

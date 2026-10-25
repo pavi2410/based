@@ -12,6 +12,8 @@ use crate::workspace::notify;
 use crate::workspace::tabs::WorkspaceRef;
 use crate::workspace::wizard_logic::can_edit_saved_connection;
 
+use crate::ai::ask_assistant;
+
 use super::ConnectionTree;
 use super::types::{ObjectKind, SchemaObject};
 
@@ -200,6 +202,15 @@ fn structure_supported(engine: EngineKind, kind: ObjectKind) -> bool {
         EngineKind::SQLite => matches!(kind, ObjectKind::Table | ObjectKind::View),
         EngineKind::MongoDB | EngineKind::Redis => false,
     }
+}
+
+fn conn_id_at(tree: &WeakEntity<ConnectionTree>, idx: usize, cx: &App) -> Option<ConnectionId> {
+    let tree = tree.upgrade()?;
+    let registry = tree.read(cx).registry.read(cx);
+    registry
+        .connections()
+        .get(idx)
+        .map(|e| e.read(cx).id.clone())
 }
 
 fn connection_idx(tree: &ConnectionTree, conn_id: &ConnectionId, cx: &App) -> Option<usize> {
@@ -419,6 +430,19 @@ pub(crate) fn object_context_menu(
                 }
             }
         }));
+    }
+
+    if is_connected && let Some(conn_id) = conn_id_at(&tree, conn_idx, cx) {
+        let text = format!(
+            "Tell me about the {} `{}`: what it holds and how to query it well.",
+            object.kind.label(),
+            object.display_name()
+        );
+        menu = menu.item(
+            PopupMenuItem::new("Ask AI About This").on_click(move |_, _, cx| {
+                ask_assistant(conn_id.clone(), text.clone(), cx);
+            }),
+        );
     }
 
     let copy_name = object.display_name();

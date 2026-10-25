@@ -163,6 +163,11 @@ impl ChatPane {
         Some(Arc::new(ReadOnlyTools::new(backend).with_rows(rows)))
     }
 
+    /// Sends `text` as if typed; `false` when the assistant is busy or unavailable.
+    pub fn ask(&mut self, text: String, cx: &mut Context<Self>) -> bool {
+        self.send(text, cx)
+    }
+
     /// `true` when the message was accepted.
     fn send(&mut self, text: String, cx: &mut Context<Self>) -> bool {
         if self.busy() || self.notice.is_some() {

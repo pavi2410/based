@@ -67,6 +67,12 @@ use tabs::TabNavigationHistory;
 use chrome::{left_pane::LeftPane, side_pane::SidePane};
 use panels::HomePanel;
 
+/// See [`Workspace::chat_conn`].
+struct ChatScope {
+    conn: ConnectionId,
+    focused: Option<ConnectionId>,
+}
+
 pub struct Workspace {
     registry: Entity<ConnectionRegistry>,
     home_panel: Entity<HomePanel>,
@@ -81,6 +87,8 @@ pub struct Workspace {
     /// History pane filter chip (All / Today).
     history_filter: HistoryFilter,
     chat: Entity<ChatPane>,
+    /// Connection an explicit ask pinned the assistant to, valid while the same tab is focused.
+    chat_scope: Option<ChatScope>,
     focus_handle: FocusHandle,
     project_title: SharedString,
     project_dir: Option<PathBuf>,
@@ -188,6 +196,7 @@ impl Workspace {
             active_side_pane: None,
             history_filter: HistoryFilter::default(),
             chat: cx.new(|cx| ChatPane::new(window, cx)),
+            chat_scope: None,
             focus_handle: cx.focus_handle(),
             project_title,
             project_dir,
@@ -427,10 +436,22 @@ impl Workspace {
         }
     }
 
-    /// Points the assistant at the focused connection (and gates it on that connection's AI setting).
-    fn sync_chat_context(&self, cx: &mut Context<Self>) {
+    /// Connection the assistant talks about: an explicit ask, else the focused tab's.
+    fn chat_conn(&mut self, cx: &App) -> Option<ConnectionId> {
+        let focused = self.focused_conn_id(cx);
+        if let Some(scope) = &self.chat_scope {
+            if scope.focused == focused {
+                return Some(scope.conn.clone());
+            }
+            self.chat_scope = None;
+        }
+        focused
+    }
+
+    /// Points the assistant at its connection (and gates it on that connection's AI setting).
+    fn sync_chat_context(&mut self, cx: &mut Context<Self>) {
         let entry = self
-            .focused_conn_id(cx)
+            .chat_conn(cx)
             .and_then(|id| self.registry.read(cx).get(&id, cx).cloned());
         let (ctx, notice) = match entry.as_ref().map(|e| (e, e.read(cx))) {
             Some((entity, entry)) => {
@@ -448,6 +469,20 @@ impl Workspace {
         };
         self.chat
             .update(cx, |chat, cx| chat.set_context(ctx, notice, cx));
+    }
+
+    /// Opens the assistant about `conn` and sends `text`.
+    pub fn ask_assistant(&mut self, conn: &ConnectionId, text: String, cx: &mut Context<Self>) {
+        self.chat_scope = Some(ChatScope {
+            conn: conn.clone(),
+            focused: self.focused_conn_id(cx),
+        });
+        self.active_side_pane = Some(SidePane::Chat);
+        self.sync_chat_context(cx);
+        self.chat.update(cx, |chat, cx| {
+            chat.ask(text, cx);
+        });
+        cx.notify();
     }
 
     pub fn set_history_filter(&mut self, filter: HistoryFilter, cx: &mut Context<Self>) {

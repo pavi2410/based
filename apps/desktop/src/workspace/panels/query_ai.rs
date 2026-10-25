@@ -5,16 +5,37 @@ use gpui_kit::component::{
     ActiveTheme, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex,
+    menu::{DropdownMenu as _, PopupMenuItem},
 };
 use gpui_kit::{AnyElement, Context, IntoElement, ParentElement, Styled, Window, div};
 
 use super::query_editor::{QueryEditorPanel, QueryStatus};
-use crate::ai::{AiPromptEvent, connection_ai, schema};
+use crate::ai::{AiPromptEvent, ask_assistant, connection_ai, schema};
 use crate::widgets::sql_editor::{set_input_text, text_from_input};
 
 const FIX_LABEL: &str = "Fix the error";
 const FIX_PROMPT: &str = "Fix this error without changing what the query does:";
 const MAX_ERROR_CHARS: usize = 2000;
+const PREVIEW_ROWS: usize = 20;
+const PREVIEW_CELL_CHARS: usize = 80;
+
+/// A question about the editor's query, answered in the assistant pane.
+#[derive(Clone, Copy)]
+pub(super) enum Assist {
+    Explain,
+    Optimize,
+    Results,
+}
+
+impl Assist {
+    pub(super) fn label(self) -> &'static str {
+        match self {
+            Self::Explain => "Explain Query",
+            Self::Optimize => "Optimize Query",
+            Self::Results => "Ask About Results",
+        }
+    }
+}
 
 impl QueryEditorPanel {
     fn ai_level(&self, cx: &gpui_kit::App) -> ContextLevel {
@@ -32,6 +53,83 @@ impl QueryEditorPanel {
 
     fn focus_editor(&self, window: &mut Window, cx: &mut Context<Self>) {
         self.sql_input.update(cx, |s, cx| s.focus(window, cx));
+    }
+
+    /// Caret button next to "Ask AI" listing the query questions.
+    pub(super) fn assist_menu(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let mut kinds = vec![Assist::Explain, Assist::Optimize];
+        if self.can_ask_about_results(cx) {
+            kinds.push(Assist::Results);
+        }
+        let panel = cx.weak_entity();
+        Button::new(format!("{}-ai-more", self.source.id()))
+            .ghost()
+            .small()
+            .dropdown_caret(true)
+            .tooltip("Ask AI about this query")
+            .dropdown_menu(move |mut menu, _, _| {
+                for kind in &kinds {
+                    let (kind, panel) = (*kind, panel.clone());
+                    menu = menu.item(PopupMenuItem::new(kind.label()).on_click(move |_, _, cx| {
+                        let _ = panel.update(cx, |p, cx| p.assist(kind, cx));
+                    }));
+                }
+                menu
+            })
+    }
+
+    /// `true` when the connection shares row data and there is a result to discuss.
+    pub(super) fn can_ask_about_results(&self, cx: &gpui_kit::App) -> bool {
+        self.ai_level(cx) == ContextLevel::SchemaRows
+            && !self.result.read(cx).delegate().rows.is_empty()
+    }
+
+    /// Hands the selected query text (or the whole editor) to the assistant.
+    pub(super) fn assist(&mut self, kind: Assist, cx: &mut Context<Self>) {
+        let selected = self.sql_input.read(cx).selected_value().to_string();
+        let sql = if selected.trim().is_empty() {
+            text_from_input(&self.sql_input, cx)
+        } else {
+            selected
+        };
+        let text = match kind {
+            Assist::Explain => {
+                format!("Explain this query in plain language, step by step:\n```\n{sql}\n```")
+            }
+            Assist::Optimize => format!(
+                "Review this query for performance. Check its plan with the explain tool if \
+                 useful, and suggest a better version if there is one:\n```\n{sql}\n```"
+            ),
+            Assist::Results => format!(
+                "This query:\n```\n{sql}\n```\nreturned:\n{}\nPoint out anything that stands out.",
+                self.result_preview(cx)
+            ),
+        };
+        ask_assistant(self.conn_id.clone(), text, cx);
+    }
+
+    /// The first rows of the result as ` | `-separated text.
+    fn result_preview(&self, cx: &gpui_kit::App) -> String {
+        let table = self.result.read(cx);
+        let delegate = table.delegate();
+        let clip = |cell: &str| -> String { cell.chars().take(PREVIEW_CELL_CHARS).collect() };
+        let mut out = delegate
+            .columns
+            .iter()
+            .map(|c| c.name.to_string())
+            .collect::<Vec<_>>()
+            .join(" | ");
+        for row in delegate.rows.iter().take(PREVIEW_ROWS) {
+            out.push('\n');
+            out.push_str(&row.iter().map(|c| clip(c)).collect::<Vec<_>>().join(" | "));
+        }
+        let total = delegate.rows.len();
+        if total > PREVIEW_ROWS {
+            out.push_str(&format!(
+                "\n({total} rows in total, first {PREVIEW_ROWS} shown)"
+            ));
+        }
+        out
     }
 
     /// Opens the bar and asks the model to repair the query from the last error.

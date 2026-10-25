@@ -110,7 +110,7 @@ pub struct QueryEditorPanel {
     pub(super) sql_input: Entity<EditorState>,
     pub(super) schema: Arc<SchemaCache>,
     lint_seq: u64,
-    result: Entity<TableState<RowDelegate>>,
+    pub(super) result: Entity<TableState<RowDelegate>>,
     pub(super) status: QueryStatus,
     split_state: Entity<ResizableState>,
     bottom_tab: BottomTab,
@@ -617,6 +617,7 @@ impl QueryEditorPanel {
                     .selected(self.ai.is_open())
                     .on_click(cx.listener(|panel, _, window, cx| panel.toggle_ai(window, cx))),
             )
+            .child(self.assist_menu(cx))
             .when(read_only, |h| {
                 h.child(metadata_pill("access", "Read-only", cx)).child(
                     div()

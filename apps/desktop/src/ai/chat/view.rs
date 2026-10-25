@@ -120,6 +120,14 @@ pub(super) fn user_row(turn: &Message, lines: Option<usize>, cx: &App) -> AnyEle
     if let Some(lines) = lines {
         text = text.line_clamp(lines);
     }
+    let theme = cx.theme();
+    let tint = theme.primary.opacity(0.14);
+    // The pinned copy floats over the list, so its fill must be opaque.
+    let fill = if lines.is_some() {
+        theme.background.blend(tint)
+    } else {
+        tint
+    };
     div()
         .px_3()
         .child(
@@ -128,7 +136,7 @@ pub(super) fn user_row(turn: &Message, lines: Option<usize>, cx: &App) -> AnyEle
                 .px_3()
                 .py_2()
                 .rounded_lg()
-                .bg(cx.theme().primary.opacity(0.14))
+                .bg(fill)
                 .text_size(style::body(cx))
                 .child(text),
         )

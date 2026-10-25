@@ -1,7 +1,6 @@
 //! The user message that started the visible part of the conversation, pinned to the top.
 
 use based_ai::Role;
-use gpui_kit::component::ActiveTheme as _;
 use gpui_kit::{AnyElement, App, IntoElement, ParentElement, Styled, div, px};
 
 use super::group::turn_groups;
@@ -26,12 +25,10 @@ impl ChatPane {
         if user == top.item_ix && top.offset_in_item <= px(0.0) {
             return None;
         }
-        let theme = cx.theme();
         Some(
             div()
                 .w_full()
                 .pb_2()
-                .bg(theme.background)
                 .child(view::user_row(
                     &self.turns[groups[user].start],
                     Some(LINES),

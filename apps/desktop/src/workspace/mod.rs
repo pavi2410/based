@@ -316,6 +316,10 @@ impl Workspace {
         &self.tab_manager
     }
 
+    pub fn command_palette(&self) -> &Entity<CommandPalette> {
+        &self.command_palette
+    }
+
     fn save_session(&mut self, cx: &mut Context<Self>) {
         let tm = self.tab_manager.read(cx);
         let mut tabs = Vec::new();

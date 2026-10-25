@@ -65,7 +65,7 @@ fn model_group() -> SettingGroup {
                 |val: SharedString, cx: &mut App| prefs::set_ai_base_url(val.to_string(), cx),
             ),
         )
-        .description("Optional base URL for proxies, OpenAI-compatible servers or remote Ollama.")
+        .description("Optional base URL for proxies (Responses API for OpenAI) or remote Ollama.")
         .layout(Axis::Vertical),
     ])
 }

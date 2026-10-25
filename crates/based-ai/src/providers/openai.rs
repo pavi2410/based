@@ -1,4 +1,4 @@
-use futures::{StreamExt, stream};
+use futures::{StreamExt, future};
 use reqwest::Client;
 use serde_json::{Value, json};
 
@@ -11,7 +11,8 @@ use crate::types::{ChatRequest, Chunk, Message, Role, Usage};
 
 const DEFAULT_URL: &str = "https://api.openai.com/v1";
 
-/// OpenAI chat completions. Also works with OpenAI-compatible servers via `with_base_url`.
+/// OpenAI Responses API (`/v1/responses`), which supports function tools on reasoning models.
+/// Servers that only speak chat completions are not supported.
 pub struct OpenAi {
     client: Client,
     api_key: String,
@@ -41,16 +42,15 @@ impl Provider for OpenAi {
     fn stream(&self, request: ChatRequest) -> ChunkStream {
         let req = self
             .client
-            .post(format!("{}/chat/completions", self.base_url))
+            .post(format!("{}/responses", self.base_url))
             .bearer_auth(&self.api_key)
             .json(&body(&request));
         lazy_stream(req, |resp| {
-            let mut state = StreamState::default();
             sse_events(resp)
-                .flat_map(move |ev| {
-                    stream::iter(match ev {
-                        Ok(ev) => state.handle(&ev),
-                        Err(e) => vec![Err(e)],
+                .filter_map(|ev| {
+                    future::ready(match ev {
+                        Ok(ev) => handle(&ev),
+                        Err(e) => Some(Err(e)),
                     })
                 })
                 .boxed()
@@ -59,20 +59,16 @@ impl Provider for OpenAi {
 }
 
 fn body(r: &ChatRequest) -> Value {
-    let mut messages = Vec::with_capacity(r.messages.len() + 1);
-    if let Some(s) = &r.system {
-        messages.push(json!({ "role": "system", "content": s }));
-    }
-    messages.extend(r.messages.iter().map(wire_message));
+    // No `temperature`: reasoning models reject it.
     let mut v = json!({
         "model": r.model,
-        "max_completion_tokens": r.max_tokens,
+        "input": r.messages.iter().flat_map(wire_items).collect::<Vec<_>>(),
+        "max_output_tokens": r.max_tokens,
         "stream": true,
-        "stream_options": { "include_usage": true },
-        "messages": messages,
+        "store": false,
     });
-    if let Some(t) = r.temperature {
-        v["temperature"] = json!(t);
+    if let Some(s) = &r.system {
+        v["instructions"] = json!(s);
     }
     if !r.tools.is_empty() {
         v["tools"] = r.tools.iter().map(wire_tool).collect();
@@ -83,130 +79,83 @@ fn body(r: &ChatRequest) -> Value {
 fn wire_tool(t: &ToolSpec) -> Value {
     json!({
         "type": "function",
-        "function": { "name": t.name, "description": t.description, "parameters": t.schema },
+        "name": t.name,
+        "description": t.description,
+        "parameters": t.schema,
     })
 }
 
-fn wire_message(m: &Message) -> Value {
+/// One message becomes one or more input items.
+fn wire_items(m: &Message) -> Vec<Value> {
     match (&m.role, &m.outcome) {
         (Role::Tool, Some(o)) => {
-            json!({ "role": "tool", "tool_call_id": o.id, "content": m.content })
+            vec![json!({ "type": "function_call_output", "call_id": o.id, "output": m.content })]
         }
-        (Role::Assistant, _) if !m.calls.is_empty() => json!({
-            "role": "assistant",
-            "content": (!m.content.is_empty()).then_some(&m.content),
-            "tool_calls": m.calls.iter().map(|c| json!({
-                "id": c.id,
-                "type": "function",
-                "function": { "name": c.name, "arguments": c.args.to_string() },
-            })).collect::<Vec<_>>(),
-        }),
-        (role, _) => {
-            let role = if *role == Role::Assistant {
-                "assistant"
-            } else {
-                "user"
-            };
-            json!({ "role": role, "content": m.content })
-        }
-    }
-}
-
-/// A tool call whose arguments are still arriving.
-#[derive(Default)]
-struct PartialCall {
-    id: String,
-    name: String,
-    args: String,
-}
-
-#[derive(Default)]
-struct StreamState {
-    usage: Usage,
-    calls: Vec<PartialCall>,
-}
-
-impl StreamState {
-    fn handle(&mut self, ev: &SseEvent) -> Vec<Result<Chunk, AiError>> {
-        if ev.data == "[DONE]" {
-            let mut out = self.flush();
-            out.push(Ok(Chunk::Done(self.usage)));
-            return out;
-        }
-        let v: Value = match serde_json::from_str(&ev.data) {
-            Ok(v) => v,
-            Err(e) => return vec![Err(AiError::protocol(format!("bad event json: {e}")))],
-        };
-        if let Some(e) = v.get("error").filter(|e| !e.is_null()) {
-            let msg = e["message"].as_str().unwrap_or("stream error");
-            return vec![Err(AiError::protocol(msg))];
-        }
-        if let Some(u) = v.get("usage").filter(|u| !u.is_null()) {
-            self.usage = Usage {
-                input_tokens: u["prompt_tokens"].as_u64().unwrap_or(0) as u32,
-                output_tokens: u["completion_tokens"].as_u64().unwrap_or(0) as u32,
-            };
-        }
-        let choice = &v["choices"][0];
-        let delta = &choice["delta"];
-        if let Some(parts) = delta["tool_calls"].as_array() {
-            for part in parts {
-                self.absorb(part);
+        (Role::Assistant, _) => {
+            let mut items = Vec::new();
+            if !m.content.is_empty() {
+                items.push(json!({ "role": "assistant", "content": m.content }));
             }
-        }
-        let mut out = Vec::new();
-        if let Some(text) = delta["content"].as_str().filter(|t| !t.is_empty()) {
-            out.push(Ok(Chunk::Text(text.to_owned())));
-        }
-        if !choice["finish_reason"].is_null() {
-            out.extend(self.flush());
-        }
-        out
-    }
-
-    fn absorb(&mut self, part: &Value) {
-        let ix = part["index"].as_u64().unwrap_or(0) as usize;
-        if self.calls.len() <= ix {
-            self.calls.resize_with(ix + 1, PartialCall::default);
-        }
-        let call = &mut self.calls[ix];
-        if let Some(id) = part["id"].as_str() {
-            call.id = id.to_owned();
-        }
-        let f = &part["function"];
-        if let Some(name) = f["name"].as_str() {
-            call.name.push_str(name);
-        }
-        if let Some(args) = f["arguments"].as_str() {
-            call.args.push_str(args);
-        }
-    }
-
-    fn flush(&mut self) -> Vec<Result<Chunk, AiError>> {
-        self.calls
-            .drain(..)
-            .enumerate()
-            .map(|(i, c)| {
-                let args = if c.args.trim().is_empty() {
-                    Ok(json!({}))
-                } else {
-                    serde_json::from_str(&c.args)
-                };
-                let id = if c.id.is_empty() {
-                    format!("call_{i}")
-                } else {
-                    c.id
-                };
-                args.map(|args| {
-                    Chunk::ToolCall(ToolCall {
-                        id,
-                        name: c.name,
-                        args,
-                    })
+            items.extend(m.calls.iter().map(|c| {
+                json!({
+                    "type": "function_call",
+                    "call_id": c.id,
+                    "name": c.name,
+                    "arguments": c.args.to_string(),
                 })
-                .map_err(|e| AiError::protocol(format!("bad tool arguments: {e}")))
+            }));
+            items
+        }
+        _ => vec![json!({ "role": "user", "content": m.content })],
+    }
+}
+
+fn handle(ev: &SseEvent) -> Option<Result<Chunk, AiError>> {
+    let v: Value = match serde_json::from_str(&ev.data) {
+        Ok(v) => v,
+        Err(e) => return Some(Err(AiError::protocol(format!("bad event json: {e}")))),
+    };
+    match v["type"].as_str()? {
+        "response.output_text.delta" => {
+            let text = v["delta"].as_str().filter(|t| !t.is_empty())?;
+            Some(Ok(Chunk::Text(text.to_owned())))
+        }
+        "response.output_item.done" => {
+            let item = &v["item"];
+            if item["type"] != "function_call" {
+                return None;
+            }
+            let args = match item["arguments"].as_str().map(str::trim) {
+                None | Some("") => Ok(json!({})),
+                Some(s) => serde_json::from_str(s),
+            };
+            let field = |k: &str| item[k].as_str().unwrap_or_default().to_owned();
+            Some(match args {
+                Ok(args) => Ok(Chunk::ToolCall(ToolCall {
+                    id: field("call_id"),
+                    name: field("name"),
+                    args,
+                })),
+                Err(e) => Err(AiError::protocol(format!("bad tool arguments: {e}"))),
             })
-            .collect()
+        }
+        "response.completed" | "response.incomplete" => {
+            let u = &v["response"]["usage"];
+            let count = |k: &str| u[k].as_u64().unwrap_or(0) as u32;
+            Some(Ok(Chunk::Done(Usage {
+                input_tokens: count("input_tokens"),
+                output_tokens: count("output_tokens"),
+            })))
+        }
+        "response.failed" => {
+            let msg = v["response"]["error"]["message"].as_str();
+            Some(Err(AiError::protocol(msg.unwrap_or("response failed"))))
+        }
+        "error" => {
+            let msg = v["message"].as_str().or(v["error"]["message"].as_str());
+            Some(Err(AiError::protocol(msg.unwrap_or("stream error"))))
+        }
+        _ => None,
     }
 }
 
@@ -217,31 +166,33 @@ mod tests {
     use crate::tools::ToolResult;
 
     const STREAM: &str = "\
-data: {\"choices\":[{\"delta\":{\"role\":\"assistant\",\"content\":\"\"}}],\"usage\":null}
+event: response.created
+data: {\"type\":\"response.created\",\"response\":{}}
 
-data: {\"choices\":[{\"delta\":{\"content\":\"SELECT\"}}],\"usage\":null}
+event: response.output_text.delta
+data: {\"type\":\"response.output_text.delta\",\"delta\":\"SELECT\"}
 
-data: {\"choices\":[{\"delta\":{\"content\":\" 1\"}}],\"usage\":null}
+event: response.output_text.delta
+data: {\"type\":\"response.output_text.delta\",\"delta\":\" 1\"}
 
-data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":null}
-
-data: {\"choices\":[],\"usage\":{\"prompt_tokens\":9,\"completion_tokens\":4}}
-
-data: [DONE]
+event: response.completed
+data: {\"type\":\"response.completed\",\"response\":{\"usage\":{\"input_tokens\":9,\"output_tokens\":4}}}
 
 ";
 
+    fn chunks(stream: &str) -> Vec<Chunk> {
+        SseParser::default()
+            .feed(stream.as_bytes())
+            .iter()
+            .filter_map(handle)
+            .collect::<Result<_, _>>()
+            .unwrap()
+    }
+
     #[test]
     fn maps_stream_to_chunks() {
-        let mut state = StreamState::default();
-        let chunks: Vec<_> = SseParser::default()
-            .feed(STREAM.as_bytes())
-            .iter()
-            .flat_map(|e| state.handle(e))
-            .collect::<Result<_, _>>()
-            .unwrap();
         assert_eq!(
-            chunks,
+            chunks(STREAM),
             vec![
                 Chunk::Text("SELECT".into()),
                 Chunk::Text(" 1".into()),
@@ -254,26 +205,19 @@ data: [DONE]
     }
 
     #[test]
-    fn assembles_tool_call_across_deltas() {
-        let events = [
-            r#"{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","function":{"name":"describe_table","arguments":""}}]}}]}"#,
-            r#"{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"table\":"}}]}}]}"#,
-            r#"{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"users\"}"}}]}}]}"#,
-            r#"{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}"#,
-        ];
-        let mut state = StreamState::default();
-        let chunks: Vec<_> = events
-            .iter()
-            .flat_map(|d| {
-                state.handle(&SseEvent {
-                    event: None,
-                    data: (*d).into(),
-                })
-            })
-            .collect::<Result<_, _>>()
-            .unwrap();
+    fn emits_finished_function_calls() {
+        let stream = "\
+data: {\"type\":\"response.output_item.added\",\"item\":{\"type\":\"function_call\",\"call_id\":\"c1\",\"name\":\"describe_table\",\"arguments\":\"\"}}
+
+data: {\"type\":\"response.function_call_arguments.delta\",\"delta\":\"{\\\"table\\\"\"}
+
+data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"function_call\",\"call_id\":\"c1\",\"name\":\"describe_table\",\"arguments\":\"{\\\"table\\\":\\\"users\\\"}\"}}
+
+data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"message\"}}
+
+";
         assert_eq!(
-            chunks,
+            chunks(stream),
             vec![Chunk::ToolCall(ToolCall {
                 id: "c1".into(),
                 name: "describe_table".into(),
@@ -283,28 +227,39 @@ data: [DONE]
     }
 
     #[test]
-    fn wires_tool_turns() {
+    fn maps_failures() {
+        let ev = SseEvent {
+            event: None,
+            data: r#"{"type":"response.failed","response":{"error":{"message":"boom"}}}"#.into(),
+        };
+        assert_eq!(handle(&ev).unwrap().unwrap_err().message, "boom");
+    }
+
+    #[test]
+    fn wires_tool_turns_as_items() {
         let call = ToolCall {
             id: "c1".into(),
             name: "list_tables".into(),
             args: json!({}),
         };
-        let a = wire_message(&Message::assistant_calls("", vec![call.clone()]));
-        assert!(a["content"].is_null());
-        assert_eq!(a["tool_calls"][0]["function"]["name"], "list_tables");
-        let t = wire_message(&Message::tool(&call, ToolResult::ok("users")));
-        assert_eq!(
-            (t["role"].as_str(), t["tool_call_id"].as_str()),
-            (Some("tool"), Some("c1"))
-        );
+        let a = wire_items(&Message::assistant_calls("", vec![call.clone()]));
+        assert_eq!(a.len(), 1);
+        assert_eq!(a[0]["type"], "function_call");
+        assert_eq!(a[0]["call_id"], "c1");
+        let t = wire_items(&Message::tool(&call, ToolResult::ok("users")));
+        assert_eq!(t[0]["type"], "function_call_output");
+        assert_eq!(t[0]["output"], "users");
     }
 
     #[test]
-    fn request_body_puts_system_first() {
-        let req = ChatRequest::new("gpt-x", vec![Message::user("hi")]).with_system("sys");
+    fn request_body_shape() {
+        let mut req = ChatRequest::new("gpt-x", vec![Message::user("hi")]).with_system("sys");
+        req.temperature = Some(0.5);
         let b = body(&req);
-        assert_eq!(b["messages"][0]["role"], "system");
-        assert_eq!(b["messages"][1]["content"], "hi");
-        assert_eq!(b["stream_options"]["include_usage"], true);
+        assert_eq!(b["instructions"], "sys");
+        assert_eq!(b["input"][0]["content"], "hi");
+        assert_eq!(b["stream"], true);
+        assert!(b.get("temperature").is_none());
+        assert!(b.get("tools").is_none());
     }
 }

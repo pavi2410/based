@@ -3,4 +3,5 @@
 mod common;
 mod palette;
 mod project;
+mod save;
 mod tabs;

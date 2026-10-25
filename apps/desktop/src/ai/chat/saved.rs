@@ -4,11 +4,12 @@ use std::path::PathBuf;
 
 use based_ai::history::{self, Chat, ChatMeta};
 use gpui_kit::component::{
-    Icon, Sizable as _,
+    Disableable as _, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants as _},
+    h_flex,
     menu::{DropdownMenu as _, PopupMenuItem},
 };
-use gpui_kit::{AppContext as _, Context, IntoElement, px};
+use gpui_kit::{AppContext as _, Context, IntoElement, ParentElement as _, Styled as _, px};
 
 use super::{ChatPane, Phase};
 
@@ -107,9 +108,25 @@ impl ChatPane {
         self.new_chat(cx);
     }
 
-    /// Header button listing saved chats. The list is read when the menu opens, so it stays
+    /// Header buttons: start a new chat, browse saved ones.
+    pub fn header_actions(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        h_flex()
+            .gap_1()
+            .child(
+                Button::new("chat-new")
+                    .ghost()
+                    .small()
+                    .icon(IconName::Plus)
+                    .tooltip("New chat")
+                    .disabled(self.turns.is_empty())
+                    .on_click(cx.listener(|this, _, _, cx| this.new_chat(cx))),
+            )
+            .child(self.history_button(cx))
+    }
+
+    /// Button listing saved chats. The list is read when the menu opens, so it stays
     /// current even though the header is drawn by the workspace.
-    pub fn history_button(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn history_button(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let pane = cx.weak_entity();
         Button::new("chat-history")
             .ghost()

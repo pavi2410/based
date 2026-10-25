@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use based_ai::tools::ToolCall;
 use based_ai::{Message, Role};
 use gpui_kit::component::{
-    ActiveTheme, Disableable as _, Icon, IconName, Sizable as _,
+    ActiveTheme, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex,
     input::Textarea,
@@ -90,22 +90,14 @@ impl ChatPane {
 
     fn composer(&self, cx: &mut Context<Self>) -> AnyElement {
         let streaming = self.busy();
-        let action = if streaming {
+        let stop = streaming.then(|| {
             Button::new("chat-stop")
                 .ghost()
                 .small()
                 .icon(IconName::Close)
                 .tooltip("Stop")
                 .on_click(cx.listener(|this, _, _, cx| this.stop(cx)))
-        } else {
-            Button::new("chat-new")
-                .ghost()
-                .small()
-                .icon(IconName::Plus)
-                .tooltip("New chat")
-                .disabled(self.turns.is_empty())
-                .on_click(cx.listener(|this, _, _, cx| this.new_chat(cx)))
-        };
+        });
         v_flex()
             .border_t_1()
             .border_color(cx.theme().border.opacity(0.72))
@@ -118,7 +110,7 @@ impl ChatPane {
                     .p_2()
                     .child(self.tag_button(cx))
                     .child(div().flex_1().child(Textarea::new(&self.input).small()))
-                    .child(action),
+                    .children(stop),
             )
             .into_any_element()
     }

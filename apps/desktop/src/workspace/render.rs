@@ -91,7 +91,7 @@ impl Render for Workspace {
             };
             let action = (pane == SidePane::Chat).then(|| {
                 self.chat
-                    .update(cx, |chat, cx| chat.history_button(cx).into_any_element())
+                    .update(cx, |chat, cx| chat.header_actions(cx).into_any_element())
             });
             render_side_pane(pane, body, side_pane_width, action, cx).into_any_element()
         });

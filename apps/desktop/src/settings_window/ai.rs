@@ -1,7 +1,6 @@
-//! AI settings page: provider, model, endpoint and keychain-backed API keys.
+//! AI settings page: provider, model, endpoint and API keys kept in the personal `.env`.
 
 use based_ai::ProviderKind;
-use based_storage::SecretStore;
 use gpui_kit::component::{
     ActiveTheme, Disableable as _, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants as _},
@@ -15,6 +14,7 @@ use gpui_kit::{
     div, prelude::*,
 };
 
+use crate::ai::keys;
 use crate::app::prefs;
 
 pub fn page() -> SettingPage {
@@ -95,7 +95,7 @@ fn keys_group() -> SettingGroup {
                     window.use_keyed_state(id, cx, |window, cx| KeyField::new(kind, window, cx))
                 }),
             )
-            .description("Kept in your system keychain, never written to the project.")
+            .description("Stored in ~/.config/based/.env next to personal connection passwords, never in a project.")
             .layout(Axis::Vertical)
         })
         .collect();
@@ -110,7 +110,7 @@ enum KeyStatus {
     Failed(SharedString),
 }
 
-/// Masked key entry backed by the OS keychain. Keychain calls run off the UI thread.
+/// Masked key entry. File access runs off the UI thread.
 struct KeyField {
     provider: ProviderKind,
     input: Entity<InputState>,
@@ -137,21 +137,18 @@ impl KeyField {
             status: KeyStatus::Checking,
         };
         let id = provider.as_str();
-        field.run(cx, move |s| s.get_ai_key(id).map(|k| k.is_some()));
+        field.run(cx, move || keys::get(id).map(|k| k.is_some()));
         field
     }
 
-    /// Runs a blocking keychain job; its result (is the key set?) becomes the status.
+    /// Runs a blocking job; its result (is the key set?) becomes the status.
     fn run(
         &mut self,
         cx: &mut Context<Self>,
-        job: impl FnOnce(SecretStore) -> anyhow::Result<bool> + Send + 'static,
+        job: impl FnOnce() -> anyhow::Result<bool> + Send + 'static,
     ) {
         cx.spawn(async move |this, cx| {
-            let result = cx
-                .background_executor()
-                .spawn(async move { job(SecretStore::new()) })
-                .await;
+            let result = cx.background_executor().spawn(async move { job() }).await;
             let _ = this.update(cx, |field, cx| {
                 field.status = match result {
                     Ok(true) => KeyStatus::Set,
@@ -174,14 +171,14 @@ impl KeyField {
         self.status = KeyStatus::Busy;
         cx.notify();
         let id = self.provider.as_str();
-        self.run(cx, move |s| s.set_ai_key(id, &key).map(|()| true));
+        self.run(cx, move || keys::set(id, &key).map(|()| true));
     }
 
     fn remove(&mut self, cx: &mut Context<Self>) {
         self.status = KeyStatus::Busy;
         cx.notify();
         let id = self.provider.as_str();
-        self.run(cx, move |s| s.delete_ai_key(id).map(|()| false));
+        self.run(cx, move || keys::delete(id).map(|()| false));
     }
 }
 
@@ -190,13 +187,9 @@ impl Render for KeyField {
         let theme = cx.theme();
         let (muted, success, danger) = (theme.muted_foreground, theme.success, theme.danger);
         let (icon, color, text): (_, _, SharedString) = match &self.status {
-            KeyStatus::Checking => (Some(IconName::Loader), muted, "Checking keychain...".into()),
-            KeyStatus::Busy => (Some(IconName::Loader), muted, "Updating keychain...".into()),
-            KeyStatus::Set => (
-                Some(IconName::CircleCheck),
-                success,
-                "Saved in system keychain".into(),
-            ),
+            KeyStatus::Checking => (Some(IconName::Loader), muted, "Checking...".into()),
+            KeyStatus::Busy => (Some(IconName::Loader), muted, "Updating...".into()),
+            KeyStatus::Set => (Some(IconName::CircleCheck), success, "Saved".into()),
             KeyStatus::Unset => (None, muted, "No key saved".into()),
             KeyStatus::Failed(e) => (Some(IconName::CircleAlert), danger, e.clone()),
         };

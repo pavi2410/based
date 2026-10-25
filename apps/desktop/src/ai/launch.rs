@@ -5,15 +5,15 @@
 use std::sync::Arc;
 
 use based_ai::{AiError, AiErrorKind, ChatRequest, Chunk, Provider};
-use based_storage::SecretStore;
 use futures::StreamExt;
 use gpui_kit::{App, AsyncApp, Context, Task};
 
+use super::keys;
 use super::stream::{AiStream, StreamEvent, start};
 use crate::app::prefs;
 use crate::db;
 
-/// Builds the configured provider. The keychain read happens off the UI thread.
+/// Builds the configured provider. The file read happens off the UI thread.
 async fn provider(
     cx: &AsyncApp,
     kind: based_ai::ProviderKind,
@@ -23,7 +23,7 @@ async fn provider(
         .background_executor()
         .spawn(async move {
             if kind.needs_key() {
-                SecretStore::new().get_ai_key(kind.as_str())
+                keys::get(kind.as_str())
             } else {
                 Ok(None)
             }

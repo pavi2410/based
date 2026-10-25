@@ -30,7 +30,35 @@ pub fn upsert_env_file(path: &Path, key: &str, value: &str) -> Result<()> {
         String::new()
     };
     let updated = upsert_env(&existing, key, value);
-    fs::write(path, updated).with_context(|| format!("write {}", path.display()))?;
+    write_private(path, &updated)
+}
+
+/// Drops `key` from the file; a missing file or key is not an error.
+pub fn remove_env_key(path: &Path, key: &str) -> Result<()> {
+    if !path.exists() {
+        return Ok(());
+    }
+    let raw = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+    let mut out = String::new();
+    for line in raw.lines() {
+        let body = line.trim().strip_prefix("export ").unwrap_or(line.trim());
+        if !body.split_once('=').is_some_and(|(k, _)| k.trim() == key) {
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+    write_private(path, &out)
+}
+
+/// Writes secrets readable by the owner only.
+fn write_private(path: &Path, contents: &str) -> Result<()> {
+    fs::write(path, contents).with_context(|| format!("write {}", path.display()))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600))
+            .with_context(|| format!("chmod {}", path.display()))?;
+    }
     Ok(())
 }
 
@@ -118,6 +146,19 @@ mod tests {
             "BASED_LOCAL_NORTHWIND_PASSWORD"
         );
         assert_eq!(secret_env_key("analytics", "URL"), "BASED_ANALYTICS_URL");
+    }
+
+    #[test]
+    fn remove_drops_only_that_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(".env");
+        upsert_env_file(&path, "A", "1").unwrap();
+        upsert_env_file(&path, "B", "2").unwrap();
+        remove_env_key(&path, "A").unwrap();
+        let map = load_env_file(&path).unwrap();
+        assert_eq!(map.get("B").map(String::as_str), Some("2"));
+        assert!(!map.contains_key("A"));
+        remove_env_key(&dir.path().join("none"), "A").unwrap();
     }
 
     #[test]

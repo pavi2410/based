@@ -3,9 +3,6 @@
 //! Non-secret metadata lives in SQLite; literal passwords and other secrets are
 //! stored under `based/<ref>` accounts in the platform credential store.
 
-use std::collections::HashMap;
-use std::sync::{Mutex, MutexGuard, OnceLock};
-
 use anyhow::{Context, Result};
 use keyring::Entry;
 
@@ -18,14 +15,6 @@ impl Default for SecretStore {
     fn default() -> Self {
         Self
     }
-}
-
-fn ai_cache() -> MutexGuard<'static, HashMap<String, String>> {
-    static CACHE: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
-    CACHE
-        .get_or_init(Mutex::default)
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 impl SecretStore {
@@ -62,51 +51,11 @@ impl SecretStore {
     pub fn template_password_ref(template_id: uuid::Uuid) -> String {
         format!("connection-template:{template_id}:password")
     }
-
-    /// Stable ref for an AI provider API key (`anthropic`, `openai`, ...).
-    pub fn ai_key_ref(provider: &str) -> String {
-        format!("ai:{provider}:api-key")
-    }
-
-    /// Cached for the process lifetime: each keychain read can raise an OS password prompt,
-    /// and AI features read the key on every request.
-    pub fn get_ai_key(&self, provider: &str) -> Result<Option<String>> {
-        // Hold the lock across the read so concurrent callers share one keychain prompt.
-        let mut cache = ai_cache();
-        if let Some(key) = cache.get(provider) {
-            return Ok(Some(key.clone()));
-        }
-        let key = self.get(&Self::ai_key_ref(provider))?;
-        if let Some(key) = &key {
-            cache.insert(provider.to_owned(), key.clone());
-        }
-        Ok(key)
-    }
-
-    pub fn set_ai_key(&self, provider: &str, key: &str) -> Result<()> {
-        self.set(&Self::ai_key_ref(provider), key)?;
-        ai_cache().insert(provider.to_owned(), key.to_owned());
-        Ok(())
-    }
-
-    pub fn delete_ai_key(&self, provider: &str) -> Result<()> {
-        ai_cache().remove(provider);
-        self.delete(&Self::ai_key_ref(provider))
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn ai_key_ref_is_namespaced_per_provider() {
-        assert_eq!(SecretStore::ai_key_ref("anthropic"), "ai:anthropic:api-key");
-        assert_ne!(
-            SecretStore::ai_key_ref("openai"),
-            SecretStore::ai_key_ref("anthropic")
-        );
-    }
 
     /// Guards against a missing keyring backend (silent in-memory mock): a value written by
     /// one store must be readable by a fresh one. Needs a real keychain, so run with

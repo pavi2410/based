@@ -9,7 +9,6 @@ use gpui_kit::component::{
 use gpui_kit::{Context, Hsla, IntoElement, ParentElement, prelude::*};
 
 use crate::connection::ConnectionOrigin;
-use crate::project::personal::personal_root;
 use crate::widgets::labeled_field;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,9 +32,13 @@ impl ConnectionDestination {
         }
     }
 
-    pub fn based_dir(self, project_dir: Option<&Path>) -> anyhow::Result<PathBuf> {
+    pub fn based_dir(
+        self,
+        project_dir: Option<&Path>,
+        personal_root: &Path,
+    ) -> anyhow::Result<PathBuf> {
         match self {
-            Self::Personal => Ok(personal_root()),
+            Self::Personal => Ok(personal_root.to_path_buf()),
             Self::Project => project_dir
                 .map(|p| p.join(".based"))
                 .ok_or_else(|| anyhow::anyhow!("no project is open")),

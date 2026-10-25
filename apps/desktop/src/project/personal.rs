@@ -24,11 +24,6 @@ pub fn personal_root_from(xdg_config_home: Option<String>, home: Option<PathBuf>
     }
 }
 
-/// True when `path` is the personal based-dir or a file inside it.
-pub fn is_personal_tree(path: &Path) -> bool {
-    is_under_personal_root(path, &personal_root())
-}
-
 pub fn is_under_personal_root(path: &Path, root: &Path) -> bool {
     path == root || path.starts_with(root)
 }

@@ -30,6 +30,7 @@ pub mod theme;
 pub mod widgets;
 pub mod workspace;
 
+use app::paths::AppPaths;
 use gpui_kit::App;
 use project::{
     ProjectContext, ProjectVars, find_project_root, install_reload_watcher,
@@ -65,7 +66,12 @@ pub fn run() {
 ///
 /// Everything here is safe to call from headless tests: no disk, network,
 /// file watchers or windows.
+///
+/// Installs [`AppPaths::from_env`] unless the caller already set one.
 pub fn init_globals(cx: &mut App) {
+    if !cx.has_global::<AppPaths>() {
+        cx.set_global(AppPaths::from_env());
+    }
     gpui_kit::init(cx);
     if let Err(err) = theme::register_themes(cx) {
         log::error!("failed to register theme bundles: {err:#}");
@@ -87,7 +93,7 @@ pub fn init_globals(cx: &mut App) {
 
 /// Discover and load the `.based/` project, then start the reload watcher.
 fn init_project(cx: &mut App) {
-    let project_root = find_project_root();
+    let project_root = find_project_root(&AppPaths::get(cx).clone());
     let project_context = project_root
         .as_ref()
         .and_then(|root| ProjectContext::load(root.clone()).ok());

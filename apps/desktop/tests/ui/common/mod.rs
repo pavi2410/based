@@ -1,10 +1,11 @@
 //! Shared fixtures: isolated process env, app globals, and a Workspace window.
 #![allow(dead_code)]
 
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
-use std::{env, fs};
 
+use based_desktop::app::paths::AppPaths;
 use based_desktop::workspace::Workspace;
 use based_desktop::workspace::boot::WorkspaceEnv;
 use based_desktop::{init_globals, query_store, storage};
@@ -14,30 +15,29 @@ use gpui_kit::{
     WindowBounds, WindowHandle, WindowOptions, base::Root, px, size,
 };
 
-/// Per-process scratch dir; keeps tests off the real project and `~/.config/based`.
+/// Per-process scratch dir for fixtures that need no cleanup (metadata DBs, empty trees).
 fn sandbox() -> &'static PathBuf {
     static DIR: OnceLock<PathBuf> = OnceLock::new();
     DIR.get_or_init(|| {
         let dir = tempfile::tempdir().expect("tempdir").keep();
         fs::create_dir_all(dir.join("personal")).expect("personal dir");
-        // Guards code outside `Workspace` that still reads the personal root from the env.
-        // SAFETY: runs once, inside `get_or_init`, before any test reads these vars.
-        unsafe {
-            env::set_var("XDG_CONFIG_HOME", dir.join("config"));
-        }
         dir
     })
 }
 
-/// Initialise app globals and an isolated metadata store.
-pub fn init_app(cx: &mut TestAppContext) {
+/// Initialise app globals over `personal_root` with isolated prefs and metadata store.
+pub fn init_app(cx: &mut TestAppContext, personal_root: &Path) {
     let dir = sandbox().clone();
+    let unique = uuid::Uuid::new_v4();
     // Tokio workers (metadata store, session save) wake GPUI tasks from other threads.
     cx.executor().allow_parking();
     cx.update(|cx: &mut App| {
+        cx.set_global(AppPaths {
+            personal_root: personal_root.to_path_buf(),
+            prefs_path: dir.join(format!("prefs-{unique}.toml")),
+        });
         init_globals(cx);
-        let db = dir.join(format!("meta-{}.db", uuid::Uuid::new_v4()));
-        storage::init_at(cx, &db).expect("metadata store");
+        storage::init_at(cx, &dir.join(format!("meta-{unique}.db"))).expect("metadata store");
         query_store::init(None, None, cx);
     });
 }
@@ -73,7 +73,7 @@ pub fn open_with(
     cx: &mut TestAppContext,
     workspace_env: WorkspaceEnv,
 ) -> (AnyWindowHandle, Entity<Workspace>) {
-    init_app(cx);
+    init_app(cx, &workspace_env.personal_root);
     let opened = cx.update(|cx| {
         let bounds = Bounds {
             origin: Point::default(),

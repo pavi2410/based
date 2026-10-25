@@ -7,6 +7,7 @@ pub mod chrome;
 pub mod globals;
 pub mod launch;
 pub mod logging;
+pub mod paths;
 pub mod prefs;
 pub mod quit;
 pub mod restart;

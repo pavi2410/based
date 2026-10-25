@@ -11,6 +11,7 @@ use gpui_kit::component::{
 };
 use gpui_kit::{App, BorrowAppContext, Entity, SharedString, Window, prelude::*};
 
+use crate::app::paths::AppPaths;
 use crate::app::prefs;
 use crate::app::quit;
 use crate::connection::registry::ConnectionRegistry;
@@ -73,7 +74,7 @@ fn spawn_pick_and_then(cx: &mut App, mode: ProjectOpenMode) {
             let Some(picked) = picked else {
                 return;
             };
-            let Some(root) = resolve_project_root(&picked) else {
+            let Some(root) = resolve_project_root(&picked, &AppPaths::get(cx).personal_root) else {
                 notify::push_error(
                     cx,
                     "Open Project",

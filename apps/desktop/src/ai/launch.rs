@@ -2,6 +2,7 @@
 //! UI thread, builds the provider and either streams the reply into an entity ([`launch`])
 //! or returns it whole ([`complete`]).
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use based_ai::{AiError, AiErrorKind, ChatRequest, Chunk, Provider};
@@ -10,12 +11,14 @@ use gpui_kit::{App, AsyncApp, Context, Task};
 
 use super::keys;
 use super::stream::{AiStream, StreamEvent, start};
+use crate::app::paths::AppPaths;
 use crate::app::prefs;
 use crate::db;
 
 /// Builds the configured provider. The file read happens off the UI thread.
 async fn provider(
     cx: &AsyncApp,
+    personal_root: PathBuf,
     kind: based_ai::ProviderKind,
     base_url: Option<String>,
 ) -> Result<Arc<dyn Provider>, AiError> {
@@ -23,7 +26,7 @@ async fn provider(
         .background_executor()
         .spawn(async move {
             if kind.needs_key() {
-                keys::get(kind.as_str())
+                keys::get(&personal_root, kind.as_str())
             } else {
                 Ok(None)
             }
@@ -45,8 +48,9 @@ pub fn launch<T: 'static>(
     let prefs = prefs::ai_prefs(cx);
     let (kind, base_url) = (prefs.provider(), prefs.base_url().map(str::to_owned));
     let request = build(prefs.model());
+    let personal_root = AppPaths::get(cx).personal_root.clone();
     cx.spawn(async move |this, cx| {
-        let provider = provider(cx, kind, base_url).await;
+        let provider = provider(cx, personal_root, kind, base_url).await;
         let _ = this.update(cx, |this, cx| match provider {
             Ok(provider) => attach(this, start(provider, request, cx, on_event)),
             Err(e) => on_event(this, StreamEvent::Failed(e), cx),
@@ -63,8 +67,9 @@ pub fn complete(
     let prefs = prefs::ai_prefs(cx);
     let (kind, base_url) = (prefs.provider(), prefs.base_url().map(str::to_owned));
     let request = build(prefs.model());
+    let personal_root = AppPaths::get(cx).personal_root.clone();
     cx.spawn(async move |cx| {
-        let provider = provider(cx, kind, base_url).await?;
+        let provider = provider(cx, personal_root, kind, base_url).await?;
         let reply = db::run_infallible(cx, async move {
             let mut chunks = provider.stream(request);
             let mut text = String::new();

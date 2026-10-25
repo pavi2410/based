@@ -41,6 +41,7 @@ use based_ai::context::ContextLevel;
 use gpui_kit::component::dock::{DockArea, DockEvent, DockSkin, PanelStyle, PanelView};
 use gpui_kit::{App, Context, Entity, FocusHandle, Focusable, SharedString, Window, prelude::*};
 
+use crate::app::paths::AppPaths;
 use crate::app::prefs::{collapsed_from, set_sidebar};
 use crate::app::quit::confirm_before_close_window;
 use crate::app::shell::open_settings;
@@ -124,7 +125,7 @@ pub struct Workspace {
 
 impl Workspace {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        Self::with_env(WorkspaceEnv::from_process(), window, cx)
+        Self::with_env(WorkspaceEnv::from_paths(AppPaths::get(cx)), window, cx)
     }
 
     pub fn with_env(env: WorkspaceEnv, window: &mut Window, cx: &mut Context<Self>) -> Self {

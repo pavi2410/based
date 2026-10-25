@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use based_project::{AiSettings, ProjectQuery, load_env_file};
 use gpui_kit::Context;
 
+use crate::app::paths::AppPaths;
 use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{
     ConnectionConfig, ConnectionEntry, ConnectionId, ConnectionOrigin, ConnectionState,
@@ -134,7 +135,10 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> Result<(ConnectionId, bool), String> {
         let based_dir = destination
-            .based_dir(self.project_dir.as_deref())
+            .based_dir(
+                self.project_dir.as_deref(),
+                &AppPaths::get(cx).personal_root,
+            )
             .map_err(|err| format!("{err:#}"))?;
         let origin = destination.origin();
         let editing = session_id

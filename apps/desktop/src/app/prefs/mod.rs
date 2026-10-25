@@ -5,6 +5,7 @@ pub use super::chrome::{
     ChromePrefs, CodeFontFamilyId, DensityPreset, FontWeightToken, SizeToken, UiFontFamilyId,
     apply_chrome, panel_header_h, sidebar_row_gap, sidebar_row_py,
 };
+use super::paths::AppPaths;
 use crate::theme::{DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME, apply_theme_names, preset_by_id};
 use gpui_kit::component::{Size, Theme, ThemeMode};
 use gpui_kit::{App, BorrowAppContext, FontWeight, Global, SharedString};
@@ -70,6 +71,9 @@ pub struct NativePreferences {
     pub last_opened_project: Option<PathBuf>,
     #[serde(default)]
     pub recent_projects: Vec<PathBuf>,
+    /// File these were loaded from and are saved back to; `None` uses [`Self::prefs_path`].
+    #[serde(skip)]
+    path: Option<PathBuf>,
 }
 
 impl Default for NativePreferences {
@@ -87,6 +91,7 @@ impl Default for NativePreferences {
             ai: AiPreferences::default(),
             last_opened_project: None,
             recent_projects: Vec::new(),
+            path: None,
         }
     }
 }
@@ -116,7 +121,10 @@ impl NativePreferences {
     }
 
     pub fn load() -> Self {
-        let path = Self::prefs_path();
+        Self::load_from(Self::prefs_path())
+    }
+
+    pub fn load_from(path: PathBuf) -> Self {
         let raw = fs::read_to_string(&path).unwrap_or_default();
         let mut prefs: Self = match raw.is_empty() {
             true => Self::default(),
@@ -154,11 +162,15 @@ impl NativePreferences {
         migrate_legacy_theme_names(&mut prefs);
         migrate_legacy_chrome(&mut prefs);
         apply_dev_update_policy(&mut prefs.update);
+        prefs.path = Some(path);
         prefs
     }
 
     pub fn save_best_effort(&self) {
-        let path = Self::prefs_path();
+        let path = self.path.clone().unwrap_or_else(Self::prefs_path);
+        if let Some(parent) = path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
         let encoded = match toml::to_string_pretty(self) {
             Ok(s) => s,
             Err(e) => {
@@ -199,7 +211,7 @@ fn update_chrome(update: impl FnOnce(&mut ChromePrefs) -> bool, cx: &mut App) {
 
 /// Load persisted prefs into a global and apply appearance + theme pair.
 pub fn install(cx: &mut App) {
-    let prefs = NativePreferences::load();
+    let prefs = NativePreferences::load_from(AppPaths::get(cx).prefs_path.clone());
     let light = prefs.light_theme.clone();
     let dark = prefs.dark_theme.clone();
     let chrome = prefs.chrome.clone();

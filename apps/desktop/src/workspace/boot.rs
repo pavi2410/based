@@ -2,11 +2,12 @@
 
 use std::path::PathBuf;
 
-use crate::project::{find_project_root, personal::personal_root};
+use crate::app::paths::AppPaths;
+use crate::project::find_project_root;
 
 /// Where the workspace finds its project and personal `.based/` trees.
 ///
-/// Production uses [`WorkspaceEnv::from_process`]; tests pass explicit paths
+/// Production uses [`WorkspaceEnv::from_paths`]; tests pass explicit paths
 /// to [`Workspace::with_env`](super::Workspace::with_env).
 #[derive(Clone, Debug)]
 pub struct WorkspaceEnv {
@@ -17,10 +18,10 @@ pub struct WorkspaceEnv {
 }
 
 impl WorkspaceEnv {
-    pub fn from_process() -> Self {
+    pub fn from_paths(paths: &AppPaths) -> Self {
         Self {
-            project_dir: find_project_root(),
-            personal_root: personal_root(),
+            project_dir: find_project_root(paths),
+            personal_root: paths.personal_root.clone(),
         }
     }
 }

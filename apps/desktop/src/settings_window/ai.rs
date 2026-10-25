@@ -14,7 +14,10 @@ use gpui_kit::{
     div, prelude::*,
 };
 
+use std::path::PathBuf;
+
 use crate::ai::keys;
+use crate::app::paths::AppPaths;
 use crate::app::prefs;
 
 pub fn page() -> SettingPage {
@@ -113,6 +116,7 @@ enum KeyStatus {
 /// Masked key entry. File access runs off the UI thread.
 struct KeyField {
     provider: ProviderKind,
+    personal_root: PathBuf,
     input: Entity<InputState>,
     status: KeyStatus,
 }
@@ -133,11 +137,12 @@ impl KeyField {
         .detach();
         let mut field = Self {
             provider,
+            personal_root: AppPaths::get(cx).personal_root.clone(),
             input,
             status: KeyStatus::Checking,
         };
-        let id = provider.as_str();
-        field.run(cx, move || keys::get(id).map(|k| k.is_some()));
+        let (id, root) = (provider.as_str(), field.personal_root.clone());
+        field.run(cx, move || keys::get(&root, id).map(|k| k.is_some()));
         field
     }
 
@@ -170,15 +175,15 @@ impl KeyField {
             .update(cx, |input, cx| input.set_value("", window, cx));
         self.status = KeyStatus::Busy;
         cx.notify();
-        let id = self.provider.as_str();
-        self.run(cx, move || keys::set(id, &key).map(|()| true));
+        let (id, root) = (self.provider.as_str(), self.personal_root.clone());
+        self.run(cx, move || keys::set(&root, id, &key).map(|()| true));
     }
 
     fn remove(&mut self, cx: &mut Context<Self>) {
         self.status = KeyStatus::Busy;
         cx.notify();
-        let id = self.provider.as_str();
-        self.run(cx, move || keys::delete(id).map(|()| false));
+        let (id, root) = (self.provider.as_str(), self.personal_root.clone());
+        self.run(cx, move || keys::delete(&root, id).map(|()| false));
     }
 }
 

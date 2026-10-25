@@ -6,7 +6,10 @@
 
 use crate::app::prefs::ui_font_family;
 use gpui_kit::component::{ActiveTheme, IconName, h_flex, v_flex};
-use gpui_kit::{App, FontWeight, IntoElement, ParentElement, Styled, div, px};
+use gpui_kit::{
+    App, AppContext as _, Context, Empty, FontWeight, InteractiveElement as _, IntoElement,
+    ParentElement, Render, StatefulInteractiveElement as _, Styled, Window, div, px,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SidePane {
@@ -48,20 +51,57 @@ impl SidePane {
 }
 
 pub const SIDE_PANE_WIDTH: f32 = 320.0;
+const MIN_WIDTH: f32 = 260.0;
+const MAX_WIDTH: f32 = 720.0;
+/// Space kept for the editor when the pane is dragged wide.
+const MIN_CENTER: f32 = 360.0;
 
-/// Wrap a pane body with the shared 320 px column chrome (header + scroll area).
-pub fn render_side_pane(active: SidePane, body: impl IntoElement, cx: &App) -> impl IntoElement {
+/// Drag payload for the pane's resize handle.
+#[derive(Clone)]
+pub struct PaneResize;
+
+impl Render for PaneResize {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        Empty
+    }
+}
+
+/// Pane width for a pointer at `pointer_x` in a window `window_w` wide.
+pub fn width_for_pointer(window_w: f32, pointer_x: f32) -> f32 {
+    let max = MAX_WIDTH.min(window_w - MIN_CENTER).max(MIN_WIDTH);
+    (window_w - pointer_x).clamp(MIN_WIDTH, max)
+}
+
+/// Wrap a pane body with the shared column chrome (header + body); drag its left edge to resize.
+pub fn render_side_pane(
+    active: SidePane,
+    body: impl IntoElement,
+    width: f32,
+    cx: &App,
+) -> impl IntoElement {
     let border = cx.theme().border;
     let muted = cx.theme().muted_foreground;
 
     v_flex()
-        .w(px(SIDE_PANE_WIDTH))
+        .relative()
+        .w(px(width))
         .h_full()
         .flex_shrink_0()
         .min_h_0()
         .border_l_1()
         .border_color(border)
         .bg(cx.theme().background)
+        .child(
+            div()
+                .id("side-pane-resize")
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .left(px(-3.0))
+                .w(px(6.0))
+                .cursor_col_resize()
+                .on_drag(PaneResize, |drag, _, _, cx| cx.new(|_| drag.clone())),
+        )
         .child(
             h_flex()
                 .h(px(38.0))
@@ -80,4 +120,17 @@ pub fn render_side_pane(active: SidePane, body: impl IntoElement, cx: &App) -> i
                 ),
         )
         .child(div().flex_1().min_h_0().child(body))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn width_follows_the_pointer_within_limits() {
+        assert_eq!(width_for_pointer(1600.0, 1200.0), 400.0);
+        assert_eq!(width_for_pointer(1600.0, 1500.0), MIN_WIDTH);
+        assert_eq!(width_for_pointer(1600.0, 100.0), MAX_WIDTH);
+        assert_eq!(width_for_pointer(800.0, 100.0), 440.0);
+    }
 }

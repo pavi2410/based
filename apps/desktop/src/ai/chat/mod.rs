@@ -179,11 +179,13 @@ impl ChatPane {
     }
 
     /// Tells the scroller how the row count changed and re-measures the growing last row.
+    /// Keeps the newest content in view unless the user scrolled up to read.
     fn sync(&mut self, cx: &mut Context<Self>) {
         let rows = self.rows();
         let shown = self.shown;
         self.shown = rows;
         self.scroller.update(cx, |scroller, cx| {
+            let at_end = !scroller.is_scrolled_up();
             if rows > shown {
                 scroller.append(rows - shown, cx);
             } else if rows < shown {
@@ -191,8 +193,16 @@ impl ChatPane {
             } else if rows > 0 {
                 scroller.remeasure_items(rows - 1..rows, cx);
             }
+            if at_end {
+                scroller.scroll_to_end(cx);
+            }
         });
         cx.notify();
+    }
+
+    /// Jumps to the newest row, e.g. after the user sends a message.
+    fn follow(&self, cx: &mut Context<Self>) {
+        self.scroller.update(cx, |s, cx| s.scroll_to_end(cx));
     }
 
     /// Tools for the focused connection, honouring its `[ai]` context level.
@@ -217,6 +227,7 @@ impl ChatPane {
         self.round = 0;
         let tags = self.take_tags(&text, cx);
         self.turns.push(Message::user(text));
+        self.follow(cx);
         if self.tools.is_some() && !tags.is_empty() {
             // Tagged tables arrive as ordinary `describe_table` calls, so they show in the chat.
             let calls: Vec<ToolCall> = tags

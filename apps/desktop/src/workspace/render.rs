@@ -5,7 +5,7 @@
 //! deferred executor.
 
 use gpui_kit::component::{ActiveTheme, Placement, v_flex};
-use gpui_kit::{Context, IntoElement, Render, Window, div, prelude::*};
+use gpui_kit::{Context, DragMoveEvent, IntoElement, Render, Window, div, prelude::*};
 
 use crate::bindings::{
     CloseAllTabs, CloseCleanTabs, CloseOtherTabs, CloseTab, CloseTabsLeft, CloseTabsRight,
@@ -21,7 +21,7 @@ use super::chrome::{
     layout,
     left_pane::LeftPane,
     panes::{history_pane::render_history_pane, saved_pane::render_saved_pane},
-    side_pane::{SidePane, render_side_pane},
+    side_pane::{PaneResize, SidePane, render_side_pane, width_for_pointer},
     status_bar::{StatusBar, StatusBarConnection, StatusBarModel},
     target_picker::render_target_picker,
     topbar::Topbar,
@@ -62,6 +62,7 @@ impl Render for Workspace {
         if active_pane == Some(SidePane::Chat) {
             self.sync_chat_context(cx);
         }
+        let side_pane_width = self.side_pane_width;
         let history_filter = self.history_filter;
         let workspace_for_panes = this.clone();
         let target_pick = self.pending_target_pick.clone();
@@ -88,7 +89,7 @@ impl Render for Workspace {
                 )
                 .into_any_element(),
             };
-            render_side_pane(pane, body, cx).into_any_element()
+            render_side_pane(pane, body, side_pane_width, cx).into_any_element()
         });
 
         let content_rail_expanded = self.connection_tree.read(cx).content_rail_expanded;
@@ -118,6 +119,14 @@ impl Render for Workspace {
         let main = v_flex()
             .size_full()
             .track_focus(&self.focus_handle)
+            .on_drag_move(window.listener_for(
+                &this,
+                |ws, e: &DragMoveEvent<PaneResize>, window, cx| {
+                    let window_w = f32::from(window.viewport_size().width);
+                    ws.side_pane_width = width_for_pointer(window_w, f32::from(e.event.position.x));
+                    cx.notify();
+                },
+            ))
             .on_action(
                 window.listener_for(&this, |ws, _: &ToggleSidebarRail, _, cx| {
                     // Hide only the catalog pane; the icon rail stays.

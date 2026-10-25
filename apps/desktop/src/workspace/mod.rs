@@ -64,7 +64,10 @@ use context::WorkspaceContext;
 
 use tabs::TabNavigationHistory;
 
-use chrome::{left_pane::LeftPane, side_pane::SidePane};
+use chrome::{
+    left_pane::LeftPane,
+    side_pane::{SIDE_PANE_WIDTH, SidePane},
+};
 use panels::HomePanel;
 
 /// See [`Workspace::chat_conn`].
@@ -84,6 +87,8 @@ pub struct Workspace {
     active_left_pane: LeftPane,
     /// `None` collapses the right-hand column. Defaults to Inspector to preserve the prior UX.
     active_side_pane: Option<SidePane>,
+    /// Width of the right pane; dragged by its left edge.
+    side_pane_width: f32,
     /// History pane filter chip (All / Today).
     history_filter: HistoryFilter,
     chat: Entity<ChatPane>,
@@ -196,6 +201,7 @@ impl Workspace {
             sidebar_collapsed: collapsed_from(cx),
             active_left_pane: LeftPane::Browser,
             active_side_pane: None,
+            side_pane_width: SIDE_PANE_WIDTH,
             history_filter: HistoryFilter::default(),
             chat: cx.new(|cx| ChatPane::new(registry.clone(), window, cx)),
             chat_scope: None,

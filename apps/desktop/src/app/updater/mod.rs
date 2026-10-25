@@ -27,6 +27,7 @@ use crate::db::{run, run_infallible};
 use crate::workspace::notify;
 use crate::workspace::tabs::{WorkspaceRef, enqueue_open_release_notes};
 
+use super::paths::AppPaths;
 use super::prefs::{self, UpdatePreferences};
 use super::quit;
 
@@ -103,7 +104,8 @@ pub fn init(cx: &mut App) {
     ));
     cx.set_global(UpdateCoordinator::default());
 
-    let mut state = UpdaterStateFile::load();
+    let state_path = AppPaths::get(cx).updater_state_path();
+    let mut state = UpdaterStateFile::load_from(state_path.clone());
     handle_pending_release_notes(&mut state, cx);
 
     cx.spawn(async move |cx| {
@@ -111,7 +113,7 @@ pub fn init(cx: &mut App) {
         sleep_on_tokio(cx, Duration::from_secs(30)).await;
         cx.update(|app| {
             let prefs = UpdateCoordinator::prefs(app);
-            let stale = startup_check_stale(&UpdaterStateFile::load());
+            let stale = startup_check_stale(&UpdaterStateFile::load_from(state_path.clone()));
             if prefs.check_at_startup && stale {
                 uinfo("startup check: running (stale or never checked)");
                 trigger_check(app, false);
@@ -135,7 +137,10 @@ pub fn init(cx: &mut App) {
             let should = cx.update(|app| {
                 let prefs = UpdateCoordinator::prefs(app);
                 prefs.auto_check
-                    && should_run_periodic_check(&UpdaterStateFile::load(), prefs.check_interval)
+                    && should_run_periodic_check(
+                        &UpdaterStateFile::load_from(state_path.clone()),
+                        prefs.check_interval,
+                    )
             });
 
             if should {
@@ -197,7 +202,7 @@ pub fn skip_version(cx: &mut App) {
     cx.update_global(|coord: &mut UpdateCoordinator, app| {
         if let Some(v) = coord.available_version.clone() {
             uinfo(format!("skip_version: version={v}"));
-            let mut state = UpdaterStateFile::load();
+            let mut state = UpdaterStateFile::load_from(AppPaths::get(app).updater_state_path());
             state.dismissed_version = Some(v);
             state.save_best_effort();
         }
@@ -365,12 +370,15 @@ fn install_staged(cx: &mut App) {
         return;
     };
     let version = update.version.to_string();
+    let state_path = AppPaths::get(cx).updater_state_path();
     uinfo(format!("install_staged: version={version}"));
     cx.spawn(async move |cx| {
         let result = run(cx, async move {
-            spawn_blocking(move || install::install_and_relaunch(update, bytes, &version))
-                .await
-                .context("join install")?
+            spawn_blocking(move || {
+                install::install_and_relaunch(update, bytes, &version, state_path)
+            })
+            .await
+            .context("join install")?
         })
         .await;
         if let Err(err) = result {
@@ -393,9 +401,10 @@ fn fail(cx: &mut AsyncApp, msg: String) {
 
 async fn run_check(cx: &mut AsyncApp, manual: bool) {
     let prefs = cx.update(|app| UpdateCoordinator::prefs(app));
+    let state_path = cx.update(|app| AppPaths::get(app).updater_state_path());
 
     let result = run(cx, async move {
-        let mut state = UpdaterStateFile::load();
+        let mut state = UpdaterStateFile::load_from(state_path.clone());
         state.mark_checked_now();
 
         let current = config::current_version();
@@ -415,7 +424,11 @@ async fn run_check(cx: &mut AsyncApp, manual: bool) {
         }
 
         let skipped = |version: &str| {
-            !manual && UpdaterStateFile::load().dismissed_version.as_deref() == Some(version)
+            !manual
+                && UpdaterStateFile::load_from(state_path.clone())
+                    .dismissed_version
+                    .as_deref()
+                    == Some(version)
         };
 
         if config::supports_in_app_install() {

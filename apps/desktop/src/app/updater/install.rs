@@ -5,6 +5,7 @@ use gpui_kit::App;
 use super::log::info as uinfo;
 use super::persist::UpdaterStateFile;
 use std::env;
+use std::path::PathBuf;
 use std::process;
 
 /// Install an already downloaded, signature-verified bundle, then relaunch the app.
@@ -12,6 +13,7 @@ pub fn install_and_relaunch(
     update: Update,
     bytes: Vec<u8>,
     pending_notes_version: &str,
+    state_path: PathBuf,
 ) -> Result<()> {
     uinfo(format!("install: installing version={}", update.version));
     update.install(bytes).context("install update")?;
@@ -19,7 +21,7 @@ pub fn install_and_relaunch(
     uinfo(format!(
         "install: success, pending release notes v{pending_notes_version}"
     ));
-    let mut state = UpdaterStateFile::load();
+    let mut state = UpdaterStateFile::load_from(state_path);
     state.set_pending_release_notes(pending_notes_version);
     state.save_best_effort();
 

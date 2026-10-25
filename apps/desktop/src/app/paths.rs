@@ -27,6 +27,11 @@ impl AppPaths {
         }
     }
 
+    /// `updater_state.toml`, next to the preferences file.
+    pub fn updater_state_path(&self) -> PathBuf {
+        self.prefs_path.with_file_name("updater_state.toml")
+    }
+
     pub fn get(cx: &App) -> &Self {
         cx.global::<Self>()
     }

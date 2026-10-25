@@ -3,7 +3,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
-use super::super::prefs::{NativePreferences, UpdateCheckInterval};
+use super::super::prefs::UpdateCheckInterval;
 
 use super::log::{debug as udebug, warn as uwarn};
 use std::fs;
@@ -16,25 +16,23 @@ pub struct UpdaterStateFile {
     pub dismissed_version: Option<String>,
     #[serde(default)]
     pub pending_release_notes_version: Option<String>,
+    #[serde(skip)]
+    path: PathBuf,
 }
 
 impl UpdaterStateFile {
-    pub fn path() -> PathBuf {
-        NativePreferences::prefs_path()
-            .parent()
-            .map(|p| p.join("updater_state.toml"))
-            .unwrap_or_else(|| PathBuf::from("updater_state.toml"))
-    }
-
-    pub fn load() -> Self {
-        let path = Self::path();
+    pub fn load_from(path: PathBuf) -> Self {
         let raw = fs::read_to_string(&path).unwrap_or_default();
         if raw.is_empty() {
             udebug(format!("state load: empty ({path:?})"));
-            return Self::default();
+            return Self {
+                path,
+                ..Self::default()
+            };
         }
         match toml::from_str::<UpdaterStateFile>(&raw) {
-            Ok(state) => {
+            Ok(mut state) => {
+                state.path = path;
                 udebug(format!(
                     "state load: last_check_at={:?} dismissed={:?} pending_notes={:?}",
                     state.last_check_at,
@@ -45,19 +43,22 @@ impl UpdaterStateFile {
             }
             Err(e) => {
                 uwarn(format!("state load ({path:?}): {e}"));
-                Self::default()
+                Self {
+                    path,
+                    ..Self::default()
+                }
             }
         }
     }
 
     pub fn save_best_effort(&self) {
-        let path = Self::path();
+        let path = &self.path;
         if let Some(parent) = path.parent() {
             let _ = fs::create_dir_all(parent);
         }
         match toml::to_string_pretty(self) {
             Ok(encoded) => {
-                if let Err(e) = fs::write(&path, encoded) {
+                if let Err(e) = fs::write(path, encoded) {
                     uwarn(format!("state save ({path:?}): {e:#}"));
                 } else {
                     udebug(format!("state save: ok ({path:?})"));
@@ -121,4 +122,21 @@ pub fn startup_check_stale(state: &UpdaterStateFile) -> bool {
         return true;
     };
     now_unix().saturating_sub(last) >= 6 * 3600
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn state_round_trips_through_the_given_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("nested").join("updater_state.toml");
+        let mut state = UpdaterStateFile::load_from(path.clone());
+        assert_eq!(state.last_check_at, None);
+        state.set_pending_release_notes("1.2.3");
+        let mut again = UpdaterStateFile::load_from(path);
+        assert_eq!(again.take_pending_release_notes().as_deref(), Some("1.2.3"));
+        assert_eq!(again.pending_release_notes_version, None);
+    }
 }

@@ -29,25 +29,55 @@ impl ConnectionId {
         Self(format!("{}{key}", Self::UNSAVED_PREFIX))
     }
 
+    /// Where this connection lives; classified once from the id prefix.
+    pub fn scope(&self) -> ConnectionScope {
+        let id = self.0.as_str();
+        if id.starts_with(Self::USER_PREFIX) {
+            ConnectionScope::Personal
+        } else if id.starts_with(Self::UNSAVED_PREFIX) {
+            ConnectionScope::Unsaved
+        } else if id.starts_with(Self::WORKSPACE_TEMPLATE_PREFIX) {
+            ConnectionScope::Template
+        } else {
+            ConnectionScope::Project
+        }
+    }
+
     /// User-local connection stored in workspace metadata, not the open `.based/` project.
     pub fn is_workspace_local(&self) -> bool {
-        self.is_personal() || self.is_ephemeral()
+        self.scope() != ConnectionScope::Project
     }
 
     /// Connection loaded from the personal based-dir.
     pub fn is_personal(&self) -> bool {
-        self.0.starts_with(Self::USER_PREFIX)
+        self.scope() == ConnectionScope::Personal
     }
 
     /// Live session that is not a project or personal file.
     pub fn is_unsaved(&self) -> bool {
-        self.0.starts_with(Self::UNSAVED_PREFIX)
+        self.scope() == ConnectionScope::Unsaved
     }
 
     /// Unsaved live sessions and workspace SQLite templates — never owned by a based-dir snapshot.
     pub fn is_ephemeral(&self) -> bool {
-        self.is_unsaved() || self.0.starts_with(Self::WORKSPACE_TEMPLATE_PREFIX)
+        matches!(
+            self.scope(),
+            ConnectionScope::Unsaved | ConnectionScope::Template
+        )
     }
+}
+
+/// Ownership of a connection id.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConnectionScope {
+    /// `.based/connections/` of the open project.
+    Project,
+    /// Personal based-dir (`user:`).
+    Personal,
+    /// Live session never written to disk (`unsaved:`).
+    Unsaved,
+    /// User-local wizard template (`ws-template:`).
+    Template,
 }
 
 impl Display for ConnectionId {

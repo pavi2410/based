@@ -87,7 +87,7 @@ impl Workspace {
         open_catalog: bool,
         cx: &mut Context<Self>,
     ) {
-        let origin = if session_id.is_personal() || session_id.is_ephemeral() {
+        let origin = if session_id.is_workspace_local() {
             ConnectionOrigin::Personal
         } else {
             ConnectionOrigin::Project

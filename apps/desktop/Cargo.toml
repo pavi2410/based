@@ -111,6 +111,11 @@ lsp-types = { version = "0.97.0", features = ["proposed"] }
 [lints]
 workspace = true
 
+[features]
+# Read/drive APIs used by `tests/ui`; enabled for tests via the self dev-dependency.
+test-support = []
+
 [dev-dependencies]
+desktop = { path = ".", features = ["test-support"] }
 tempfile.workspace = true
 gpui-kit = { workspace = true, features = ["test-support"] }

@@ -32,11 +32,13 @@ mod icon_rail;
 mod object_list;
 mod open_workspace;
 mod schema_load;
+#[cfg(any(test, feature = "test-support"))]
 mod snapshot;
 mod types;
 
 pub(crate) use context_menu::connection_actions_menu;
 pub(crate) use icon_rail::ICON_RAIL_WIDTH;
+#[cfg(any(test, feature = "test-support"))]
 pub use snapshot::CatalogSnapshot;
 pub use types::{ObjectKind, SchemaObject, TreeEvent};
 

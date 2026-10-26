@@ -1937,6 +1937,7 @@ dependencies = [
  "based-workspace",
  "cargo-packager-updater",
  "csv",
+ "desktop",
  "dirs 6.0.0",
  "futures",
  "gpui-kit",

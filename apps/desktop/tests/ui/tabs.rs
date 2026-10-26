@@ -8,6 +8,7 @@ use based_desktop::workspace::{TabSpec, Workspace};
 use gpui_kit::test::TestWindowExt;
 use gpui_kit::{AnyWindowHandle, AppContext, Entity, TestAppContext};
 
+use crate::common::strip::open_tab;
 use crate::common::{info, open_workspace, settle};
 
 /// Number of distinct tab panels (see `one_manager_entry_per_panel` for why not `tabs.len()`).
@@ -33,16 +34,6 @@ fn has_home_only(ws: &Entity<Workspace>, cx: &mut TestAppContext) -> bool {
     })
 }
 
-fn open(win: AnyWindowHandle, ws: &Entity<Workspace>, spec: TabSpec, cx: &mut TestAppContext) {
-    cx.update_window(win, |_, window, cx| {
-        let opened = ws.update(cx, |ws, cx| ws.dispatch_open_tab(spec.clone(), window, cx));
-        assert!(opened, "dispatch_open_tab refused {spec:?}");
-        window.render_frame(cx);
-    })
-    .unwrap();
-    settle(cx);
-}
-
 fn close_active(win: AnyWindowHandle, ws: &Entity<Workspace>, cx: &mut TestAppContext) {
     cx.update_window(win, |_, window, cx| {
         ws.update(cx, |ws, cx| ws.close_tabs(CloseScope::Active, window, cx));
@@ -61,8 +52,8 @@ fn starts_with_home_tab(cx: &mut TestAppContext) {
 #[gpui_kit::test]
 fn distinct_specs_open_distinct_tabs(cx: &mut TestAppContext) {
     let (win, ws) = open_workspace(cx);
-    open(win, &ws, info("a"), cx);
-    open(win, &ws, info("b"), cx);
+    open_tab(win, &ws, info("a"), cx);
+    open_tab(win, &ws, info("b"), cx);
     assert_eq!(tab_count(&ws, cx), 3, "Home + two tabs");
 }
 
@@ -70,8 +61,8 @@ fn distinct_specs_open_distinct_tabs(cx: &mut TestAppContext) {
 #[gpui_kit::test]
 fn opening_same_spec_twice_does_not_duplicate(cx: &mut TestAppContext) {
     let (win, ws) = open_workspace(cx);
-    open(win, &ws, info("a"), cx);
-    open(win, &ws, info("a"), cx);
+    open_tab(win, &ws, info("a"), cx);
+    open_tab(win, &ws, info("a"), cx);
     assert_eq!(tab_count(&ws, cx), 2, "Home + one tab");
 }
 
@@ -79,7 +70,7 @@ fn opening_same_spec_twice_does_not_duplicate(cx: &mut TestAppContext) {
 #[gpui_kit::test]
 fn one_manager_entry_per_panel(cx: &mut TestAppContext) {
     let (win, ws) = open_workspace(cx);
-    open(win, &ws, info("a"), cx);
+    open_tab(win, &ws, info("a"), cx);
     let entries = ws.read_with(cx, |ws, cx| ws.tab_manager().read(cx).tabs.len());
     assert_eq!(entries, 2, "Home + one tab");
 }
@@ -87,9 +78,9 @@ fn one_manager_entry_per_panel(cx: &mut TestAppContext) {
 #[gpui_kit::test]
 fn reopening_a_tab_focuses_it(cx: &mut TestAppContext) {
     let (win, ws) = open_workspace(cx);
-    open(win, &ws, info("a"), cx);
-    open(win, &ws, info("b"), cx);
-    open(win, &ws, info("a"), cx);
+    open_tab(win, &ws, info("a"), cx);
+    open_tab(win, &ws, info("b"), cx);
+    open_tab(win, &ws, info("a"), cx);
     let a_is_active = ws.read_with(cx, |ws, cx| {
         let a = ws
             .tab_manager()
@@ -107,7 +98,7 @@ fn reopening_a_tab_focuses_it(cx: &mut TestAppContext) {
 #[gpui_kit::test]
 fn closing_active_tab_removes_it(cx: &mut TestAppContext) {
     let (win, ws) = open_workspace(cx);
-    open(win, &ws, info("a"), cx);
+    open_tab(win, &ws, info("a"), cx);
     assert_eq!(tab_count(&ws, cx), 2);
     close_active(win, &ws, cx);
     assert_eq!(tab_count(&ws, cx), 1);
@@ -123,7 +114,7 @@ fn closing_last_tab_respawns_home(cx: &mut TestAppContext) {
 #[gpui_kit::test]
 fn cmd_w_closes_active_tab(cx: &mut TestAppContext) {
     let (win, ws) = open_workspace(cx);
-    open(win, &ws, info("a"), cx);
+    open_tab(win, &ws, info("a"), cx);
     cx.update_window(win, |_, window, cx| window.press("cmd-w", cx))
         .unwrap();
     settle(cx);
@@ -133,7 +124,7 @@ fn cmd_w_closes_active_tab(cx: &mut TestAppContext) {
 #[gpui_kit::test]
 fn pinned_tab_cannot_be_closed(cx: &mut TestAppContext) {
     let (win, ws) = open_workspace(cx);
-    open(win, &ws, info("a"), cx);
+    open_tab(win, &ws, info("a"), cx);
     cx.update_window(win, |_, window, cx| {
         ws.update(cx, |ws, cx| {
             let id = ws.active_center_panel_id(cx).expect("active panel");
@@ -151,7 +142,7 @@ fn pinned_tab_cannot_be_closed(cx: &mut TestAppContext) {
 #[gpui_kit::test]
 fn tab_manager_active_follows_dock(cx: &mut TestAppContext) {
     let (win, ws) = open_workspace(cx);
-    open(win, &ws, info("a"), cx);
+    open_tab(win, &ws, info("a"), cx);
     cx.update_window(win, |_, window, cx| {
         ws.update(cx, |ws, cx| ws.show_home(window, cx));
         window.render_frame(cx);

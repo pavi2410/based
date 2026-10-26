@@ -3,44 +3,14 @@
 //! A "launch" is a Workspace window over the same app (and metadata store).
 
 use based_desktop::connection::ConnectionId;
+use based_desktop::workspace::TabSpec;
 use based_desktop::workspace::tabs::SessionSnapshot;
-use based_desktop::workspace::{TabSpec, Workspace};
-use gpui_kit::test::TestWindowExt;
-use gpui_kit::{AnyWindowHandle, AppContext, Entity, TestAppContext};
+use gpui_kit::TestAppContext;
 
+use crate::common::strip::{active_spec, open_tab, specs};
 use crate::common::{
-    info, no_project_env, open_window, open_workspace, saved_session, settle, store_session,
-    wait_until,
+    info, no_project_env, open_window, open_workspace, saved_session, store_session, wait_until,
 };
-
-fn open(win: AnyWindowHandle, ws: &Entity<Workspace>, spec: TabSpec, cx: &mut TestAppContext) {
-    cx.update_window(win, |_, window, cx| {
-        assert!(ws.update(cx, |ws, cx| ws.dispatch_open_tab(spec, window, cx)));
-        window.render_frame(cx);
-    })
-    .unwrap();
-    settle(cx);
-}
-
-fn specs(ws: &Entity<Workspace>, cx: &mut TestAppContext) -> Vec<TabSpec> {
-    ws.read_with(cx, |ws, cx| {
-        ws.tab_manager()
-            .read(cx)
-            .tabs
-            .iter()
-            .map(|t| t.spec.clone())
-            .collect()
-    })
-}
-
-fn active_spec(ws: &Entity<Workspace>, cx: &mut TestAppContext) -> Option<TabSpec> {
-    ws.read_with(cx, |ws, cx| {
-        ws.tab_manager()
-            .read(cx)
-            .active_tab()
-            .map(|t| t.spec.clone())
-    })
-}
 
 /// Wait for the async writer to store a session containing `spec`.
 fn wait_saved(cx: &mut TestAppContext, spec: &TabSpec) {
@@ -50,8 +20,8 @@ fn wait_saved(cx: &mut TestAppContext, spec: &TabSpec) {
 #[gpui_kit::test]
 fn open_tabs_are_saved(cx: &mut TestAppContext) {
     let (win, ws) = open_workspace(cx);
-    open(win, &ws, info("a"), cx);
-    open(win, &ws, info("b"), cx);
+    open_tab(win, &ws, info("a"), cx);
+    open_tab(win, &ws, info("b"), cx);
     wait_saved(cx, &info("b"));
     let saved = saved_session(cx).tabs;
     assert!(saved.contains(&TabSpec::Home) && saved.contains(&info("a")));
@@ -60,8 +30,8 @@ fn open_tabs_are_saved(cx: &mut TestAppContext) {
 #[gpui_kit::test]
 fn next_launch_restores_tabs(cx: &mut TestAppContext) {
     let (win, ws) = open_workspace(cx);
-    open(win, &ws, info("a"), cx);
-    open(win, &ws, info("b"), cx);
+    open_tab(win, &ws, info("a"), cx);
+    open_tab(win, &ws, info("b"), cx);
     wait_saved(cx, &info("b"));
 
     let (_win2, ws2) = open_window(cx, no_project_env());
@@ -78,9 +48,9 @@ fn next_launch_restores_tabs(cx: &mut TestAppContext) {
 #[gpui_kit::test]
 fn next_launch_restores_the_active_tab(cx: &mut TestAppContext) {
     let (win, ws) = open_workspace(cx);
-    open(win, &ws, info("a"), cx);
-    open(win, &ws, info("b"), cx);
-    open(win, &ws, info("a"), cx); // re-open focuses `a`
+    open_tab(win, &ws, info("a"), cx);
+    open_tab(win, &ws, info("b"), cx);
+    open_tab(win, &ws, info("a"), cx); // re-open focuses `a`
     wait_until(cx, |cx| {
         let s = saved_session(cx);
         s.active.and_then(|i| s.tabs.get(i)) == Some(&info("a"))
@@ -93,7 +63,7 @@ fn next_launch_restores_the_active_tab(cx: &mut TestAppContext) {
 #[gpui_kit::test]
 fn next_launch_restores_pinned_tabs(cx: &mut TestAppContext) {
     let (win, ws) = open_workspace(cx);
-    open(win, &ws, info("a"), cx);
+    open_tab(win, &ws, info("a"), cx);
     ws.update(cx, |ws, cx| {
         let id = ws.active_center_panel_id(cx).expect("active panel");
         ws.toggle_pin_tab(id, cx);
@@ -128,7 +98,7 @@ fn tabs_for_unavailable_connections_survive_a_save(cx: &mut TestAppContext) {
     );
 
     // Any later change re-saves the session; the pending tab must not be dropped.
-    open(win2, &ws2, info("a"), cx);
+    open_tab(win2, &ws2, info("a"), cx);
     wait_saved(cx, &info("a"));
     assert!(
         saved_session(cx).tabs.contains(&gone),

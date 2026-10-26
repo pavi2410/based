@@ -6,6 +6,7 @@ use based_desktop::workspace::{TabSpec, Workspace};
 use gpui_kit::test::TestWindowExt;
 use gpui_kit::{AnyWindowHandle, AppContext, Entity, EntityId, TestAppContext};
 
+use crate::common::strip::{open_tab, specs};
 use crate::common::{connect_sqlite, info, open_workspace, seed_sqlite, settle};
 
 struct Strip {
@@ -15,26 +16,11 @@ struct Strip {
 
 impl Strip {
     fn open(&self, spec: TabSpec, cx: &mut TestAppContext) {
-        cx.update_window(self.win, |_, window, cx| {
-            assert!(
-                self.ws
-                    .update(cx, |ws, cx| ws.dispatch_open_tab(spec, window, cx))
-            );
-            window.render_frame(cx);
-        })
-        .unwrap();
-        settle(cx);
+        open_tab(self.win, &self.ws, spec, cx);
     }
 
     fn specs(&self, cx: &mut TestAppContext) -> Vec<TabSpec> {
-        self.ws.read_with(cx, |ws, cx| {
-            ws.tab_manager()
-                .read(cx)
-                .tabs
-                .iter()
-                .map(|t| t.spec.clone())
-                .collect()
-        })
+        specs(&self.ws, cx)
     }
 
     fn id_of(&self, spec: &TabSpec, cx: &mut TestAppContext) -> EntityId {

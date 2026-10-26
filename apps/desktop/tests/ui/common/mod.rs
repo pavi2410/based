@@ -1,6 +1,8 @@
 //! Shared fixtures: isolated process env, app globals, and a Workspace window.
 #![allow(dead_code)]
 
+pub mod strip;
+
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use std::time::Duration;

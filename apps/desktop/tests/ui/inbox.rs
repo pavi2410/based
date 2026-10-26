@@ -7,6 +7,7 @@ use based_desktop::workspace::{QueryEditorInit, TabSpec, Workspace};
 use gpui_kit::test::TestWindowExt;
 use gpui_kit::{AnyWindowHandle, AppContext, Entity, TestAppContext};
 
+use crate::common::strip::specs;
 use crate::common::{connect_sqlite, info, open_workspace, seed_sqlite, settle};
 
 struct Setup {
@@ -38,14 +39,7 @@ impl Setup {
     }
 
     fn specs(&self, cx: &mut TestAppContext) -> Vec<TabSpec> {
-        self.ws.read_with(cx, |ws, cx| {
-            ws.tab_manager()
-                .read(cx)
-                .tabs
-                .iter()
-                .map(|t| t.spec.clone())
-                .collect()
-        })
+        specs(&self.ws, cx)
     }
 
     fn editor(&self, cx: &mut TestAppContext) -> Option<Entity<QueryEditorPanel>> {

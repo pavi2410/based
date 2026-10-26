@@ -11,6 +11,7 @@ use based_desktop::workspace::{TabSpec, Workspace};
 use gpui_kit::test::TestWindowExt;
 use gpui_kit::{AnyWindowHandle, AppContext, Entity, TestAppContext};
 
+use crate::common::strip::open_tab as open_spec;
 use crate::common::{connect_sqlite, open_workspace, seed_sqlite, settle, wait_until};
 
 const SEED: &[&str] = &[
@@ -86,12 +87,7 @@ fn open_tab(
         object: "items".into(),
         filter,
     };
-    cx.update_window(win, |_, window, cx| {
-        assert!(ws.update(cx, |ws, cx| ws.dispatch_open_tab(spec, window, cx)));
-        window.render_frame(cx);
-    })
-    .unwrap();
-    settle(cx);
+    open_spec(win, ws, spec, cx);
 }
 
 #[gpui_kit::test]

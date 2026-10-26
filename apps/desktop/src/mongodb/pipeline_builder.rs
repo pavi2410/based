@@ -27,6 +27,7 @@ use crate::db;
 use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export;
+use crate::widgets::panel_status::PanelStatus;
 use crate::widgets::sql_editor::{self, new_json_input, set_input_text, text_from_input};
 use crate::widgets::virtual_table::{
     RowDelegate, align_meta_to_columns, data_column, replace_table_data,
@@ -43,7 +44,7 @@ pub struct PipelineBuilderPanel {
     /// An AI-written pipeline that writes is waiting for a second Run.
     ai_hold: bool,
     result: Entity<TableState<RowDelegate>>,
-    status: SharedString,
+    status: PanelStatus,
     pub(crate) tab_label: SharedString,
 }
 
@@ -78,7 +79,7 @@ impl PipelineBuilderPanel {
             ai: AiHost::new(window, cx, Self::on_ai_event),
             ai_hold: false,
             result,
-            status: SharedString::from(""),
+            status: PanelStatus::Idle,
             tab_label,
         }
     }
@@ -97,8 +98,9 @@ impl PipelineBuilderPanel {
         if self.ai.needs_confirm(EngineKind::MongoDB, &raw) {
             if !self.ai_hold {
                 self.ai_hold = true;
-                self.status =
-                    "This pipeline came from AI and writes data. Run again to confirm.".into();
+                self.status = PanelStatus::warn(
+                    "This pipeline came from AI and writes data. Run again to confirm.",
+                );
                 cx.notify();
                 return;
             }
@@ -112,7 +114,7 @@ impl PipelineBuilderPanel {
                 Err(e) => {
                     let _ = cx.update(|cx| {
                         this.update(cx, |p, cx| {
-                            p.status = format!("invalid JSON: {e}").into();
+                            p.status = PanelStatus::error(format!("invalid JSON: {e}"));
                             cx.notify();
                         })
                     });
@@ -127,7 +129,7 @@ impl PipelineBuilderPanel {
                     Err(e) => {
                         let _ = cx.update(|cx| {
                             this.update(cx, |p, cx| {
-                                p.status = format!("BSON error: {e}").into();
+                                p.status = PanelStatus::error(format!("BSON error: {e}"));
                                 cx.notify();
                             })
                         });
@@ -156,7 +158,7 @@ impl PipelineBuilderPanel {
                 Err(e) => {
                     let _ = cx.update(|cx| {
                         this.update(cx, |p, cx| {
-                            p.status = format!("aggregate error: {e}").into();
+                            p.status = PanelStatus::error(format!("aggregate error: {e}"));
                             cx.notify();
                         })
                     });
@@ -194,7 +196,7 @@ impl PipelineBuilderPanel {
 
             let _ = cx.update(|cx| {
                 this.update(cx, |panel, cx| {
-                    panel.status = format!("{} rows", rows.len()).into();
+                    panel.status = PanelStatus::done(format!("{} rows", rows.len()));
                     cx.update_global(|store: &mut QueryStore, _| {
                         store.push_history(HistoryEntry::new(
                             conn_id.clone(),
@@ -365,7 +367,7 @@ impl Render for PipelineBuilderPanel {
                                 .detach();
                             }),
                     )
-                    .child(div().flex_1().text_sm().child(self.status.clone())),
+                    .child(div().flex_1().text_sm().children(self.status.line(cx))),
             )
             .child(div().flex_1().child(render_row_table(&self.result, cx)))
     }

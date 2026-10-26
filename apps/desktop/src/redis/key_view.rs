@@ -20,6 +20,7 @@ use gpui_kit::{prelude::*, *};
 
 use crate::app::prefs;
 use crate::db;
+use crate::widgets::panel_status::PanelStatus;
 use crate::widgets::sql_editor::{
     code_editor_flex, new_code_input, set_input_text, text_from_input,
 };
@@ -39,8 +40,7 @@ pub struct KeyViewPanel {
     add_input: Entity<InputState>,
     confirm_delete: bool,
     clear_add_on_ok: bool,
-    status: SharedString,
-    error: Option<String>,
+    status: PanelStatus,
     pub(crate) tab_label: SharedString,
 }
 
@@ -70,8 +70,7 @@ impl KeyViewPanel {
             add_input,
             confirm_delete: false,
             clear_add_on_ok: false,
-            status: "Loading…".into(),
-            error: None,
+            status: PanelStatus::busy("Loading…"),
         };
         panel.reload(window, cx);
         panel
@@ -118,12 +117,10 @@ impl KeyViewPanel {
                 }
                 self.meta = Some(meta);
                 self.value = value;
-                self.error = None;
-                self.status = SharedString::default();
+                self.status = PanelStatus::Idle;
             }
             Err(e) => {
-                self.error = Some(format!("{e:#}"));
-                self.status = SharedString::default();
+                self.status = PanelStatus::error(format!("{e:#}"));
             }
         }
         self.clear_add_on_ok = false;
@@ -143,8 +140,7 @@ impl KeyViewPanel {
         F: FnOnce(Conn, String) -> Fut + Send + 'static,
         Fut: Future<Output = anyhow::Result<()>> + Send + 'static,
     {
-        self.status = status.to_string().into();
-        self.error = None;
+        self.status = PanelStatus::busy(status.to_string());
         cx.notify();
         let fut = f(self.conn.clone(), self.key.clone());
         cx.spawn_in(window, async move |this, cx| {
@@ -156,8 +152,7 @@ impl KeyViewPanel {
                         panel.reload(window, cx);
                     }
                     Err(e) => {
-                        panel.error = Some(format!("{e:#}"));
-                        panel.status = SharedString::default();
+                        panel.status = PanelStatus::error(format!("{e:#}"));
                         cx.notify();
                     }
                 })
@@ -186,7 +181,7 @@ impl KeyViewPanel {
                 );
             }
             _ => {
-                self.error = Some("Enter a positive TTL in seconds".into());
+                self.status = PanelStatus::error("Enter a positive TTL in seconds");
                 cx.notify();
             }
         }
@@ -327,7 +322,7 @@ impl KeyViewPanel {
                 .min_h_0()
                 .child(code_editor_flex(
                     &self.editor,
-                    self.error.is_some(),
+                    self.status.is_error(),
                     false,
                     cx,
                 ))
@@ -455,25 +450,11 @@ impl PopOutWindowTitle for KeyViewPanel {
 
 impl Render for KeyViewPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let danger = cx.theme().danger;
-        let muted = cx.theme().muted_foreground;
         v_flex()
             .size_full()
             .bg(cx.theme().background)
             .child(self.render_toolbar(cx))
-            .when_some(self.error.clone(), |v, err| {
-                v.child(div().px_3().py_1().text_xs().text_color(danger).child(err))
-            })
-            .when(!self.status.is_empty(), |v| {
-                v.child(
-                    div()
-                        .px_3()
-                        .py_1()
-                        .text_xs()
-                        .text_color(muted)
-                        .child(self.status.clone()),
-                )
-            })
+            .children(self.status.line(cx))
             .child(self.render_body(cx))
     }
 }

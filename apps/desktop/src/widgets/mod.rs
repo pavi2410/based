@@ -22,6 +22,7 @@ pub mod list_row;
 pub mod metadata_pill;
 pub mod pagination;
 pub mod panel;
+pub mod panel_status;
 pub mod query_panel_extras;
 pub mod query_status;
 pub mod result_tabs;

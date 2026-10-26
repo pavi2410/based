@@ -17,6 +17,7 @@ use mongodb::bson::doc;
 use crate::app::prefs;
 use crate::db;
 use crate::mongodb::document_from_json;
+use crate::widgets::panel_status::PanelStatus;
 use crate::widgets::sql_editor::new_json_input;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -32,8 +33,7 @@ pub struct DocumentEditorPanel {
     json_input: Entity<EditorState>,
     /// When editing, the loaded document (used for `_id` on replace).
     original: Option<Document>,
-    error: Option<String>,
-    status: SharedString,
+    status: PanelStatus,
     pub(crate) tab_label: SharedString,
 }
 
@@ -53,8 +53,7 @@ impl DocumentEditorPanel {
             mode: EditorMode::Insert,
             json_input,
             original: None,
-            error: None,
-            status: SharedString::default(),
+            status: PanelStatus::Idle,
             tab_label,
         }
     }
@@ -64,15 +63,13 @@ impl DocumentEditorPanel {
         let mut doc = match document_from_json(&text) {
             Ok(d) => d,
             Err(e) => {
-                self.error = Some(e.to_string());
-                self.status = SharedString::default();
+                self.status = PanelStatus::error(e.to_string());
                 cx.notify();
                 return;
             }
         };
 
-        self.error = None;
-        self.status = SharedString::from("Saving…");
+        self.status = PanelStatus::busy("Saving…");
         cx.notify();
 
         let coll = self.collection.clone();
@@ -104,12 +101,10 @@ impl DocumentEditorPanel {
             let _ = this.update(cx, |panel, cx| {
                 match outcome {
                     Ok(()) => {
-                        panel.status = SharedString::from("Saved.");
-                        panel.error = None;
+                        panel.status = PanelStatus::done("Saved.");
                     }
                     Err(e) => {
-                        panel.status = SharedString::default();
-                        panel.error = Some(format!("{e:#}"));
+                        panel.status = PanelStatus::error(format!("{e:#}"));
                     }
                 }
                 cx.notify();
@@ -153,15 +148,6 @@ impl Render for DocumentEditorPanel {
             EditorMode::Edit => "Edit document",
         };
 
-        let error_row = self.error.as_ref().map(|err| {
-            div()
-                .px_3()
-                .py_2()
-                .text_xs()
-                .text_color(danger)
-                .child(err.clone())
-        });
-
         v_flex()
             .size_full()
             .gap_2()
@@ -186,16 +172,7 @@ impl Render for DocumentEditorPanel {
                             .on_click(cx.listener(|p, _, window, cx| p.save(window, cx))),
                     ),
             )
-            .when_some(error_row, |v, row| v.child(row))
-            .when(!self.status.is_empty(), |v| {
-                v.child(
-                    div()
-                        .px_3()
-                        .text_xs()
-                        .text_color(cx.theme().muted_foreground)
-                        .child(self.status.clone()),
-                )
-            })
+            .children(self.status.line(cx))
             .child(
                 div()
                     .flex_1()
@@ -206,7 +183,7 @@ impl Render for DocumentEditorPanel {
                     .child(
                         Editor::new(&self.json_input)
                             .h_full()
-                            .when(self.error.is_some(), |this| this.border_color(danger)),
+                            .when(self.status.is_error(), |this| this.border_color(danger)),
                     ),
             )
     }

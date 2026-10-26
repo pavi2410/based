@@ -23,16 +23,23 @@ pub(super) enum Verdict {
     Always,
 }
 
+/// Kinds of action that need approval; `Always` trusts a whole kind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) enum Action {
+    Connect,
+    Query,
+}
+
 /// What the user is being asked about.
 pub(super) struct Approval {
-    kind: &'static str,
+    kind: Action,
     title: String,
     detail: String,
     reply: oneshot::Sender<Verdict>,
 }
 
 /// Kinds the user allowed for the current conversation.
-pub(super) type Trusted = HashSet<&'static str>;
+pub(super) type Trusted = HashSet<Action>;
 
 impl ChatPane {
     /// `Some` when `call` must wait for the user; the answer arrives on the receiver.
@@ -48,20 +55,24 @@ impl ChatPane {
                 if matches!(entry.read(cx).state, ConnectionState::Connected(_)) {
                     return None;
                 }
-                ("connect", format!("Connect to {name}?"), String::new())
+                (
+                    Action::Connect,
+                    format!("Connect to {name}?"),
+                    String::new(),
+                )
             }
             RUN_QUERY => {
                 let label = self.active().map_or("the database", |c| c.label.as_str());
                 let query = call.args["query"].as_str().unwrap_or_default();
                 (
-                    "query",
+                    Action::Query,
                     format!("Run this query on {label}?"),
                     query.to_owned(),
                 )
             }
             _ => return None,
         };
-        if self.trusted.contains(kind) {
+        if self.trusted.contains(&kind) {
             return None;
         }
         let (reply, rx) = oneshot::channel();

@@ -5,16 +5,33 @@ use crate::connection::{ConnectionOrigin, ConnectionState, EngineKind};
 
 use super::ConnectionTree;
 
+/// Display view of a [`ConnectionState`]: exactly one holds.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Link {
+    Disconnected,
+    Connecting,
+    Connected,
+    Failed(Option<String>),
+}
+
+impl Link {
+    fn of(state: &ConnectionState) -> Self {
+        match state {
+            ConnectionState::Disconnected => Self::Disconnected,
+            ConnectionState::Connecting => Self::Connecting,
+            ConnectionState::Connected(_) => Self::Connected,
+            ConnectionState::Failed { reason, .. } => Self::Failed(Some(reason.clone())),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct ConnectionRow {
     pub(crate) idx: usize,
     pub(crate) conn_label: SharedString,
     pub(crate) engine: EngineKind,
     pub(crate) state_color: Hsla,
-    pub(crate) is_connected: bool,
-    pub(crate) is_connecting: bool,
-    pub(crate) is_failed: bool,
-    pub(crate) fail_reason: Option<String>,
+    pub(crate) link: Link,
     pub(crate) origin: ConnectionOrigin,
 }
 
@@ -45,13 +62,7 @@ pub(crate) fn build_connection_rows(tree: &ConnectionTree, cx: &App) -> Vec<Conn
                 conn_label: entry.config.label().to_string().into(),
                 engine: entry.config.engine(),
                 state_color: connection_state_dot(&entry.state, cx.theme()),
-                is_connected: matches!(entry.state, ConnectionState::Connected(_)),
-                is_connecting: matches!(entry.state, ConnectionState::Connecting),
-                is_failed: matches!(entry.state, ConnectionState::Failed { .. }),
-                fail_reason: match &entry.state {
-                    ConnectionState::Failed { reason, .. } => Some(reason.clone()),
-                    _ => None,
-                },
+                link: Link::of(&entry.state),
                 origin: entry.origin,
             }
         })

@@ -24,7 +24,7 @@ use crate::widgets::{
 };
 
 use super::ConnectionTree;
-use super::connection_list::build_connection_rows;
+use super::connection_list::{Link, build_connection_rows};
 use super::context_menu::{connection_is_connected, object_context_menu, schema_context_menu};
 use super::object_list::{group_postgres_objects, object_matches_query};
 use super::types::{ConnCache, ConnState, SchemaObject};
@@ -117,23 +117,20 @@ impl BrowserListDelegate {
         };
 
         let mut rows = Vec::new();
-        if conn.is_connecting {
-            rows.push(BrowserRow::Status {
-                message: "Connecting…".into(),
-                depth: DEPTH_SCHEMA,
-            });
-        } else if conn.is_failed {
-            rows.push(BrowserRow::Status {
-                message: conn
-                    .fail_reason
+        let status = match &conn.link {
+            Link::Connecting => Some("Connecting…".into()),
+            Link::Failed(reason) => Some(
+                reason
                     .as_deref()
                     .map(super::notify::error_one_liner)
                     .unwrap_or_else(|| "Could not connect".into()),
-                depth: DEPTH_SCHEMA,
-            });
-        } else if !conn.is_connected {
+            ),
+            Link::Disconnected => Some("Not connected".into()),
+            Link::Connected => None,
+        };
+        if let Some(message) = status {
             rows.push(BrowserRow::Status {
-                message: "Not connected".into(),
+                message,
                 depth: DEPTH_SCHEMA,
             });
         } else if let Some(st) = tree.conn_states.get(&conn_id) {

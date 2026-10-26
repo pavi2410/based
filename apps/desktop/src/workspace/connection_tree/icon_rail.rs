@@ -16,7 +16,7 @@ use crate::widgets::engine_icon;
 use crate::workspace::WorkspaceRef;
 
 use super::ConnectionTree;
-use super::connection_list::{ConnectionRow, RailItem};
+use super::connection_list::{ConnectionRow, Link, RailItem};
 use super::context_menu::connection_context_menu;
 
 pub(crate) const ICON_RAIL_WIDTH: f32 = 48.0;
@@ -112,7 +112,7 @@ fn rail_icon(
     let tree_menu = tree;
     let label = row.conn_label.clone();
     let engine = row.engine;
-    let is_connected = row.is_connected;
+    let is_connected = row.link == Link::Connected;
     let sidebar = cx.theme().sidebar;
     let dark = cx.theme().is_dark();
     // Light themes get white tiles; dark themes keep the themed look.

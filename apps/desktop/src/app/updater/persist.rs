@@ -4,9 +4,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 use super::super::prefs::UpdateCheckInterval;
+use super::super::toml_file;
 
 use super::log::{debug as udebug, warn as uwarn};
-use std::fs;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct UpdaterStateFile {
@@ -22,49 +22,19 @@ pub struct UpdaterStateFile {
 
 impl UpdaterStateFile {
     pub fn load_from(path: PathBuf) -> Self {
-        let raw = fs::read_to_string(&path).unwrap_or_default();
-        if raw.is_empty() {
-            udebug(format!("state load: empty ({path:?})"));
-            return Self {
-                path,
-                ..Self::default()
-            };
-        }
-        match toml::from_str::<UpdaterStateFile>(&raw) {
-            Ok(mut state) => {
-                state.path = path;
-                udebug(format!(
-                    "state load: last_check_at={:?} dismissed={:?} pending_notes={:?}",
-                    state.last_check_at,
-                    state.dismissed_version,
-                    state.pending_release_notes_version
-                ));
-                state
-            }
-            Err(e) => {
-                uwarn(format!("state load ({path:?}): {e}"));
-                Self {
-                    path,
-                    ..Self::default()
-                }
-            }
-        }
+        let mut state: Self = toml_file::parse(&toml_file::read(&path), &path);
+        udebug(format!(
+            "state load: last_check_at={:?} dismissed={:?} pending_notes={:?}",
+            state.last_check_at, state.dismissed_version, state.pending_release_notes_version
+        ));
+        state.path = path;
+        state
     }
 
     pub fn save_best_effort(&self) {
-        let path = &self.path;
-        if let Some(parent) = path.parent() {
-            let _ = fs::create_dir_all(parent);
-        }
-        match toml::to_string_pretty(self) {
-            Ok(encoded) => {
-                if let Err(e) = fs::write(path, encoded) {
-                    uwarn(format!("state save ({path:?}): {e:#}"));
-                } else {
-                    udebug(format!("state save: ok ({path:?})"));
-                }
-            }
-            Err(e) => uwarn(format!("state serialize: {e:#}")),
+        match toml_file::write(&self.path, self) {
+            Ok(()) => udebug(format!("state save: ok ({:?})", self.path)),
+            Err(e) => uwarn(format!("state save: {e}")),
         }
     }
 

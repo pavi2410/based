@@ -12,4 +12,5 @@ pub mod prefs;
 pub mod quit;
 pub mod restart;
 pub mod shell;
+pub mod toml_file;
 pub mod updater;

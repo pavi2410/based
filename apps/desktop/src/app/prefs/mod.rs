@@ -6,6 +6,7 @@ pub use super::chrome::{
     apply_chrome, panel_header_h, sidebar_row_gap, sidebar_row_py,
 };
 use super::paths::AppPaths;
+use super::toml_file;
 use crate::theme::{DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME, apply_theme_names, preset_by_id};
 use gpui_kit::component::{Size, Theme, ThemeMode};
 use gpui_kit::{App, BorrowAppContext, FontWeight, Global, SharedString};
@@ -125,17 +126,8 @@ impl NativePreferences {
     }
 
     pub fn load_from(path: PathBuf) -> Self {
-        let raw = fs::read_to_string(&path).unwrap_or_default();
-        let mut prefs: Self = match raw.is_empty() {
-            true => Self::default(),
-            false => match toml::from_str(&raw) {
-                Ok(p) => p,
-                Err(e) => {
-                    log::debug!("native prefs: using defaults ({path:?}: {e})");
-                    Self::default()
-                }
-            },
-        };
+        let raw = toml_file::read(&path);
+        let mut prefs: Self = toml_file::parse(&raw, &path);
         if !raw.contains("appearance_mode")
             && let Ok(value) = toml::from_str::<toml::Value>(&raw)
             && let Some(mode) = value.get("theme_mode").and_then(|v| v.as_str())
@@ -168,18 +160,8 @@ impl NativePreferences {
 
     pub fn save_best_effort(&self) {
         let path = self.path.clone().unwrap_or_else(Self::prefs_path);
-        if let Some(parent) = path.parent() {
-            let _ = fs::create_dir_all(parent);
-        }
-        let encoded = match toml::to_string_pretty(self) {
-            Ok(s) => s,
-            Err(e) => {
-                log::warn!("native prefs serialize: {e:#}");
-                return;
-            }
-        };
-        if let Err(e) = fs::write(path, encoded) {
-            log::warn!("native prefs save: {e:#}");
+        if let Err(e) = toml_file::write(&path, self) {
+            log::warn!("native prefs save: {e}");
         }
     }
 

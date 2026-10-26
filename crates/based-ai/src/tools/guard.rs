@@ -1,6 +1,8 @@
 //! Static read-only checks. Defense in depth: backends must also run queries in a
 //! read-only transaction or connection, since text checks cannot catch every side effect.
 
+use std::fmt;
+
 use based_core::EngineKind;
 
 const SQL_START: &[&str] = &["select", "with", "values", "show", "explain"];
@@ -39,8 +41,51 @@ const REDIS_ALLOWED: &[&str] = &[
 ];
 const MONGO_FORBIDDEN: &[&str] = &["$out", "$merge", "$function", "$accumulator", "$where"];
 
-/// Returns `Err(reason)` when `text` is not provably read-only for `engine`.
-pub fn check(engine: EngineKind, text: &str) -> Result<(), String> {
+/// Why a query was refused; `Display` is the text shown to the model.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Refusal {
+    NotJson(String),
+    RedisCommand(String),
+    MongoOperator(&'static str),
+    MultipleStatements,
+    Statement(String),
+    ExplainAnalyze,
+    Keyword(String),
+}
+
+impl fmt::Display for Refusal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NotJson(e) => write!(f, "query is not valid JSON: {e}"),
+            Self::RedisCommand(name) => {
+                write!(f, "redis command `{name}` is not allowed in read-only mode")
+            }
+            Self::MongoOperator(op) => {
+                write!(f, "mongo operator `{op}` is not allowed in read-only mode")
+            }
+            Self::MultipleStatements => f.write_str("multiple statements are not allowed"),
+            Self::Statement(first) => {
+                write!(f, "`{first}` statements are not allowed in read-only mode")
+            }
+            Self::ExplainAnalyze => {
+                f.write_str("EXPLAIN ANALYZE executes the statement and is not allowed")
+            }
+            Self::Keyword(w) => write!(
+                f,
+                "`{w}` is not allowed in read-only mode (if it is a column or table name, quote it)"
+            ),
+        }
+    }
+}
+
+impl From<Refusal> for String {
+    fn from(r: Refusal) -> Self {
+        r.to_string()
+    }
+}
+
+/// Returns `Err(refusal)` when `text` is not provably read-only for `engine`.
+pub fn check(engine: EngineKind, text: &str) -> Result<(), Refusal> {
     match engine {
         EngineKind::Postgres => check_sql(text, true),
         EngineKind::SQLite => check_sql(text, false),
@@ -49,7 +94,7 @@ pub fn check(engine: EngineKind, text: &str) -> Result<(), String> {
     }
 }
 
-fn check_redis(cmd: &str) -> Result<(), String> {
+fn check_redis(cmd: &str) -> Result<(), Refusal> {
     let name = cmd
         .split_whitespace()
         .next()
@@ -58,19 +103,15 @@ fn check_redis(cmd: &str) -> Result<(), String> {
     if REDIS_ALLOWED.contains(&name.as_str()) {
         Ok(())
     } else {
-        Err(format!(
-            "redis command `{name}` is not allowed in read-only mode"
-        ))
+        Err(Refusal::RedisCommand(name))
     }
 }
 
-fn check_mongo(text: &str) -> Result<(), String> {
+fn check_mongo(text: &str) -> Result<(), Refusal> {
     let value: serde_json::Value =
-        serde_json::from_str(text).map_err(|e| format!("query is not valid JSON: {e}"))?;
+        serde_json::from_str(text).map_err(|e| Refusal::NotJson(e.to_string()))?;
     match forbidden_key(&value) {
-        Some(op) => Err(format!(
-            "mongo operator `{op}` is not allowed in read-only mode"
-        )),
+        Some(op) => Err(Refusal::MongoOperator(op)),
         None => Ok(()),
     }
 }
@@ -91,24 +132,20 @@ fn forbidden_key(v: &serde_json::Value) -> Option<&'static str> {
     }
 }
 
-fn check_sql(sql: &str, postgres: bool) -> Result<(), String> {
+fn check_sql(sql: &str, postgres: bool) -> Result<(), Refusal> {
     let (words, statements) = scan(sql, postgres);
     if statements > 1 {
-        return Err("multiple statements are not allowed".into());
+        return Err(Refusal::MultipleStatements);
     }
     let first = words.first().map(String::as_str).unwrap_or("");
     if !SQL_START.contains(&first) || (first == "show" && !postgres) {
-        return Err(format!(
-            "`{first}` statements are not allowed in read-only mode"
-        ));
+        return Err(Refusal::Statement(first.to_string()));
     }
     if first == "explain" && words.iter().any(|w| w == "analyze" || w == "analyse") {
-        return Err("EXPLAIN ANALYZE executes the statement and is not allowed".into());
+        return Err(Refusal::ExplainAnalyze);
     }
     match words.iter().find(|w| SQL_FORBIDDEN.contains(&w.as_str())) {
-        Some(w) => Err(format!(
-            "`{w}` is not allowed in read-only mode (if it is a column or table name, quote it)"
-        )),
+        Some(w) => Err(Refusal::Keyword(w.clone())),
         None => Ok(()),
     }
 }
@@ -217,7 +254,7 @@ fn dollar_quote_end(chars: &[char], start: usize) -> Option<usize> {
 mod tests {
     use super::*;
 
-    fn sql(s: &str) -> Result<(), String> {
+    fn sql(s: &str) -> Result<(), Refusal> {
         check(EngineKind::Postgres, s)
     }
 
@@ -255,6 +292,20 @@ mod tests {
         ] {
             assert!(sql(q).is_err(), "{q}");
         }
+    }
+
+    #[test]
+    fn refusals_are_typed() {
+        assert_eq!(sql("a; b"), Err(Refusal::MultipleStatements));
+        assert_eq!(sql("DROP TABLE t"), Err(Refusal::Statement("drop".into())));
+        assert_eq!(
+            check(EngineKind::Redis, "FLUSHALL"),
+            Err(Refusal::RedisCommand("FLUSHALL".into()))
+        );
+        assert_eq!(
+            check(EngineKind::MongoDB, r#"[{"$out":"x"}]"#),
+            Err(Refusal::MongoOperator("$out"))
+        );
     }
 
     #[test]

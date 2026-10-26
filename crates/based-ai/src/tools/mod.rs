@@ -4,7 +4,7 @@ mod guard;
 mod run;
 mod spec;
 
-pub use guard::check;
+pub use guard::{Refusal, check};
 pub use run::{QueryOutput, ReadOnlyTools, ToolBackend, ToolLimits};
 pub use spec::{
     CONNECT, LIST_CONNECTIONS, RUN_QUERY, ToolCall, ToolResult, ToolSpec, connection_specs, specs,

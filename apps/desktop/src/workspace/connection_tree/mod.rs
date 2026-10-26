@@ -48,8 +48,6 @@ pub struct ConnectionTree {
     pub registry: Entity<ConnectionRegistry>,
     dock_area: Entity<DockArea>,
     conn_states: HashMap<ConnectionId, ConnState>,
-    #[allow(dead_code)]
-    active_spec: Option<TabSpec>,
     pub(crate) selected_connection: Option<usize>,
     pub(crate) selected_object: Option<String>,
     pub(crate) browser_list: Option<Entity<ListState<browser_list::BrowserListDelegate>>>,
@@ -114,7 +112,6 @@ impl ConnectionTree {
             registry,
             dock_area,
             conn_states,
-            active_spec: None,
             selected_connection: None,
             selected_object: None,
             browser_list: None,

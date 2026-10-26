@@ -29,7 +29,6 @@ pub enum WorkspacePaletteAction {
 
 /// A search result the palette can return.
 #[derive(Clone)]
-#[allow(dead_code)]
 pub struct PaletteResult {
     pub kind: ResultKind,
     pub label: String,

@@ -81,11 +81,8 @@ fn opened(cx: &mut TestAppContext) -> Tree {
         _dir: dir,
     };
     tree.render(cx);
-    let tree_entity = tree.ws.read_with(cx, |ws, _| ws.connection_tree().clone());
-    cx.update_window(win, |_, window, cx| {
-        tree_entity.update(cx, |t, cx| t.click_connection(0, window, cx));
-    })
-    .unwrap();
+    cx.update_window(win, |_, window, cx| window.click(("rail-conn", 0usize), cx))
+        .unwrap();
     tree.render(cx);
     wait_until(cx, |cx| {
         tree.render(cx);

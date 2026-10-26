@@ -8,7 +8,8 @@ use gpui_kit::component::{
     v_flex,
 };
 use gpui_kit::{
-    AnyElement, App, IntoElement, MouseButton, ParentElement, WeakEntity, div, prelude::*, px,
+    AnyElement, App, IntoElement, ParentElement, TestSupportExt as _, WeakEntity, div, prelude::*,
+    px,
 };
 
 use crate::widgets::engine_icon;
@@ -126,6 +127,7 @@ fn rail_icon(
 
     div()
         .id(("rail-conn", idx))
+        .test_support()
         .relative()
         .w(px(36.0))
         .h(px(36.0))
@@ -144,7 +146,7 @@ fn rail_icon(
         .when(is_selected && dark, |d| d.bg(selected_bg))
         .when(!is_selected, |d| d.hover(move |d| d.bg(hover)))
         .tooltip(move |window, app| Tooltip::new(label.clone()).build(window, app))
-        .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+        .on_click(move |_, window, cx| {
             if let Some(ent) = tree_click.upgrade() {
                 ent.update(cx, |t, cx| t.on_connection_row_clicked(idx, window, cx));
             }

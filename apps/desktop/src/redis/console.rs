@@ -29,6 +29,20 @@ struct Output {
     result: Result<String, String>,
 }
 
+/// Why a command waits for a second Enter.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Hold {
+    Destructive,
+    FromAi,
+}
+
+/// Submit lifecycle: at most one of confirming or running.
+enum Phase {
+    Ready,
+    Confirm { line: String, hold: Hold },
+    Running,
+}
+
 pub struct ConsolePanel {
     focus_handle: FocusHandle,
     conn: Conn,
@@ -36,10 +50,7 @@ pub struct ConsolePanel {
     input: Entity<EditorState>,
     outputs: Vec<Output>,
     ai: AiHost,
-    /// Command awaiting a second Enter: destructive, or a write that came from AI.
-    pending: Option<String>,
-    pending_ai: bool,
-    running: bool,
+    phase: Phase,
     pub(crate) tab_label: SharedString,
 }
 
@@ -79,30 +90,32 @@ impl ConsolePanel {
             input,
             outputs: Vec::new(),
             ai: AiHost::new(window, cx, Self::on_ai_event),
-            pending: None,
-            pending_ai: false,
-            running: false,
+            phase: Phase::Ready,
             tab_label: "Console".into(),
         }
     }
 
     fn submit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let line = text_from_input(&self.input, cx).trim().to_string();
-        if line.is_empty() || self.running {
+        if line.is_empty() || matches!(self.phase, Phase::Running) {
             return;
         }
         let ai_hold = self.ai.needs_confirm(EngineKind::Redis, &line);
-        if (ai_hold || is_dangerous(&line)) && self.pending.as_deref() != Some(line.as_str()) {
-            self.pending = Some(line);
-            self.pending_ai = ai_hold;
+        let confirmed = matches!(&self.phase, Phase::Confirm { line: l, .. } if *l == line);
+        if (ai_hold || is_dangerous(&line)) && !confirmed {
+            let hold = if ai_hold {
+                Hold::FromAi
+            } else {
+                Hold::Destructive
+            };
+            self.phase = Phase::Confirm { line, hold };
             cx.notify();
             return;
         }
         if ai_hold {
             self.ai.confirmed();
         }
-        self.pending = None;
-        self.running = true;
+        self.phase = Phase::Running;
         cx.notify();
 
         let mut conn = self.conn.clone();
@@ -111,7 +124,7 @@ impl ConsolePanel {
             let result = db::run(cx, async move { exec(&mut conn, &cmd).await }).await;
             let _ = cx.update(|window, cx| {
                 this.update(cx, |panel, cx| {
-                    panel.running = false;
+                    panel.phase = Phase::Ready;
                     panel.outputs.insert(
                         0,
                         Output {
@@ -149,7 +162,9 @@ impl ConsolePanel {
             }
             AiPromptEvent::Apply(text) => {
                 self.ai.note_applied(text);
-                self.pending = None;
+                if matches!(self.phase, Phase::Confirm { .. }) {
+                    self.phase = Phase::Ready;
+                }
                 set_input_text(&self.input, text, window, cx);
                 self.ai.close(cx);
                 self.input.update(cx, |s, cx| s.focus(window, cx));
@@ -199,7 +214,6 @@ impl Render for ConsolePanel {
         let danger = cx.theme().danger;
         let border = cx.theme().border.opacity(0.6);
         let mono = prefs::code_font_family(cx);
-        let pending_ai = self.pending_ai;
 
         v_flex()
             .size_full()
@@ -232,21 +246,29 @@ impl Render for ConsolePanel {
                         Button::new("redis-run")
                             .primary()
                             .icon(IconName::Play)
-                            .label(if self.running { "Running…" } else { "Run" })
+                            .label(if matches!(self.phase, Phase::Running) {
+                                "Running…"
+                            } else {
+                                "Run"
+                            })
                             .on_click(cx.listener(|p, _, w, cx| p.submit(w, cx))),
                     ),
             )
-            .when_some(self.pending.clone(), |v, cmd| {
+            .when_some(
+                match &self.phase {
+                    Phase::Confirm { line, hold } => Some((line.clone(), *hold)),
+                    _ => None,
+                },
+                |v, (cmd, hold)| {
                 v.child(
                     div()
                         .px_3()
                         .py_1()
                         .text_xs()
                         .text_color(danger)
-                        .child(if pending_ai {
-                            format!("`{cmd}` came from AI and may change data. Press Enter again to run it.")
-                        } else {
-                            format!("`{cmd}` is destructive. Press Enter again to run it.")
+                        .child(match hold {
+                            Hold::FromAi => format!("`{cmd}` came from AI and may change data. Press Enter again to run it."),
+                            Hold::Destructive => format!("`{cmd}` is destructive. Press Enter again to run it."),
                         }),
                 )
             })

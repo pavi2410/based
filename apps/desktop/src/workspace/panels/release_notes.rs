@@ -17,13 +17,18 @@ use gpui_kit::{
     Window, div, px,
 };
 
+/// Where the fetched release body is.
+enum Notes {
+    Loading,
+    Ready(String),
+    Failed(String),
+}
+
 pub struct ReleaseNotesPanel {
     focus_handle: FocusHandle,
     pub(crate) tab_label: SharedString,
     version: String,
-    body: Option<String>,
-    error: Option<String>,
-    loading: bool,
+    notes: Notes,
 }
 
 impl ReleaseNotesPanel {
@@ -37,11 +42,10 @@ impl ReleaseNotesPanel {
         cx.spawn(async move |this, cx| {
             let result = run(cx, async move { fetch_release_body(&version_fetch).await }).await;
             let _ = this.update(cx, |panel, cx| {
-                panel.loading = false;
-                match result {
-                    Ok(body) => panel.body = Some(body),
-                    Err(err) => panel.error = Some(format!("{err:#}")),
-                }
+                panel.notes = match result {
+                    Ok(body) => Notes::Ready(body),
+                    Err(err) => Notes::Failed(format!("{err:#}")),
+                };
                 cx.notify();
             });
         })
@@ -51,9 +55,7 @@ impl ReleaseNotesPanel {
             focus_handle: cx.focus_handle(),
             tab_label: label,
             version,
-            body: None,
-            error: None,
-            loading: true,
+            notes: Notes::Loading,
         }
     }
 }
@@ -87,18 +89,16 @@ impl Render for ReleaseNotesPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let muted = cx.theme().muted_foreground;
 
-        let content = if self.loading {
-            div()
+        let content = match &self.notes {
+            Notes::Loading => div()
                 .text_size(px(13.0))
                 .text_color(muted)
-                .child("Loading release notes…")
-        } else if let Some(err) = &self.error {
-            div()
+                .child("Loading release notes…"),
+            Notes::Failed(err) => div()
                 .text_size(px(13.0))
                 .text_color(cx.theme().danger_foreground)
-                .child(err.clone())
-        } else {
-            div().child(markdown(self.body.clone().unwrap_or_default()).selectable(true))
+                .child(err.clone()),
+            Notes::Ready(body) => div().child(markdown(body.clone()).selectable(true)),
         };
 
         v_flex()

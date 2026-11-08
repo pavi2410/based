@@ -13,7 +13,7 @@ use based_project::{SaveTarget, save_sql_query};
 use based_query::{Lint, Severity};
 use futures::future::BoxFuture;
 use gpui_kit::component::{
-    ActiveTheme, Icon, IconName, Selectable as _, Sizable as _, Theme, WindowExt,
+    ActiveTheme, Disableable as _, Icon, IconName, Selectable as _, Sizable as _, Theme, WindowExt,
     button::{Button, ButtonVariants},
     dialog::{DialogAction, DialogClose, DialogFooter},
     dock::{BasePanel, Panel, PanelEvent},
@@ -817,6 +817,62 @@ impl QueryEditorPanel {
         }
     }
 
+    /// Past runs on this connection, newest first: (first line, age and time, full SQL, ok).
+    fn history_items(&self, cx: &App) -> Vec<(String, String, String, bool)> {
+        let Some(store) = cx.try_global::<QueryStore>() else {
+            return Vec::new();
+        };
+        let now = OffsetDateTime::now_utc();
+        store
+            .history_for(&self.conn_id)
+            .into_iter()
+            .take(15)
+            .map(|h| {
+                let line = h.query.lines().find(|l| !l.trim().is_empty()).unwrap_or("");
+                let mut line = line.trim().to_string();
+                if line.chars().count() > 56 {
+                    line = line.chars().take(55).collect::<String>() + "…";
+                }
+                (
+                    line,
+                    format!("{} · {} ms", format_relative(h.ran_at, now), h.duration_ms),
+                    h.query.clone(),
+                    h.status == based_query::RunStatus::Ok,
+                )
+            })
+            .collect()
+    }
+
+    /// Toolbar menu that restores a past run into the editor.
+    fn history_menu(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let id = self.source.id();
+        let items = self.history_items(cx);
+        let panel = cx.weak_entity();
+        Button::new(format!("{id}-history"))
+            .ghost()
+            .small()
+            .label("History")
+            .dropdown_caret(true)
+            .disabled(items.is_empty())
+            .tooltip("Past runs on this connection")
+            .dropdown_menu(move |menu, _, _| {
+                items.iter().fold(menu, |menu, (line, meta, sql, ok)| {
+                    let (panel, sql) = (panel.clone(), sql.clone());
+                    menu.item(
+                        PopupMenuItem::new(format!("{line}    {meta}"))
+                            .icon(if *ok {
+                                IconName::Check
+                            } else {
+                                IconName::TriangleAlert
+                            })
+                            .on_click(move |_, window, cx| {
+                                let _ = panel.update(cx, |p, cx| p.set_sql(&sql, window, cx));
+                            }),
+                    )
+                })
+            })
+    }
+
     /// Squiggle the editor text the last error points at.
     fn mark_error(&mut self, cx: &mut Context<Self>) {
         let Some(span) = self.error_span.clone() else {
@@ -1211,6 +1267,7 @@ impl QueryEditorPanel {
                     .on_click(cx.listener(|panel, _, window, cx| panel.toggle_ai(window, cx))),
             )
             .child(self.assist_menu(cx))
+            .child(self.history_menu(cx))
             .child(
                 Button::new(format!("{id}-save"))
                     .small()

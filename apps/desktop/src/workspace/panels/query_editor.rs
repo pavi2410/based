@@ -36,6 +36,7 @@ use crate::editor::{SchemaCache, lint::lint};
 use crate::project::{ProjectRoot, ProjectVars, substitute};
 use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
+use crate::widgets::datetime::format_relative;
 use crate::widgets::engine_icon;
 use crate::widgets::export_popover::export_popover;
 use crate::widgets::metadata_pill::env_pill;
@@ -536,6 +537,123 @@ impl QueryEditorPanel {
         )
     }
 
+    /// Nothing has run yet and no result is loaded.
+    fn shows_start_screen(&self, cx: &App) -> bool {
+        matches!(self.status, QueryStatus::Idle) && self.result.read(cx).delegate().rows.is_empty()
+    }
+
+    /// First screen of a fresh query tab: how to run, and recent queries to restore.
+    fn render_start_screen(&self, cx: &mut Context<Self>) -> AnyElement {
+        let theme = cx.theme();
+        let (border, muted, fg, hover) = (
+            theme.border,
+            theme.muted_foreground,
+            theme.foreground,
+            theme.muted.opacity(0.4),
+        );
+        let recent: Vec<(String, String)> = cx
+            .try_global::<QueryStore>()
+            .map(|store| {
+                store
+                    .history_for(&self.conn_id)
+                    .into_iter()
+                    .take(4)
+                    .map(|h| {
+                        let first_line = h.query.lines().next().unwrap_or("").trim().to_string();
+                        let meta = format!(
+                            "{} · {} ms",
+                            format_relative(h.ran_at, OffsetDateTime::now_utc()),
+                            h.duration_ms
+                        );
+                        (first_line, meta)
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let full: Vec<String> = cx
+            .try_global::<QueryStore>()
+            .map(|store| {
+                store
+                    .history_for(&self.conn_id)
+                    .into_iter()
+                    .take(4)
+                    .map(|h| h.query.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let id = self.source.id();
+        v_flex()
+            .flex_1()
+            .min_h(px(0.0))
+            .p_4()
+            .gap_3()
+            .child(
+                v_flex()
+                    .gap_1()
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .child("Run a statement to see results"),
+                    )
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(muted)
+                            .child("Press the Run button, or Cmd-Enter in the editor."),
+                    ),
+            )
+            .when(!recent.is_empty(), |v| {
+                v.child(
+                    v_flex()
+                        .gap_1()
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(muted)
+                                .child("RECENT ON THIS CONNECTION"),
+                        )
+                        .child(
+                            v_flex()
+                                .max_w(px(560.0))
+                                .rounded(px(8.0))
+                                .border_1()
+                                .border_color(border)
+                                .overflow_hidden()
+                                .children(recent.into_iter().enumerate().map(
+                                    |(i, (line, meta))| {
+                                        let sql = full[i].clone();
+                                        h_flex()
+                                            .id(SharedString::from(format!("{id}-recent-{i}")))
+                                            .gap_3()
+                                            .px_3()
+                                            .py_1p5()
+                                            .items_center()
+                                            .cursor_pointer()
+                                            .when(i > 0, |r| r.border_t_1().border_color(border))
+                                            .hover(move |s| s.bg(hover))
+                                            .child(
+                                                div()
+                                                    .flex_1()
+                                                    .min_w_0()
+                                                    .truncate()
+                                                    .text_xs()
+                                                    .font_family(prefs::code_font_family(cx))
+                                                    .text_color(fg)
+                                                    .child(line),
+                                            )
+                                            .child(div().text_xs().text_color(muted).child(meta))
+                                            .on_click(cx.listener(move |panel, _, window, cx| {
+                                                panel.set_sql(&sql, window, cx);
+                                            }))
+                                    },
+                                )),
+                        ),
+                )
+            })
+            .into_any_element()
+    }
+
     /// Squiggle the editor text the last error points at.
     fn mark_error(&mut self, cx: &mut Context<Self>) {
         let Some(span) = self.error_span.clone() else {
@@ -662,6 +780,7 @@ fn hint(text: impl Into<SharedString>, muted: Hsla) -> AnyElement {
 impl QueryEditorPanel {
     fn render_bottom_body(&self, cx: &mut Context<Self>) -> AnyElement {
         match self.bottom_tab {
+            BottomTab::Results if self.shows_start_screen(cx) => self.render_start_screen(cx),
             BottomTab::Results => {
                 let running = matches!(self.status, QueryStatus::Running);
                 let empty = self.result.read(cx).delegate().rows.is_empty();

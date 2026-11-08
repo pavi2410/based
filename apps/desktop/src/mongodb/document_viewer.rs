@@ -242,7 +242,6 @@ impl Render for DocumentViewerPanel {
                             .on_click(cx.listener(|p, _, _, cx| p.reload(cx))),
                     )
                     .child(self.filter_bar.clone())
-                    .child(div().flex_1())
                     .when(self.loading, |h| {
                         h.child(div().text_sm().text_color(muted).child("Loading…"))
                     })

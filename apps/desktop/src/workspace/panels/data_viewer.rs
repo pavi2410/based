@@ -718,7 +718,6 @@ impl Render for DataViewerPanel {
                         .on_click(cx.listener(|panel, _, _, cx| panel.jump_to_fk(cx))),
                 )
             })
-            .child(div().flex_1())
             .child(columns_button(&self.table))
             .child(export_popover(id, export_headers, export_rows));
 

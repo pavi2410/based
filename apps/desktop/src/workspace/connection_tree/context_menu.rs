@@ -1,6 +1,7 @@
 //! Right-click context menus for the connection browser tree.
 
 use gpui_kit::component::menu::{PopupMenu, PopupMenuItem};
+use gpui_kit::component::{Icon, IconName};
 use gpui_kit::{App, ClipboardItem, WeakEntity};
 
 use crate::connection::{ConnectionConfig, ConnectionId, ConnectionState, EngineKind};
@@ -8,7 +9,6 @@ use crate::mongodb::{mongo_uri, mongosh_command};
 use crate::postgres::{postgres_uri, psql_command};
 use crate::redis::{redis_cli, redis_uri};
 use crate::sqlite::{resolve_sqlite_path, sqlite_uri, sqlite3_command};
-use crate::workspace::notify;
 use crate::workspace::tabs::WorkspaceRef;
 use crate::workspace::wizard_logic::can_edit_saved_connection;
 
@@ -17,10 +17,17 @@ use crate::ai::ask_assistant;
 use super::ConnectionTree;
 use super::types::{ObjectKind, SchemaObject};
 
-fn coming_soon_item(label: &'static str) -> PopupMenuItem {
-    PopupMenuItem::new(label).on_click(move |_, _, cx| {
-        notify::push_info(cx, format!("{label} — coming soon"));
-    })
+const ICON_PENCIL: &str = "icons/pencil.svg";
+const ICON_COPY: &str = "icons/copy.svg";
+const ICON_KEY: &str = "icons/key-round.svg";
+const ICON_TERMINAL: &str = "icons/square-terminal.svg";
+const ICON_UNPLUG: &str = "icons/unplug.svg";
+const ICON_SPARKLES: &str = "icons/sparkles.svg";
+const ICON_TABLE: &str = "icons/table-2.svg";
+const ICON_COLUMNS: &str = "icons/columns-3.svg";
+
+fn svg(path: &'static str) -> Icon {
+    Icon::empty().path(path)
 }
 
 fn copy_config_item(
@@ -29,22 +36,31 @@ fn copy_config_item(
     conn_id: ConnectionId,
     text: impl Fn(&ConnectionConfig, &App) -> Option<String> + 'static,
 ) -> PopupMenuItem {
-    PopupMenuItem::new(label).on_click(move |_, _, cx| {
-        let Some(cfg) = tree.upgrade().and_then(|tree_ent| {
-            tree_ent
-                .read(cx)
-                .registry
-                .read(cx)
-                .get(&conn_id, cx)
-                .map(|entry| entry.read(cx).config.clone())
-        }) else {
-            return;
-        };
-        let Some(text) = text(&cfg, cx) else {
-            return;
-        };
-        cx.write_to_clipboard(ClipboardItem::new_string(text));
-    })
+    let icon = if label.contains("password") {
+        svg(ICON_KEY)
+    } else if label.contains("Command") {
+        svg(ICON_TERMINAL)
+    } else {
+        svg(ICON_COPY)
+    };
+    PopupMenuItem::new(label)
+        .icon(icon)
+        .on_click(move |_, _, cx| {
+            let Some(cfg) = tree.upgrade().and_then(|tree_ent| {
+                tree_ent
+                    .read(cx)
+                    .registry
+                    .read(cx)
+                    .get(&conn_id, cx)
+                    .map(|entry| entry.read(cx).config.clone())
+            }) else {
+                return;
+            };
+            let Some(text) = text(&cfg, cx) else {
+                return;
+            };
+            cx.write_to_clipboard(ClipboardItem::new_string(text));
+        })
 }
 
 fn add_copy_items(
@@ -233,45 +249,55 @@ pub(crate) fn connection_actions_menu(
     include_new_window: bool,
 ) -> PopupMenu {
     let tree_menu = tree.clone();
-    let mut menu = menu.item(PopupMenuItem::new("New Query").on_click({
-        let tree = tree_menu.clone();
-        let conn_id = conn_id.clone();
-        move |_, _, cx| {
-            if let Some(tree_ent) = tree.upgrade() {
-                tree_ent.update(cx, |tree, cx| {
-                    if let Some(idx) = connection_idx(tree, &conn_id, cx) {
-                        tree.open_new_query(idx, cx);
+    let mut menu = menu.item(
+        PopupMenuItem::new("New Query")
+            .icon(svg(ICON_TERMINAL))
+            .on_click({
+                let tree = tree_menu.clone();
+                let conn_id = conn_id.clone();
+                move |_, _, cx| {
+                    if let Some(tree_ent) = tree.upgrade() {
+                        tree_ent.update(cx, |tree, cx| {
+                            if let Some(idx) = connection_idx(tree, &conn_id, cx) {
+                                tree.open_new_query(idx, cx);
+                            }
+                        });
                     }
-                });
-            }
-        }
-    }));
+                }
+            }),
+    );
 
     if can_edit_saved_connection(&conn_id) {
         let edit_id = conn_id.clone();
-        menu = menu.item(PopupMenuItem::new("Edit…").on_click(move |_, window, cx| {
-            if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
-                ws.update(cx, |ws, cx| {
-                    ws.open_edit_connection_tab(edit_id.clone(), window, cx);
-                });
-            }
-        }));
+        menu = menu.item(PopupMenuItem::new("Edit…").icon(svg(ICON_PENCIL)).on_click(
+            move |_, window, cx| {
+                if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+                    ws.update(cx, |ws, cx| {
+                        ws.open_edit_connection_tab(edit_id.clone(), window, cx);
+                    });
+                }
+            },
+        ));
     }
 
     if is_connected {
-        menu = menu.item(PopupMenuItem::new("Refresh").on_click({
-            let tree = tree_menu.clone();
-            let conn_id = conn_id.clone();
-            move |_, _, cx| {
-                if let Some(tree_ent) = tree.upgrade() {
-                    tree_ent.update(cx, |tree, cx| {
-                        if let Some(idx) = connection_idx(tree, &conn_id, cx) {
-                            tree.refresh_connection(idx, cx);
+        menu = menu.item(
+            PopupMenuItem::new("Refresh")
+                .icon(IconName::RefreshCw)
+                .on_click({
+                    let tree = tree_menu.clone();
+                    let conn_id = conn_id.clone();
+                    move |_, _, cx| {
+                        if let Some(tree_ent) = tree.upgrade() {
+                            tree_ent.update(cx, |tree, cx| {
+                                if let Some(idx) = connection_idx(tree, &conn_id, cx) {
+                                    tree.refresh_connection(idx, cx);
+                                }
+                            });
                         }
-                    });
-                }
-            }
-        }));
+                    }
+                }),
+        );
     }
 
     menu = add_copy_items(
@@ -286,18 +312,22 @@ pub(crate) fn connection_actions_menu(
 
     if is_connected {
         menu = menu.separator();
-        menu = menu.item(PopupMenuItem::new("Disconnect").on_click({
-            let tree = tree_menu;
-            move |_, _, cx| {
-                if let Some(tree_ent) = tree.upgrade() {
-                    tree_ent.update(cx, |tree, cx| {
-                        if let Some(idx) = connection_idx(tree, &conn_id, cx) {
-                            tree.disconnect_at(idx, cx);
+        menu = menu.item(
+            PopupMenuItem::new("Disconnect")
+                .icon(svg(ICON_UNPLUG))
+                .on_click({
+                    let tree = tree_menu;
+                    move |_, _, cx| {
+                        if let Some(tree_ent) = tree.upgrade() {
+                            tree_ent.update(cx, |tree, cx| {
+                                if let Some(idx) = connection_idx(tree, &conn_id, cx) {
+                                    tree.disconnect_at(idx, cx);
+                                }
+                            });
                         }
-                    });
-                }
-            }
-        }));
+                    }
+                }),
+        );
     }
 
     menu
@@ -354,36 +384,48 @@ pub(crate) fn schema_context_menu(
     let mut menu = menu;
 
     if is_connected {
-        menu = menu.item(PopupMenuItem::new("Refresh").on_click({
-            let tree = tree_menu.clone();
-            move |_, _, cx| {
-                if let Some(tree_ent) = tree.upgrade() {
-                    tree_ent.update(cx, |tree, cx| tree.refresh_connection(conn_idx, cx));
-                }
-            }
-        }));
+        menu = menu.item(
+            PopupMenuItem::new("Refresh")
+                .icon(IconName::RefreshCw)
+                .on_click({
+                    let tree = tree_menu.clone();
+                    move |_, _, cx| {
+                        if let Some(tree_ent) = tree.upgrade() {
+                            tree_ent.update(cx, |tree, cx| tree.refresh_connection(conn_idx, cx));
+                        }
+                    }
+                }),
+        );
     }
 
     let toggle_label = if expanded { "Collapse" } else { "Expand" };
-    menu.item(PopupMenuItem::new(toggle_label).on_click({
-        let tree = tree_menu;
-        move |_, _, cx| {
-            if let Some(tree_ent) = tree.upgrade() {
-                tree_ent.update(cx, |t, cx| {
-                    let Some(conn_id) = t
-                        .registry
-                        .read(cx)
-                        .connections()
-                        .get(conn_idx)
-                        .map(|e| e.read(cx).id.clone())
-                    else {
-                        return;
-                    };
-                    t.toggle_schema_expanded(conn_id, schema_name.clone(), cx);
-                });
-            }
-        }
-    }))
+    menu.item(
+        PopupMenuItem::new(toggle_label)
+            .icon(if expanded {
+                IconName::ChevronDown
+            } else {
+                IconName::ChevronRight
+            })
+            .on_click({
+                let tree = tree_menu;
+                move |_, _, cx| {
+                    if let Some(tree_ent) = tree.upgrade() {
+                        tree_ent.update(cx, |t, cx| {
+                            let Some(conn_id) = t
+                                .registry
+                                .read(cx)
+                                .connections()
+                                .get(conn_idx)
+                                .map(|e| e.read(cx).id.clone())
+                            else {
+                                return;
+                            };
+                            t.toggle_schema_expanded(conn_id, schema_name.clone(), cx);
+                        });
+                    }
+                }
+            }),
+    )
 }
 
 pub(crate) fn object_context_menu(
@@ -406,30 +448,38 @@ pub(crate) fn object_context_menu(
 
     let tree_menu = tree.clone();
     let object_data = object.clone();
-    let mut menu = menu.item(PopupMenuItem::new("Open Data").on_click({
-        let tree = tree_menu.clone();
-        let object = object_data.clone();
-        move |_, _, cx| {
-            if let Some(tree_ent) = tree.upgrade() {
-                tree_ent.update(cx, |tree, cx| {
-                    tree.open_data_tab(object.clone(), conn_idx, cx)
-                });
-            }
-        }
-    }));
+    let mut menu = menu.item(
+        PopupMenuItem::new("Open Data")
+            .icon(svg(ICON_TABLE))
+            .on_click({
+                let tree = tree_menu.clone();
+                let object = object_data.clone();
+                move |_, _, cx| {
+                    if let Some(tree_ent) = tree.upgrade() {
+                        tree_ent.update(cx, |tree, cx| {
+                            tree.open_data_tab(object.clone(), conn_idx, cx)
+                        });
+                    }
+                }
+            }),
+    );
 
     if structure_supported(engine, object.kind) {
         let object_struct = object.clone();
-        menu = menu.item(PopupMenuItem::new("Open Structure").on_click({
-            let tree = tree_menu.clone();
-            move |_, _, cx| {
-                if let Some(tree_ent) = tree.upgrade() {
-                    tree_ent.update(cx, |tree, cx| {
-                        tree.open_structure_tab(object_struct.clone(), conn_idx, cx);
-                    });
-                }
-            }
-        }));
+        menu = menu.item(
+            PopupMenuItem::new("Open Structure")
+                .icon(svg(ICON_COLUMNS))
+                .on_click({
+                    let tree = tree_menu.clone();
+                    move |_, _, cx| {
+                        if let Some(tree_ent) = tree.upgrade() {
+                            tree_ent.update(cx, |tree, cx| {
+                                tree.open_structure_tab(object_struct.clone(), conn_idx, cx);
+                            });
+                        }
+                    }
+                }),
+        );
     }
 
     if is_connected && let Some(conn_id) = conn_id_at(&tree, conn_idx, cx) {
@@ -439,27 +489,25 @@ pub(crate) fn object_context_menu(
             object.display_name()
         );
         menu = menu.item(
-            PopupMenuItem::new("Ask AI About This").on_click(move |_, _, cx| {
-                ask_assistant(conn_id.clone(), text.clone(), cx);
-            }),
+            PopupMenuItem::new("Ask AI About This")
+                .icon(svg(ICON_SPARKLES))
+                .on_click(move |_, _, cx| {
+                    ask_assistant(conn_id.clone(), text.clone(), cx);
+                }),
         );
     }
 
     let copy_name = object.display_name();
     menu = menu
         .separator()
-        .item(PopupMenuItem::new("Copy Name").on_click(move |_, _, cx| {
-            cx.write_to_clipboard(ClipboardItem::new_string(copy_name.clone()));
-        }))
+        .item(
+            PopupMenuItem::new("Copy Name")
+                .icon(svg(ICON_COPY))
+                .on_click(move |_, _, cx| {
+                    cx.write_to_clipboard(ClipboardItem::new_string(copy_name.clone()));
+                }),
+        )
         .separator();
-
-    if is_connected {
-        menu = menu
-            .item(coming_soon_item("Export Data…"))
-            .item(coming_soon_item("Open in New Window"))
-            .separator()
-            .item(coming_soon_item("New Query…"));
-    }
 
     menu
 }

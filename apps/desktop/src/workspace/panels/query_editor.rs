@@ -37,9 +37,7 @@ use crate::widgets::panel::{
     panel_tab_content, tab_breadcrumb_footer, tab_breadcrumb_for_connection,
 };
 use crate::widgets::query_panel_extras;
-use crate::widgets::query_status::{
-    QueryStatusDisplay, query_error_card, query_status_indicator, tab_breadcrumb_query_trailing,
-};
+use crate::widgets::query_status::{QueryStatusDisplay, query_error_card, query_result_meta};
 use crate::widgets::result_tabs::{BottomTab, result_tab_strip};
 use crate::widgets::shortcut_run_kbd_in_primary_button;
 use crate::widgets::sql_editor::{self, new_sql_input, set_input_text, text_from_input};
@@ -566,16 +564,6 @@ impl QueryEditorPanel {
 
     fn render_toolbar(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let id = self.source.id();
-        let (headers, rows) = {
-            let d = self.result.read(cx).delegate();
-            (
-                d.columns.iter().map(|c| c.key.to_string()).collect(),
-                d.rows
-                    .iter()
-                    .map(|row| row.iter().map(|c| c.to_string()).collect())
-                    .collect(),
-            )
-        };
         let read_only = cx
             .try_global::<WorkspaceRef>()
             .map(|ws| is_connection_read_only(&self.conn_id, ws.0.read(cx).registry().read(cx), cx))
@@ -641,9 +629,6 @@ impl QueryEditorPanel {
                 mono_font,
                 cx,
             ))
-            .child(export_popover(&format!("{id}-qe"), headers, rows))
-            .child(div().flex_1())
-            .child(query_status_indicator(&status_display(&self.status), cx))
     }
 }
 
@@ -669,10 +654,32 @@ impl Render for QueryEditorPanel {
                 });
             })
         };
+        let (headers, rows): (Vec<String>, Vec<Vec<String>>) = {
+            let d = self.result.read(cx).delegate();
+            (
+                d.columns.iter().map(|c| c.key.to_string()).collect(),
+                d.rows
+                    .iter()
+                    .map(|row| row.iter().map(|c| c.to_string()).collect())
+                    .collect(),
+            )
+        };
+        let result_rows = match &self.status {
+            QueryStatus::Done { rows, .. } if *rows > 0 => Some(*rows),
+            _ => None,
+        };
+        let trailing = h_flex()
+            .gap(px(10.0))
+            .items_center()
+            .child(query_result_meta(&status_display(&self.status), cx))
+            .child(export_popover(&format!("{id}-qe"), headers, rows))
+            .into_any_element();
         let strip = result_tab_strip(
             &format!("{id}-bt"),
             self.bottom_tab,
             has_error,
+            result_rows,
+            Some(trailing),
             on_select,
             cx,
         );
@@ -681,14 +688,8 @@ impl Render for QueryEditorPanel {
             .child(strip)
             .child(self.render_bottom_body(cx));
 
-        let display = status_display(&self.status);
         let crumbs = tab_breadcrumb_for_connection(&self.conn_id, ["Query"], cx);
-        let footer = tab_breadcrumb_footer(
-            format!("{id}-qe-breadcrumb"),
-            crumbs,
-            tab_breadcrumb_query_trailing(&display, cx),
-            cx,
-        );
+        let footer = tab_breadcrumb_footer(format!("{id}-qe-breadcrumb"), crumbs, None, cx);
 
         panel_tab_content(
             v_flex()

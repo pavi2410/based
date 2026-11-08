@@ -87,6 +87,48 @@ pub fn query_status_indicator(status: &QueryStatusDisplay, cx: &mut App) -> AnyE
     }
 }
 
+/// Stats for the result header: state dot, rows or affected count, time, and age.
+pub fn query_result_meta(status: &QueryStatusDisplay, cx: &App) -> AnyElement {
+    let theme = cx.theme();
+    let (muted, fg) = (theme.muted_foreground, theme.foreground);
+    let dot = |color: Hsla| div().size(px(7.0)).rounded_full().bg(color);
+    let row = h_flex()
+        .gap(px(8.0))
+        .items_center()
+        .text_xs()
+        .text_color(muted);
+    match status {
+        QueryStatusDisplay::Idle => row
+            .child(dot(muted.opacity(0.55)))
+            .child("Ready")
+            .into_any_element(),
+        QueryStatusDisplay::Running => row
+            .child(Spinner::new().xsmall().color(theme.primary))
+            .child("Running…")
+            .into_any_element(),
+        QueryStatusDisplay::Error(_) => row
+            .child(dot(theme.danger))
+            .child(div().text_color(theme.danger).child("Failed"))
+            .into_any_element(),
+        QueryStatusDisplay::Done {
+            rows,
+            affected,
+            elapsed_ms,
+            finished_at,
+        } => {
+            let count = match affected {
+                Some(n) if *rows == 0 => format!("{n} rows affected"),
+                _ => format!("{rows} rows"),
+            };
+            row.child(dot(theme.success_foreground))
+                .child(div().text_color(fg).child(count))
+                .child(format!("{elapsed_ms} ms"))
+                .child(format_relative(*finished_at, OffsetDateTime::now_utc()))
+                .into_any_element()
+        }
+    }
+}
+
 /// Trailing text for query-editor breadcrumbs: rows, affected, elapsed time, and age.
 pub fn tab_breadcrumb_query_trailing(
     status: &QueryStatusDisplay,

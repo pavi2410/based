@@ -17,6 +17,7 @@ use gpui_kit::component::{
     menu::PopupMenu,
     resizable::{ResizableState, resizable_panel, v_resizable},
     table::TableState,
+    tooltip::Tooltip,
     v_flex,
 };
 use gpui_kit::{App, Entity, prelude::*, *};
@@ -24,15 +25,16 @@ use gpui_kit::{App, Entity, prelude::*, *};
 use crate::ai::AiHost;
 use crate::app::prefs;
 use crate::bindings::AskAi;
-use crate::connection::{ConnectionId, is_connection_read_only};
+use crate::connection::{ConnectionId, Environment, is_connection_read_only};
 use crate::db;
 use crate::editor::sql_completion::InlineAi;
 use crate::editor::{SchemaCache, lint::lint};
 use crate::project::{ProjectRoot, ProjectVars, substitute};
 use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
+use crate::widgets::engine_icon;
 use crate::widgets::export_popover::export_popover;
-use crate::widgets::metadata_pill;
+use crate::widgets::metadata_pill::env_pill;
 use crate::widgets::panel::{
     panel_tab_content, tab_breadcrumb_footer, tab_breadcrumb_for_connection,
 };
@@ -562,13 +564,61 @@ impl QueryEditorPanel {
         }
     }
 
+    /// Where this editor runs: connection, environment and access, always visible.
+    fn context_chip(&self, read_only: bool, cx: &mut Context<Self>) -> AnyElement {
+        let entry = cx.try_global::<WorkspaceRef>().and_then(|ws| {
+            ws.0.read(cx)
+                .registry()
+                .read(cx)
+                .get(&self.conn_id, cx)
+                .cloned()
+        });
+        let Some(entry) = entry else {
+            return div().into_any_element();
+        };
+        let (label, env) = {
+            let e = entry.read(cx);
+            (
+                SharedString::from(e.config.label().to_string()),
+                Environment::from_tags(&e.tags),
+            )
+        };
+        let theme = cx.theme();
+        let (border, muted) = (theme.border, theme.muted_foreground);
+        h_flex()
+            .gap(px(7.0))
+            .items_center()
+            .px(px(9.0))
+            .py(px(3.0))
+            .rounded(px(8.0))
+            .border_1()
+            .border_color(border)
+            .bg(theme.background)
+            .child(engine_icon(self.source.engine()))
+            .child(div().text_xs().font_weight(FontWeight::MEDIUM).child(label))
+            .children(env.map(|e| env_pill(e, cx)))
+            .when(read_only, |h| {
+                h.child(
+                    div()
+                        .id("qe-read-only")
+                        .text_xs()
+                        .text_color(muted)
+                        .child("read-only")
+                        .tooltip(|window, cx| {
+                            Tooltip::new("Writes will fail on this connection").build(window, cx)
+                        }),
+                )
+            })
+            .into_any_element()
+    }
+
     fn render_toolbar(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let id = self.source.id();
         let read_only = cx
             .try_global::<WorkspaceRef>()
             .map(|ws| is_connection_read_only(&self.conn_id, ws.0.read(cx).registry().read(cx), cx))
             .unwrap_or(false);
-        let muted = cx.theme().muted_foreground;
+        let context = self.context_chip(read_only, cx);
         let project_dir = cx.try_global::<ProjectRoot>().map(|p| p.0.clone());
         let var_map = cx.global::<ProjectVars>().vars.clone();
         let mono_font = cx.theme().mono_font_family.clone();
@@ -581,6 +631,14 @@ impl QueryEditorPanel {
             .border_b_1()
             .border_color(cx.theme().border.opacity(0.72))
             .bg(cx.theme().muted.opacity(0.18))
+            .child(context)
+            .child(
+                div()
+                    .w(px(1.0))
+                    .h(px(18.0))
+                    .mx(px(2.0))
+                    .bg(cx.theme().border),
+            )
             .child(
                 Button::new(format!("{id}-run"))
                     .primary()
@@ -614,14 +672,7 @@ impl QueryEditorPanel {
                     .on_click(cx.listener(|panel, _, window, cx| panel.toggle_ai(window, cx))),
             )
             .child(self.assist_menu(cx))
-            .when(read_only, |h| {
-                h.child(metadata_pill("access", "Read-only", cx)).child(
-                    div()
-                        .text_xs()
-                        .text_color(muted)
-                        .child("Writes will fail on this connection"),
-                )
-            })
+            .child(div().flex_1())
             .child(query_panel_extras::variables_popover(
                 format!("{id}-vars-popover"),
                 project_dir,

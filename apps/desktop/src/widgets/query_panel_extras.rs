@@ -97,10 +97,15 @@ pub fn variables_popover(
     cx: &App,
 ) -> Popover {
     let muted = cx.theme().muted_foreground;
+    let label = if vars.is_empty() {
+        "Variables".to_string()
+    } else {
+        format!("Variables · {}", vars.len())
+    };
     let trigger = Button::new("query-vars-trigger")
         .ghost()
         .small()
-        .label("Variables");
+        .label(label);
 
     Popover::new(id)
         .anchor(Anchor::TopRight)

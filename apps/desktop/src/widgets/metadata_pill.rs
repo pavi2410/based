@@ -1,5 +1,6 @@
 //! Metadata pill chip — compact label/value badge for panel toolbars.
 
+use crate::connection::Environment;
 use gpui_kit::component::{ActiveTheme, h_flex};
 use gpui_kit::{prelude::*, *};
 
@@ -32,4 +33,18 @@ pub fn metadata_pill(
                 .text_color(cx.theme().foreground.opacity(0.9))
                 .child(value.into()),
         )
+}
+
+/// Small coloured pill naming a connection's environment (production, staging, ...).
+pub fn env_pill(env: Environment, cx: &App) -> impl IntoElement {
+    let tone = env.color(cx.theme());
+    div()
+        .px(px(6.0))
+        .rounded_full()
+        .border_1()
+        .border_color(tone.opacity(0.5))
+        .bg(tone.opacity(0.12))
+        .text_color(tone)
+        .text_xs()
+        .child(env.label())
 }

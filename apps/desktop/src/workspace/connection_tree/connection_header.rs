@@ -157,6 +157,10 @@ pub(crate) fn connection_header(
                     .items_center()
                     .child(div().size(px(7.0)).rounded_full().bg(row.state_color))
                     .child(div().text_xs().text_color(muted).child(state))
+                    .when_some(row.server_version.clone(), |h, v| {
+                        h.child(div().text_xs().text_color(muted.opacity(0.8)).child("·"))
+                            .child(div().text_xs().text_color(muted).child(v))
+                    })
                     .when(!connected && row.link != Link::Connecting, |h| {
                         h.child(div().flex_1()).child(
                             Button::new("conn-header-connect")

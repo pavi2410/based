@@ -2,7 +2,7 @@ use gpui_kit::component::{ActiveTheme, Theme};
 use gpui_kit::{App, Hsla, SharedString};
 
 use crate::connection::{
-    ConnectionConfig, ConnectionOrigin, ConnectionState, EngineKind, Environment,
+    AnyConnection, ConnectionConfig, ConnectionOrigin, ConnectionState, EngineKind, Environment,
 };
 
 use super::ConnectionTree;
@@ -39,6 +39,8 @@ pub(crate) struct ConnectionRow {
     /// Where it lives: `host:port/db`, a file path, or a credential-free URL host.
     pub(crate) detail: SharedString,
     pub(crate) read_only: bool,
+    /// Short server label such as "PostgreSQL 16.2"; only while connected.
+    pub(crate) server_version: Option<SharedString>,
 }
 
 pub(crate) enum RailItem {
@@ -58,6 +60,27 @@ fn config_detail(config: &ConnectionConfig) -> String {
         ConnectionConfig::Redis(c) => host_of(&c.url),
         ConnectionConfig::SQLite(c) => c.path.display().to_string(),
     }
+}
+
+fn server_label(state: &ConnectionState, cx: &App) -> Option<SharedString> {
+    let ConnectionState::Connected(conn) = state else {
+        return None;
+    };
+    let (name, raw) = match conn {
+        AnyConnection::Postgres(e) => ("PostgreSQL", e.read(cx).server_version.clone()),
+        AnyConnection::MongoDB(e) => ("MongoDB", e.read(cx).server_version.clone()),
+        AnyConnection::SQLite(e) => ("SQLite", e.read(cx).server_version.clone()),
+        AnyConnection::Redis(e) => ("Redis", e.read(cx).server_version.clone()),
+    };
+    raw.and_then(|r| short_version(name, &r)).map(Into::into)
+}
+
+/// "PostgreSQL 16.2 on x86_64…" and bare "7.0.5" both become "<Engine> <number>".
+fn short_version(engine: &str, raw: &str) -> Option<String> {
+    let number = raw
+        .split_whitespace()
+        .find(|w| w.chars().next().is_some_and(|c| c.is_ascii_digit()))?;
+    Some(format!("{engine} {}", number.trim_end_matches(',')))
 }
 
 fn connection_state_dot(state: &ConnectionState, t: &Theme) -> Hsla {
@@ -87,6 +110,7 @@ pub(crate) fn build_connection_rows(tree: &ConnectionTree, cx: &App) -> Vec<Conn
                 environment: Environment::from_tags(&entry.tags),
                 detail: config_detail(&entry.config).into(),
                 read_only: entry.config.is_read_only(),
+                server_version: server_label(&entry.state, cx),
             }
         })
         .collect()
@@ -110,4 +134,25 @@ pub(crate) fn build_rail_items(tree: &ConnectionTree, cx: &App) -> Vec<RailItem>
         items.push(RailItem::Connection(row));
     }
     items
+}
+
+#[cfg(test)]
+mod tests {
+    use super::short_version;
+
+    #[test]
+    fn shortens_server_banners() {
+        assert_eq!(
+            short_version(
+                "PostgreSQL",
+                "PostgreSQL 16.2 on x86_64-pc-linux-gnu, compiled by gcc"
+            ),
+            Some("PostgreSQL 16.2".into())
+        );
+        assert_eq!(
+            short_version("MongoDB", "7.0.5"),
+            Some("MongoDB 7.0.5".into())
+        );
+        assert_eq!(short_version("Redis", ""), None);
+    }
 }

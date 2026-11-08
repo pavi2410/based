@@ -230,11 +230,11 @@ fn hover_card(d: &HoverCardData, cx: &App) -> AnyElement {
         h_flex()
             .gap_3()
             .justify_between()
-            .child(div().text_xs().text_color(muted).child(k))
-            .child(div().text_xs().child(v))
+            .child(div().flex_shrink_0().text_xs().text_color(muted).child(k))
+            .child(div().min_w_0().text_xs().text_right().truncate().child(v))
     };
     v_flex()
-        .min_w(px(220.0))
+        .w(px(260.0))
         .gap(px(6.0))
         .child(
             h_flex()

@@ -24,11 +24,12 @@ use crate::connection::ConnectionId;
 use crate::connection::is_connection_read_only;
 use crate::db;
 use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_with_meta};
+use crate::widgets::cell_render::is_null_cell;
 use crate::widgets::column_header::ColumnMeta;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::datetime::format_relative;
 use crate::widgets::export_popover::export_popover;
-use crate::widgets::filter_bar::{FilterBar, FilterEvent, FilterOp, FilterSet};
+use crate::widgets::filter_bar::{FilterBar, FilterEvent, FilterExpr, FilterOp, FilterSet};
 use crate::widgets::motion;
 use crate::widgets::pagination::{offset_for_page, sql_pagination_group};
 use crate::widgets::panel::{
@@ -283,9 +284,11 @@ impl DataViewerPanel {
             serde_json::to_string_pretty(&headers.iter().zip(&row_text).collect::<HashMap<_, _>>())
                 .unwrap_or_default();
         let copy = |label: &'static str, text: String| {
-            PopupMenuItem::new(label).on_click(move |_, _, cx| {
-                cx.write_to_clipboard(ClipboardItem::new_string(text.clone()));
-            })
+            PopupMenuItem::new(label)
+                .icon(Icon::empty().path("icons/copy.svg"))
+                .on_click(move |_, _, cx| {
+                    cx.write_to_clipboard(ClipboardItem::new_string(text.clone()));
+                })
         };
         let fv = value.clone();
         let mut menu = menu
@@ -293,7 +296,15 @@ impl DataViewerPanel {
             .item(copy("Copy Row (TSV)", row_tsv))
             .item(copy("Copy Row (JSON)", row_json))
             .separator()
-            .submenu("Quick Filter", window, cx, {
+            .item(filter_item(
+                "Filter by This Value",
+                false,
+                &name,
+                &fv,
+                &this,
+            ))
+            .item(filter_item("Exclude This Value", true, &name, &fv, &this))
+            .submenu("More Filters", window, cx, {
                 let this = this.clone();
                 move |mut m, _, _| {
                     // `has` takes a single element; a whole-cell array can't supply one.
@@ -318,14 +329,14 @@ impl DataViewerPanel {
             });
         if let Some((table, f)) = fk {
             menu = menu.item(
-                PopupMenuItem::new(format!("Go to {table} · {}={}", f.column, f.value)).on_click(
-                    move |_, _, cx| {
+                PopupMenuItem::new(format!("Go to {table} · {}={}", f.column, f.value))
+                    .icon(Icon::new(AssetIcon::ExternalLink))
+                    .on_click(move |_, _, cx| {
                         let _ = this.update(cx, |p, cx| {
                             p.fk_jump = Some((table.clone(), f.clone()));
                             p.jump_to_fk(cx);
                         });
-                    },
-                ),
+                    }),
             );
         }
         menu
@@ -396,6 +407,44 @@ impl DataViewerPanel {
     pub(super) fn go_to_page(&mut self, page_1_based: usize, cx: &mut Context<Self>) {
         self.load_page(offset_for_page(page_1_based, self.page_size), cx);
     }
+}
+
+/// Menu item that ANDs `column = value` (or `<>` when `negate`) onto the filter.
+fn filter_item(
+    label: &'static str,
+    negate: bool,
+    column: &str,
+    value: &str,
+    this: &WeakEntity<DataViewerPanel>,
+) -> PopupMenuItem {
+    let (this, column, value) = (this.clone(), column.to_string(), value.to_string());
+    PopupMenuItem::new(label)
+        .icon(Icon::new(if negate {
+            AssetIcon::FunnelX
+        } else {
+            AssetIcon::Funnel
+        }))
+        .on_click(move |_, _, cx| {
+            let is_null = is_null_cell(&value);
+            let op = match (is_null, negate) {
+                (true, false) => FilterOp::IsNull,
+                (true, true) => FilterOp::IsNotNull,
+                (false, false) => FilterOp::Eq,
+                (false, true) => FilterOp::NotEq,
+            };
+            let expr = FilterExpr {
+                column: column.clone(),
+                op,
+                value: if is_null {
+                    String::new()
+                } else {
+                    value.clone()
+                },
+            };
+            let _ = this.update(cx, |p, cx| {
+                p.filter_bar.update(cx, |fb, cx| fb.add_term(expr, cx));
+            });
+        })
 }
 
 /// Refresh glyph that spins while `spinning`.

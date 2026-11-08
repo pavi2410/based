@@ -529,6 +529,18 @@ impl FilterBar {
         cx.notify();
     }
 
+    /// Append `expr` joined with AND and apply it.
+    pub fn add_term(&mut self, expr: FilterExpr, cx: &mut Context<Self>) {
+        if !self.columns.contains(&expr.column) {
+            self.columns.push(expr.column.clone());
+        }
+        self.terms.push(FilterTerm {
+            join: Join::And,
+            expr,
+        });
+        self.changed(cx);
+    }
+
     /// The applied conditions; `None` when there are none.
     pub fn current_set(&self, _cx: &App) -> Option<FilterSet> {
         (!self.terms.is_empty()).then(|| FilterSet {

@@ -6,9 +6,8 @@ use gpui_kit::component::{ActiveTheme, StyleSized, h_flex, tooltip::Tooltip};
 use gpui_kit::{App, Div, IntoElement, SharedString, Window, div, prelude::*, px};
 
 use crate::app::prefs;
+use crate::widgets::cell_hover::{self, HoverContent};
 use crate::widgets::datetime;
-use crate::widgets::dt_hover;
-use crate::widgets::json_hover;
 
 /// Max chars of a text cell shown in its hover tooltip.
 const TEXT_TOOLTIP_MAX: usize = 2_000;
@@ -398,7 +397,12 @@ pub fn render_grid_cell(
                 .w_full()
                 .text_color(theme.foreground)
                 .child(display);
-            dt_hover::wrap(("grid-dt-hover", cell_id), cell, &raw)
+            let content = HoverContent::Datetime(raw);
+            if content.available(cx) {
+                cell_hover::track(cell, cell_id as u64, content)
+            } else {
+                cell.into_any_element()
+            }
         }
         ColumnValueKind::Json => {
             let cell_id = row_ix.saturating_mul(10_000).saturating_add(col_ix);
@@ -408,7 +412,12 @@ pub fn render_grid_cell(
                 .w_full()
                 .text_color(theme.foreground)
                 .child(display);
-            json_hover::wrap(("grid-json-hover", cell_id), cell, &raw)
+            let content = HoverContent::Json(raw);
+            if content.available(cx) {
+                cell_hover::track(cell, cell_id as u64, content)
+            } else {
+                cell.into_any_element()
+            }
         }
         ColumnValueKind::Text => {
             let cell_id = row_ix.saturating_mul(10_000).saturating_add(col_ix);

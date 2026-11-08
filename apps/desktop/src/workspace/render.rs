@@ -36,6 +36,7 @@ use crate::project::drain_pending_reload;
 use crate::project::open::{
     maybe_show_pending_project_close_dialog, maybe_show_pending_project_switch_dialog,
 };
+use crate::widgets::cell_hover;
 use crate::workspace::query_lane::render_query_lane;
 
 impl Render for Workspace {
@@ -255,6 +256,7 @@ impl Render for Workspace {
             .bg(cx.theme().background)
             .child(Topbar::new(self.registry.clone()))
             .child(body)
+            .children(cell_hover::host(cx))
             .child(StatusBar::new(
                 StatusBarModel {
                     update: coordinator_snapshot(cx),

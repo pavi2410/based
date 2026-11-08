@@ -80,6 +80,7 @@ pub fn init_globals(cx: &mut App) {
     bindings::init(cx);
     app::shell::init(cx);
     app::prefs::install(cx);
+    widgets::cell_hover::init(cx);
 
     db::init(cx);
     ai::init(cx);

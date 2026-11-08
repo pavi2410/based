@@ -2,10 +2,8 @@
 
 use std::ops::Range;
 
-use gpui_kit::component::{ActiveTheme, hover_card::HoverCard};
-use gpui_kit::{
-    Anchor, AnyElement, ElementId, HighlightStyle, IntoElement, StyledText, div, prelude::*, px,
-};
+use gpui_kit::component::ActiveTheme;
+use gpui_kit::{AnyElement, App, HighlightStyle, IntoElement, StyledText, div, prelude::*, px};
 
 use crate::app::prefs;
 
@@ -69,34 +67,29 @@ fn tokens(s: &str) -> Vec<(Range<usize>, Tok)> {
     out
 }
 
-/// Wrap a JSON cell in a hover card; returns the cell unchanged if `raw` isn't valid JSON.
-pub fn wrap(id: impl Into<ElementId>, cell: impl IntoElement + 'static, raw: &str) -> AnyElement {
-    let Some(text) = pretty(raw) else {
-        return cell.into_any_element();
-    };
+/// Card body for a JSON cell; `None` when `raw` is not valid JSON.
+pub fn body(raw: &str, cx: &App) -> Option<AnyElement> {
+    let text = pretty(raw)?;
     let toks = tokens(&text);
-    HoverCard::new(id)
-        .anchor(Anchor::TopLeft)
-        .trigger(cell)
-        .content(move |_, _, cx| {
-            let t = cx.theme();
-            let color = |tok| match tok {
-                Tok::Key => t.blue_light,
-                Tok::Str => t.green_light,
-                Tok::Num => t.yellow_light,
-                Tok::Lit => t.magenta_light,
-            };
-            let highlights = toks
-                .iter()
-                .map(|(r, tok)| (r.clone(), HighlightStyle::color(color(*tok))));
-            div()
-                .max_w(px(520.0))
-                .max_h(px(360.0))
-                .overflow_hidden()
-                .text_xs()
-                .font_family(prefs::code_font_family(cx))
-                .text_color(t.foreground)
-                .child(StyledText::new(text.clone()).with_highlights(highlights))
-        })
-        .into_any_element()
+    let t = cx.theme();
+    let color = |tok| match tok {
+        Tok::Key => t.blue_light,
+        Tok::Str => t.green_light,
+        Tok::Num => t.yellow_light,
+        Tok::Lit => t.magenta_light,
+    };
+    let highlights = toks
+        .iter()
+        .map(|(r, tok)| (r.clone(), HighlightStyle::color(color(*tok))));
+    Some(
+        div()
+            .max_w(px(520.0))
+            .max_h(px(360.0))
+            .overflow_hidden()
+            .text_xs()
+            .font_family(prefs::code_font_family(cx))
+            .text_color(t.foreground)
+            .child(StyledText::new(text).with_highlights(highlights))
+            .into_any_element(),
+    )
 }

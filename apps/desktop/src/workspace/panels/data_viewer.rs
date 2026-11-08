@@ -28,7 +28,7 @@ use crate::widgets::column_header::ColumnMeta;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::datetime::format_relative;
 use crate::widgets::export_popover::export_popover;
-use crate::widgets::filter_bar::{FilterBar, FilterOp, FilterSet};
+use crate::widgets::filter_bar::{FilterBar, FilterEvent, FilterOp, FilterSet};
 use crate::widgets::motion;
 use crate::widgets::pagination::{offset_for_page, sql_pagination_group};
 use crate::widgets::panel::{
@@ -142,6 +142,10 @@ impl DataViewerPanel {
         if let Some(f) = filter {
             filter_bar.update(cx, |fb, cx| fb.preset_eq(f.column, &f.value, window, cx));
         }
+        cx.subscribe(&filter_bar, |panel, _, _: &FilterEvent, cx| {
+            panel.load_page(0, cx)
+        })
+        .detach();
         let cell_detail = cx.new(|_| CellDetail::default());
         let tab_label = source.path().join(".").into();
         let mut panel = Self {
@@ -471,25 +475,6 @@ impl Render for DataViewerPanel {
 
         let toolbar = data_viewer_toolbar(cx)
             .child(self.filter_bar.clone())
-            .child(
-                Button::new(SharedString::from(format!("{id}-filter-apply")))
-                    .small()
-                    .outline()
-                    .icon(Icon::new(AssetIcon::Funnel))
-                    .label("Apply filter")
-                    .on_click(cx.listener(|panel, _, _, cx| panel.load_page(0, cx))),
-            )
-            .child(
-                Button::new(SharedString::from(format!("{id}-filter-clear")))
-                    .small()
-                    .outline()
-                    .icon(Icon::new(AssetIcon::FunnelX))
-                    .tooltip("Clear filter")
-                    .on_click(cx.listener(|panel, _, window, cx| {
-                        panel.filter_bar.update(cx, |fb, cx| fb.clear(window, cx));
-                        panel.load_page(0, cx);
-                    })),
-            )
             .when_some(self.fk_jump.clone(), |d, (table, f)| {
                 d.child(
                     Button::new(SharedString::from(format!("{id}-fk-jump")))

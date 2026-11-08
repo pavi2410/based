@@ -21,7 +21,7 @@ use crate::db;
 use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_with_meta};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export;
-use crate::widgets::filter_bar::{FilterBar, FilterSet};
+use crate::widgets::filter_bar::{FilterBar, FilterEvent, FilterSet};
 use crate::widgets::panel::data_viewer_toolbar;
 use crate::widgets::virtual_table::{
     RowDelegate, align_meta_to_columns, data_column, replace_table_data,
@@ -57,6 +57,10 @@ impl DocumentViewerPanel {
         let tab_label = collection.name().to_string().into();
         let table = cx.new(|cx| configure_row_table(delegate, window, cx));
         let filter_bar = cx.new(|cx| FilterBar::new(window, cx, vec![]));
+        cx.subscribe(&filter_bar, |panel, _, _: &FilterEvent, cx| {
+            panel.reload(cx)
+        })
+        .detach();
         let cell_detail = cx.new(|_| CellDetail::default());
         let mut p = Self {
             focus_handle: cx.focus_handle(),
@@ -238,27 +242,6 @@ impl Render for DocumentViewerPanel {
                             .on_click(cx.listener(|p, _, _, cx| p.reload(cx))),
                     )
                     .child(self.filter_bar.clone())
-                    .child(
-                        Button::new("mongo-filter-apply")
-                            .small()
-                            .outline()
-                            .icon(Icon::new(AssetIcon::Funnel))
-                            .label("Apply filter")
-                            .on_click(cx.listener(|p, _, _, cx| p.reload(cx))),
-                    )
-                    .child(
-                        Button::new("mongo-filter-clear")
-                            .small()
-                            .outline()
-                            .icon(Icon::new(AssetIcon::FunnelX))
-                            .tooltip("Clear filter")
-                            .on_click(cx.listener(|p, _, window, cx| {
-                                p.filter_bar.update(cx, |fb, cx| {
-                                    fb.clear(window, cx);
-                                });
-                                p.reload(cx);
-                            })),
-                    )
                     .child(div().flex_1())
                     .when(self.loading, |h| {
                         h.child(div().text_sm().text_color(muted).child("Loading…"))

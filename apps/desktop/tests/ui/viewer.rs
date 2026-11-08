@@ -156,7 +156,7 @@ fn clear_filter_restores_all_rows(cx: &mut TestAppContext) {
         }),
     );
     wait_until(cx, |cx| v.snap(cx).total == 60);
-    v.click("sqlite-dv-filter-clear", cx);
+    v.click("filter-island-x-0", cx);
     wait_until(cx, |cx| v.snap(cx).total == 120);
 }
 

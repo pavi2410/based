@@ -3,13 +3,16 @@
 use std::collections::HashSet;
 
 use gpui_kit::component::{
-    ActiveTheme, Sizable,
-    button::{Button, ButtonVariants},
-    h_flex,
+    ActiveTheme, Sizable, h_flex,
+    input::InputEvent,
     input::{Input, InputState},
-    menu::{DropdownMenu as _, PopupMenuItem},
+    tooltip::Tooltip,
+    v_flex,
 };
-use gpui_kit::{App, Context, Entity, IntoElement, Render, Styled, Window, div, prelude::*, px};
+use gpui_kit::{
+    App, Context, Entity, IntoElement, Render, SharedString, Styled, TestSupportExt as _, Window,
+    div, prelude::*, px,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FilterOp {
@@ -380,25 +383,106 @@ impl FilterSet {
     }
 }
 
+/// Emitted whenever the applied filter changes.
+pub enum FilterEvent {
+    Changed,
+}
+
+/// Operator spellings accepted when typing, longest first so `>=` wins over `>`.
+const OP_ALIASES: &[(&str, FilterOp)] = &[
+    ("is not null", FilterOp::IsNotNull),
+    ("is null", FilterOp::IsNull),
+    ("not contains", FilterOp::NotLike),
+    ("starts with", FilterOp::StartsWith),
+    ("ends with", FilterOp::EndsWith),
+    ("has all", FilterOp::ArrayHasAll),
+    ("has any", FilterOp::ArrayHasAny),
+    ("contains", FilterOp::Like),
+    ("like", FilterOp::Like),
+    ("has", FilterOp::ArrayHas),
+    (">=", FilterOp::Gte),
+    ("<=", FilterOp::Lte),
+    ("!=", FilterOp::NotEq),
+    ("<>", FilterOp::NotEq),
+    ("≠", FilterOp::NotEq),
+    ("≥", FilterOp::Gte),
+    ("≤", FilterOp::Lte),
+    ("=", FilterOp::Eq),
+    (">", FilterOp::Gt),
+    ("<", FilterOp::Lt),
+];
+
+/// Read `column op value` out of typed text; `None` until it is complete.
+pub fn parse_term(text: &str, columns: &[String]) -> Option<FilterExpr> {
+    let text = text.trim();
+    let (head, rest) = text
+        .split_once(char::is_whitespace)
+        .map(|(h, r)| (h, r.trim_start()))
+        .or_else(|| {
+            // `a=b` with no spaces: split at the first operator character.
+            let i = text.find(['=', '<', '>', '!', '≠', '≥', '≤'])?;
+            Some((&text[..i], &text[i..]))
+        })?;
+    let head = head.trim_matches('"');
+    let column = columns
+        .iter()
+        .find(|c| c.eq_ignore_ascii_case(head))?
+        .clone();
+    let lower = rest.to_lowercase();
+    let (alias, op) = OP_ALIASES.iter().find(|(a, _)| {
+        lower.starts_with(a)
+            && (!a.chars().all(char::is_alphabetic)
+                || lower[a.len()..].starts_with(char::is_whitespace)
+                || lower.len() == a.len())
+    })?;
+    let value = rest[alias.len()..].trim();
+    let value = value
+        .strip_prefix('\'')
+        .and_then(|v| v.strip_suffix('\''))
+        .unwrap_or(value)
+        .to_string();
+    if op.has_value() && value.is_empty() {
+        return None;
+    }
+    Some(FilterExpr {
+        column,
+        op: *op,
+        value: if op.has_value() { value } else { String::new() },
+    })
+}
+
+/// A filter field made of editable predicate "islands" joined by AND / OR.
 pub struct FilterBar {
     pub columns: Vec<String>,
-    pub selected_column: usize,
-    pub op: FilterOp,
-    value_input: Entity<InputState>,
+    terms: Vec<FilterTerm>,
+    input: Entity<InputState>,
     /// Columns whose type is an array (enables array operators).
     array_columns: HashSet<String>,
     /// `columns` holds only a preset column until the real list loads.
     preset_only: bool,
 }
 
+impl gpui_kit::EventEmitter<FilterEvent> for FilterBar {}
+
 impl FilterBar {
     pub fn new(window: &mut Window, cx: &mut Context<Self>, columns: Vec<String>) -> Self {
-        let value_input = cx.new(|cx| InputState::new(window, cx));
+        let input = cx.new(|cx| {
+            InputState::new(window, cx).placeholder("column, operator, value — e.g. plan = team")
+        });
+        cx.subscribe_in(
+            &input,
+            window,
+            |this, _, event: &InputEvent, window, cx| match event {
+                InputEvent::Change => cx.notify(),
+                InputEvent::PressEnter { .. } => this.commit_or_accept(window, cx),
+                _ => {}
+            },
+        )
+        .detach();
         Self {
             columns,
-            selected_column: 0,
-            op: FilterOp::Eq,
-            value_input,
+            terms: Vec::new(),
+            input,
             array_columns: HashSet::new(),
             preset_only: false,
         }
@@ -415,7 +499,7 @@ impl FilterBar {
         self.preset(column, FilterOp::Eq, value, window, cx);
     }
 
-    /// Start with `column <op> value`; the full column list replaces the preset on load.
+    /// Replace the filter with `column <op> value`; the caller reloads.
     pub fn preset(
         &mut self,
         column: String,
@@ -424,164 +508,277 @@ impl FilterBar {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.columns = vec![column];
-        self.selected_column = 0;
-        self.op = op;
-        self.preset_only = true;
-        self.value_input
-            .update(cx, |state, cx| state.set_value(value, window, cx));
-    }
-
-    pub fn current_expr(&self, cx: &App) -> Option<FilterExpr> {
-        if self.columns.is_empty() {
-            return None;
+        if !self.columns.contains(&column) {
+            self.columns = vec![column.clone()];
+            self.preset_only = true;
         }
-        let col = self.columns.get(self.selected_column)?.clone();
-        let value = self.value_input.read(cx).value().to_string();
-        match self.op {
-            FilterOp::IsNull | FilterOp::IsNotNull => Some(FilterExpr {
-                column: col,
-                op: self.op,
-                value: String::new(),
-            }),
-            _ => {
-                if value.trim().is_empty() {
-                    None
+        self.terms = vec![FilterTerm {
+            join: Join::And,
+            expr: FilterExpr {
+                column,
+                op,
+                value: if op.has_value() {
+                    value.to_string()
                 } else {
-                    Some(FilterExpr {
-                        column: col,
-                        op: self.op,
-                        value,
-                    })
-                }
-            }
-        }
+                    String::new()
+                },
+            },
+        }];
+        self.input
+            .update(cx, |state, cx| state.set_value("", window, cx));
+        cx.notify();
     }
 
-    /// The current condition as a one-term set.
-    pub fn current_set(&self, cx: &App) -> Option<FilterSet> {
-        self.current_expr(cx).map(FilterSet::single)
+    /// The applied conditions; `None` when there are none.
+    pub fn current_set(&self, _cx: &App) -> Option<FilterSet> {
+        (!self.terms.is_empty()).then(|| FilterSet {
+            terms: self.terms.clone(),
+        })
     }
 
     pub fn set_array_columns(&mut self, cols: HashSet<String>) {
         self.array_columns = cols;
     }
 
-    fn selected_is_array(&self) -> bool {
-        self.columns
-            .get(self.selected_column)
-            .is_some_and(|c| self.array_columns.contains(c))
-    }
-
     pub fn clear(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.value_input.update(cx, |state, cx| {
-            state.set_value("", window, cx);
-        });
+        self.terms.clear();
+        self.input
+            .update(cx, |state, cx| state.set_value("", window, cx));
         cx.notify();
     }
 
     pub fn set_columns_if_empty(&mut self, columns: Vec<String>, cx: &mut Context<Self>) {
         if (self.columns.is_empty() || self.preset_only) && !columns.is_empty() {
-            self.selected_column = self
-                .columns
-                .get(self.selected_column)
-                .and_then(|c| columns.iter().position(|n| n == c))
-                .unwrap_or(0);
             self.columns = columns;
             self.preset_only = false;
             cx.notify();
         }
+    }
+
+    fn changed(&mut self, cx: &mut Context<Self>) {
+        cx.emit(FilterEvent::Changed);
+        cx.notify();
+    }
+
+    fn set_input(&mut self, text: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.input.update(cx, |state, cx| {
+            state.set_value(text, window, cx);
+            state.focus(window, cx);
+        });
+    }
+
+    fn commit_or_accept(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let text = self.input.read(cx).value().to_string();
+        if let Some(expr) = parse_term(&text, &self.columns) {
+            self.terms.push(FilterTerm {
+                join: Join::And,
+                expr,
+            });
+            self.set_input("", window, cx);
+            self.changed(cx);
+        } else if let Some(first) = self.suggestions(&text).into_iter().next() {
+            self.set_input(&first, window, cx);
+        }
+    }
+
+    /// Completion texts for the slot being typed: column, then operator.
+    fn suggestions(&self, text: &str) -> Vec<String> {
+        let lower = text.to_lowercase();
+        let Some((head, rest)) = text.split_once(char::is_whitespace) else {
+            return self
+                .columns
+                .iter()
+                .filter(|c| c.to_lowercase().starts_with(&lower))
+                .take(8)
+                .map(|c| format!("{c} "))
+                .collect();
+        };
+        let Some(column) = self.columns.iter().find(|c| c.eq_ignore_ascii_case(head)) else {
+            return Vec::new();
+        };
+        let rest = rest.trim_start().to_lowercase();
+        if OP_ALIASES
+            .iter()
+            .any(|(a, _)| rest.starts_with(a) && rest.len() > a.len())
+        {
+            return Vec::new(); // typing the value
+        }
+        let is_array = self.array_columns.contains(column);
+        FilterOp::for_column(is_array)
+            .filter(|op| op.label().starts_with(rest.as_str()) && op.label() != rest)
+            .take(8)
+            .map(|op| {
+                if op.has_value() {
+                    format!("{column} {} ", op.label())
+                } else {
+                    format!("{column} {}", op.label())
+                }
+            })
+            .collect()
     }
 }
 
 impl Render for FilterBar {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
-        h_flex()
-            .gap_1()
+        let (muted, fg, primary, border) = (
+            theme.muted_foreground,
+            theme.foreground,
+            theme.primary,
+            theme.border,
+        );
+        let value_color = theme.green_light;
+        let text = self.input.read(cx).value().to_string();
+        let suggestions = self.suggestions(&text);
+
+        let mut row = h_flex()
+            .id("filter-field")
+            .relative()
+            .flex_1()
+            .min_w(px(280.0))
+            .gap(px(6.0))
             .items_center()
-            .text_xs()
-            .text_color(theme.muted_foreground)
-            .child(div().child("Filter"))
+            .flex_wrap()
+            .px(px(8.0))
+            .py(px(2.0))
+            .rounded(px(8.0))
+            .border_1()
+            .border_color(border)
+            .bg(theme.background)
             .child(
-                Button::new("fb-col")
-                    .small()
-                    .ghost()
-                    .dropdown_caret(true)
-                    .label(
-                        self.columns
-                            .get(self.selected_column)
-                            .cloned()
-                            .unwrap_or_else(|| "—".into()),
+                div()
+                    .text_xs()
+                    .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                    .text_color(muted)
+                    .child("WHERE"),
+            );
+
+        let groups_multi = self.terms.iter().skip(1).any(|t| t.join == Join::Or);
+        for (i, term) in self.terms.iter().enumerate() {
+            if i > 0 {
+                let join = term.join;
+                row = row.child(
+                    div()
+                        .id(("filter-join", i))
+                        .px(px(4.0))
+                        .rounded(px(4.0))
+                        .cursor_pointer()
+                        .text_xs()
+                        .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                        .text_color(if join == Join::Or {
+                            theme.warning
+                        } else {
+                            muted
+                        })
+                        .hover(move |s| s.bg(border.opacity(0.5)))
+                        .tooltip(move |window, cx| {
+                            Tooltip::new("Switch AND / OR").build(window, cx)
+                        })
+                        .child(join.label())
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            if let Some(t) = this.terms.get_mut(i) {
+                                t.join = t.join.toggled();
+                            }
+                            this.changed(cx);
+                        })),
+                );
+            }
+            let e = &term.expr;
+            let label = e.op.label();
+            let _ = groups_multi;
+            row = row.child(
+                h_flex()
+                    .id(("filter-island", i))
+                    .gap(px(5.0))
+                    .items_center()
+                    .pl(px(8.0))
+                    .pr(px(2.0))
+                    .rounded(px(6.0))
+                    .border_1()
+                    .border_color(primary.opacity(0.35))
+                    .bg(primary.opacity(0.1))
+                    .cursor_pointer()
+                    .text_xs()
+                    .child(div().text_color(fg).child(e.column.clone()))
+                    .child(div().text_color(primary).child(label))
+                    .when(e.op.has_value(), |h| {
+                        h.child(div().text_color(value_color).child(e.value.clone()))
+                    })
+                    .child(
+                        div()
+                            .id(SharedString::from(format!("filter-island-x-{i}")))
+                            .test_support()
+                            .size(px(16.0))
+                            .rounded_full()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .text_color(muted)
+                            .hover(move |s| s.bg(border))
+                            .child("×")
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                if i < this.terms.len() {
+                                    this.terms.remove(i);
+                                }
+                                this.changed(cx);
+                            })),
                     )
-                    .dropdown_menu({
-                        let (fb, columns, current) =
-                            (cx.weak_entity(), self.columns.clone(), self.selected_column);
-                        move |mut menu, _, _| {
-                            for (i, name) in columns.iter().enumerate() {
-                                let fb = fb.clone();
-                                menu = menu.item(
-                                    PopupMenuItem::new(name.clone())
-                                        .checked(i == current)
-                                        .on_click(move |_, _, cx| {
-                                            let _ = fb.update(cx, |fb, cx| {
-                                                fb.selected_column = i;
-                                                if !fb.selected_is_array()
-                                                    && FilterOp::ARRAY.contains(&fb.op)
-                                                {
-                                                    fb.op = FilterOp::Eq;
-                                                }
-                                                cx.notify();
-                                            });
-                                        }),
-                                );
-                            }
-                            menu
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        // Click an island to edit it as text.
+                        if i < this.terms.len() {
+                            let t = this.terms.remove(i);
+                            let e = &t.expr;
+                            let text = if e.op.has_value() {
+                                format!("{} {} {}", e.column, e.op.label(), e.value)
+                            } else {
+                                format!("{} {}", e.column, e.op.label())
+                            };
+                            this.set_input(&text, window, cx);
+                            this.changed(cx);
                         }
-                    }),
-            )
-            .child(
-                Button::new("fb-op")
+                    })),
+            );
+        }
+
+        row = row.child(
+            div().flex_1().min_w(px(120.0)).child(
+                Input::new(&self.input)
                     .small()
-                    .ghost()
-                    .dropdown_caret(true)
-                    .label(self.op.label())
-                    .dropdown_menu({
-                        let (fb, current, is_array) =
-                            (cx.weak_entity(), self.op, self.selected_is_array());
-                        move |mut menu, _, _| {
-                            for op in FilterOp::for_column(is_array) {
-                                let fb = fb.clone();
-                                menu = menu.item(
-                                    PopupMenuItem::new(op.label())
-                                        .checked(op == current)
-                                        .on_click(move |_, _, cx| {
-                                            let _ = fb.update(cx, |fb, cx| {
-                                                fb.op = op;
-                                                cx.notify();
-                                            });
-                                        }),
-                                );
-                            }
-                            menu
-                        }
-                    }),
-            )
-            .when(self.op.has_value(), |row| {
-                row.child(
-                    h_flex()
-                        .items_center()
-                        .h(px(24.0))
-                        .min_w(px(140.0))
-                        .max_w(px(220.0))
-                        .child(
-                            Input::new(&self.value_input)
-                                .small()
-                                .cleanable(true)
-                                .shadow_none(),
-                        ),
-                )
-            })
+                    .appearance(false)
+                    .cleanable(false),
+            ),
+        );
+        if !suggestions.is_empty() {
+            row = row.child(
+                v_flex()
+                    .absolute()
+                    .top(px(36.0))
+                    .left(px(0.0))
+                    .min_w(px(220.0))
+                    .p(px(4.0))
+                    .rounded(px(8.0))
+                    .border_1()
+                    .border_color(border)
+                    .bg(theme.popover)
+                    .shadow_md()
+                    .occlude()
+                    .children(suggestions.into_iter().enumerate().map(|(i, text)| {
+                        div()
+                            .id(("filter-suggest", i))
+                            .px(px(8.0))
+                            .py(px(3.0))
+                            .rounded(px(5.0))
+                            .text_xs()
+                            .cursor_pointer()
+                            .hover(move |s| s.bg(border.opacity(0.5)))
+                            .child(text.clone())
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.set_input(&text, window, cx);
+                            }))
+                    })),
+            );
+        }
+        row
     }
 }
 
@@ -722,5 +919,32 @@ mod tests {
             both.to_mongo_filter(),
             "{\"$and\":[{\"a\":\"1\"},{\"b\":\"2\"}]}"
         );
+    }
+
+    fn cols() -> Vec<String> {
+        vec!["plan".into(), "seats".into(), "deleted_at".into()]
+    }
+
+    #[test]
+    fn parse_term_reads_spaced_and_tight_forms() {
+        let e = parse_term("plan = team", &cols()).unwrap();
+        assert_eq!(
+            (e.column.as_str(), e.op, e.value.as_str()),
+            ("plan", FilterOp::Eq, "team")
+        );
+        let e = parse_term("seats>=10", &cols()).unwrap();
+        assert_eq!((e.op, e.value.as_str()), (FilterOp::Gte, "10"));
+        let e = parse_term("PLAN contains 'te am'", &cols()).unwrap();
+        assert_eq!((e.op, e.value.as_str()), (FilterOp::Like, "te am"));
+    }
+
+    #[test]
+    fn parse_term_handles_null_ops_and_rejects_partial_input() {
+        let e = parse_term("deleted_at is null", &cols()).unwrap();
+        assert_eq!((e.op, e.value.as_str()), (FilterOp::IsNull, ""));
+        assert!(parse_term("deleted_at is not null", &cols()).is_some());
+        assert!(parse_term("plan =", &cols()).is_none());
+        assert!(parse_term("plan", &cols()).is_none());
+        assert!(parse_term("nope = 1", &cols()).is_none());
     }
 }

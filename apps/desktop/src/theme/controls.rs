@@ -43,6 +43,7 @@ impl SearchableListItem for ThemeNameItem {
 
 const BUNDLE_THEMES: &[&str] = &[
     include_str!("bundles/based.json"),
+    include_str!("bundles/graphite.json"),
     include_str!("bundles/gruvbox.json"),
     include_str!("bundles/ayu.json"),
     include_str!("bundles/catppuccin.json"),

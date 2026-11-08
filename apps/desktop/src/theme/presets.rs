@@ -18,6 +18,11 @@ pub const PRESETS: &[ThemePreset] = &[
         dark_name: "Based Dark",
     },
     ThemePreset {
+        id: "graphite",
+        light_name: "Graphite Light",
+        dark_name: "Graphite Dark",
+    },
+    ThemePreset {
         id: "gruvbox",
         light_name: "Gruvbox Light",
         dark_name: "Gruvbox Dark",

@@ -24,6 +24,7 @@ use crate::workspace::TabSpec;
 
 mod browser_list;
 mod connect;
+mod connection_header;
 mod connection_list;
 mod content_rail;
 mod context_menu;

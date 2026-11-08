@@ -76,6 +76,11 @@ pub(crate) fn render_content_rail(
         .h_full()
         .min_w_0()
         .min_h_0()
+        .children(super::connection_header::connection_header(
+            tree,
+            tree_entity.clone(),
+            cx,
+        ))
         .children(database_selector(tree, tree_entity.clone(), cx))
         .child(pane_shell(
             "Catalog",

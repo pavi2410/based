@@ -1,5 +1,6 @@
 // SQL query editor shared by SQL engines via [`QuerySource`]: editor, results, messages, explain.
 
+use std::mem;
 use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -10,7 +11,7 @@ use based_core::EngineKind;
 use based_query::{Lint, Severity};
 use futures::future::BoxFuture;
 use gpui_kit::component::{
-    ActiveTheme, IconName, Selectable as _, Sizable as _, Theme,
+    ActiveTheme, Icon, IconName, Selectable as _, Sizable as _, Theme,
     button::{Button, ButtonVariants},
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
@@ -30,6 +31,7 @@ use crate::connection::{ConnectionId, Environment, is_connection_read_only};
 use crate::db;
 use crate::editor::error_locate::{line_col, locate_error};
 use crate::editor::sql_completion::InlineAi;
+use crate::editor::write_guard::changes_data;
 use crate::editor::{SchemaCache, lint::lint};
 use crate::project::{ProjectRoot, ProjectVars, substitute};
 use crate::query_store::{HistoryEntry, QueryStore};
@@ -133,6 +135,9 @@ pub struct QueryEditorPanel {
     run_started: Option<Instant>,
     /// Where the last error points in the editor text, when the message names a token.
     error_span: Option<Range<usize>>,
+    /// A write on a production connection is waiting for confirmation.
+    write_confirm: bool,
+    write_approved: bool,
     pub(crate) tab_label: SharedString,
 }
 
@@ -178,6 +183,8 @@ impl QueryEditorPanel {
             ticker: None,
             run_started: None,
             error_span: None,
+            write_confirm: false,
+            write_approved: false,
             tab_label: "Query".into(),
         };
         cx.subscribe_in(&sql_input, window, |panel, _, event, _, cx| match event {
@@ -188,6 +195,7 @@ impl QueryEditorPanel {
             InputEvent::Change => {
                 // Edits only: focus and selection changes also notify the editor.
                 panel.dirty = true;
+                panel.write_confirm = false;
                 mark_tab_dirty(cx.entity_id(), cx);
                 panel.schedule_lint(cx);
             }
@@ -344,7 +352,7 @@ impl QueryEditorPanel {
         if sql_raw.trim().is_empty() {
             return;
         }
-        if self.gate_ai_run(&sql_raw, cx) {
+        if self.gate_ai_run(&sql_raw, cx) || self.gate_production_write(&sql_raw, cx) {
             return;
         }
         let project_vars = cx.global::<ProjectVars>().vars.clone();
@@ -445,6 +453,87 @@ impl QueryEditorPanel {
                 cx.notify();
             });
         }));
+    }
+
+    /// Production connection name when it is marked as production.
+    fn production_name(&self, cx: &App) -> Option<SharedString> {
+        let ws = cx.try_global::<WorkspaceRef>()?;
+        let entry =
+            ws.0.read(cx)
+                .registry()
+                .read(cx)
+                .get(&self.conn_id, cx)?
+                .clone();
+        let e = entry.read(cx);
+        (Environment::from_tags(&e.tags) == Some(Environment::Production))
+            .then(|| SharedString::from(e.config.label().to_string()))
+    }
+
+    /// `true` when a data-changing statement on production was held for confirmation.
+    fn gate_production_write(&mut self, sql: &str, cx: &mut Context<Self>) -> bool {
+        if mem::take(&mut self.write_approved) {
+            return false;
+        }
+        let hold = changes_data(sql) && self.production_name(cx).is_some();
+        if self.write_confirm != hold {
+            self.write_confirm = hold;
+            cx.notify();
+        }
+        hold
+    }
+
+    fn confirm_write_run(&mut self, cx: &mut Context<Self>) {
+        self.write_confirm = false;
+        self.write_approved = true;
+        self.run(cx);
+    }
+
+    fn render_write_confirm(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        if !self.write_confirm {
+            return None;
+        }
+        let id = self.source.id();
+        let name = self.production_name(cx)?;
+        let danger = cx.theme().danger;
+        Some(
+            h_flex()
+                .gap_2()
+                .px_2()
+                .py_1p5()
+                .items_center()
+                .border_b_1()
+                .border_color(danger.opacity(0.4))
+                .bg(danger.opacity(0.08))
+                .child(
+                    Icon::new(IconName::TriangleAlert)
+                        .small()
+                        .text_color(danger),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .text_sm()
+                        .child(format!("This changes data on {name} (production). Run it?")),
+                )
+                .child(
+                    Button::new(format!("{id}-write-run"))
+                        .danger()
+                        .small()
+                        .label("Run on production")
+                        .on_click(cx.listener(|this, _, _, cx| this.confirm_write_run(cx))),
+                )
+                .child(
+                    Button::new(format!("{id}-write-cancel"))
+                        .ghost()
+                        .small()
+                        .label("Cancel")
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.write_confirm = false;
+                            cx.notify();
+                        })),
+                )
+                .into_any_element(),
+        )
     }
 
     /// Squiggle the editor text the last error points at.
@@ -829,6 +918,7 @@ impl Render for QueryEditorPanel {
         let has_error = matches!(self.status, QueryStatus::Error(_));
         let toolbar = self.render_toolbar(cx);
         let ai_confirm = self.render_ai_confirm(cx);
+        let write_confirm = self.render_write_confirm(cx);
         let editor_pane = div().size_full().p_2().child(sql_editor::code_editor_flex(
             &self.sql_input,
             has_error,
@@ -900,6 +990,7 @@ impl Render for QueryEditorPanel {
                 ))
                 .when_some(self.ai.bar(), |v, bar| v.child(bar))
                 .children(ai_confirm)
+                .children(write_confirm)
                 .child(
                     div().flex_1().min_h(px(0.0)).child(
                         v_resizable(SharedString::from(format!("{id}-query-split")))

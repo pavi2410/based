@@ -11,5 +11,6 @@ pub mod schema_cache;
 pub mod sql_completion;
 pub mod sql_scope;
 pub mod sqlite_schema;
+pub mod write_guard;
 
 pub use schema_cache::SchemaCache;

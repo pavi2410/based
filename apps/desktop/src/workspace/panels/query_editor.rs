@@ -243,6 +243,8 @@ impl QueryEditorPanel {
         if auto_run && !sql.trim().is_empty() {
             cx.defer_in(window, |panel, _, cx| panel.run_all(cx));
         }
+        // Re-place the run marks when the editor scrolls or its text changes.
+        cx.observe(&sql_input, |_, _, cx| cx.notify()).detach();
         panel.load_schema(cx);
         // Keep the relative "loaded" label fresh.
         cx.spawn(async move |this, cx| {
@@ -990,6 +992,73 @@ impl QueryEditorPanel {
             })
     }
 
+    /// Run the statement at `range` of the editor text.
+    fn run_statement(&mut self, range: Range<usize>, cx: &mut Context<Self>) {
+        let text = self.current_sql(cx);
+        if let Some(sql) = text.get(range) {
+            self.run_sql(sql.to_string(), cx);
+        }
+    }
+
+    /// A run mark beside the first line of every statement, placed from the editor's
+    /// last layout (scroll offset, line height, wrapped rows).
+    fn render_run_marks(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
+        if matches!(self.status, QueryStatus::Running) {
+            return Vec::new();
+        }
+        let st = self.sql_input.read(cx);
+        let (Some(text_bounds), Some(line_height)) = (st.text_bounds(), st.line_height()) else {
+            return Vec::new();
+        };
+        let scroll = st.scroll_offset();
+        let left = st.input_bounds().origin.x + px(3.0);
+        let text = st.value().to_string();
+        let marks: Vec<(usize, Range<usize>, Pixels)> = split_statements(&text)
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, range)| {
+                let line = text[..range.start].matches('\n').count();
+                let row = st.display_map().buffer_line_to_display_row(line);
+                let y = text_bounds.origin.y + scroll.y + line_height * row as f32;
+                let inside = y >= text_bounds.top() - px(1.0)
+                    && y + line_height <= text_bounds.bottom() + px(1.0);
+                inside.then_some((i, range, y))
+            })
+            .collect();
+        let (success, hover) = (cx.theme().success_foreground, cx.theme().muted.opacity(0.6));
+        let id = self.source.id();
+        marks
+            .into_iter()
+            .map(|(i, range, y)| {
+                deferred(
+                    anchored()
+                        .position(point(left, y + (line_height - px(16.0)) / 2.0))
+                        .anchor(Anchor::TopLeft)
+                        .child(
+                            div()
+                                .id(SharedString::from(format!("{id}-run-mark-{i}")))
+                                .size(px(16.0))
+                                .rounded(px(4.0))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .cursor_pointer()
+                                .hover(move |s| s.bg(hover))
+                                .tooltip(|window, cx| {
+                                    Tooltip::new("Run this statement").build(window, cx)
+                                })
+                                .child(Icon::new(IconName::Play).xsmall().text_color(success))
+                                .on_click(cx.listener(move |panel, _, _, cx| {
+                                    panel.run_statement(range.clone(), cx);
+                                })),
+                        ),
+                )
+                .with_priority(500)
+                .into_any_element()
+            })
+            .collect()
+    }
+
     /// Squiggle the editor text the last error points at.
     fn mark_error(&mut self, cx: &mut Context<Self>) {
         let Some(span) = self.error_span.clone() else {
@@ -1421,6 +1490,7 @@ impl Render for QueryEditorPanel {
         let toolbar = self.render_toolbar(cx);
         let ai_confirm = self.render_ai_confirm(cx);
         let write_confirm = self.render_write_confirm(cx);
+        let run_marks = self.render_run_marks(cx);
         let editor_pane = div().size_full().p_2().child(sql_editor::code_editor_flex(
             &self.sql_input,
             has_error,
@@ -1492,6 +1562,7 @@ impl Render for QueryEditorPanel {
                 .h_full()
                 .min_h(px(0.0))
                 .on_action(cx.listener(|panel, _: &AskAi, window, cx| panel.toggle_ai(window, cx)))
+                .children(run_marks)
                 .child(toolbar)
                 .child(motion::glimmer_bar(
                     format!("{id}-run-glimmer"),

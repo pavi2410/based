@@ -47,7 +47,6 @@ impl ConnectionWizardPanel {
                 Select::new(&self.ssl_mode).w_full(),
             ))
         })
-        .child(self.uri_preview(cx))
         .child(form_section("Authentication", cx))
         .child(
             h_flex()
@@ -222,44 +221,5 @@ impl ConnectionWizardPanel {
                     cx.notify();
                 })),
         )
-    }
-}
-
-impl ConnectionWizardPanel {
-    /// Read-only connection string for the current Postgres fields (password omitted).
-    fn uri_preview(&self, cx: &Context<Self>) -> impl IntoElement {
-        let uri = match self.config(cx) {
-            ConnectionConfig::Postgres(c) => postgres_uri(&c, false),
-            _ => String::new(),
-        };
-        let copy = uri.clone();
-        h_flex()
-            .w_full()
-            .items_center()
-            .gap_2()
-            .px_3()
-            .py_2()
-            .rounded(px(8.0))
-            .border_1()
-            .border_color(cx.theme().border)
-            .bg(cx.theme().muted.opacity(0.3))
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .text_xs()
-                    .font_family(prefs::code_font_family(cx))
-                    .text_color(cx.theme().muted_foreground)
-                    .child(uri),
-            )
-            .child(
-                Button::new("wizard-uri-copy")
-                    .ghost()
-                    .small()
-                    .label("Copy")
-                    .on_click(move |_, _, cx| {
-                        cx.write_to_clipboard(ClipboardItem::new_string(copy.clone()));
-                    }),
-            )
     }
 }

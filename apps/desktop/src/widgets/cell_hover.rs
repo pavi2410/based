@@ -7,9 +7,9 @@ use std::time::Duration;
 
 use gpui_kit::component::ActiveTheme;
 use gpui_kit::{
-    Anchor, Animation, AnimationExt, AnyElement, App, Context, Entity, Global, InteractiveElement,
-    IntoElement, Pixels, Point, Render, SharedString, StatefulInteractiveElement, Window, anchored,
-    deferred, div, point, prelude::*, px,
+    Anchor, AnyElement, App, Context, Entity, Global, InteractiveElement, IntoElement, Pixels,
+    Point, Render, StatefulInteractiveElement, Window, anchored, deferred, div, point, prelude::*,
+    px,
 };
 
 use crate::widgets::{dt_hover, json_hover};
@@ -18,8 +18,6 @@ const SHOW_DELAY: Duration = Duration::from_millis(350);
 const LEAVE_GRACE: Duration = Duration::from_millis(90);
 /// Card corner sits this far from the pointer so the arrow does not cover it.
 const CURSOR_TAIL: (f32, f32) = (4.0, 6.0);
-/// Fade-and-settle when the card's content changes.
-const CONTENT_SWAP: Duration = Duration::from_millis(160);
 
 /// What the card shows.
 #[derive(Clone, PartialEq, Eq)]
@@ -28,22 +26,7 @@ pub enum HoverContent {
     Json(String),
 }
 
-fn ease_out(t: f32) -> f32 {
-    1.0 - (1.0 - t).powi(3)
-}
-
 impl HoverContent {
-    /// Stable per-content id so the swap animation replays when the cell changes.
-    fn key(&self) -> u64 {
-        use std::hash::{DefaultHasher, Hash, Hasher};
-        let mut h = DefaultHasher::new();
-        match self {
-            Self::Datetime(raw) => (0u8, raw).hash(&mut h),
-            Self::Json(raw) => (1u8, raw).hash(&mut h),
-        }
-        h.finish()
-    }
-
     fn body(&self, cx: &App) -> Option<AnyElement> {
         match self {
             Self::Datetime(raw) => dt_hover::body(raw, cx),
@@ -179,7 +162,6 @@ impl Render for CellHoverHost {
         let Some(body) = content.body(cx) else {
             return div().into_any_element();
         };
-        let key = content.key();
         let theme = cx.theme();
         deferred(
             anchored()
@@ -196,11 +178,7 @@ impl Render for CellHoverHost {
                         .bg(theme.popover)
                         .text_color(theme.popover_foreground)
                         .shadow_md()
-                        .child(div().relative().child(body).with_animation(
-                            SharedString::from(format!("cell-hover-{key}")),
-                            Animation::new(CONTENT_SWAP).with_easing(ease_out),
-                            |el, t| el.opacity(0.3 + 0.7 * t).top(px((1.0 - t) * 4.0)),
-                        )),
+                        .child(body),
                 ),
         )
         .with_priority(1000)

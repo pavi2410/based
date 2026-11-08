@@ -486,7 +486,6 @@ impl FilterBar {
                     .detach();
                 }
                 InputEvent::PressEnter { .. } => this.commit_or_accept(window, cx),
-                _ => {}
             },
         )
         .detach();

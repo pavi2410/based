@@ -162,6 +162,18 @@ fn rail_icon(
             connection_context_menu(idx, engine, is_connected, tree_menu.clone(), menu, cx)
         })
         .child(engine_icon(engine))
+        .when_some(row.environment, |d, env| {
+            d.child(
+                div()
+                    .absolute()
+                    .left(px(-1.0))
+                    .top(px(7.0))
+                    .bottom(px(7.0))
+                    .w(px(3.0))
+                    .rounded_r(px(3.0))
+                    .bg(env.color(cx.theme())),
+            )
+        })
         .child(state_ring(idx, &row.link, row.state_color, sidebar))
 }
 

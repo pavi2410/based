@@ -83,6 +83,20 @@ pub(crate) fn connection_header(
                             .truncate()
                             .child(row.conn_label.clone()),
                     )
+                    .when_some(row.environment, |h, env| {
+                        let tone = env.color(cx.theme());
+                        h.child(
+                            div()
+                                .px(px(6.0))
+                                .rounded_full()
+                                .border_1()
+                                .border_color(tone.opacity(0.5))
+                                .bg(tone.opacity(0.12))
+                                .text_color(tone)
+                                .text_xs()
+                                .child(env.label()),
+                        )
+                    })
                     .when(connected, |h| {
                         h.child(
                             Button::new("conn-header-refresh")

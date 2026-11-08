@@ -26,6 +26,7 @@ use based_core::SshTunnelConfig;
 use based_project::AiSettings;
 
 use crate::app::prefs;
+use crate::connection::Environment;
 use crate::connection::{
     ConnectionConfig, ConnectionEntry, ConnectionId, EngineKind, OpenedConnection,
     categorize_connect_error,

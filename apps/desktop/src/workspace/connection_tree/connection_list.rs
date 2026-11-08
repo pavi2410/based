@@ -1,7 +1,7 @@
 use gpui_kit::component::{ActiveTheme, Theme};
 use gpui_kit::{App, Hsla, SharedString};
 
-use crate::connection::{ConnectionOrigin, ConnectionState, EngineKind};
+use crate::connection::{ConnectionOrigin, ConnectionState, EngineKind, Environment};
 
 use super::ConnectionTree;
 
@@ -33,6 +33,7 @@ pub(crate) struct ConnectionRow {
     pub(crate) state_color: Hsla,
     pub(crate) link: Link,
     pub(crate) origin: ConnectionOrigin,
+    pub(crate) environment: Option<Environment>,
 }
 
 pub(crate) enum RailItem {
@@ -64,6 +65,7 @@ pub(crate) fn build_connection_rows(tree: &ConnectionTree, cx: &App) -> Vec<Conn
                 state_color: connection_state_dot(&entry.state, cx.theme()),
                 link: Link::of(&entry.state),
                 origin: entry.origin,
+                environment: Environment::from_tags(&entry.tags),
             }
         })
         .collect()

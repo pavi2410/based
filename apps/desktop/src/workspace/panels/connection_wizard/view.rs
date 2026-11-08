@@ -156,6 +156,32 @@ impl Render for ConnectionWizardPanel {
                 .child(
                     v_flex()
                         .gap_1()
+                        .child(div().text_xs().text_color(muted).child("Environment"))
+                        .child(h_flex().gap_1().children(Environment::ALL.map(|env| {
+                            let active = Environment::from_tags(&self.tags) == Some(env);
+                            Button::new(SharedString::from(format!("wizard-env-{}", env.tag())))
+                                .small()
+                                .when(active, |b| b.primary())
+                                .when(!active, |b| b.outline())
+                                .label(env.label())
+                                .on_click(cx.listener(move |panel, _, _, cx| {
+                                    panel.tags.retain(|t| Environment::from_tag(t).is_none());
+                                    if !active {
+                                        panel.tags.push(env.tag().to_string());
+                                    }
+                                    cx.notify();
+                                }))
+                        })))
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(muted)
+                                .child("Marks the connection in the rail. Saved as a tag."),
+                        ),
+                )
+                .child(
+                    v_flex()
+                        .gap_1()
                         .child(div().text_xs().text_color(muted).child("Tags"))
                         .child(h_flex().gap_1().flex_wrap().children(tag_chips))
                         .child(

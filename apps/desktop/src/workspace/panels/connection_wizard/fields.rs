@@ -17,27 +17,6 @@ impl ConnectionWizardPanel {
                     Input::new(&self.port).cleanable(true).aria_label("Port"),
                 )),
         )
-        .child(form_section("Authentication", cx))
-        .child(
-            h_flex()
-                .gap_2()
-                .child(labeled_field(
-                    "User",
-                    muted,
-                    Input::new(&self.username)
-                        .content_type(InputContentType::Username)
-                        .cleanable(true)
-                        .aria_label("User"),
-                ))
-                .child(labeled_field(
-                    "Password",
-                    muted,
-                    Input::new(&self.password)
-                        .content_type(InputContentType::Password)
-                        .mask_toggle()
-                        .aria_label("Password"),
-                )),
-        )
         .child(labeled_field(
             "Database",
             muted,
@@ -68,6 +47,28 @@ impl ConnectionWizardPanel {
                 Select::new(&self.ssl_mode).w_full(),
             ))
         })
+        .child(self.uri_preview(cx))
+        .child(form_section("Authentication", cx))
+        .child(
+            h_flex()
+                .gap_2()
+                .child(labeled_field(
+                    "User",
+                    muted,
+                    Input::new(&self.username)
+                        .content_type(InputContentType::Username)
+                        .cleanable(true)
+                        .aria_label("User"),
+                ))
+                .child(labeled_field(
+                    "Password",
+                    muted,
+                    Input::new(&self.password)
+                        .content_type(InputContentType::Password)
+                        .mask_toggle()
+                        .aria_label("Password"),
+                )),
+        )
         .child(form_section("SSH tunnel", cx))
         .child(
             h_flex()
@@ -221,5 +222,44 @@ impl ConnectionWizardPanel {
                     cx.notify();
                 })),
         )
+    }
+}
+
+impl ConnectionWizardPanel {
+    /// Read-only connection string for the current Postgres fields (password omitted).
+    fn uri_preview(&self, cx: &Context<Self>) -> impl IntoElement {
+        let uri = match self.config(cx) {
+            ConnectionConfig::Postgres(c) => postgres_uri(&c, false),
+            _ => String::new(),
+        };
+        let copy = uri.clone();
+        h_flex()
+            .w_full()
+            .items_center()
+            .gap_2()
+            .px_3()
+            .py_2()
+            .rounded(px(8.0))
+            .border_1()
+            .border_color(cx.theme().border)
+            .bg(cx.theme().muted.opacity(0.3))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .text_xs()
+                    .font_family(prefs::code_font_family(cx))
+                    .text_color(cx.theme().muted_foreground)
+                    .child(uri),
+            )
+            .child(
+                Button::new("wizard-uri-copy")
+                    .ghost()
+                    .small()
+                    .label("Copy")
+                    .on_click(move |_, _, cx| {
+                        cx.write_to_clipboard(ClipboardItem::new_string(copy.clone()));
+                    }),
+            )
     }
 }

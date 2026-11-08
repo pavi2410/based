@@ -35,7 +35,7 @@ use crate::connection::{
 use crate::db;
 use crate::mongodb::{MongoConfig, MongoConnection};
 use crate::postgres::wizard::parse_postgres_uri;
-use crate::postgres::{PgConnection, PostgresConfig, SslMode};
+use crate::postgres::{PgConnection, PostgresConfig, SslMode, postgres_uri};
 use crate::project::ProjectRoot;
 use crate::redis::{RedisConfig, RedisConnection};
 use crate::sqlite::{SqliteConfig, SqliteConnection, SqlitePragma};
@@ -142,7 +142,7 @@ impl ConnectionWizardPanel {
         })
         .detach();
 
-        Self {
+        let panel = Self {
             focus_handle: cx.focus_handle(),
             engine,
             host: new_field(window, cx, "localhost", "Host"),
@@ -195,7 +195,17 @@ impl ConnectionWizardPanel {
             }),
             status: WizardStatus::Idle,
             tab_label: "New connection".into(),
+        };
+        // Keep the connection-string preview live while typing.
+        for input in [&panel.host, &panel.port, &panel.database, &panel.username] {
+            cx.subscribe_in(input, window, |_, _, event: &InputEvent, _, cx| {
+                if matches!(event, InputEvent::Change) {
+                    cx.notify();
+                }
+            })
+            .detach();
         }
+        panel
     }
 
     pub fn edit(

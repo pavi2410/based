@@ -65,7 +65,7 @@ fn add_copy_items(
                 },
             ))
             .item(copy_config_item(
-                "Copy Connection String with Password",
+                "Copy Connection String (includes password)",
                 tree.clone(),
                 conn_id.clone(),
                 |cfg, _| match cfg {
@@ -83,7 +83,7 @@ fn add_copy_items(
                 },
             ))
             .item(copy_config_item(
-                "Copy psql Command with Password",
+                "Copy psql Command (includes password)",
                 tree,
                 conn_id.clone(),
                 |cfg, _| match cfg {
@@ -127,7 +127,7 @@ fn add_copy_items(
                 },
             ))
             .item(copy_config_item(
-                "Copy Connection String with Password",
+                "Copy Connection String (includes password)",
                 tree.clone(),
                 conn_id.clone(),
                 |cfg, _| match cfg {
@@ -145,7 +145,7 @@ fn add_copy_items(
                 },
             ))
             .item(copy_config_item(
-                "Copy mongosh Command with Password",
+                "Copy mongosh Command (includes password)",
                 tree,
                 conn_id.clone(),
                 |cfg, _| match cfg {
@@ -164,7 +164,7 @@ fn add_copy_items(
                 },
             ))
             .item(copy_config_item(
-                "Copy Connection URL with Password",
+                "Copy Connection URL (includes password)",
                 tree.clone(),
                 conn_id.clone(),
                 |cfg, _| match cfg {
@@ -182,7 +182,7 @@ fn add_copy_items(
                 },
             ))
             .item(copy_config_item(
-                "Copy redis-cli Command with Password",
+                "Copy redis-cli Command (includes password)",
                 tree,
                 conn_id.clone(),
                 |cfg, _| match cfg {
@@ -274,18 +274,18 @@ pub(crate) fn connection_actions_menu(
         }));
     }
 
-    menu = add_copy_items(menu, tree_menu.clone(), conn_id.clone(), engine);
+    menu = add_copy_items(
+        menu.separator().label("Copy"),
+        tree_menu.clone(),
+        conn_id.clone(),
+        engine,
+    );
 
-    if include_new_window {
-        menu = menu
-            .separator()
-            .item(coming_soon_item("Open in New Window"))
-            .separator();
-    } else {
-        menu = menu.separator();
-    }
+    // Unfinished items stay out of the menu until they work.
+    let _ = include_new_window;
 
     if is_connected {
+        menu = menu.separator();
         menu = menu.item(PopupMenuItem::new("Disconnect").on_click({
             let tree = tree_menu;
             move |_, _, cx| {

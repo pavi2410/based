@@ -1010,7 +1010,8 @@ impl QueryEditorPanel {
         let (Some(text_bounds), Some(line_height)) = (st.text_bounds(), st.line_height()) else {
             return Vec::new();
         };
-        let scroll = st.scroll_offset();
+        // `text_bounds` already moves with the scroll offset, so it is not added again.
+        let view = st.input_bounds();
         let left = st.input_bounds().origin.x + px(3.0);
         let text = st.value().to_string();
         let marks: Vec<(usize, Range<usize>, Pixels)> = split_statements(&text)
@@ -1019,9 +1020,9 @@ impl QueryEditorPanel {
             .filter_map(|(i, range)| {
                 let line = text[..range.start].matches('\n').count();
                 let row = st.display_map().buffer_line_to_display_row(line);
-                let y = text_bounds.origin.y + scroll.y + line_height * row as f32;
-                let inside = y >= text_bounds.top() - px(1.0)
-                    && y + line_height <= text_bounds.bottom() + px(1.0);
+                let y = text_bounds.origin.y + line_height * row as f32;
+                let inside =
+                    y >= view.top() - px(1.0) && y + line_height <= view.bottom() + px(1.0);
                 inside.then_some((i, range, y))
             })
             .collect();

@@ -707,17 +707,6 @@ impl Render for DataViewerPanel {
 
         let toolbar = data_viewer_toolbar(cx)
             .child(self.filter_bar.clone())
-            .when_some(self.fk_jump.clone(), |d, (table, f)| {
-                d.child(
-                    Button::new(SharedString::from(format!("{id}-fk-jump")))
-                        .small()
-                        .outline()
-                        .icon(Icon::new(AssetIcon::ExternalLink))
-                        .label(format!("{table} · {}={}", f.column, f.value))
-                        .tooltip("Go to referenced row")
-                        .on_click(cx.listener(|panel, _, _, cx| panel.jump_to_fk(cx))),
-                )
-            })
             .child(columns_button(&self.table))
             .child(export_popover(id, export_headers, export_rows));
 

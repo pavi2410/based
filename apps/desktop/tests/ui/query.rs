@@ -113,3 +113,19 @@ fn invalid_sql_reports_an_error(cx: &mut TestAppContext) {
     assert!(result.error.is_some(), "{result:?}");
     assert!(result.rows.is_empty());
 }
+
+#[gpui_kit::test]
+fn run_with_several_statements_runs_the_one_at_the_cursor(cx: &mut TestAppContext) {
+    let (ed, _ws, _dir) = open_editor(
+        cx,
+        "select name from t where id = 1;\nselect name from t where id = 2",
+        false,
+    );
+    cx.update_window(ed.win, |_, window, cx| {
+        window.render_frame(cx);
+        window.click("sqlite-run", cx);
+    })
+    .unwrap();
+    // The cursor starts in the first statement, so only it runs.
+    assert_eq!(ed.finished(cx).rows, [["ada"]]);
+}

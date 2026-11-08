@@ -193,7 +193,7 @@ impl QueryEditorPanel {
     fn confirm_ai_run(&mut self, cx: &mut Context<Self>) {
         self.ai.confirmed();
         self.ai_confirm = false;
-        self.run(cx);
+        self.run_held(cx);
     }
 
     pub(super) fn render_ai_confirm(&self, cx: &mut Context<Self>) -> Option<AnyElement> {

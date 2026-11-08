@@ -16,7 +16,7 @@ use gpui_kit::component::{
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
     input::{EditorState, InputEvent, RopeExt as _},
-    menu::PopupMenu,
+    menu::{DropdownMenu as _, PopupMenu, PopupMenuItem},
     resizable::{ResizableState, resizable_panel, v_resizable},
     table::TableState,
     tooltip::Tooltip,
@@ -31,6 +31,7 @@ use crate::connection::{ConnectionId, Environment, is_connection_read_only};
 use crate::db;
 use crate::editor::error_locate::{line_col, locate_error};
 use crate::editor::sql_completion::InlineAi;
+use crate::editor::statements::{split_statements, statement_at};
 use crate::editor::write_guard::changes_data;
 use crate::editor::{SchemaCache, lint::lint};
 use crate::project::{ProjectRoot, ProjectVars, substitute};
@@ -134,6 +135,8 @@ pub struct QueryEditorPanel {
     run_task: Option<Task<()>>,
     ticker: Option<Task<()>>,
     run_started: Option<Instant>,
+    /// Text waiting behind a confirmation banner.
+    held_sql: Option<String>,
     /// Where the last error points in the editor text, when the message names a token.
     error_span: Option<Range<usize>>,
     /// A write on a production connection is waiting for confirmation.
@@ -183,6 +186,7 @@ impl QueryEditorPanel {
             run_task: None,
             ticker: None,
             run_started: None,
+            held_sql: None,
             error_span: None,
             write_confirm: false,
             write_approved: false,
@@ -204,7 +208,7 @@ impl QueryEditorPanel {
         })
         .detach();
         if auto_run && !sql.trim().is_empty() {
-            cx.defer_in(window, |panel, _, cx| panel.run(cx));
+            cx.defer_in(window, |panel, _, cx| panel.run_all(cx));
         }
         panel.load_schema(cx);
         // Keep the relative "loaded" label fresh.
@@ -348,14 +352,52 @@ impl QueryEditorPanel {
         .detach();
     }
 
+    /// What Run executes: the selection, else the statement under the cursor when the
+    /// editor holds several, else everything.
+    fn run_text(&self, cx: &App) -> String {
+        let state = self.sql_input.read(cx);
+        let selected = state.selected_value().to_string();
+        if !selected.trim().is_empty() {
+            return selected;
+        }
+        let all = state.value().to_string();
+        if split_statements(&all).len() > 1
+            && let Some(range) = statement_at(&all, state.cursor())
+        {
+            return all[range].to_string();
+        }
+        all
+    }
+
+    /// Run the selection or the current statement.
     pub(super) fn run(&mut self, cx: &mut Context<Self>) {
-        let sql_raw = self.current_sql(cx);
+        let text = self.run_text(cx);
+        self.run_sql(text, cx);
+    }
+
+    /// Run the whole editor text as one batch.
+    pub(super) fn run_all(&mut self, cx: &mut Context<Self>) {
+        let text = self.current_sql(cx);
+        self.run_sql(text, cx);
+    }
+
+    /// Run the text a confirmation banner was holding back.
+    pub(super) fn run_held(&mut self, cx: &mut Context<Self>) {
+        match self.held_sql.take() {
+            Some(sql) => self.run_sql(sql, cx),
+            None => self.run(cx),
+        }
+    }
+
+    fn run_sql(&mut self, sql_raw: String, cx: &mut Context<Self>) {
         if sql_raw.trim().is_empty() {
             return;
         }
         if self.gate_ai_run(&sql_raw, cx) || self.gate_production_write(&sql_raw, cx) {
+            self.held_sql = Some(sql_raw);
             return;
         }
+        self.held_sql = None;
         let project_vars = cx.global::<ProjectVars>().vars.clone();
         let var_ctx = based_query::VariableContext {
             session: Default::default(),
@@ -486,7 +528,7 @@ impl QueryEditorPanel {
     fn confirm_write_run(&mut self, cx: &mut Context<Self>) {
         self.write_confirm = false;
         self.write_approved = true;
-        self.run(cx);
+        self.run_held(cx);
     }
 
     fn render_write_confirm(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
@@ -995,6 +1037,34 @@ impl QueryEditorPanel {
                     .label("Run")
                     .child(shortcut_run_kbd_in_primary_button(cx))
                     .on_click(cx.listener(|panel, _, _, cx| panel.run(cx)))
+            })
+            .when(!matches!(self.status, QueryStatus::Running), |h| {
+                let panel = cx.weak_entity();
+                h.child(
+                    Button::new(format!("{id}-run-more"))
+                        .primary()
+                        .small()
+                        .ml(px(-5.0))
+                        .icon(IconName::ChevronDown)
+                        .tooltip("Run options")
+                        .dropdown_menu(move |menu, _, _| {
+                            let (a, b) = (panel.clone(), panel.clone());
+                            menu.item(
+                                PopupMenuItem::new("Run Selection or Current Statement")
+                                    .icon(IconName::Play)
+                                    .on_click(move |_, _, cx| {
+                                        let _ = a.update(cx, |p, cx| p.run(cx));
+                                    }),
+                            )
+                            .item(
+                                PopupMenuItem::new("Run All Statements")
+                                    .icon(IconName::Play)
+                                    .on_click(move |_, _, cx| {
+                                        let _ = b.update(cx, |p, cx| p.run_all(cx));
+                                    }),
+                            )
+                        }),
+                )
             })
             .child(
                 Button::new(format!("{id}-format"))

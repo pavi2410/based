@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use gpui_kit::component::{
-    ActiveTheme, Disableable as _, IndexPath, Sizable as _, Size, WindowExt,
+    ActiveTheme, Disableable as _, Icon, IconName, IndexPath, Sizable as _, Size, WindowExt,
     button::{Button, ButtonVariants},
     checkbox::Checkbox,
     dialog::{DialogAction, DialogClose, DialogFooter},
@@ -56,9 +56,18 @@ mod config;
 mod fields;
 mod view;
 
+mod picker;
+
 const ENGINE_LABELS: &[&str] = &["PostgreSQL", "MongoDB", "SQLite", "Redis"];
 const SSL_ON_LABELS: &[&str] = &["require", "verify-ca", "verify-full"];
 const WIZARD_COLUMN_W: f32 = 480.0;
+
+/// Which step of the New connection flow is showing.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Stage {
+    Pick,
+    Form,
+}
 
 pub enum WizardStatus {
     Idle,
@@ -103,6 +112,9 @@ pub struct ConnectionWizardPanel {
     destination: Option<ConnectionDestination>,
     session_id: Option<ConnectionId>,
     status: WizardStatus,
+    stage: Stage,
+    paste: Entity<InputState>,
+    paste_error: Option<SharedString>,
     pub(crate) tab_label: SharedString,
 }
 
@@ -118,6 +130,17 @@ impl ConnectionWizardPanel {
                 panel.apply_uri(window, cx);
                 cx.notify();
             }
+        })
+        .detach();
+
+        let paste = new_field(window, cx, "", "postgres://user:pass@host:5432/db");
+        cx.subscribe_in(&paste, window, |panel, _, event, window, cx| match event {
+            InputEvent::PressEnter {
+                secondary: false,
+                shift: false,
+            } => panel.detect_pasted(window, cx),
+            InputEvent::Change if panel.paste_error.take().is_some() => cx.notify(),
+            _ => {}
         })
         .detach();
 
@@ -195,6 +218,9 @@ impl ConnectionWizardPanel {
                 SelectState::new(AI_LABELS.to_vec(), Some(IndexPath::new(0)), window, cx)
             }),
             status: WizardStatus::Idle,
+            stage: Stage::Pick,
+            paste,
+            paste_error: None,
             tab_label: "New connection".into(),
         };
         // Keep the connection-string preview live while typing.
@@ -225,6 +251,7 @@ impl ConnectionWizardPanel {
             )
         };
         let mut panel = Self::new(window, cx);
+        panel.stage = Stage::Form;
         panel.session_id = Some(id);
         panel.destination = Some(ConnectionDestination::from_origin(origin));
         panel.tags = tags;

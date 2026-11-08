@@ -2,6 +2,15 @@ use super::*;
 
 impl Render for ConnectionWizardPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        match self.stage {
+            Stage::Pick => self.render_picker(cx),
+            Stage::Form => self.render_form(cx).into_any_element(),
+        }
+    }
+}
+
+impl ConnectionWizardPanel {
+    fn render_form(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let muted = cx.theme().muted_foreground;
         let engine = self.current_engine(cx);
         let busy = self.busy();
@@ -111,10 +120,28 @@ impl Render for ConnectionWizardPanel {
                         .items_center()
                         .justify_between()
                         .child(
-                            div()
-                                .text_sm()
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .child(heading),
+                            h_flex()
+                                .gap_2()
+                                .items_center()
+                                .when(!editing, |h| {
+                                    h.child(
+                                        Button::new("wizard-back")
+                                            .ghost()
+                                            .small()
+                                            .icon(Icon::new(IconName::ChevronLeft))
+                                            .tooltip("Choose a different database")
+                                            .on_click(cx.listener(|panel, _, _, cx| {
+                                                panel.stage = Stage::Pick;
+                                                cx.notify();
+                                            })),
+                                    )
+                                })
+                                .child(
+                                    div()
+                                        .text_sm()
+                                        .font_weight(FontWeight::SEMIBOLD)
+                                        .child(heading),
+                                ),
                         )
                         .when(engine == EngineKind::Postgres, |h| {
                             h.child(

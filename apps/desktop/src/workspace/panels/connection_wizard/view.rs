@@ -30,10 +30,6 @@ impl Render for ConnectionWizardPanel {
             WizardStatus::SaveErr(e) => format!("Error: {e}").into(),
         };
         let show_status = !matches!(self.status, WizardStatus::Idle);
-        let is_err = matches!(
-            self.status,
-            WizardStatus::TestErr(_) | WizardStatus::ConnectErr(_) | WizardStatus::SaveErr(_)
-        );
 
         let tag_chips: Vec<_> = self
             .tags
@@ -55,11 +51,55 @@ impl Render for ConnectionWizardPanel {
             })
             .collect();
 
-        v_flex()
-            .size_full()
-            .items_center()
-            .overflow_y_scrollbar()
+        let footer = v_flex()
+            .w_full()
+            .flex_shrink_0()
+            .gap_2()
+            .px_4()
+            .py_3()
+            .border_t_1()
+            .border_color(cx.theme().border)
+            .bg(cx.theme().background)
+            .when(show_status, |v| {
+                v.child(status_card(&self.status, status, cx))
+            })
             .child(
+                h_flex()
+                    .gap_2()
+                    .justify_end()
+                    .child(
+                        Button::new("wizard-test")
+                            .label("Test")
+                            .disabled(busy)
+                            .on_click(cx.listener(|panel, _, _, cx| panel.test_connection(cx))),
+                    )
+                    .child(
+                        Button::new("wizard-save")
+                            .when(editing, |b| b.primary())
+                            .label("Save")
+                            .disabled(busy)
+                            .on_click(cx.listener(|panel, _, window, cx| panel.save(window, cx))),
+                    )
+                    .when(!editing, |h| {
+                        h.child(
+                            Button::new("wizard-connect")
+                                .primary()
+                                .label("Connect")
+                                .disabled(busy)
+                                .on_click(
+                                    cx.listener(|panel, _, window, cx| panel.connect(window, cx)),
+                                ),
+                        )
+                    }),
+            );
+
+        v_flex().size_full().child(
+            div().flex_1().min_h_0().child(
+                v_flex()
+                    .size_full()
+                    .items_center()
+                    .overflow_y_scrollbar()
+                    .child(
             v_flex()
                 .w(px(WIZARD_COLUMN_W))
                 .gap_3()
@@ -104,35 +144,6 @@ impl Render for ConnectionWizardPanel {
                 .when(engine == EngineKind::SQLite, |v| {
                     self.sqlite_fields(v, muted, cx)
                 })
-                .child(
-                    h_flex()
-                        .gap_2()
-                        .child(
-                            Button::new("wizard-test")
-                                .label("Test")
-                                .disabled(busy)
-                                .on_click(cx.listener(|panel, _, _, cx| panel.test_connection(cx))),
-                        )
-                        .when(!editing, |h| {
-                            h.child(
-                                Button::new("wizard-connect")
-                                    .primary()
-                                    .label("Connect")
-                                    .disabled(busy)
-                                    .on_click(cx.listener(|panel, _, window, cx| {
-                                        panel.connect(window, cx)
-                                    })),
-                            )
-                        }),
-                )
-                .when(show_status, |v| {
-                    v.child(
-                        div()
-                            .text_sm()
-                            .when(is_err, |d| d.text_color(cx.theme().red))
-                            .child(status),
-                    )
-                })
                 .child(Separator::horizontal())
                 .child(labeled_field(
                     "Name",
@@ -172,13 +183,38 @@ impl Render for ConnectionWizardPanel {
                         |panel, dest| panel.destination = Some(dest),
                     ))
                 })
-                .child(
-                    Button::new("wizard-save")
-                        .when(editing, |b| b.primary())
-                        .label("Save")
-                        .disabled(busy)
-                        .on_click(cx.listener(|panel, _, window, cx| panel.save(window, cx))),
-                ),
-        )
+        )))
+        .child(footer)
     }
+}
+
+/// Pinned result strip: tone follows the status (busy, ok, error).
+fn status_card(status: &WizardStatus, message: SharedString, cx: &App) -> impl IntoElement {
+    let theme = cx.theme();
+    let (tone, bg) = match status {
+        WizardStatus::TestOk { .. } | WizardStatus::ConnectOk | WizardStatus::Saved => {
+            (theme.green, theme.green.opacity(0.1))
+        }
+        WizardStatus::TestErr(_) | WizardStatus::ConnectErr(_) | WizardStatus::SaveErr(_) => {
+            (theme.red, theme.red.opacity(0.1))
+        }
+        _ => (theme.muted_foreground, theme.muted.opacity(0.4)),
+    };
+    let busy = matches!(
+        status,
+        WizardStatus::Testing | WizardStatus::Connecting | WizardStatus::Saving
+    );
+    h_flex()
+        .w_full()
+        .gap_2()
+        .items_start()
+        .px_3()
+        .py_2()
+        .rounded(px(8.0))
+        .border_1()
+        .border_color(tone.opacity(0.35))
+        .bg(bg)
+        .child(div().mt(px(5.0)).size(px(8.0)).rounded_full().bg(tone))
+        .child(div().flex_1().text_sm().child(message))
+        .when(busy, |d| d.opacity(0.9))
 }

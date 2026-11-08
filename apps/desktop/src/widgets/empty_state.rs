@@ -4,6 +4,7 @@ use gpui_kit::component::{ActiveTheme, Icon, IconName, Sizable, v_flex};
 use gpui_kit::{prelude::*, *};
 
 use crate::app::prefs;
+use crate::widgets::motion;
 
 pub fn empty_state(
     title: &'static str,
@@ -18,38 +19,60 @@ pub fn empty_state(
         .gap(px(12.0))
         .child(
             div()
-                .w(px(42.0))
-                .h(px(42.0))
-                .rounded(px(10.0))
+                .w(px(48.0))
+                .h(px(48.0))
+                .rounded(px(12.0))
                 .border_1()
-                .border_color(cx.theme().border.opacity(0.82))
-                .bg(cx.theme().muted.opacity(0.4))
+                .border_color(cx.theme().border.opacity(0.9))
+                .bg(linear_gradient(
+                    180.0,
+                    linear_color_stop(cx.theme().muted.opacity(0.7), 0.0),
+                    linear_color_stop(cx.theme().muted.opacity(0.25), 1.0),
+                ))
+                .shadow_sm()
                 .flex()
                 .items_center()
                 .justify_center()
                 .child(
                     Icon::new(icon)
                         .text_color(cx.theme().muted_foreground)
-                        .with_size(prefs::ui_component_size(cx)),
+                        .with_size(prefs::ui_component_size(cx))
+                        .with_animation(
+                            SharedString::from(format!("empty-pop-{title}")),
+                            motion::spring_animation(),
+                            |icon, t| {
+                                let s = motion::pop(t);
+                                icon.transform(Transformation::scale(size(s, s)))
+                            },
+                        ),
+                )
+                .with_animation(
+                    SharedString::from(format!("empty-tile-{title}")),
+                    Animation::new(motion::RISE),
+                    |tile, t| tile.opacity(t.clamp(0.0, 1.0)),
                 ),
         )
         .child(
             v_flex()
                 .items_center()
-                .gap(px(3.0))
-                .child(
+                .gap(px(4.0))
+                .child(motion::rise_in(
+                    SharedString::from(format!("empty-title-{title}")),
+                    1,
                     div()
                         .text_sm()
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(cx.theme().foreground)
                         .child(title),
-                )
-                .child(
+                ))
+                .child(motion::rise_in(
+                    SharedString::from(format!("empty-body-{title}")),
+                    2,
                     div()
                         .text_xs()
                         .text_color(cx.theme().muted_foreground)
                         .child(body),
-                ),
+                )),
         )
 }
 

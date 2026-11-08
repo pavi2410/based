@@ -20,6 +20,7 @@ pub mod kbd;
 pub mod layout;
 pub mod list_row;
 pub mod metadata_pill;
+pub mod motion;
 pub mod pagination;
 pub mod panel;
 pub mod panel_status;

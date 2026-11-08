@@ -11,13 +11,14 @@ use gpui_kit::component::{
     menu::ContextMenuExt,
 };
 use gpui_kit::{
-    App, Context, Entity, IntoElement, MouseButton, ParentElement, RenderOnce, SharedString, Task,
-    WeakEntity, Window, div, prelude::*, px,
+    AnyElement, App, Context, Entity, IntoElement, MouseButton, ParentElement, RenderOnce,
+    SharedString, Task, WeakEntity, Window, div, prelude::*, px,
 };
 
 use crate::connection::EngineKind;
 use crate::widgets::empty_state::empty_state;
 use crate::widgets::list_row::{SchemaRowStyle, schema_object_row};
+use crate::widgets::motion;
 use crate::widgets::{
     BrowserTreeIndent, CONNECTION_CHEVRON_SLOT_W, SIDEBAR_INSET, sidebar_row_inner_gap,
     sidebar_row_padding_y,
@@ -38,7 +39,11 @@ pub(crate) enum BrowserRow {
     Status {
         message: SharedString,
         depth: u32,
+        /// Work in flight: render the text pulsing and follow it with skeleton rows.
+        busy: bool,
     },
+    /// Placeholder row shown under a busy status while objects load.
+    Skeleton { depth: u32, index: usize },
     Schema {
         conn_idx: usize,
         name: SharedString,
@@ -118,34 +123,26 @@ impl BrowserListDelegate {
 
         let mut rows = Vec::new();
         let status = match &conn.link {
-            Link::Connecting => Some("Connecting…".into()),
-            Link::Failed(reason) => Some(
+            Link::Connecting => Some(("Connecting…".into(), true)),
+            Link::Failed(reason) => Some((
                 reason
                     .as_deref()
                     .map(super::notify::error_one_liner)
                     .unwrap_or_else(|| "Could not connect".into()),
-            ),
-            Link::Disconnected => Some("Not connected".into()),
+                false,
+            )),
+            Link::Disconnected => Some(("Not connected".into(), false)),
             Link::Connected => None,
         };
-        if let Some(message) = status {
-            rows.push(BrowserRow::Status {
-                message,
-                depth: DEPTH_SCHEMA,
-            });
+        if let Some((message, busy)) = status {
+            push_status(&mut rows, message, busy);
         } else if let Some(st) = tree.conn_states.get(&conn_id) {
             match st.cache() {
                 ConnCache::Loading | ConnCache::Idle => {
-                    rows.push(BrowserRow::Status {
-                        message: "Loading objects…".into(),
-                        depth: DEPTH_SCHEMA,
-                    });
+                    push_status(&mut rows, "Loading objects…".into(), true);
                 }
                 ConnCache::Error(err) => {
-                    rows.push(BrowserRow::Status {
-                        message: super::notify::error_one_liner(err),
-                        depth: DEPTH_SCHEMA,
-                    });
+                    push_status(&mut rows, super::notify::error_one_liner(err), false);
                 }
                 ConnCache::Ready(objects) => match conn.engine {
                     EngineKind::Postgres => {
@@ -285,8 +282,13 @@ impl RenderOnce for BrowserRowItem {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let indent = BrowserTreeIndent::from_app(cx);
         match self.row {
-            BrowserRow::Status { message, depth, .. } => {
-                status_row(message, depth, &indent, cx).into_any_element()
+            BrowserRow::Status {
+                message,
+                depth,
+                busy,
+            } => status_row(message, depth, busy, &indent, cx).into_any_element(),
+            BrowserRow::Skeleton { depth, index } => {
+                skeleton_row(index, depth, &indent, cx).into_any_element()
             }
             BrowserRow::Schema {
                 conn_idx,
@@ -334,19 +336,68 @@ impl RenderOnce for BrowserRowItem {
     }
 }
 
+const SKELETON_ROWS: usize = 4;
+
+fn push_status(rows: &mut Vec<BrowserRow>, message: SharedString, busy: bool) {
+    rows.push(BrowserRow::Status {
+        message,
+        depth: DEPTH_SCHEMA,
+        busy,
+    });
+    if busy {
+        rows.extend((0..SKELETON_ROWS).map(|index| BrowserRow::Skeleton {
+            depth: DEPTH_SCHEMA,
+            index,
+        }));
+    }
+}
+
 fn status_row(
     message: SharedString,
     depth: u32,
+    busy: bool,
     indent: &BrowserTreeIndent,
     cx: &App,
-) -> impl IntoElement {
-    div()
+) -> AnyElement {
+    let row = div()
         .pl(px(indent.pl(depth)))
         .pr(px(SIDEBAR_INSET))
         .py(px(sidebar_row_padding_y(cx)))
         .text_xs()
         .text_color(cx.theme().muted_foreground)
-        .child(message)
+        .child(message.clone());
+    if busy {
+        motion::pulse(SharedString::from(format!("tree-busy-{message}")), row)
+    } else {
+        row.into_any_element()
+    }
+}
+
+fn skeleton_row(
+    index: usize,
+    depth: u32,
+    indent: &BrowserTreeIndent,
+    cx: &App,
+) -> impl IntoElement {
+    const WIDTHS: [f32; 4] = [118.0, 92.0, 104.0, 76.0];
+    h_flex()
+        .pl(px(indent.pl(depth)))
+        .pr(px(SIDEBAR_INSET))
+        .py(px(sidebar_row_padding_y(cx)))
+        .gap(px(8.0))
+        .items_center()
+        .child(motion::shimmer_block(
+            SharedString::from(format!("tree-sk-i{index}")),
+            px(14.0),
+            px(14.0),
+            cx,
+        ))
+        .child(motion::shimmer_block(
+            SharedString::from(format!("tree-sk-l{index}")),
+            px(WIDTHS[index % WIDTHS.len()]),
+            px(10.0),
+            cx,
+        ))
 }
 
 fn schema_row_element(

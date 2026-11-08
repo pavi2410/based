@@ -9,8 +9,8 @@ use gpui_kit::component::{
     v_flex,
 };
 use gpui_kit::{
-    App, Context, FocusHandle, Focusable, FontWeight, IntoElement, MouseButton, ParentElement,
-    Render, SharedString, Styled, Window, div, prelude::*, px,
+    AnyElement, App, Context, FocusHandle, Focusable, FontWeight, IntoElement, MouseButton,
+    ParentElement, Render, SharedString, Styled, Window, div, prelude::*, px,
 };
 
 use crate::app::prefs::ui_component_size;
@@ -21,6 +21,7 @@ use crate::based_panel_tab_chrome;
 use crate::bindings::{NewQuery, ToggleChatPane, ToggleCommandPalette};
 use crate::project::prompt_open_project_in_window;
 use crate::widgets::kbd_for_action;
+use crate::widgets::motion;
 use crate::workspace::WorkspaceRef;
 use crate::workspace::query_lane::create_loose_query_from_palette;
 
@@ -81,12 +82,13 @@ impl Render for HomePanel {
                 v_flex()
                     .w(px(HOME_COLUMN_W))
                     .gap(px(20.0))
-                    .child(home_logo(cx))
+                    .child(motion::rise_in("home-rise-logo", 0, home_logo(cx)))
                     .child(
                         v_flex()
                             .gap(px(4.0))
                             .child(home_row(
                                 cx,
+                                1,
                                 "home-new-query",
                                 IconName::Plus,
                                 "New Query",
@@ -95,6 +97,7 @@ impl Render for HomePanel {
                             ))
                             .child(home_row(
                                 cx,
+                                2,
                                 "home-command-palette",
                                 IconName::Search,
                                 "Show Command Palette",
@@ -111,6 +114,7 @@ impl Render for HomePanel {
                             ))
                             .child(home_row(
                                 cx,
+                                3,
                                 "home-open-project",
                                 IconName::FolderOpen,
                                 "Open Project",
@@ -119,6 +123,7 @@ impl Render for HomePanel {
                             ))
                             .child(home_row(
                                 cx,
+                                4,
                                 "home-new-connection",
                                 IconName::Globe,
                                 "New Connection",
@@ -135,6 +140,7 @@ impl Render for HomePanel {
                             ))
                             .child(home_row(
                                 cx,
+                                5,
                                 "home-ai-assistant",
                                 IconName::Bot,
                                 "AI Assistant",
@@ -149,6 +155,7 @@ impl Render for HomePanel {
                             ))
                             .child(home_row(
                                 cx,
+                                6,
                                 "home-settings",
                                 IconName::Settings,
                                 "Open Settings",
@@ -184,26 +191,30 @@ fn home_logo(cx: &App) -> impl IntoElement {
 
 fn home_row(
     cx: &App,
+    index: usize,
     id: &'static str,
     icon: IconName,
     label: &'static str,
     shortcut: Option<Kbd>,
     on_click: impl Fn(&gpui_kit::MouseDownEvent, &mut Window, &mut App) + 'static,
-) -> impl IntoElement {
+) -> AnyElement {
     let fg = cx.theme().foreground;
     let muted = cx.theme().muted_foreground;
     let hover_bg = cx.theme().muted.opacity(0.35);
+    let hover_border = cx.theme().border.opacity(0.8);
 
     let mut row = h_flex()
         .id(id)
         .w_full()
         .h(px(32.0))
         .px(px(8.0))
-        .rounded(px(6.0))
+        .rounded(px(8.0))
+        .border_1()
+        .border_color(gpui_kit::transparent_black())
         .items_center()
         .gap(px(10.0))
         .cursor_pointer()
-        .hover(move |s| s.bg(hover_bg))
+        .hover(move |s| s.bg(hover_bg).border_color(hover_border))
         .on_mouse_down(MouseButton::Left, on_click)
         .child(
             Icon::new(icon)
@@ -216,5 +227,5 @@ fn home_row(
         row = row.child(kbd);
     }
 
-    row
+    motion::rise_in(SharedString::from(format!("home-rise-{id}")), index, row)
 }

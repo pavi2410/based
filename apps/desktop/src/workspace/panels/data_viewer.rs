@@ -29,6 +29,7 @@ use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::datetime::format_relative;
 use crate::widgets::export_popover::export_popover;
 use crate::widgets::filter_bar::{FilterBar, FilterExpr, FilterOp};
+use crate::widgets::motion;
 use crate::widgets::pagination::{offset_for_page, sql_pagination_group};
 use crate::widgets::panel::{
     data_viewer_toolbar, panel_tab_content, tab_breadcrumb_data_viewer_trailing,
@@ -455,6 +456,7 @@ impl Render for DataViewerPanel {
         let id = self.source.id();
 
         let panel = cx.entity().downgrade();
+        let export_rows_empty = self.table.read(cx).delegate().rows.is_empty();
         let (export_headers, export_rows) = {
             let st = self.table.read(cx);
             let d = st.delegate();
@@ -502,15 +504,32 @@ impl Render for DataViewerPanel {
             .child(div().flex_1())
             .child(export_popover(id, export_headers, export_rows));
 
+        let first_load = loading && export_rows_empty;
+        let stale = loading && !export_rows_empty;
         let body = v_flex()
             .size_full()
             .child(toolbar)
+            .child(motion::glimmer_bar(
+                SharedString::from(format!("{id}-glimmer")),
+                loading,
+                cx,
+            ))
             .child(
                 div()
                     .id(SharedString::from(format!("{id}-grid")))
+                    .relative()
                     .flex_1()
                     .min_h_0()
-                    .child(render_row_table(&self.table, cx)),
+                    .when(stale, |d| d.opacity(0.55))
+                    .child(render_row_table(&self.table, cx))
+                    .when(first_load, |d| {
+                        d.child(
+                            div()
+                                .absolute()
+                                .inset_0()
+                                .child(motion::skeleton_table("dv-skel", 10, 4, cx)),
+                        )
+                    }),
             )
             .child(self.cell_detail.clone());
 

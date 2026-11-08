@@ -10,7 +10,7 @@ use gpui_kit::{
 use sqlx::{AssertSqlSafe, PgPool, Row};
 use tokio::time::timeout;
 
-use super::explain_plan::{PlanNode, parse_pg_explain_json, render_plan_node};
+use super::explain_plan::{PlanNode, parse_pg_explain_json, render_plan};
 use crate::editor::{SchemaCache, pg_schema};
 use crate::workspace::panels::query_editor::{Explained, Fut, PlanView, QuerySource, RunOutput};
 
@@ -27,7 +27,7 @@ impl PlanView for PgPlan {
             .size_full()
             .overflow_y_scrollbar()
             .p(px(8.0))
-            .child(render_plan_node(&self.0, 0, theme))
+            .child(render_plan(&self.0, theme))
             .into_any_element()
     }
 }

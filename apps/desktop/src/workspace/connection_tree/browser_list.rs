@@ -124,13 +124,8 @@ impl BrowserListDelegate {
         let mut rows = Vec::new();
         let status = match &conn.link {
             Link::Connecting => Some(("Connecting…".into(), true)),
-            Link::Failed(reason) => Some((
-                reason
-                    .as_deref()
-                    .map(super::notify::error_one_liner)
-                    .unwrap_or_else(|| "Could not connect".into()),
-                false,
-            )),
+            // The reason is shown in the connection header's failure card.
+            Link::Failed(_) => Some(("Could not connect".into(), false)),
             Link::Disconnected => Some(("Not connected".into(), false)),
             Link::Connected => None,
         };

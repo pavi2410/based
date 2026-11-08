@@ -44,6 +44,17 @@ pub(crate) fn connection_header(
     let editable = can_edit_saved_connection(&conn_id);
     let engine = row.engine;
 
+    let failure: Option<SharedString> = match &row.link {
+        Link::Failed(reason) => Some(
+            reason
+                .as_deref()
+                .map(super::notify::error_one_liner)
+                .unwrap_or_else(|| "Could not connect".into()),
+        ),
+        _ => None,
+    };
+    let danger = theme.danger;
+    let edit_failed_id = conn_id.clone();
     let refresh_tree = tree_entity.clone();
     let connect_tree = tree_entity.clone();
     let menu_tree = tree_entity;
@@ -151,6 +162,48 @@ pub(crate) fn connection_header(
                         )
                     }),
             )
+            .when_some(failure, |v, message| {
+                v.child(
+                    v_flex()
+                        .gap(px(6.0))
+                        .mt(px(6.0))
+                        .p(px(8.0))
+                        .rounded(px(8.0))
+                        .border_1()
+                        .border_color(danger.opacity(0.35))
+                        .bg(danger.opacity(0.08))
+                        .child(
+                            div()
+                                .text_xs()
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .child("Can't connect"),
+                        )
+                        .child(div().text_xs().text_color(muted).child(message))
+                        .when(editable, |v| {
+                            v.child(
+                                h_flex().child(
+                                    Button::new("conn-header-fix")
+                                        .xsmall()
+                                        .outline()
+                                        .label("Edit connection")
+                                        .on_click(move |_, window, cx| {
+                                            if let Some(ws) =
+                                                cx.try_global::<WorkspaceRef>().map(|w| w.0.clone())
+                                            {
+                                                ws.update(cx, |ws, cx| {
+                                                    ws.open_edit_connection_tab(
+                                                        edit_failed_id.clone(),
+                                                        window,
+                                                        cx,
+                                                    );
+                                                });
+                                            }
+                                        }),
+                                ),
+                            )
+                        }),
+                )
+            })
             .into_any_element(),
     )
 }

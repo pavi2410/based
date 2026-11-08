@@ -1,7 +1,9 @@
 use gpui_kit::component::{ActiveTheme, Theme};
 use gpui_kit::{App, Hsla, SharedString};
 
-use crate::connection::{ConnectionOrigin, ConnectionState, EngineKind, Environment};
+use crate::connection::{
+    ConnectionConfig, ConnectionOrigin, ConnectionState, EngineKind, Environment,
+};
 
 use super::ConnectionTree;
 
@@ -34,11 +36,28 @@ pub(crate) struct ConnectionRow {
     pub(crate) link: Link,
     pub(crate) origin: ConnectionOrigin,
     pub(crate) environment: Option<Environment>,
+    /// Where it lives: `host:port/db`, a file path, or a credential-free URL host.
+    pub(crate) detail: SharedString,
+    pub(crate) read_only: bool,
 }
 
 pub(crate) enum RailItem {
     Connection(ConnectionRow),
     Divider,
+}
+
+/// One-line, credential-free description of where a connection points.
+fn config_detail(config: &ConnectionConfig) -> String {
+    fn host_of(url: &str) -> String {
+        let rest = url.split("://").nth(1).unwrap_or(url);
+        rest.rsplit('@').next().unwrap_or(rest).to_string()
+    }
+    match config {
+        ConnectionConfig::Postgres(c) => format!("{}:{}/{}", c.host, c.port, c.database),
+        ConnectionConfig::MongoDB(c) => host_of(&c.uri),
+        ConnectionConfig::Redis(c) => host_of(&c.url),
+        ConnectionConfig::SQLite(c) => c.path.display().to_string(),
+    }
 }
 
 fn connection_state_dot(state: &ConnectionState, t: &Theme) -> Hsla {
@@ -66,6 +85,8 @@ pub(crate) fn build_connection_rows(tree: &ConnectionTree, cx: &App) -> Vec<Conn
                 link: Link::of(&entry.state),
                 origin: entry.origin,
                 environment: Environment::from_tags(&entry.tags),
+                detail: config_detail(&entry.config).into(),
+                read_only: entry.config.is_read_only(),
             }
         })
         .collect()

@@ -3,15 +3,17 @@
 use gpui_kit::component::{
     ActiveTheme, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants},
+    h_flex,
     menu::ContextMenuExt,
     tooltip::Tooltip,
     v_flex,
 };
 use gpui_kit::{
-    AnyElement, App, Hsla, IntoElement, ParentElement, SharedString, TestSupportExt as _,
-    WeakEntity, div, prelude::*, px,
+    AnyElement, App, FontWeight, Hsla, IntoElement, ParentElement, SharedString,
+    TestSupportExt as _, WeakEntity, div, prelude::*, px,
 };
 
+use crate::connection::{ConnectionOrigin, EngineKind, Environment};
 use crate::widgets::engine_icon;
 use crate::widgets::motion;
 use crate::workspace::WorkspaceRef;
@@ -117,7 +119,16 @@ fn rail_icon(
         Link::Failed(_) => "Connection failed",
         Link::Disconnected => "Not connected",
     };
-    let label: SharedString = format!("{} · {state_text}", row.conn_label).into();
+    let card = HoverCardData {
+        name: row.conn_label.clone(),
+        state: state_text,
+        dot: row.state_color,
+        environment: row.environment,
+        detail: row.detail.clone(),
+        origin: row.origin,
+        read_only: row.read_only,
+        engine: row.engine,
+    };
     let engine = row.engine;
     let is_connected = row.link == Link::Connected;
     let sidebar = cx.theme().sidebar;
@@ -152,7 +163,10 @@ fn rail_icon(
         .when_some(base, |d, c| d.bg(c))
         .when(is_selected && dark, |d| d.bg(selected_bg))
         .when(!is_selected, |d| d.hover(move |d| d.bg(hover)))
-        .tooltip(move |window, app| Tooltip::new(label.clone()).build(window, app))
+        .tooltip(move |window, app| {
+            let card = card.clone();
+            Tooltip::element(move |_, cx| hover_card(&card, cx)).build(window, app)
+        })
         .on_click(move |_, window, cx| {
             if let Some(ent) = tree_click.upgrade() {
                 ent.update(cx, |t, cx| t.on_connection_row_clicked(idx, window, cx));
@@ -194,4 +208,75 @@ fn state_ring(idx: usize, link: &Link, color: Hsla, ground: Hsla) -> AnyElement 
     } else {
         dot.into_any_element()
     }
+}
+
+#[derive(Clone)]
+struct HoverCardData {
+    name: SharedString,
+    state: &'static str,
+    dot: Hsla,
+    environment: Option<Environment>,
+    detail: SharedString,
+    origin: ConnectionOrigin,
+    read_only: bool,
+    engine: EngineKind,
+}
+
+/// Rich tooltip for a rail tile: name, environment, state and where it points.
+fn hover_card(d: &HoverCardData, cx: &App) -> AnyElement {
+    let theme = cx.theme();
+    let muted = theme.muted_foreground;
+    let fact = |k: &'static str, v: SharedString| {
+        h_flex()
+            .gap_3()
+            .justify_between()
+            .child(div().text_xs().text_color(muted).child(k))
+            .child(div().text_xs().child(v))
+    };
+    v_flex()
+        .min_w(px(220.0))
+        .gap(px(6.0))
+        .child(
+            h_flex()
+                .gap_2()
+                .items_center()
+                .child(engine_icon(d.engine))
+                .child(
+                    div()
+                        .text_sm()
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .child(d.name.clone()),
+                )
+                .when_some(d.environment, |h, env| {
+                    let tone = env.color(theme);
+                    h.child(
+                        div()
+                            .px(px(6.0))
+                            .rounded_full()
+                            .border_1()
+                            .border_color(tone.opacity(0.5))
+                            .bg(tone.opacity(0.12))
+                            .text_color(tone)
+                            .text_xs()
+                            .child(env.label()),
+                    )
+                }),
+        )
+        .child(
+            h_flex()
+                .gap_2()
+                .items_center()
+                .child(div().size(px(7.0)).rounded_full().bg(d.dot))
+                .child(div().text_xs().child(d.state)),
+        )
+        .child(fact("Where", d.detail.clone()))
+        .child(fact(
+            "Source",
+            match d.origin {
+                ConnectionOrigin::Project => "Project".into(),
+                ConnectionOrigin::Personal => "Personal".into(),
+            },
+        ))
+        .when(d.read_only, |v| v.child(fact("Access", "Read-only".into())))
+        .into_any_element()
 }

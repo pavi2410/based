@@ -11,6 +11,10 @@ pub struct ResultSnapshot {
     pub rows: Vec<Vec<String>>,
     pub running: bool,
     pub error: Option<String>,
+    /// How many result sets the last run produced.
+    pub result_count: usize,
+    /// Which of them the grid shows.
+    pub active_result: usize,
 }
 
 impl QueryEditorPanel {
@@ -24,6 +28,8 @@ impl QueryEditorPanel {
                 .map(|row| row.iter().map(|c| c.to_string()).collect())
                 .collect(),
             running: matches!(self.status, QueryStatus::Running),
+            result_count: self.results.len(),
+            active_result: self.active_result,
             error: match &self.status {
                 QueryStatus::Error(e) => Some(e.clone()),
                 _ => None,

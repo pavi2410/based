@@ -8,6 +8,14 @@ use gpui_kit::{
     AnyElement, App, ElementId, IntoElement, ParentElement, Styled, Window, div, prelude::*, px,
 };
 
+/// A tab in the strip: one per result set, then Messages and Explain.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum StripTab {
+    Result(usize),
+    Messages,
+    Explain,
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum BottomTab {
     Results,
@@ -25,14 +33,6 @@ impl BottomTab {
             Self::Explain => "Explain",
         }
     }
-
-    fn id_suffix(self) -> &'static str {
-        match self {
-            Self::Results => "results",
-            Self::Messages => "messages",
-            Self::Explain => "explain",
-        }
-    }
 }
 
 /// Render the result header: `Results | Messages | Explain` tabs with an accent underline,
@@ -42,13 +42,15 @@ impl BottomTab {
 /// `id_prefix` keeps element ids unique across panels (e.g. `"pg-bt"`).
 /// `on_select` is shared (`Rc`) across the tab click handlers so the caller can wire it
 /// with a single `cx.listener`.
+#[allow(clippy::too_many_arguments)]
 pub fn result_tab_strip(
     id_prefix: &str,
     active: BottomTab,
     has_error: bool,
-    result_rows: Option<usize>,
+    result_counts: Vec<usize>,
+    active_result: usize,
     trailing: Option<AnyElement>,
-    on_select: Rc<dyn Fn(BottomTab, &mut Window, &mut App)>,
+    on_select: Rc<dyn Fn(StripTab, &mut Window, &mut App)>,
     cx: &App,
 ) -> impl IntoElement + use<> {
     let theme = cx.theme();
@@ -60,6 +62,38 @@ pub fn result_tab_strip(
         theme.primary,
     );
 
+    // One tab per result set (just "Results" when there is at most one), then the rest.
+    let mut tabs: Vec<(StripTab, String, Option<usize>, bool)> = Vec::new();
+    if result_counts.len() <= 1 {
+        tabs.push((
+            StripTab::Result(0),
+            "Results".into(),
+            result_counts.first().copied(),
+            active == BottomTab::Results,
+        ));
+    } else {
+        for (i, n) in result_counts.iter().enumerate() {
+            tabs.push((
+                StripTab::Result(i),
+                format!("Result {}", i + 1),
+                Some(*n),
+                active == BottomTab::Results && active_result == i,
+            ));
+        }
+    }
+    tabs.push((
+        StripTab::Messages,
+        "Messages".into(),
+        None,
+        active == BottomTab::Messages,
+    ));
+    tabs.push((
+        StripTab::Explain,
+        "Explain".into(),
+        None,
+        active == BottomTab::Explain,
+    ));
+
     let mut row = h_flex()
         .gap(px(2.0))
         .px(px(8.0))
@@ -69,14 +103,11 @@ pub fn result_tab_strip(
         .border_color(border.opacity(0.72))
         .bg(theme.muted.opacity(0.12));
 
-    for tab in BottomTab::ALL {
+    for (n, (tab, title, count, selected)) in tabs.into_iter().enumerate() {
         let cb = on_select.clone();
-        let id: ElementId = format!("{id_prefix}-{}", tab.id_suffix()).into();
-        let selected = active == tab;
-        let mut label = h_flex().gap(px(6.0)).items_center().child(tab.label());
-        if tab == BottomTab::Results
-            && let Some(n) = result_rows
-        {
+        let id: ElementId = format!("{id_prefix}-tab-{n}").into();
+        let mut label = h_flex().gap(px(6.0)).items_center().child(title);
+        if let Some(n) = count {
             label = label.child(
                 div()
                     .px(px(6.0))
@@ -88,7 +119,7 @@ pub fn result_tab_strip(
                     .child(n.to_string()),
             );
         }
-        if tab == BottomTab::Messages && has_error {
+        if tab == StripTab::Messages && has_error {
             label = label.child(div().size(px(6.0)).rounded_full().bg(danger));
         }
         row = row.child(

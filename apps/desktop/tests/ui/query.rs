@@ -129,3 +129,42 @@ fn run_with_several_statements_runs_the_one_at_the_cursor(cx: &mut TestAppContex
     // The cursor starts in the first statement, so only it runs.
     assert_eq!(ed.finished(cx).rows, [["ada"]]);
 }
+
+#[gpui_kit::test]
+fn run_all_gives_each_statement_its_own_result(cx: &mut TestAppContext) {
+    let (ed, _ws, _dir) = open_editor(
+        cx,
+        "select name from t where id = 1;\nselect name from t where id = 2",
+        false,
+    );
+    ed.panel.update(cx, |p, cx| p.run_all(cx));
+    wait_until(cx, |cx| {
+        let s = ed.snapshot(cx);
+        !s.running && s.result_count == 2
+    });
+    let last = ed.snapshot(cx);
+    assert_eq!(last.rows, [["grace"]], "the last result is shown first");
+    assert_eq!(last.active_result, 1);
+
+    ed.panel.update(cx, |p, cx| p.show_result(0, cx));
+    assert_eq!(ed.snapshot(cx).rows, [["ada"]]);
+}
+
+#[gpui_kit::test]
+fn run_all_stops_at_the_first_failure(cx: &mut TestAppContext) {
+    let (ed, _ws, _dir) = open_editor(
+        cx,
+        "select name from t where id = 1;\nselec nope;\nselect name from t where id = 2",
+        false,
+    );
+    ed.panel.update(cx, |p, cx| p.run_all(cx));
+    wait_until(cx, |cx| {
+        let s = ed.snapshot(cx);
+        !s.running && s.error.is_some()
+    });
+    let s = ed.snapshot(cx);
+    assert_eq!(
+        s.result_count, 1,
+        "only the statement before the failure produced a result"
+    );
+}

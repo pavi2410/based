@@ -2,20 +2,23 @@
 
 use std::mem;
 use std::ops::Range;
+use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use time::OffsetDateTime;
 
 use based_core::EngineKind;
+use based_project::{SaveTarget, save_sql_query};
 use based_query::{Lint, Severity};
 use futures::future::BoxFuture;
 use gpui_kit::component::{
-    ActiveTheme, Icon, IconName, Selectable as _, Sizable as _, Theme,
+    ActiveTheme, Icon, IconName, Selectable as _, Sizable as _, Theme, WindowExt,
     button::{Button, ButtonVariants},
+    dialog::{DialogAction, DialogClose, DialogFooter},
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
-    input::{EditorState, InputEvent, RopeExt as _},
+    input::{EditorState, Input, InputEvent, RopeExt as _},
     menu::{DropdownMenu as _, PopupMenu, PopupMenuItem},
     resizable::{ResizableState, resizable_panel, v_resizable},
     table::TableState,
@@ -53,8 +56,14 @@ use crate::widgets::sql_editor::{self, new_sql_input, set_input_text, text_from_
 use crate::widgets::virtual_table::{
     RowDelegate, data_column, meta_from_query_type, replace_table_data,
 };
+use crate::widgets::wizard_fields::new_field;
+use crate::workspace::notify;
 use crate::workspace::pop_out::PopOutWindowTitle;
-use crate::workspace::{WorkspaceRef, tabs::mark_tab_dirty};
+use crate::workspace::project_query::include_in_project_target;
+use crate::workspace::{
+    WorkspaceRef,
+    tabs::{clear_tab_dirty, mark_tab_dirty},
+};
 
 pub type Fut<T> = BoxFuture<'static, anyhow::Result<T>>;
 
@@ -137,6 +146,8 @@ pub struct QueryEditorPanel {
     run_started: Option<Instant>,
     /// Text waiting behind a confirmation banner.
     held_sql: Option<String>,
+    /// Project-relative path once saved, so Save overwrites instead of asking again.
+    saved_path: Option<String>,
     /// Where the last error points in the editor text, when the message names a token.
     error_span: Option<Range<usize>>,
     /// A write on a production connection is waiting for confirmation.
@@ -187,6 +198,7 @@ impl QueryEditorPanel {
             ticker: None,
             run_started: None,
             held_sql: None,
+            saved_path: None,
             error_span: None,
             write_confirm: false,
             write_approved: false,
@@ -696,6 +708,115 @@ impl QueryEditorPanel {
             .into_any_element()
     }
 
+    /// Where a saved copy of this query should run.
+    fn save_target(&self, cx: &App) -> SaveTarget {
+        let entry = cx.try_global::<WorkspaceRef>().and_then(|ws| {
+            ws.0.read(cx)
+                .registry()
+                .read(cx)
+                .get(&self.conn_id, cx)
+                .cloned()
+        });
+        if let Some(entry) = entry {
+            let e = entry.read(cx);
+            if include_in_project_target(e.origin, &e.id) {
+                return SaveTarget::Connection(e.id.0.clone());
+            }
+        }
+        SaveTarget::Engine(
+            match self.source.engine() {
+                EngineKind::Postgres => "postgres",
+                EngineKind::SQLite => "sqlite",
+                EngineKind::MongoDB => "mongodb",
+                EngineKind::Redis => "redis",
+            }
+            .into(),
+        )
+    }
+
+    /// Save the editor text into the project: in place if it was saved before, else
+    /// after asking for a name.
+    fn save_query(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(root) = cx.try_global::<ProjectRoot>().map(|r| r.0.clone()) else {
+            notify::push_info(cx, "Open a project to save queries.");
+            return;
+        };
+        let sql = self.current_sql(cx);
+        if sql.trim().is_empty() {
+            return;
+        }
+        if let Some(path) = self.saved_path.clone() {
+            let name = self.tab_label.to_string();
+            self.write_saved(&root, &name, &sql, Some(&path), cx);
+            return;
+        }
+        let first_comment = sql
+            .lines()
+            .next()
+            .and_then(|l| l.trim().strip_prefix("--"))
+            .map(|l| l.trim().to_string())
+            .filter(|l| !l.is_empty());
+        let name_input = new_field(
+            window,
+            cx,
+            first_comment.as_deref().unwrap_or("Untitled query"),
+            "Query name",
+        );
+        let panel = cx.entity().downgrade();
+        let field = name_input.clone();
+        window.open_dialog(cx, move |dialog, _, _| {
+            let (panel, root, field) = (panel.clone(), root.clone(), field.clone());
+            dialog
+                .title("Save query")
+                .child(Input::new(&name_input).aria_label("Query name").w_full())
+                .footer(
+                    DialogFooter::new()
+                        .child(
+                            DialogClose::new()
+                                .child(Button::new("save-query-cancel").outline().label("Cancel")),
+                        )
+                        .child(
+                            DialogAction::new()
+                                .child(Button::new("save-query-ok").primary().label("Save")),
+                        ),
+                )
+                .on_ok(move |_, _, cx| {
+                    let name = field.read(cx).value().trim().to_string();
+                    if name.is_empty() {
+                        return false;
+                    }
+                    let (root, panel) = (root.clone(), panel.clone());
+                    let _ = panel.update(cx, |p, cx| {
+                        let sql = p.current_sql(cx);
+                        p.write_saved(&root, &name, &sql, None, cx);
+                    });
+                    true
+                })
+        });
+    }
+
+    fn write_saved(
+        &mut self,
+        root: &Path,
+        name: &str,
+        sql: &str,
+        overwrite: Option<&str>,
+        cx: &mut Context<Self>,
+    ) {
+        let target = self.save_target(cx);
+        match save_sql_query(root, name, sql, &target, overwrite) {
+            Ok(path) => {
+                self.saved_path = Some(path);
+                self.tab_label = name.to_string().into();
+                self.dirty = false;
+                clear_tab_dirty(cx.entity_id(), cx);
+                notify::push_info(cx, format!("Saved {name}"));
+                cx.notify();
+            }
+            Err(e) => notify::push_error(cx, "Could not save query", e.to_string()),
+        }
+    }
+
     /// Squiggle the editor text the last error points at.
     fn mark_error(&mut self, cx: &mut Context<Self>) {
         let Some(span) = self.error_span.clone() else {
@@ -1090,6 +1211,12 @@ impl QueryEditorPanel {
                     .on_click(cx.listener(|panel, _, window, cx| panel.toggle_ai(window, cx))),
             )
             .child(self.assist_menu(cx))
+            .child(
+                Button::new(format!("{id}-save"))
+                    .small()
+                    .label("Save")
+                    .on_click(cx.listener(|panel, _, window, cx| panel.save_query(window, cx))),
+            )
             .child(div().flex_1())
             .child(query_panel_extras::variables_popover(
                 format!("{id}-vars-popover"),

@@ -23,6 +23,21 @@ pub struct WorkspaceRef(pub Entity<Workspace>);
 
 impl Global for WorkspaceRef {}
 
+/// Clear the unsaved-edits mark on the tab showing this panel.
+pub fn clear_tab_dirty(panel_id: EntityId, cx: &mut App) {
+    let Some(handle) = cx.try_global::<TabManagerRef>().map(|h| h.0.clone()) else {
+        return;
+    };
+    handle.update(cx, |tm, cx| {
+        if let Some(tab) = tm.tab_for_panel_id_mut(panel_id)
+            && tab.dirty
+        {
+            tab.dirty = false;
+            cx.notify();
+        }
+    });
+}
+
 /// Mark the tab showing this panel as having unsaved edits.
 pub fn mark_tab_dirty(panel_id: EntityId, cx: &mut App) {
     let Some(handle) = cx.try_global::<TabManagerRef>().map(|h| h.0.clone()) else {

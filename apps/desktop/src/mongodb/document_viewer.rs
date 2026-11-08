@@ -21,14 +21,14 @@ use crate::db;
 use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_with_meta};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export;
-use crate::widgets::filter_bar::{FilterBar, FilterExpr};
+use crate::widgets::filter_bar::{FilterBar, FilterSet};
 use crate::widgets::panel::data_viewer_toolbar;
 use crate::widgets::virtual_table::{
     RowDelegate, align_meta_to_columns, data_column, replace_table_data,
 };
 use crate::workspace::notify::push_export_success;
 
-fn mongo_filter_doc(expr: &FilterExpr) -> Document {
+fn mongo_filter_doc(expr: &FilterSet) -> Document {
     let s = expr.to_mongo_filter();
     serde_json::from_str::<serde_json::Value>(&s)
         .ok()
@@ -103,7 +103,7 @@ impl DocumentViewerPanel {
         let filter_doc = self
             .filter_bar
             .read(cx)
-            .current_expr(cx)
+            .current_set(cx)
             .map(|e| mongo_filter_doc(&e))
             .unwrap_or_else(|| doc! {});
 

@@ -7,7 +7,7 @@ use gpui_kit::SharedString;
 use sqlx::PgPool;
 
 use crate::widgets::column_header::ColumnMeta;
-use crate::widgets::filter_bar::FilterExpr;
+use crate::widgets::filter_bar::FilterSet;
 use crate::workspace::panels::data_viewer::{DataSource, Fut, PageData};
 
 pub struct PgSource {
@@ -36,7 +36,7 @@ impl DataSource for PgSource {
 
     fn page(
         &self,
-        filter: Option<FilterExpr>,
+        filter: Option<FilterSet>,
         offset: u64,
         limit: u64,
         catalog: HashMap<String, ColumnMeta>,

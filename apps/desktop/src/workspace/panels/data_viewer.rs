@@ -28,7 +28,7 @@ use crate::widgets::column_header::ColumnMeta;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::datetime::format_relative;
 use crate::widgets::export_popover::export_popover;
-use crate::widgets::filter_bar::{FilterBar, FilterExpr, FilterOp};
+use crate::widgets::filter_bar::{FilterBar, FilterOp, FilterSet};
 use crate::widgets::motion;
 use crate::widgets::pagination::{offset_for_page, sql_pagination_group};
 use crate::widgets::panel::{
@@ -102,7 +102,7 @@ pub trait DataSource: Send + Sync + 'static {
     fn catalog(&self) -> Fut<HashMap<String, ColumnMeta>>;
     fn page(
         &self,
-        filter: Option<FilterExpr>,
+        filter: Option<FilterSet>,
         offset: u64,
         limit: u64,
         catalog: HashMap<String, ColumnMeta>,
@@ -347,7 +347,7 @@ impl DataViewerPanel {
         self.offset = offset;
         let source = self.source.clone();
         let page_size = self.page_size;
-        let filter = self.filter_bar.read(cx).current_expr(cx);
+        let filter = self.filter_bar.read(cx).current_set(cx);
         let cached = self.column_catalog.clone();
 
         cx.spawn(async move |this, cx| {

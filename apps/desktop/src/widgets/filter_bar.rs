@@ -260,6 +260,126 @@ impl FilterExpr {
     }
 }
 
+/// How a term combines with the one before it. AND binds tighter than OR, as in SQL.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Join {
+    #[default]
+    And,
+    Or,
+}
+
+impl Join {
+    pub fn toggled(self) -> Self {
+        match self {
+            Self::And => Self::Or,
+            Self::Or => Self::And,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::And => "AND",
+            Self::Or => "OR",
+        }
+    }
+}
+
+/// One predicate plus its connector to the previous term (ignored for the first).
+#[derive(Clone, Debug)]
+pub struct FilterTerm {
+    pub join: Join,
+    pub expr: FilterExpr,
+}
+
+/// A chain of predicates joined by AND / OR.
+#[derive(Clone, Debug, Default)]
+pub struct FilterSet {
+    pub terms: Vec<FilterTerm>,
+}
+
+impl FilterSet {
+    pub fn single(expr: FilterExpr) -> Self {
+        Self {
+            terms: vec![FilterTerm {
+                join: Join::And,
+                expr,
+            }],
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.terms.is_empty()
+    }
+
+    /// Runs of AND-joined predicates, split at each OR.
+    pub fn groups(&self) -> Vec<Vec<&FilterExpr>> {
+        let mut groups: Vec<Vec<&FilterExpr>> = Vec::new();
+        for (i, term) in self.terms.iter().enumerate() {
+            if i == 0 || term.join == Join::Or {
+                groups.push(Vec::new());
+            }
+            if let Some(g) = groups.last_mut() {
+                g.push(&term.expr);
+            }
+        }
+        groups
+    }
+
+    fn render_sql(&self, fragment: impl Fn(&FilterExpr) -> String) -> String {
+        let groups = self.groups();
+        let multi = groups.len() > 1;
+        groups
+            .iter()
+            .map(|g| {
+                let joined = g
+                    .iter()
+                    .map(|e| fragment(e))
+                    .collect::<Vec<_>>()
+                    .join(" AND ");
+                if multi && g.len() > 1 {
+                    format!("({joined})")
+                } else {
+                    joined
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" OR ")
+    }
+
+    /// `WHERE` body for Postgres (no leading keyword).
+    pub fn to_sql_postgres(&self) -> String {
+        self.render_sql(FilterExpr::to_sql_postgres)
+    }
+
+    /// `WHERE` body for SQLite (no leading keyword).
+    pub fn to_sql_sqlite(&self) -> String {
+        self.render_sql(FilterExpr::to_sql_sqlite)
+    }
+
+    /// MongoDB filter as extended JSON: `$or` of `$and` groups, collapsed when trivial.
+    pub fn to_mongo_filter(&self) -> String {
+        let groups = self.groups();
+        let group_json: Vec<String> = groups
+            .iter()
+            .map(|g| match g.as_slice() {
+                [only] => only.to_mongo_filter(),
+                many => format!(
+                    "{{\"$and\":[{}]}}",
+                    many.iter()
+                        .map(|e| e.to_mongo_filter())
+                        .collect::<Vec<_>>()
+                        .join(",")
+                ),
+            })
+            .collect();
+        match group_json.as_slice() {
+            [] => "{}".into(),
+            [only] => only.clone(),
+            many => format!("{{\"$or\":[{}]}}", many.join(",")),
+        }
+    }
+}
+
 pub struct FilterBar {
     pub columns: Vec<String>,
     pub selected_column: usize,
@@ -336,6 +456,11 @@ impl FilterBar {
                 }
             }
         }
+    }
+
+    /// The current condition as a one-term set.
+    pub fn current_set(&self, cx: &App) -> Option<FilterSet> {
+        self.current_expr(cx).map(FilterSet::single)
     }
 
     pub fn set_array_columns(&mut self, cols: HashSet<String>) {
@@ -532,6 +657,70 @@ mod tests {
         assert_eq!(
             mk(FilterOp::ArrayHasAny, "{1,2}").to_sql_postgres(),
             "\"tags\" && '{\"1\",\"2\"}'"
+        );
+    }
+
+    fn expr(col: &str, op: FilterOp, v: &str) -> FilterExpr {
+        FilterExpr {
+            column: col.into(),
+            op,
+            value: v.into(),
+        }
+    }
+
+    fn set(terms: &[(Join, FilterExpr)]) -> FilterSet {
+        FilterSet {
+            terms: terms
+                .iter()
+                .cloned()
+                .map(|(join, expr)| FilterTerm { join, expr })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn set_and_chain_has_no_parens() {
+        let s = set(&[
+            (Join::And, expr("plan", FilterOp::Eq, "team")),
+            (Join::And, expr("seats", FilterOp::Gt, "10")),
+        ]);
+        assert_eq!(
+            s.to_sql_postgres(),
+            "\"plan\" = 'team' AND \"seats\" > '10'"
+        );
+    }
+
+    #[test]
+    fn set_or_binds_looser_and_groups_multi_term_runs() {
+        let s = set(&[
+            (Join::And, expr("a", FilterOp::Eq, "1")),
+            (Join::And, expr("b", FilterOp::Eq, "2")),
+            (Join::Or, expr("c", FilterOp::Eq, "3")),
+        ]);
+        assert_eq!(
+            s.to_sql_sqlite(),
+            "(\"a\" = '1' AND \"b\" = '2') OR \"c\" = '3'"
+        );
+    }
+
+    #[test]
+    fn set_mongo_shapes() {
+        assert_eq!(FilterSet::default().to_mongo_filter(), "{}");
+        let s = set(&[
+            (Join::And, expr("a", FilterOp::Eq, "1")),
+            (Join::Or, expr("b", FilterOp::Eq, "2")),
+        ]);
+        assert_eq!(
+            s.to_mongo_filter(),
+            "{\"$or\":[{\"a\":\"1\"},{\"b\":\"2\"}]}"
+        );
+        let both = set(&[
+            (Join::And, expr("a", FilterOp::Eq, "1")),
+            (Join::And, expr("b", FilterOp::Eq, "2")),
+        ]);
+        assert_eq!(
+            both.to_mongo_filter(),
+            "{\"$and\":[{\"a\":\"1\"},{\"b\":\"2\"}]}"
         );
     }
 }

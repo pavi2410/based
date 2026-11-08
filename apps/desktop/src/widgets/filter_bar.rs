@@ -654,11 +654,12 @@ impl Render for FilterBar {
             .relative()
             .flex_1()
             .min_w(px(280.0))
+            .min_h(px(26.0))
             .gap(px(6.0))
             .items_center()
             .flex_wrap()
             .px(px(8.0))
-            .py(px(2.0))
+            .py(px(1.0))
             .rounded(px(8.0))
             .border_1()
             .border_color(border)
@@ -759,12 +760,17 @@ impl Render for FilterBar {
         }
 
         row = row.child(
-            div().flex_1().min_w(px(120.0)).child(
-                Input::new(&self.input)
-                    .small()
-                    .appearance(false)
-                    .cleanable(false),
-            ),
+            div()
+                .flex_1()
+                .min_w(px(120.0))
+                .h(px(22.0))
+                .overflow_hidden()
+                .child(
+                    Input::new(&self.input)
+                        .small()
+                        .appearance(false)
+                        .cleanable(false),
+                ),
         );
         if !suggestions.is_empty() {
             row = row.child(

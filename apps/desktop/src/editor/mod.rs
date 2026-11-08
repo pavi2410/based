@@ -3,6 +3,7 @@
 //! Engine-agnostic: all SQL editor panels (Postgres, SQLite) and future
 //! LSP/autocomplete features share this layer.
 
+pub mod error_locate;
 pub mod lint;
 pub mod pg_schema;
 pub mod redis_completion;

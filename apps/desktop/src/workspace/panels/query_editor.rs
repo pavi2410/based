@@ -1,5 +1,6 @@
 // SQL query editor shared by SQL engines via [`QuerySource`]: editor, results, messages, explain.
 
+use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -27,6 +28,7 @@ use crate::app::prefs;
 use crate::bindings::AskAi;
 use crate::connection::{ConnectionId, Environment, is_connection_read_only};
 use crate::db;
+use crate::editor::error_locate::{line_col, locate_error};
 use crate::editor::sql_completion::InlineAi;
 use crate::editor::{SchemaCache, lint::lint};
 use crate::project::{ProjectRoot, ProjectVars, substitute};
@@ -129,6 +131,8 @@ pub struct QueryEditorPanel {
     run_task: Option<Task<()>>,
     ticker: Option<Task<()>>,
     run_started: Option<Instant>,
+    /// Where the last error points in the editor text, when the message names a token.
+    error_span: Option<Range<usize>>,
     pub(crate) tab_label: SharedString,
 }
 
@@ -173,6 +177,7 @@ impl QueryEditorPanel {
             run_task: None,
             ticker: None,
             run_started: None,
+            error_span: None,
             tab_label: "Query".into(),
         };
         cx.subscribe_in(&sql_input, window, |panel, _, event, _, cx| match event {
@@ -365,6 +370,7 @@ impl QueryEditorPanel {
         self.status = QueryStatus::Running;
         self.bottom_tab = BottomTab::Results;
         self.run_started = Some(Instant::now());
+        self.error_span = None;
         self.ticker = Some(cx.spawn(async move |this, cx| {
             loop {
                 cx.background_executor()
@@ -414,7 +420,11 @@ impl QueryEditorPanel {
                     }
                     Err(e) => {
                         panel.bottom_tab = BottomTab::Messages;
-                        (None, QueryStatus::Error(e.to_string()))
+                        let message = e.to_string();
+                        let editor_sql = panel.current_sql(cx);
+                        panel.error_span = locate_error(&editor_sql, &message);
+                        panel.mark_error(cx);
+                        (None, QueryStatus::Error(message))
                     }
                 };
                 let run_status = if rows.is_some() {
@@ -435,6 +445,41 @@ impl QueryEditorPanel {
                 cx.notify();
             });
         }));
+    }
+
+    /// Squiggle the editor text the last error points at.
+    fn mark_error(&mut self, cx: &mut Context<Self>) {
+        let Some(span) = self.error_span.clone() else {
+            return;
+        };
+        self.sql_input.update(cx, |state, cx| {
+            let rope = state.text().clone();
+            let Some(set) = state.diagnostics_mut() else {
+                return;
+            };
+            set.push(lsp_types::Diagnostic {
+                range: lsp_types::Range::new(
+                    rope.offset_to_position(span.start),
+                    rope.offset_to_position(span.end),
+                ),
+                severity: Some(lsp_types::DiagnosticSeverity::ERROR),
+                source: Some("database".into()),
+                message: "The database rejected this".into(),
+                ..Default::default()
+            });
+            cx.notify();
+        });
+    }
+
+    /// Select the text the last error points at and focus the editor.
+    fn jump_to_error(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(span) = self.error_span.clone() else {
+            return;
+        };
+        self.sql_input.update(cx, |state, cx| {
+            state.set_selected_range(span, cx);
+            state.focus(window, cx);
+        });
     }
 
     /// Stop waiting for the running query. The server may still finish it.
@@ -562,17 +607,7 @@ impl QueryEditorPanel {
                 .child(query_error_card(
                     format!("{}-query-error-card", self.source.id()),
                     full.clone().into(),
-                    Some(
-                        Button::new(format!("{}-fix-ai", self.source.id()))
-                            .ghost()
-                            .xsmall()
-                            .icon(IconName::Bot)
-                            .label("Fix with AI")
-                            .on_click(cx.listener(|panel, _, window, cx| {
-                                panel.fix_with_ai(window, cx);
-                            }))
-                            .into_any_element(),
-                    ),
+                    Some(self.error_actions(full, cx)),
                     cx,
                 ))
                 .into_any_element(),
@@ -598,6 +633,43 @@ impl QueryEditorPanel {
             ),
             QueryStatus::Idle => hint("No messages yet. Run a query to see output here.", muted),
         }
+    }
+
+    /// Location text plus Jump to error and Fix with AI for the error card.
+    fn error_actions(&self, full: &str, cx: &mut Context<Self>) -> AnyElement {
+        let id = self.source.id();
+        let muted = cx.theme().muted_foreground;
+        let place = self.error_span.as_ref().map(|span| {
+            let (line, col) = line_col(&self.current_sql(cx), span.start);
+            format!("Line {line}, column {col}")
+        });
+        let _ = full;
+        h_flex()
+            .gap(px(8.0))
+            .items_center()
+            .children(place.map(|p| div().text_xs().text_color(muted).child(p)))
+            .when(self.error_span.is_some(), |h| {
+                h.child(
+                    Button::new(format!("{id}-jump-error"))
+                        .ghost()
+                        .xsmall()
+                        .label("Jump to error")
+                        .on_click(cx.listener(|panel, _, window, cx| {
+                            panel.jump_to_error(window, cx);
+                        })),
+                )
+            })
+            .child(
+                Button::new(format!("{id}-fix-ai"))
+                    .ghost()
+                    .xsmall()
+                    .icon(IconName::Bot)
+                    .label("Fix with AI")
+                    .on_click(cx.listener(|panel, _, window, cx| {
+                        panel.fix_with_ai(window, cx);
+                    })),
+            )
+            .into_any_element()
     }
 
     fn render_explain(&self, cx: &mut Context<Self>) -> AnyElement {

@@ -2,9 +2,7 @@
 
 use std::cmp::Ordering;
 
-use gpui_kit::component::{
-    ActiveTheme, Icon, IconName, Sizable as _, StyleSized, h_flex, tooltip::Tooltip,
-};
+use gpui_kit::component::{ActiveTheme, StyleSized, h_flex, tooltip::Tooltip};
 use gpui_kit::{App, Div, IntoElement, SharedString, Window, div, prelude::*, px};
 
 use crate::app::prefs;
@@ -310,9 +308,28 @@ pub fn render_grid_cell(
 ) -> impl IntoElement {
     let theme = cx.theme();
     if is_null {
-        return cell_chrome(cx)
-            .text_color(theme.muted_foreground)
-            .child(display)
+        // A dashed chip cannot be mistaken for the text "NULL".
+        let muted = theme.muted_foreground;
+        return h_flex()
+            .h_full()
+            .items_center()
+            .child(
+                div()
+                    .px(px(5.0))
+                    .rounded(px(4.0))
+                    .border_1()
+                    .border_dashed()
+                    .border_color(muted.opacity(0.35))
+                    .text_xs()
+                    .italic()
+                    .text_color(muted.opacity(0.8))
+                    .font_family(prefs::code_font_family(cx))
+                    .child(if display.trim().is_empty() {
+                        SharedString::from("NULL")
+                    } else {
+                        display
+                    }),
+            )
             .into_any_element();
     }
 
@@ -339,14 +356,10 @@ pub fn render_grid_cell(
         ColumnValueKind::Boolean => {
             let label = display.to_string();
             if let Some(value) = parse_bool_display(&label) {
-                let icon = if value {
-                    Icon::new(IconName::Check)
-                        .xsmall()
-                        .text_color(theme.green_light)
+                let dot = if value {
+                    theme.green_light
                 } else {
-                    Icon::new(IconName::Close)
-                        .xsmall()
-                        .text_color(theme.muted_foreground)
+                    theme.muted_foreground.opacity(0.6)
                 };
                 let tooltip_label = label;
                 let cell_id = row_ix.saturating_mul(10_000).saturating_add(col_ix);
@@ -354,9 +367,18 @@ pub fn render_grid_cell(
                     .id(("grid-cell-bool", cell_id))
                     .w_full()
                     .h_full()
+                    .gap(px(6.0))
                     .items_center()
-                    .justify_center()
-                    .child(icon)
+                    .child(div().size(px(7.0)).rounded_full().bg(dot))
+                    .child(
+                        div()
+                            .text_color(if value {
+                                theme.foreground
+                            } else {
+                                theme.muted_foreground
+                            })
+                            .child(if value { "true" } else { "false" }),
+                    )
                     .hoverable_tooltip(move |w, app| {
                         Tooltip::new(tooltip_label.clone()).build(w, app)
                     })

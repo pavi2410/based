@@ -168,3 +168,18 @@ fn refresh_picks_up_new_rows(cx: &mut TestAppContext) {
     v.click("sqlite-dv-refresh", cx);
     wait_until(cx, |cx| v.snap(cx).total == 121);
 }
+
+#[gpui_kit::test]
+fn hiding_a_column_drops_it_and_showing_restores_it(cx: &mut TestAppContext) {
+    let v = open_viewer(cx, None);
+    let before = v.loaded(cx);
+    assert!(before.columns.contains(&"grp".to_string()));
+    v.panel
+        .update(cx, |p, cx| p.toggle_column_by_key("grp", cx));
+    let hidden = v.snap(cx);
+    assert!(!hidden.columns.contains(&"grp".to_string()));
+    assert_eq!(hidden.rows[0].len(), before.columns.len() - 1);
+    v.panel
+        .update(cx, |p, cx| p.toggle_column_by_key("grp", cx));
+    assert_eq!(v.snap(cx).columns, before.columns);
+}

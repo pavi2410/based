@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use gpui_kit::component::{ActiveTheme, Icon, Sizable as _, h_flex, tooltip::Tooltip, v_flex};
-use gpui_kit::{App, Hsla, IntoElement, SharedString, Window, div, prelude::*, px};
+use gpui_kit::{App, Div, Hsla, SharedString, Stateful, Window, div, prelude::*, px};
 
 use crate::app::prefs;
 
@@ -138,7 +138,7 @@ pub fn render_column_header(
     meta: ColumnMeta,
     _window: &mut Window,
     cx: &mut App,
-) -> impl IntoElement {
+) -> Stateful<Div> {
     let role = dominant_role(&meta);
     let show_tooltip = has_tooltip_content(&meta);
     let tooltip_lines = tooltip_lines(&meta);

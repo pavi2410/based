@@ -2,6 +2,7 @@
 // The DataTable widget in gpui-kit already virtualizes rows internally,
 // so this is a thin wrapper / type alias for the RowDelegate-based table.
 
+use std::collections::HashSet;
 use std::rc::Rc;
 
 use gpui_kit::component::{
@@ -31,6 +32,18 @@ pub fn data_column(key: impl Into<SharedString>, label: impl Into<SharedString>)
 pub type CellMenuFn =
     Rc<dyn Fn(PopupMenu, usize, usize, &mut Window, &mut Context<PopupMenu>) -> PopupMenu>;
 
+/// Builds the right-click menu for the header of column `col`.
+pub type HeaderMenuFn =
+    Rc<dyn Fn(PopupMenu, usize, &mut Window, &mut Context<PopupMenu>) -> PopupMenu>;
+
+/// Every column as delivered, so hidden ones can come back without a reload.
+#[derive(Default)]
+struct FullData {
+    columns: Vec<Column>,
+    meta: Vec<ColumnMeta>,
+    rows: Vec<Vec<SharedString>>,
+}
+
 /// Generic row data: column names + string-valued cells.
 #[derive(Default)]
 pub struct RowDelegate {
@@ -42,6 +55,10 @@ pub struct RowDelegate {
     pub same_value_match: Option<SameValueMatch>,
     pub cell_focused: bool,
     pub cell_menu: Option<CellMenuFn>,
+    pub header_menu: Option<HeaderMenuFn>,
+    /// Keys of columns the user hid.
+    hidden: HashSet<SharedString>,
+    full: Option<FullData>,
 }
 
 impl TableDelegate for RowDelegate {
@@ -65,7 +82,13 @@ impl TableDelegate for RowDelegate {
     ) -> impl IntoElement {
         let col = self.column(col_ix, cx);
         let meta = self.column_meta.get(col_ix).cloned().unwrap_or_default();
-        render_column_header(col_ix, col.name.clone(), meta, window, cx)
+        let header = render_column_header(col_ix, col.name.clone(), meta, window, cx);
+        match self.header_menu.clone() {
+            Some(f) => header
+                .context_menu(move |menu, window, cx| f(menu, col_ix, window, cx))
+                .into_any_element(),
+            None => header.into_any_element(),
+        }
     }
 
     fn render_td(
@@ -201,16 +224,106 @@ pub fn replace_table_data(
 ) {
     {
         let delegate = state.delegate_mut();
-        delegate.columns = columns;
-        delegate.column_meta = if column_meta.len() == delegate.columns.len() {
+        let column_meta = if column_meta.len() == columns.len() {
             column_meta
         } else {
-            empty_column_meta(delegate.columns.len())
+            empty_column_meta(columns.len())
         };
-        delegate.rows = rows;
-        delegate.sort_col = None;
+        delegate.full = Some(FullData {
+            columns,
+            meta: column_meta,
+            rows,
+        });
+        apply_visibility(delegate);
     }
     refresh_same_value_highlight(state, None, cx);
+    state.refresh(cx);
+    cx.notify();
+}
+
+/// Rebuild the visible columns and rows from the full data, minus hidden columns.
+fn apply_visibility(d: &mut RowDelegate) {
+    let Some(full) = &d.full else {
+        return;
+    };
+    let mut keep: Vec<usize> = (0..full.columns.len())
+        .filter(|&i| !d.hidden.contains(&full.columns[i].key))
+        .collect();
+    if keep.is_empty() {
+        keep = (0..full.columns.len()).collect();
+    }
+    d.columns = keep.iter().map(|&i| full.columns[i].clone()).collect();
+    d.column_meta = keep
+        .iter()
+        .map(|&i| full.meta.get(i).cloned().unwrap_or_default())
+        .collect();
+    d.rows = full
+        .rows
+        .iter()
+        .map(|r| {
+            keep.iter()
+                .map(|&i| r.get(i).cloned().unwrap_or_default())
+                .collect()
+        })
+        .collect();
+    d.sort_col = None;
+}
+
+/// `(key, name, visible)` for every column, in delivery order.
+pub fn column_visibility(d: &RowDelegate) -> Vec<(SharedString, SharedString, bool)> {
+    match &d.full {
+        Some(full) => full
+            .columns
+            .iter()
+            .map(|c| (c.key.clone(), c.name.clone(), !d.hidden.contains(&c.key)))
+            .collect(),
+        None => Vec::new(),
+    }
+}
+
+/// Show or hide a column. The last visible column cannot be hidden.
+pub fn toggle_column(
+    state: &mut TableState<RowDelegate>,
+    key: &SharedString,
+    cx: &mut Context<TableState<RowDelegate>>,
+) {
+    {
+        let d = state.delegate_mut();
+        if d.hidden.remove(key) {
+        } else if d.columns.len() > 1 {
+            d.hidden.insert(key.clone());
+        } else {
+            return;
+        }
+        apply_visibility(d);
+    }
+    refresh_same_value_highlight(state, None, cx);
+    state.refresh(cx);
+    cx.notify();
+}
+
+/// Sort by `col_ix` from a menu, keeping the header arrows in step.
+pub fn sort_column(
+    state: &mut TableState<RowDelegate>,
+    col_ix: usize,
+    ascending: bool,
+    window: &mut Window,
+    cx: &mut Context<TableState<RowDelegate>>,
+) {
+    let sort = if ascending {
+        ColumnSort::Ascending
+    } else {
+        ColumnSort::Descending
+    };
+    let d = state.delegate_mut();
+    for (i, c) in d.columns.iter_mut().enumerate() {
+        c.sort = Some(if i == col_ix {
+            sort
+        } else {
+            ColumnSort::Default
+        });
+    }
+    d.perform_sort(col_ix, sort, window, cx);
     state.refresh(cx);
     cx.notify();
 }

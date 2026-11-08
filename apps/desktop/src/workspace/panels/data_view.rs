@@ -15,6 +15,8 @@ pub struct PageSnapshot {
     pub loading: bool,
 }
 
+use crate::widgets::virtual_table::toggle_column;
+
 impl DataViewerPanel {
     pub fn page_snapshot(&self, cx: &App) -> PageSnapshot {
         let grid = self.table.read(cx).delegate();
@@ -35,5 +37,11 @@ impl DataViewerPanel {
     /// Jump to a 1-based page, as the pager does.
     pub fn show_page(&mut self, page: usize, cx: &mut Context<Self>) {
         self.go_to_page(page, cx);
+    }
+
+    /// Hide or show a column, as the Columns menu does.
+    pub fn toggle_column_by_key(&mut self, key: &str, cx: &mut Context<Self>) {
+        let key = gpui_kit::SharedString::from(key.to_string());
+        self.table.update(cx, |t, cx| toggle_column(t, &key, cx));
     }
 }

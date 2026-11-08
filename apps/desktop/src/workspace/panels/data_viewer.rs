@@ -13,7 +13,7 @@ use gpui_kit::component::{
     Disableable as _, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants as _},
     dock::{BasePanel, Panel, PanelEvent},
-    menu::{PopupMenu, PopupMenuItem},
+    menu::{DropdownMenu as _, PopupMenu, PopupMenuItem},
     table::{Column, TableState},
     v_flex,
 };
@@ -37,7 +37,8 @@ use crate::widgets::panel::{
     tab_breadcrumb_footer, tab_breadcrumb_for_connection,
 };
 use crate::widgets::virtual_table::{
-    NULL_CELL_DISPLAY, RowDelegate, align_meta_to_columns, data_column, replace_table_data,
+    NULL_CELL_DISPLAY, RowDelegate, align_meta_to_columns, column_visibility, data_column,
+    replace_table_data, sort_column, toggle_column,
 };
 use crate::workspace::WorkspaceRef;
 use crate::workspace::pop_out::PopOutWindowTitle;
@@ -185,7 +186,14 @@ impl DataViewerPanel {
         })
         .detach();
         let weak = cx.weak_entity();
+        let header_weak = cx.weak_entity();
         panel.table.update(cx, |t, _| {
+            t.delegate_mut().header_menu = Some(Rc::new(move |menu, col, window, cx| {
+                match header_weak.upgrade() {
+                    Some(p) => Self::header_menu(&p, menu, col, window, cx),
+                    None => menu,
+                }
+            }));
             t.delegate_mut().cell_menu =
                 Some(Rc::new(move |menu, row, col, window, cx| {
                     match weak.upgrade() {
@@ -234,6 +242,67 @@ impl DataViewerPanel {
     }
 
     /// Right-click menu for the cell at `(row, col)`.
+    /// Right-click menu for the header of column `col`.
+    fn header_menu(
+        this: &Entity<Self>,
+        menu: PopupMenu,
+        col: usize,
+        window: &mut Window,
+        cx: &mut Context<PopupMenu>,
+    ) -> PopupMenu {
+        let (table, filter_bar) = {
+            let p = this.read(cx);
+            (p.table.clone(), p.filter_bar.clone())
+        };
+        let Some(name) = table
+            .read(cx)
+            .delegate()
+            .columns
+            .get(col)
+            .map(|c| c.name.clone())
+        else {
+            return menu;
+        };
+        let key = table.read(cx).delegate().columns[col].key.clone();
+        let _ = window;
+        let sort = |label: &'static str, icon: IconName, ascending: bool| {
+            let table = table.clone();
+            PopupMenuItem::new(label)
+                .icon(icon)
+                .on_click(move |_, window, cx| {
+                    table.update(cx, |t, cx| sort_column(t, col, ascending, window, cx));
+                })
+        };
+        let filter_name = name.clone();
+        let copy_name = name.to_string();
+        let hide_table = table.clone();
+        menu.item(sort("Sort Ascending", IconName::ArrowUp, true))
+            .item(sort("Sort Descending", IconName::ArrowDown, false))
+            .separator()
+            .item(
+                PopupMenuItem::new("Filter by This Column")
+                    .icon(Icon::new(AssetIcon::Funnel))
+                    .on_click(move |_, window, cx| {
+                        filter_bar.update(cx, |fb, cx| fb.start_term(&filter_name, window, cx));
+                    }),
+            )
+            .item(
+                PopupMenuItem::new("Copy Column Name")
+                    .icon(Icon::empty().path("icons/copy.svg"))
+                    .on_click(move |_, _, cx| {
+                        cx.write_to_clipboard(ClipboardItem::new_string(copy_name.clone()));
+                    }),
+            )
+            .separator()
+            .item(
+                PopupMenuItem::new("Hide Column")
+                    .icon(IconName::EyeOff)
+                    .on_click(move |_, _, cx| {
+                        hide_table.update(cx, |t, cx| toggle_column(t, &key, cx));
+                    }),
+            )
+    }
+
     fn cell_menu(
         p: &Entity<Self>,
         menu: PopupMenu,
@@ -409,6 +478,30 @@ impl DataViewerPanel {
     }
 }
 
+/// Toolbar menu listing every column with a check for the visible ones.
+fn columns_button(table: &Entity<TableState<RowDelegate>>) -> impl IntoElement {
+    let table = table.clone();
+    Button::new("dv-columns")
+        .small()
+        .ghost()
+        .icon(Icon::new(IconName::Eye))
+        .label("Columns")
+        .dropdown_caret(true)
+        .dropdown_menu(move |menu, _, cx| {
+            let cols = column_visibility(table.read(cx).delegate());
+            cols.into_iter().fold(menu, |menu, (key, name, visible)| {
+                let table = table.clone();
+                menu.item(
+                    PopupMenuItem::new(name)
+                        .checked(visible)
+                        .on_click(move |_, _, cx| {
+                            table.update(cx, |t, cx| toggle_column(t, &key, cx));
+                        }),
+                )
+            })
+        })
+}
+
 /// Menu item that ANDs `column = value` (or `<>` when `negate`) onto the filter.
 fn filter_item(
     label: &'static str,
@@ -536,6 +629,7 @@ impl Render for DataViewerPanel {
                 )
             })
             .child(div().flex_1())
+            .child(columns_button(&self.table))
             .child(export_popover(id, export_headers, export_rows));
 
         let first_load = loading && export_rows_empty;

@@ -529,6 +529,12 @@ impl FilterBar {
         cx.notify();
     }
 
+    /// Put `column ` in the field, ready for an operator.
+    pub fn start_term(&mut self, column: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.set_input(&format!("{column} "), window, cx);
+        cx.notify();
+    }
+
     /// Append `expr` joined with AND and apply it.
     pub fn add_term(&mut self, expr: FilterExpr, cx: &mut Context<Self>) {
         if !self.columns.contains(&expr.column) {

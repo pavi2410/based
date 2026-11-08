@@ -35,6 +35,7 @@ use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::engine_icon;
 use crate::widgets::export_popover::export_popover;
 use crate::widgets::metadata_pill::env_pill;
+use crate::widgets::motion;
 use crate::widgets::panel::{
     panel_tab_content, tab_breadcrumb_footer, tab_breadcrumb_for_connection,
 };
@@ -95,6 +96,10 @@ pub enum QueryStatus {
         finished_at: OffsetDateTime,
     },
     Error(String),
+    /// Stopped by the user; the server may still finish the statement.
+    Cancelled {
+        after_ms: u64,
+    },
 }
 
 enum ExplainView {
@@ -120,6 +125,10 @@ pub struct QueryEditorPanel {
     pub(super) ai: AiHost,
     /// A write from an AI proposal is waiting on the confirmation banner.
     pub(super) ai_confirm: bool,
+    /// The in-flight run; dropping it stops waiting for the result.
+    run_task: Option<Task<()>>,
+    ticker: Option<Task<()>>,
+    run_started: Option<Instant>,
     pub(crate) tab_label: SharedString,
 }
 
@@ -161,6 +170,9 @@ impl QueryEditorPanel {
             dirty: false,
             ai: AiHost::new(window, cx, Self::on_ai_event),
             ai_confirm: false,
+            run_task: None,
+            ticker: None,
+            run_started: None,
             tab_label: "Query".into(),
         };
         cx.subscribe_in(&sql_input, window, |panel, _, event, _, cx| match event {
@@ -352,12 +364,25 @@ impl QueryEditorPanel {
         let conn_id = self.conn_id.clone();
         self.status = QueryStatus::Running;
         self.bottom_tab = BottomTab::Results;
+        self.run_started = Some(Instant::now());
+        self.ticker = Some(cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor()
+                    .timer(Duration::from_millis(100))
+                    .await;
+                if this.update(cx, |_, cx| cx.notify()).is_err() {
+                    break;
+                }
+            }
+        }));
         let fut = self.source.run(sql, prefs::query_timeout_secs(cx));
-        cx.spawn(async move |this, cx| {
+        self.run_task = Some(cx.spawn(async move |this, cx| {
             let start = Instant::now();
             let outcome = db::run(cx, fut).await;
             let ms = start.elapsed().as_millis() as u64;
             let _ = this.update(cx, |panel, cx| {
+                panel.ticker = None;
+                panel.run_started = None;
                 let (rows, status) = match outcome {
                     Ok(out) => {
                         let columns = out
@@ -409,8 +434,20 @@ impl QueryEditorPanel {
                 panel.status = status;
                 cx.notify();
             });
-        })
-        .detach();
+        }));
+    }
+
+    /// Stop waiting for the running query. The server may still finish it.
+    fn stop(&mut self, cx: &mut Context<Self>) {
+        let after_ms = self
+            .run_started
+            .take()
+            .map_or(0, |t| t.elapsed().as_millis() as u64);
+        self.run_task = None;
+        self.ticker = None;
+        self.status = QueryStatus::Cancelled { after_ms };
+        self.bottom_tab = BottomTab::Messages;
+        cx.notify();
     }
 }
 
@@ -471,6 +508,9 @@ fn status_display(status: &QueryStatus) -> QueryStatusDisplay {
             finished_at: *finished_at,
         },
         QueryStatus::Error(e) => QueryStatusDisplay::Error(e.clone().into()),
+        QueryStatus::Cancelled { after_ms } => QueryStatusDisplay::Cancelled {
+            after_ms: *after_ms,
+        },
     }
 }
 
@@ -488,11 +528,25 @@ fn hint(text: impl Into<SharedString>, muted: Hsla) -> AnyElement {
 impl QueryEditorPanel {
     fn render_bottom_body(&self, cx: &mut Context<Self>) -> AnyElement {
         match self.bottom_tab {
-            BottomTab::Results => div()
-                .flex_1()
-                .min_h(px(0.0))
-                .child(render_row_table(&self.result, cx))
-                .into_any_element(),
+            BottomTab::Results => {
+                let running = matches!(self.status, QueryStatus::Running);
+                let empty = self.result.read(cx).delegate().rows.is_empty();
+                div()
+                    .relative()
+                    .flex_1()
+                    .min_h(px(0.0))
+                    .when(running && !empty, |d| d.opacity(0.55))
+                    .child(render_row_table(&self.result, cx))
+                    .when(running && empty, |d| {
+                        d.child(
+                            div()
+                                .absolute()
+                                .inset_0()
+                                .child(motion::skeleton_table("qe-skel", 6, 4, cx)),
+                        )
+                    })
+                    .into_any_element()
+            }
             BottomTab::Messages => self.render_messages(cx),
             BottomTab::Explain => self.render_explain(cx),
         }
@@ -535,6 +589,13 @@ impl QueryEditorPanel {
                 )
             }
             QueryStatus::Running => hint("Running…", muted),
+            QueryStatus::Cancelled { after_ms } => hint(
+                format!(
+                    "Stopped after {:.1} s. The server may still finish the statement; nothing is rolled back.",
+                    *after_ms as f32 / 1000.0
+                ),
+                muted,
+            ),
             QueryStatus::Idle => hint("No messages yet. Run a query to see output here.", muted),
         }
     }
@@ -639,15 +700,22 @@ impl QueryEditorPanel {
                     .mx(px(2.0))
                     .bg(cx.theme().border),
             )
-            .child(
+            .child(if matches!(self.status, QueryStatus::Running) {
+                Button::new(format!("{id}-stop"))
+                    .danger()
+                    .small()
+                    .icon(IconName::Close)
+                    .label("Stop")
+                    .on_click(cx.listener(|panel, _, _, cx| panel.stop(cx)))
+            } else {
                 Button::new(format!("{id}-run"))
                     .primary()
                     .small()
                     .icon(IconName::Play)
                     .label("Run")
                     .child(shortcut_run_kbd_in_primary_button(cx))
-                    .on_click(cx.listener(|panel, _, _, cx| panel.run(cx))),
-            )
+                    .on_click(cx.listener(|panel, _, _, cx| panel.run(cx)))
+            })
             .child(
                 Button::new(format!("{id}-format"))
                     .ghost()
@@ -722,7 +790,11 @@ impl Render for QueryEditorPanel {
         let trailing = h_flex()
             .gap(px(10.0))
             .items_center()
-            .child(query_result_meta(&status_display(&self.status), cx))
+            .child(query_result_meta(
+                &status_display(&self.status),
+                self.run_started.map(|t| t.elapsed().as_millis() as u64),
+                cx,
+            ))
             .child(export_popover(&format!("{id}-qe"), headers, rows))
             .into_any_element();
         let strip = result_tab_strip(
@@ -749,6 +821,11 @@ impl Render for QueryEditorPanel {
                 .min_h(px(0.0))
                 .on_action(cx.listener(|panel, _: &AskAi, window, cx| panel.toggle_ai(window, cx)))
                 .child(toolbar)
+                .child(motion::glimmer_bar(
+                    format!("{id}-run-glimmer"),
+                    matches!(self.status, QueryStatus::Running),
+                    cx,
+                ))
                 .when_some(self.ai.bar(), |v, bar| v.child(bar))
                 .children(ai_confirm)
                 .child(

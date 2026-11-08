@@ -20,6 +20,10 @@ use crate::widgets::datetime::format_relative;
 pub enum QueryStatusDisplay {
     Idle,
     Running,
+    /// Stopped by the user after this long.
+    Cancelled {
+        after_ms: u64,
+    },
     Done {
         rows: usize,
         /// Present for engines that report affected-row counts (e.g. Postgres DML).
@@ -46,6 +50,11 @@ pub fn query_status_indicator(status: &QueryStatusDisplay, cx: &mut App) -> AnyE
                     .bg(muted.opacity(0.55)),
             )
             .child(div().text_xs().text_color(muted).child("Ready"))
+            .into_any_element(),
+        QueryStatusDisplay::Cancelled { .. } => h_flex()
+            .gap(px(6.0))
+            .items_center()
+            .child(div().text_xs().text_color(muted).child("Stopped"))
             .into_any_element(),
         QueryStatusDisplay::Running => h_flex()
             .gap(px(6.0))
@@ -88,7 +97,11 @@ pub fn query_status_indicator(status: &QueryStatusDisplay, cx: &mut App) -> AnyE
 }
 
 /// Stats for the result header: state dot, rows or affected count, time, and age.
-pub fn query_result_meta(status: &QueryStatusDisplay, cx: &App) -> AnyElement {
+pub fn query_result_meta(
+    status: &QueryStatusDisplay,
+    running_ms: Option<u64>,
+    cx: &App,
+) -> AnyElement {
     let theme = cx.theme();
     let (muted, fg) = (theme.muted_foreground, theme.foreground);
     let dot = |color: Hsla| div().size(px(7.0)).rounded_full().bg(color);
@@ -104,7 +117,16 @@ pub fn query_result_meta(status: &QueryStatusDisplay, cx: &App) -> AnyElement {
             .into_any_element(),
         QueryStatusDisplay::Running => row
             .child(Spinner::new().xsmall().color(theme.primary))
-            .child("Running…")
+            .child("Running")
+            .children(running_ms.map(|ms| {
+                div()
+                    .text_color(fg)
+                    .child(format!("{:.1} s", ms as f32 / 1000.0))
+            }))
+            .into_any_element(),
+        QueryStatusDisplay::Cancelled { after_ms } => row
+            .child(dot(theme.warning))
+            .child(format!("Stopped after {:.1} s", *after_ms as f32 / 1000.0))
             .into_any_element(),
         QueryStatusDisplay::Error(_) => row
             .child(dot(theme.danger))

@@ -1,6 +1,7 @@
 //! Filter bar: pick column, op, and value; build SQL or Mongo filter strings.
 
 use std::collections::HashSet;
+use std::time::Duration;
 
 use gpui_kit::component::{
     ActiveTheme, Sizable, h_flex,
@@ -10,8 +11,8 @@ use gpui_kit::component::{
     v_flex,
 };
 use gpui_kit::{
-    App, Context, Entity, IntoElement, Render, SharedString, Styled, TestSupportExt as _, Window,
-    div, prelude::*, px,
+    App, Context, Entity, Focusable as _, IntoElement, Render, SharedString, Styled,
+    TestSupportExt as _, Window, div, prelude::*, px,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -473,7 +474,17 @@ impl FilterBar {
             &input,
             window,
             |this, _, event: &InputEvent, window, cx| match event {
-                InputEvent::Change => cx.notify(),
+                InputEvent::Change | InputEvent::Focus => cx.notify(),
+                InputEvent::Blur => {
+                    // Wait out a click on a suggestion before hiding the list.
+                    cx.spawn(async move |this, cx| {
+                        cx.background_executor()
+                            .timer(Duration::from_millis(150))
+                            .await;
+                        let _ = this.update(cx, |_, cx| cx.notify());
+                    })
+                    .detach();
+                }
                 InputEvent::PressEnter { .. } => this.commit_or_accept(window, cx),
                 _ => {}
             },
@@ -637,7 +648,7 @@ impl FilterBar {
 }
 
 impl Render for FilterBar {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let (muted, fg, primary, border) = (
             theme.muted_foreground,
@@ -647,14 +658,20 @@ impl Render for FilterBar {
         );
         let value_color = theme.green_light;
         let text = self.input.read(cx).value().to_string();
-        let suggestions = self.suggestions(&text);
+        // Completions only while the field has focus, so they never float over the grid.
+        let focused = self.input.focus_handle(cx).is_focused(window);
+        let suggestions = if focused {
+            self.suggestions(&text)
+        } else {
+            Vec::new()
+        };
 
         let mut row = h_flex()
             .id("filter-field")
             .relative()
             .flex_1()
             .min_w(px(280.0))
-            .min_h(px(26.0))
+            .min_h(px(30.0))
             .gap(px(6.0))
             .items_center()
             .flex_wrap()
@@ -721,7 +738,13 @@ impl Render for FilterBar {
                     .child(div().text_color(fg).child(e.column.clone()))
                     .child(div().text_color(primary).child(label))
                     .when(e.op.has_value(), |h| {
-                        h.child(div().text_color(value_color).child(e.value.clone()))
+                        h.child(
+                            div()
+                                .max_w(px(300.0))
+                                .truncate()
+                                .text_color(value_color)
+                                .child(e.value.clone()),
+                        )
                     })
                     .child(
                         div()
@@ -760,23 +783,19 @@ impl Render for FilterBar {
         }
 
         row = row.child(
-            div()
-                .flex_1()
-                .min_w(px(120.0))
-                .h(px(22.0))
-                .overflow_hidden()
-                .child(
-                    Input::new(&self.input)
-                        .small()
-                        .appearance(false)
-                        .cleanable(false),
-                ),
+            div().flex_1().min_w(px(140.0)).child(
+                Input::new(&self.input)
+                    .small()
+                    .appearance(false)
+                    .cleanable(false),
+            ),
         );
         if !suggestions.is_empty() {
             row = row.child(
                 v_flex()
                     .absolute()
-                    .top(px(36.0))
+                    .top_full()
+                    .mt(px(4.0))
                     .left(px(0.0))
                     .min_w(px(220.0))
                     .p(px(4.0))

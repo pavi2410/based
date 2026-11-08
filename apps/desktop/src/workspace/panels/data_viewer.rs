@@ -10,7 +10,7 @@ use time::OffsetDateTime;
 use futures::future::BoxFuture;
 use gpui_kit::component::table::TableEvent;
 use gpui_kit::component::{
-    Disableable as _, Icon, IconName, Sizable as _,
+    ActiveTheme as _, Disableable as _, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants as _},
     dock::{BasePanel, Panel, PanelEvent},
     menu::{DropdownMenu as _, PopupMenu, PopupMenuItem},
@@ -28,6 +28,7 @@ use crate::widgets::cell_render::is_null_cell;
 use crate::widgets::column_header::ColumnMeta;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::datetime::format_relative;
+use crate::widgets::empty_state::status_panel;
 use crate::widgets::export_popover::export_popover;
 use crate::widgets::filter_bar::{FilterBar, FilterEvent, FilterExpr, FilterOp, FilterSet};
 use crate::widgets::motion;
@@ -124,6 +125,8 @@ pub struct DataViewerPanel {
     pub(super) loading: bool,
     last_load_ms: Option<u64>,
     last_fetched: Option<OffsetDateTime>,
+    /// First line of the last load failure; cleared by the next load.
+    load_error: Option<SharedString>,
     column_catalog: HashMap<String, ColumnMeta>,
     /// Foreign-key jump for the selected cell.
     fk_jump: Option<(String, DrillFilter)>,
@@ -163,6 +166,7 @@ impl DataViewerPanel {
             loading: false,
             last_load_ms: None,
             last_fetched: None,
+            load_error: None,
             column_catalog: HashMap::new(),
             fk_jump: None,
             self_handle: cx.weak_entity(),
@@ -428,6 +432,7 @@ impl DataViewerPanel {
 
     fn load_page(&mut self, offset: u64, cx: &mut Context<Self>) {
         self.loading = true;
+        self.load_error = None;
         self.offset = offset;
         let source = self.source.clone();
         let page_size = self.page_size;
@@ -450,6 +455,16 @@ impl DataViewerPanel {
 
             let _ = this.update(cx, |panel, cx| {
                 panel.loading = false;
+                if let Err(e) = &res {
+                    let msg = e.to_string();
+                    panel.load_error = Some(
+                        msg.lines()
+                            .next()
+                            .unwrap_or("Unknown error")
+                            .to_string()
+                            .into(),
+                    );
+                }
                 if let Ok((page, elapsed_ms)) = res {
                     panel.total_rows = page.total as u64;
                     panel.last_load_ms = Some(elapsed_ms);
@@ -471,6 +486,81 @@ impl DataViewerPanel {
             });
         })
         .detach();
+    }
+
+    /// Error, empty-table and no-match screens drawn over the grid; `None` when rows show.
+    fn state_overlay(
+        &self,
+        loading: bool,
+        filtered: bool,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        if loading {
+            return None;
+        }
+        let theme = cx.theme();
+        let offset = self.offset;
+        if let Some(err) = self.load_error.clone() {
+            let copy = err.to_string();
+            return Some(status_panel(
+                "Couldn't load rows",
+                "The query failed or timed out. Check the connection and try again.",
+                IconName::TriangleAlert,
+                Some(theme.danger),
+                Some(err),
+                vec![
+                    Button::new("dv-retry")
+                        .small()
+                        .primary()
+                        .label("Retry")
+                        .on_click(cx.listener(move |p, _, _, cx| p.load_page(offset, cx)))
+                        .into_any_element(),
+                    Button::new("dv-copy-error")
+                        .small()
+                        .outline()
+                        .label("Copy details")
+                        .on_click(move |_, _, cx| {
+                            cx.write_to_clipboard(ClipboardItem::new_string(copy.clone()));
+                        })
+                        .into_any_element(),
+                ],
+                cx,
+            ));
+        }
+        if self.last_fetched.is_none() || self.total_rows > 0 {
+            return None;
+        }
+        Some(if filtered {
+            status_panel(
+                "No rows match",
+                "The filter hides every row in this table.",
+                IconName::Search,
+                None,
+                None,
+                vec![
+                    Button::new("dv-clear-filter")
+                        .small()
+                        .primary()
+                        .label("Clear filter")
+                        .on_click(cx.listener(|p, _, window, cx| {
+                            p.filter_bar.update(cx, |fb, cx| fb.clear(window, cx));
+                            p.load_page(0, cx);
+                        }))
+                        .into_any_element(),
+                ],
+                cx,
+            )
+        } else {
+            status_panel(
+                "This table is empty",
+                "No rows yet.",
+                IconName::Inbox,
+                None,
+                None,
+                Vec::new(),
+                cx,
+            )
+        })
     }
 
     pub(super) fn go_to_page(&mut self, page_1_based: usize, cx: &mut Context<Self>) {
@@ -632,6 +722,8 @@ impl Render for DataViewerPanel {
             .child(columns_button(&self.table))
             .child(export_popover(id, export_headers, export_rows));
 
+        let filtered = self.filter_bar.read(cx).current_set(cx).is_some();
+        let overlay = self.state_overlay(loading, filtered, cx);
         let first_load = loading && export_rows_empty;
         let stale = loading && !export_rows_empty;
         let body = v_flex()
@@ -656,6 +748,15 @@ impl Render for DataViewerPanel {
                                 .absolute()
                                 .inset_0()
                                 .child(motion::skeleton_table("dv-skel", 10, 4, cx)),
+                        )
+                    })
+                    .when_some(overlay, |d, o| {
+                        d.child(
+                            div()
+                                .absolute()
+                                .inset_0()
+                                .bg(cx.theme().background)
+                                .child(o),
                         )
                     }),
             )

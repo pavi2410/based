@@ -1,6 +1,6 @@
 //! Empty state views — full-panel icon+text and lightweight muted hint variants.
 
-use gpui_kit::component::{ActiveTheme, Icon, IconName, Sizable, v_flex};
+use gpui_kit::component::{ActiveTheme, Icon, IconName, Sizable, h_flex, v_flex};
 use gpui_kit::{prelude::*, *};
 
 use crate::app::prefs;
@@ -92,4 +92,86 @@ pub fn pane_empty_hint(message: impl Into<SharedString>, cx: &App) -> impl IntoE
                 .text_color(cx.theme().muted_foreground)
                 .child(message.into()),
         )
+}
+
+/// Full-panel state with a tone, optional raw detail and action buttons.
+///
+/// Used where the next step matters: an error with Retry, an empty table, a
+/// filter that hides every row.
+pub fn status_panel(
+    title: &str,
+    body: impl Into<SharedString>,
+    icon: IconName,
+    tone: Option<Hsla>,
+    detail: Option<SharedString>,
+    actions: Vec<AnyElement>,
+    cx: &App,
+) -> AnyElement {
+    let theme = cx.theme();
+    let accent = tone.unwrap_or(theme.muted_foreground);
+    let title_id = SharedString::from(title.to_string());
+    v_flex()
+        .size_full()
+        .items_center()
+        .justify_center()
+        .gap(px(12.0))
+        .px(px(24.0))
+        .child(
+            div()
+                .w(px(48.0))
+                .h(px(48.0))
+                .rounded(px(12.0))
+                .border_1()
+                .border_color(accent.opacity(if tone.is_some() { 0.45 } else { 0.9 }))
+                .bg(accent.opacity(if tone.is_some() { 0.1 } else { 0.12 }))
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(Icon::new(icon).text_color(accent).with_animation(
+                    SharedString::from(format!("status-pop-{title_id}")),
+                    motion::spring_animation(),
+                    |icon, t| {
+                        let s = motion::pop(t);
+                        icon.transform(Transformation::scale(size(s, s)))
+                    },
+                )),
+        )
+        .child(
+            v_flex()
+                .items_center()
+                .gap(px(4.0))
+                .child(
+                    div()
+                        .text_sm()
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(theme.foreground)
+                        .child(title.to_string()),
+                )
+                .child(
+                    div()
+                        .max_w(px(420.0))
+                        .text_center()
+                        .text_xs()
+                        .text_color(theme.muted_foreground)
+                        .child(body.into()),
+                ),
+        )
+        .when_some(detail, |v, detail| {
+            v.child(
+                div()
+                    .max_w(px(480.0))
+                    .px(px(8.0))
+                    .py(px(4.0))
+                    .rounded(px(6.0))
+                    .bg(theme.muted.opacity(0.4))
+                    .text_xs()
+                    .font_family(prefs::code_font_family(cx))
+                    .text_color(theme.muted_foreground)
+                    .child(detail),
+            )
+        })
+        .when(!actions.is_empty(), |v| {
+            v.child(h_flex().gap(px(8.0)).children(actions))
+        })
+        .into_any_element()
 }

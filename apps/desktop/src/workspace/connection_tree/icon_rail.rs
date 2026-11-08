@@ -8,11 +8,12 @@ use gpui_kit::component::{
     v_flex,
 };
 use gpui_kit::{
-    AnyElement, App, IntoElement, ParentElement, TestSupportExt as _, WeakEntity, div, prelude::*,
-    px,
+    AnyElement, App, Hsla, IntoElement, ParentElement, SharedString, TestSupportExt as _,
+    WeakEntity, div, prelude::*, px,
 };
 
 use crate::widgets::engine_icon;
+use crate::widgets::motion;
 use crate::workspace::WorkspaceRef;
 
 use super::ConnectionTree;
@@ -110,7 +111,13 @@ fn rail_icon(
     let is_selected = selected == Some(idx);
     let tree_click = tree.clone();
     let tree_menu = tree;
-    let label = row.conn_label.clone();
+    let state_text = match &row.link {
+        Link::Connected => "Connected",
+        Link::Connecting => "Connecting…",
+        Link::Failed(_) => "Connection failed",
+        Link::Disconnected => "Not connected",
+    };
+    let label: SharedString = format!("{} · {state_text}", row.conn_label).into();
     let engine = row.engine;
     let is_connected = row.link == Link::Connected;
     let sidebar = cx.theme().sidebar;
@@ -155,18 +162,24 @@ fn rail_icon(
             connection_context_menu(idx, engine, is_connected, tree_menu.clone(), menu, cx)
         })
         .child(engine_icon(engine))
-        .when(is_connected, |d| {
-            d.child(
-                div()
-                    .absolute()
-                    .bottom(px(3.0))
-                    .right(px(3.0))
-                    .w(px(7.0))
-                    .h(px(7.0))
-                    .rounded_full()
-                    .bg(row.state_color)
-                    .border_1()
-                    .border_color(sidebar),
-            )
-        })
+        .child(state_ring(idx, &row.link, row.state_color, sidebar))
+}
+
+/// Status badge on the tile corner: always visible so idle, failed and busy states read at a glance.
+fn state_ring(idx: usize, link: &Link, color: Hsla, ground: Hsla) -> AnyElement {
+    let dot = div()
+        .absolute()
+        .bottom(px(2.0))
+        .right(px(2.0))
+        .w(px(9.0))
+        .h(px(9.0))
+        .rounded_full()
+        .bg(color)
+        .border_2()
+        .border_color(ground);
+    if *link == Link::Connecting {
+        motion::pulse(SharedString::from(format!("rail-busy-{idx}")), dot)
+    } else {
+        dot.into_any_element()
+    }
 }

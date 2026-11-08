@@ -128,6 +128,14 @@ impl Render for ConnectionWizardPanel {
                         }),
                 )
                 .child(labeled_field(
+                    "Name",
+                    muted,
+                    Input::new(&self.name)
+                        .cleanable(true)
+                        .aria_label("Connection name"),
+                ))
+                .child(form_section("Connection", cx))
+                .child(labeled_field(
                     "Engine",
                     muted,
                     Select::new(&self.engine).disabled(editing).w_full(),
@@ -144,14 +152,7 @@ impl Render for ConnectionWizardPanel {
                 .when(engine == EngineKind::SQLite, |v| {
                     self.sqlite_fields(v, muted, cx)
                 })
-                .child(Separator::horizontal())
-                .child(labeled_field(
-                    "Name",
-                    muted,
-                    Input::new(&self.name)
-                        .cleanable(true)
-                        .aria_label("Connection name"),
-                ))
+                .child(form_section("Identity", cx))
                 .child(
                     v_flex()
                         .gap_1()

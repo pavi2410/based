@@ -17,6 +17,7 @@ impl ConnectionWizardPanel {
                     Input::new(&self.port).cleanable(true).aria_label("Port"),
                 )),
         )
+        .child(form_section("Authentication", cx))
         .child(
             h_flex()
                 .gap_2()
@@ -67,12 +68,13 @@ impl ConnectionWizardPanel {
                 Select::new(&self.ssl_mode).w_full(),
             ))
         })
+        .child(form_section("SSH tunnel", cx))
         .child(
             h_flex()
                 .w_full()
                 .items_center()
                 .justify_between()
-                .child(div().text_sm().child("SSH tunnel"))
+                .child(div().text_sm().child("Connect through a bastion host"))
                 .child(
                     Switch::new("wizard-ssh")
                         .with_size(Size::Small)

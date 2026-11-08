@@ -1,6 +1,6 @@
 //! Shared labeled inputs for connection wizards.
 
-use gpui_kit::component::{input::InputState, v_flex};
+use gpui_kit::component::{ActiveTheme, h_flex, input::InputState, v_flex};
 use gpui_kit::{
     App, Context, Entity, Hsla, IntoElement, ParentElement, SharedString, Styled, Window, div,
     prelude::*,
@@ -50,4 +50,21 @@ fn labeled_field_inner(title: &str, muted: Hsla, input: impl IntoElement) -> gpu
                 .child(SharedString::from(title.to_string())),
         )
         .child(div().w_full().child(input))
+}
+
+/// Form section header: small caps label with a hairline running to the edge.
+pub fn form_section(title: &'static str, cx: &App) -> impl IntoElement {
+    h_flex()
+        .w_full()
+        .items_center()
+        .gap_2()
+        .pt_2()
+        .child(
+            div()
+                .text_xs()
+                .font_weight(gpui_kit::FontWeight::SEMIBOLD)
+                .text_color(cx.theme().muted_foreground)
+                .child(title.to_uppercase()),
+        )
+        .child(div().flex_1().h(gpui_kit::px(1.0)).bg(cx.theme().border))
 }

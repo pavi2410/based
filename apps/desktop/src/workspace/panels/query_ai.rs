@@ -1,5 +1,7 @@
 //! AI prompt bar wiring for [`QueryEditorPanel`]: context, applying proposals, run confirmation.
 
+use std::ops::Range;
+
 use based_ai::context::ContextLevel;
 use gpui_kit::component::{
     ActiveTheme, Icon, IconName, Sizable as _,
@@ -46,9 +48,31 @@ impl QueryEditorPanel {
         let off = self.ai_level(cx) == ContextLevel::Off;
         let was_open = self.ai.is_open();
         self.ai.toggle(off, window, cx);
+        self.sync_ai_scope(cx);
         if was_open {
             self.focus_editor(window, cx);
         }
+    }
+
+    /// Byte range of the selection, `None` when nothing but whitespace is selected.
+    fn selection_range(&self, cx: &gpui_kit::App) -> Option<Range<usize>> {
+        let state = self.sql_input.read(cx);
+        let range = state.selected_range();
+        let text = state.value();
+        let inside = text.get(range.clone())?;
+        (!inside.trim().is_empty()).then_some(range)
+    }
+
+    /// Tells the bar whether an edit will touch the selection or the whole query.
+    pub(super) fn sync_ai_scope(&self, cx: &mut Context<Self>) {
+        let label = if self.selection_range(cx).is_some() {
+            "selection"
+        } else {
+            "whole query"
+        };
+        self.ai
+            .prompt()
+            .update(cx, |p, cx| p.set_scope(Some(label.into()), cx));
     }
 
     pub fn focus_editor(&self, window: &mut Window, cx: &mut Context<Self>) {
@@ -159,9 +183,14 @@ impl QueryEditorPanel {
         match event {
             AiPromptEvent::Submit(instruction) => self.ask_ai(instruction.clone(), cx),
             AiPromptEvent::Apply(text) => {
-                self.ai.note_applied(text);
+                let text = splice_scope(
+                    &text_from_input(&self.sql_input, cx),
+                    self.ai_scope.take(),
+                    text,
+                );
+                self.ai.note_applied(&text);
                 self.ai_confirm = false;
-                set_input_text(&self.sql_input, text, window, cx);
+                set_input_text(&self.sql_input, &text, window, cx);
                 self.ai.close(cx);
                 self.focus_editor(window, cx);
             }
@@ -174,8 +203,14 @@ impl QueryEditorPanel {
 
     fn ask_ai(&mut self, instruction: String, cx: &mut Context<Self>) {
         let engine = self.source.engine();
-        let current = text_from_input(&self.sql_input, cx);
-        let mentioned = format!("{current} {instruction}");
+        let whole = text_from_input(&self.sql_input, cx);
+        self.ai_scope = self.selection_range(cx);
+        let current = match &self.ai_scope {
+            Some(range) => whole.get(range.clone()).unwrap_or(&whole).to_owned(),
+            None => whole.clone(),
+        };
+        self.sync_ai_scope(cx);
+        let mentioned = format!("{whole} {instruction}");
         let schema = schema::context(engine, &self.schema, self.ai_level(cx), &mentioned);
         self.ai.ask(engine, schema, current, instruction, cx);
     }
@@ -237,5 +272,39 @@ impl QueryEditorPanel {
                 )
                 .into_any_element(),
         )
+    }
+}
+
+/// `proposal` in place of `scope` inside `whole`; the proposal alone when it was a whole-query edit
+/// or the text changed since.
+fn splice_scope(whole: &str, scope: Option<Range<usize>>, proposal: &str) -> String {
+    match scope {
+        Some(range) if whole.get(range.clone()).is_some() => {
+            let mut out = String::with_capacity(whole.len() + proposal.len());
+            out.push_str(&whole[..range.start]);
+            out.push_str(proposal.trim_end_matches('\n'));
+            out.push_str(&whole[range.end..]);
+            out
+        }
+        _ => proposal.to_owned(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn selection_edit_keeps_the_rest() {
+        let whole = "SELECT 1;\nSELECT 2;\nSELECT 3;";
+        let start = whole.find("SELECT 2").unwrap();
+        let out = splice_scope(whole, Some(start..start + 9), "SELECT 20;\n");
+        assert_eq!(out, "SELECT 1;\nSELECT 20;\nSELECT 3;");
+    }
+
+    #[test]
+    fn whole_query_edit_replaces_everything() {
+        assert_eq!(splice_scope("a", None, "b"), "b");
+        assert_eq!(splice_scope("a", Some(5..9), "b"), "b");
     }
 }

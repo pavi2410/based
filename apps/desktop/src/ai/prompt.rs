@@ -48,6 +48,10 @@ pub struct AiPrompt {
     diff: Option<AiDiff>,
     /// Why AI can't be used here; replaces the input.
     notice: Option<SharedString>,
+    /// What the edit applies to, e.g. "selection" or "whole query".
+    scope: Option<SharedString>,
+    /// The last instruction sent, for Try again.
+    last: String,
 }
 
 impl EventEmitter<AiPromptEvent> for AiPrompt {}
@@ -74,6 +78,15 @@ impl AiPrompt {
             proposal: String::new(),
             diff: None,
             notice: None,
+            scope: None,
+            last: String::new(),
+        }
+    }
+
+    pub fn set_scope(&mut self, scope: Option<SharedString>, cx: &mut Context<Self>) {
+        if self.scope != scope {
+            self.scope = scope;
+            cx.notify();
         }
     }
 
@@ -110,6 +123,7 @@ impl AiPrompt {
         cx: &mut Context<Self>,
     ) {
         self.reset(cx);
+        self.last.clone_from(&instruction);
         self.original = current.clone();
         self.phase = Phase::Streaming;
         self.job = Some(launch(
@@ -189,10 +203,36 @@ impl AiPrompt {
                 )
             }
             Phase::Failed(e) => Some(
-                div()
-                    .text_sm()
-                    .text_color(cx.theme().danger)
-                    .child(error_text(e))
+                v_flex()
+                    .gap_2()
+                    .child(
+                        div()
+                            .text_sm()
+                            .text_color(cx.theme().danger)
+                            .child(error_text(e)),
+                    )
+                    .child(
+                        h_flex()
+                            .gap_2()
+                            .child(
+                                Button::new("ai-retry")
+                                    .primary()
+                                    .small()
+                                    .label("Try again")
+                                    .disabled(self.last.is_empty())
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        let text = this.last.clone();
+                                        cx.emit(AiPromptEvent::Submit(text));
+                                    })),
+                            )
+                            .child(
+                                Button::new("ai-failed-discard")
+                                    .ghost()
+                                    .small()
+                                    .label("Discard")
+                                    .on_click(cx.listener(|this, _, _, cx| this.reset(cx))),
+                            ),
+                    )
                     .into_any_element(),
             ),
             Phase::Proposal => {
@@ -224,7 +264,7 @@ impl AiPrompt {
                                     Button::new("ai-apply")
                                         .primary()
                                         .small()
-                                        .label("Apply")
+                                        .label("Apply  ⌘⏎")
                                         .disabled(self.diff.is_none())
                                         .on_click(cx.listener(|this, _, _, cx| this.apply(cx))),
                                 )
@@ -232,7 +272,7 @@ impl AiPrompt {
                                     Button::new("ai-discard")
                                         .ghost()
                                         .small()
-                                        .label("Discard")
+                                        .label("Discard  Esc")
                                         .on_click(cx.listener(|this, _, _, cx| this.reset(cx))),
                                 ),
                         )
@@ -246,10 +286,11 @@ impl AiPrompt {
 impl Render for AiPrompt {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
-        let (border, bg, muted) = (
+        let (border, bg, muted, accent) = (
             theme.border.opacity(0.72),
             theme.muted.opacity(0.18),
             theme.muted_foreground,
+            theme.primary,
         );
         let head: gpui_kit::AnyElement = match &self.notice {
             Some(notice) => div()
@@ -258,9 +299,22 @@ impl Render for AiPrompt {
                 .text_color(muted)
                 .child(notice.clone())
                 .into_any_element(),
-            None => div()
+            None => h_flex()
                 .flex_1()
-                .child(Input::new(&self.input).small())
+                .gap_2()
+                .items_center()
+                .child(div().flex_1().child(Input::new(&self.input).small()))
+                .children(self.scope.clone().map(|scope| {
+                    div()
+                        .px_2()
+                        .rounded_full()
+                        .border_1()
+                        .border_color(accent.opacity(0.35))
+                        .bg(accent.opacity(0.1))
+                        .text_xs()
+                        .text_color(accent)
+                        .child(scope)
+                }))
                 .into_any_element(),
         };
         let body = if self.notice.is_some() {
@@ -277,6 +331,12 @@ impl Render for AiPrompt {
             .on_key_down(cx.listener(|this, ev: &KeyDownEvent, _, cx| {
                 if ev.keystroke.key == "escape" {
                     this.dismiss(cx);
+                } else if ev.keystroke.key == "enter"
+                    && ev.keystroke.modifiers.secondary()
+                    && matches!(this.phase, Phase::Proposal)
+                    && this.diff.is_some()
+                {
+                    this.apply(cx);
                 }
             }))
             .child(

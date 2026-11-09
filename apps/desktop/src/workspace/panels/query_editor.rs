@@ -149,6 +149,8 @@ pub struct QueryEditorPanel {
     pub(super) ai: AiHost,
     /// A write from an AI proposal is waiting on the confirmation banner.
     pub(super) ai_confirm: bool,
+    /// Byte range the pending AI edit replaces; `None` means the whole query.
+    pub(super) ai_scope: Option<Range<usize>>,
     /// The in-flight run; dropping it stops waiting for the result.
     run_task: Option<Task<()>>,
     ticker: Option<Task<()>>,
@@ -210,6 +212,7 @@ impl QueryEditorPanel {
             dirty: false,
             ai: AiHost::new(window, cx, Self::on_ai_event),
             ai_confirm: false,
+            ai_scope: None,
             run_task: None,
             ticker: None,
             run_started: None,

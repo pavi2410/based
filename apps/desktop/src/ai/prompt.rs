@@ -21,6 +21,20 @@ use super::launch::{error_text, launch};
 use super::stream::{AiStream, StreamEvent};
 use crate::widgets::ai_diff::AiDiff;
 
+/// The entry to show after pressing up (`older`) or down. `None` leaves browsing: past the
+/// newest entry, or when there is nothing to recall.
+fn step_recall(len: usize, at: Option<usize>, older: bool) -> Option<usize> {
+    match (at, older) {
+        (None, true) if len > 0 => Some(len - 1),
+        (Some(ix), true) => Some(ix.saturating_sub(1)),
+        (Some(ix), false) if ix + 1 < len => Some(ix + 1),
+        _ => None,
+    }
+}
+
+/// Instructions kept for recall.
+const HISTORY_MAX: usize = 30;
+
 pub enum AiPromptEvent {
     /// The user sent an instruction; the host answers with [`AiPrompt::start`].
     Submit(String),
@@ -52,6 +66,12 @@ pub struct AiPrompt {
     scope: Option<SharedString>,
     /// The last instruction sent, for Try again.
     last: String,
+    /// Instructions sent from this bar, oldest first.
+    history: Vec<String>,
+    /// Position while browsing with the arrow keys; `None` when typing fresh text.
+    recall: Option<usize>,
+    /// Text typed before browsing began, restored by stepping past the newest entry.
+    draft: String,
 }
 
 impl EventEmitter<AiPromptEvent> for AiPrompt {}
@@ -80,7 +100,41 @@ impl AiPrompt {
             notice: None,
             scope: None,
             last: String::new(),
+            history: Vec::new(),
+            recall: None,
+            draft: String::new(),
         }
+    }
+
+    /// Adds `text` to the recall list, dropping an immediate repeat.
+    fn remember(&mut self, text: &str) {
+        self.recall = None;
+        if self.history.last().map(String::as_str) != Some(text) {
+            self.history.push(text.to_owned());
+            if self.history.len() > HISTORY_MAX {
+                self.history.remove(0);
+            }
+        }
+    }
+
+    /// Up (`older`) or down through earlier instructions. Does nothing while the field holds
+    /// text typed fresh, so the arrows still move the caret there.
+    fn browse(&mut self, older: bool, window: &mut Window, cx: &mut Context<Self>) {
+        let typed = self.input.read(cx).value().to_string();
+        if self.recall.is_none() && !typed.is_empty() {
+            return;
+        }
+        let next = step_recall(self.history.len(), self.recall, older);
+        if self.recall.is_none() && next.is_some() {
+            self.draft = typed;
+        }
+        let text = match next {
+            Some(ix) => self.history[ix].clone(),
+            None if self.recall.is_some() && !older => take(&mut self.draft),
+            None => return,
+        };
+        self.recall = next;
+        self.set_instruction(&text, window, cx);
     }
 
     pub fn set_scope(&mut self, scope: Option<SharedString>, cx: &mut Context<Self>) {
@@ -123,6 +177,7 @@ impl AiPrompt {
         cx: &mut Context<Self>,
     ) {
         self.reset(cx);
+        self.remember(&instruction);
         self.last.clone_from(&instruction);
         self.original = current.clone();
         self.phase = Phase::Streaming;
@@ -328,8 +383,10 @@ impl Render for AiPrompt {
             .border_b_1()
             .border_color(border)
             .bg(bg)
-            .on_key_down(cx.listener(|this, ev: &KeyDownEvent, _, cx| {
-                if ev.keystroke.key == "escape" {
+            .on_key_down(cx.listener(|this, ev: &KeyDownEvent, window, cx| {
+                if ev.keystroke.key == "up" || ev.keystroke.key == "down" {
+                    this.browse(ev.keystroke.key == "up", window, cx);
+                } else if ev.keystroke.key == "escape" {
                     this.dismiss(cx);
                 } else if ev.keystroke.key == "enter"
                     && ev.keystroke.modifiers.secondary()
@@ -357,5 +414,21 @@ impl Render for AiPrompt {
                     ),
             )
             .children(body)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::step_recall;
+
+    #[test]
+    fn arrows_walk_the_history() {
+        assert_eq!(step_recall(0, None, true), None);
+        assert_eq!(step_recall(3, None, true), Some(2));
+        assert_eq!(step_recall(3, Some(2), true), Some(1));
+        assert_eq!(step_recall(3, Some(0), true), Some(0));
+        assert_eq!(step_recall(3, Some(1), false), Some(2));
+        assert_eq!(step_recall(3, Some(2), false), None);
+        assert_eq!(step_recall(3, None, false), None);
     }
 }

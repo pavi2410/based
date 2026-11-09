@@ -1,15 +1,16 @@
 //! Tool calls in the transcript: one status line each, expanding to arguments and output.
 
-use based_ai::tools::ToolCall;
+use based_ai::tools::{CONNECT, LIST_CONNECTIONS, RUN_QUERY, ToolCall};
 use based_ai::{Message, Role};
 use gpui_kit::component::{ActiveTheme, Icon, IconName, Sizable as _, h_flex, v_flex};
 use gpui_kit::{
     AnyElement, App, Context, Entity, InteractiveElement as _, IntoElement, ParentElement,
-    StatefulInteractiveElement as _, Styled, div, px,
+    SharedString, StatefulInteractiveElement as _, Styled, div, px,
 };
 
 use super::{ChatPane, style};
 use crate::app::prefs;
+use crate::widgets::motion;
 
 const SUMMARY_MAX: usize = 80;
 const ARGS_LINES: usize = 10;
@@ -27,8 +28,14 @@ impl ChatPane {
             .find(|c| &c.id == id)
     }
 
-    fn call_line(&self, call: Option<&ToolCall>, name: &str, target: Option<&String>) -> String {
-        let summary = call.map_or_else(|| name.to_owned(), summary);
+    fn call_line(
+        &self,
+        call: Option<&ToolCall>,
+        name: &str,
+        target: Option<&String>,
+        running: bool,
+    ) -> String {
+        let summary = call.map_or_else(|| name.to_owned(), |c| sentence(c, running));
         match target {
             Some(t) => format!("{summary}  @ {t}"),
             None => summary,
@@ -80,8 +87,7 @@ impl ChatPane {
                     .flex_1()
                     .min_w_0()
                     .truncate()
-                    .font_family(prefs::code_font_family(cx))
-                    .child(self.call_line(call, name, target)),
+                    .child(self.call_line(call, name, target, false)),
             );
         let mut col = v_flex().child(line);
         if open {
@@ -135,24 +141,19 @@ impl ChatPane {
         let calls = self.turns.last().map_or(&[][..], |m| m.calls.as_slice());
         v_flex()
             .children(calls.iter().map(|call| {
-                h_flex()
+                let row = h_flex()
                     .gap_1p5()
                     .items_center()
                     .text_size(style::small(cx))
                     .text_color(muted)
                     .child(Icon::new(IconName::Loader).xsmall())
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .truncate()
-                            .font_family(prefs::code_font_family(cx))
-                            .child(self.call_line(
-                                Some(call),
-                                &call.name,
-                                self.targets.get(&call.id),
-                            )),
-                    )
+                    .child(div().flex_1().min_w_0().truncate().child(self.call_line(
+                        Some(call),
+                        &call.name,
+                        self.targets.get(&call.id),
+                        true,
+                    )));
+                motion::pulse(SharedString::from(format!("chat-run-{}", call.id)), row)
             }))
             .into_any_element()
     }
@@ -167,6 +168,36 @@ impl ChatPane {
         }
         cx.notify();
     }
+}
+
+/// What the call does, in words: "Looked at orders", or "Looking at orders" while it runs.
+fn sentence(call: &ToolCall, running: bool) -> String {
+    let arg = |key: &str| call.args[key].as_str().unwrap_or_default().to_owned();
+    let (doing, did) = match call.name.as_str() {
+        "list_tables" => ("Listing tables".to_owned(), "Listed tables".to_owned()),
+        "describe_table" => {
+            let t = arg("table");
+            (format!("Looking at {t}"), format!("Looked at {t}"))
+        }
+        "explain" => (
+            "Checking the plan".to_owned(),
+            "Checked the plan".to_owned(),
+        ),
+        RUN_QUERY => ("Running a query".to_owned(), "Ran a query".to_owned()),
+        LIST_CONNECTIONS => (
+            "Listing connections".to_owned(),
+            "Listed connections".to_owned(),
+        ),
+        CONNECT => {
+            let c = arg("connection");
+            (format!("Connecting to {c}"), format!("Connected to {c}"))
+        }
+        _ => {
+            let s = summary(call);
+            return s;
+        }
+    };
+    if running { doing } else { did }
 }
 
 /// `name arg1 arg2`, clipped to one short line.
@@ -222,6 +253,18 @@ mod tests {
         let s = summary(&c);
         assert!(!s.contains('\n') && s.ends_with("..."));
         assert_eq!(summary(&call(json!({}))), "run_readonly_query");
+    }
+
+    #[test]
+    fn steps_read_as_sentences() {
+        let c = ToolCall {
+            id: "1".into(),
+            name: "describe_table".into(),
+            args: json!({ "table": "orders" }),
+        };
+        assert_eq!(sentence(&c, true), "Looking at orders");
+        assert_eq!(sentence(&c, false), "Looked at orders");
+        assert_eq!(sentence(&call(json!({})), false), "Ran a query");
     }
 
     #[test]

@@ -16,7 +16,6 @@ use gpui_kit::{
 };
 
 use super::{ChatPane, style};
-use crate::ai::OFF_NOTICE;
 use crate::connection::ConnectionId;
 use crate::workspace::WorkspaceRef;
 
@@ -113,7 +112,12 @@ impl ChatPane {
         )
     }
 
-    fn set_access(&mut self, id: &ConnectionId, level: ContextLevel, cx: &mut Context<Self>) {
+    pub(super) fn set_access(
+        &mut self,
+        id: &ConnectionId,
+        level: ContextLevel,
+        cx: &mut Context<Self>,
+    ) {
         let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) else {
             return;
         };
@@ -135,17 +139,31 @@ impl ChatPane {
             return super::view::muted_line("Open a database to ask about it.", cx);
         };
         if ctx.level == ContextLevel::Off {
+            let id = ctx.entry.read(cx).id.clone();
             return v_flex()
                 .flex_1()
                 .justify_center()
+                .items_start()
                 .gap_2()
-                .px_5()
+                .px_4()
                 .child(
                     div()
                         .text_size(style::body(cx))
                         .text_color(muted)
-                        .child(OFF_NOTICE),
+                        .child(format!("AI is off for {}.", ctx.label)),
                 )
+                .child(
+                    Button::new("chat-enable")
+                        .primary()
+                        .small()
+                        .label("Enable, schema only")
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.set_access(&id, ContextLevel::Schema, cx);
+                        })),
+                )
+                .child(div().text_size(style::small(cx)).text_color(muted).child(
+                    "Sends table and column names, never row values. Saved in the connection file.",
+                ))
                 .into_any_element();
         }
         let known = match self.tables.len() {

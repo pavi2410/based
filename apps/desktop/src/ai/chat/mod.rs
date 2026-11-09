@@ -9,6 +9,7 @@ mod approve;
 mod calls;
 mod cards;
 mod conn;
+mod failure;
 mod footer;
 mod group;
 mod saved;

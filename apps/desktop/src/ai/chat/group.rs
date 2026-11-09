@@ -12,8 +12,6 @@ use gpui_kit::{
 
 use super::cards::{self, Segment};
 use super::{ChatPane, Phase, style};
-use crate::ai::launch::error_text;
-use gpui_kit::component::ActiveTheme;
 
 /// Turn ranges that share a row: each user message alone, then consecutive assistant and
 /// tool-result turns together.
@@ -49,7 +47,7 @@ impl ChatPane {
     pub(super) fn row(&self, ix: usize, this: &Entity<Self>, cx: &App) -> AnyElement {
         let groups = turn_groups(&self.turns);
         let Some(range) = groups.get(ix).cloned() else {
-            return div().px_3().child(self.live(cx)).into_any_element();
+            return div().px_3().child(self.live(this, cx)).into_any_element();
         };
         let first = &self.turns[range.start];
         if first.role == Role::User {
@@ -85,7 +83,7 @@ impl ChatPane {
             group = group.children(self.group_footer(start..end, this, cx));
         }
         if live {
-            group = group.child(self.live(cx));
+            group = group.child(self.live(this, cx));
         }
         group.into_any_element()
     }
@@ -125,14 +123,9 @@ impl ChatPane {
     }
 
     /// Streaming text, running tools, the error, or a "Thinking..." placeholder.
-    fn live(&self, cx: &App) -> AnyElement {
-        let theme = cx.theme();
+    fn live(&self, this: &Entity<Self>, cx: &App) -> AnyElement {
         match &self.phase {
-            Phase::Failed(e) => div()
-                .text_size(style::body(cx))
-                .text_color(theme.danger)
-                .child(error_text(e))
-                .into_any_element(),
+            Phase::Failed(e) => self.failure(e, this, cx),
             Phase::Tools => v_flex()
                 .gap_1()
                 .child(self.running_calls(cx))

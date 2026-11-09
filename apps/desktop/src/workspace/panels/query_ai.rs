@@ -82,10 +82,7 @@ impl QueryEditorPanel {
 
     /// Caret button next to "Ask AI" listing the query questions.
     pub(super) fn assist_menu(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let mut kinds = vec![Assist::Explain, Assist::Optimize];
-        if self.can_ask_about_results(cx) {
-            kinds.push(Assist::Results);
-        }
+        let kinds = [Assist::Explain, Assist::Optimize];
         let panel = cx.weak_entity();
         Button::new(format!("{}-ai-more", self.source.id()))
             .ghost()

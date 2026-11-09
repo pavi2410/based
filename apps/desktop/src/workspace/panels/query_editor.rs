@@ -27,6 +27,7 @@ use gpui_kit::component::{
 };
 use gpui_kit::{App, Entity, prelude::*, *};
 
+use super::query_ai::Assist;
 use crate::ai::AiHost;
 use crate::app::prefs;
 use crate::bindings::AskAi;
@@ -1528,6 +1529,15 @@ impl Render for QueryEditorPanel {
                 self.run_started.map(|t| t.elapsed().as_millis() as u64),
                 cx,
             ))
+            .children(self.can_ask_about_results(cx).then(|| {
+                Button::new(format!("{id}-ask-results"))
+                    .ghost()
+                    .xsmall()
+                    .icon(IconName::Bot)
+                    .label("Ask about results")
+                    .tooltip("Send the first rows to the assistant")
+                    .on_click(cx.listener(|panel, _, _, cx| panel.assist(Assist::Results, cx)))
+            }))
             .child(export_popover(&format!("{id}-qe"), headers, rows))
             .into_any_element();
         let strip = result_tab_strip(

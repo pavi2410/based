@@ -4,6 +4,7 @@
 //! read-only against the focused connection and the results go back to it, up to
 //! [`MAX_ROUNDS`].
 
+mod access;
 mod approve;
 mod calls;
 mod conn;

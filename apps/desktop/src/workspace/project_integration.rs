@@ -123,6 +123,27 @@ impl Workspace {
         });
     }
 
+    /// Rewrites a saved connection's `[ai]` table. Unsaved connections have no file to change.
+    pub fn set_connection_ai(
+        &mut self,
+        id: &ConnectionId,
+        ai: Option<AiSettings>,
+        cx: &mut Context<Self>,
+    ) -> Result<(), String> {
+        let Some((config, origin, tags)) = self.registry.read(cx).get(id, cx).map(|e| {
+            let e = e.read(cx);
+            (e.config.clone(), e.origin, e.tags.clone())
+        }) else {
+            return Err("This connection is no longer open.".into());
+        };
+        if super::wizard_logic::relative_id_for_saved(id).is_none() {
+            return Err("Save the connection first to change its AI access.".into());
+        }
+        let destination = ConnectionDestination::from_origin(origin);
+        self.save_wizard_connection(config, destination, Some(id.clone()), tags, ai, cx)
+            .map(|_| ())
+    }
+
     /// Persist the wizard config to the chosen based-dir. Migrates a live unsaved session.
     /// Returns `(saved_id, reconnect)` — reconnect when a saved connection's open params changed
     /// while it was connected.

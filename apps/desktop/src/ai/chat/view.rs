@@ -1,6 +1,6 @@
 use based_ai::Message;
 use gpui_kit::component::{
-    ActiveTheme, Icon, IconName, Sizable as _,
+    ActiveTheme, IconName, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex,
     input::Textarea,
@@ -15,38 +15,21 @@ use gpui_kit::{
 use super::{ChatPane, style};
 
 impl ChatPane {
-    fn empty_state(&self, cx: &App) -> AnyElement {
-        let muted = cx.theme().muted_foreground;
-        v_flex()
-            .flex_1()
-            .items_center()
-            .justify_center()
-            .gap_2()
-            .px_6()
-            .child(Icon::new(IconName::Bot).size_6().text_color(muted))
-            .child(
-                div()
-                    .text_size(style::body(cx))
-                    .text_color(muted)
-                    .text_center()
-                    .child("Ask about SQL, Mongo pipelines or Redis commands."),
-            )
-            .into_any_element()
-    }
-
-    /// Active database, plus the notice when assistant access is off.
-    fn status_line(&self, cx: &App) -> AnyElement {
-        let text = match (self.active(), &self.notice) {
-            (Some(c), None) => format!("{} · {}", c.label, c.engine.short_label()),
-            (Some(c), Some(n)) => format!("{} · {n}", c.label),
-            (None, _) => "No database active".to_owned(),
+    /// Active database and what the assistant may see on it.
+    fn status_line(&self, cx: &mut Context<Self>) -> AnyElement {
+        let text = match self.active() {
+            Some(c) => format!("{} · {}", c.label, c.engine.short_label()),
+            None => "No database active".to_owned(),
         };
-        div()
-            .px_3()
+        h_flex()
+            .px_2()
             .pt_1p5()
+            .gap_1()
+            .items_center()
             .text_size(style::small(cx))
             .text_color(cx.theme().muted_foreground)
-            .child(text)
+            .child(div().pl_1().flex_1().min_w_0().truncate().child(text))
+            .children(self.access_chip(cx))
             .into_any_element()
     }
 

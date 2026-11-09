@@ -11,6 +11,11 @@ pub(super) fn body(cx: &App) -> Pixels {
     cx.theme().font_size
 }
 
+/// Headings inside the pane.
+pub(super) fn title(cx: &App) -> Pixels {
+    cx.theme().font_size + px(2.0)
+}
+
 /// Secondary lines: tool calls, status, timestamps.
 pub(super) fn small(cx: &App) -> Pixels {
     cx.theme().font_size - px(1.0)

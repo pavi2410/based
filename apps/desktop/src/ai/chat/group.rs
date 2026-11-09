@@ -6,8 +6,11 @@ use std::ops::Range;
 
 use based_ai::{Message, Role};
 use gpui_kit::component::{message::MessageGroup, v_flex};
-use gpui_kit::{AnyElement, App, Entity, IntoElement, ParentElement, Styled, div, px};
+use gpui_kit::{
+    AnyElement, App, Entity, IntoElement, ParentElement, SharedString, Styled, div, px,
+};
 
+use super::cards::{self, Segment};
 use super::{ChatPane, Phase, style};
 use crate::ai::launch::error_text;
 use gpui_kit::component::ActiveTheme;
@@ -74,9 +77,7 @@ impl ChatPane {
             }
             group = flush(group, &mut calls);
             if !turn.content.is_empty() {
-                group = group.child(div().text_size(style::body(cx)).child(
-                    style::markdown(("chat-reply", ix), turn.content.clone(), cx).selectable(true),
-                ));
+                group = group.child(self.reply_body(ix, &turn.content, live, cx));
             }
         }
         group = flush(group, &mut calls);
@@ -87,6 +88,40 @@ impl ChatPane {
             group = group.child(self.live(cx));
         }
         group.into_any_element()
+    }
+
+    /// Reply prose; finished SQL blocks on a SQL connection become cards.
+    fn reply_body(&self, ix: usize, text: &str, live: bool, cx: &App) -> AnyElement {
+        let prose = |id: SharedString, text: String| {
+            div()
+                .text_size(style::body(cx))
+                .child(style::markdown(id, text, cx).selectable(true))
+                .into_any_element()
+        };
+        let card_target = self
+            .active()
+            .filter(|c| !live && cards::supports_cards(c.engine))
+            .map(|c| (c.engine, c.entry.read(cx).id.clone()));
+        let Some((engine, conn)) = card_target else {
+            return prose(format!("chat-reply-{ix}").into(), text.to_owned());
+        };
+        v_flex()
+            .children(
+                cards::split_reply(text)
+                    .into_iter()
+                    .enumerate()
+                    .map(|(n, seg)| match seg {
+                        Segment::Text(t) => prose(format!("chat-reply-{ix}-{n}").into(), t),
+                        Segment::Sql(sql) => cards::sql_card(
+                            SharedString::from(format!("chat-sql-{ix}-{n}")),
+                            &sql,
+                            engine,
+                            &conn,
+                            cx,
+                        ),
+                    }),
+            )
+            .into_any_element()
     }
 
     /// Streaming text, running tools, the error, or a "Thinking..." placeholder.

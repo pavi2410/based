@@ -4,6 +4,7 @@ use std::mem::take;
 
 use based_ai::tools::check;
 use based_core::EngineKind;
+use based_project::save_sql_query;
 use gpui_kit::component::{
     ActiveTheme, Sizable as _,
     button::{Button, ButtonVariants as _},
@@ -17,6 +18,9 @@ use gpui_kit::{
 use super::style;
 use crate::app::prefs;
 use crate::connection::ConnectionId;
+use crate::project::ProjectRoot;
+use crate::workspace::notify;
+use crate::workspace::panels::query_editor::save_target_for;
 use crate::workspace::tabs::inbox::{self, request_workspace_flush};
 use crate::workspace::tabs::spec::{QueryEditorInit, TabSpec};
 
@@ -96,6 +100,34 @@ fn open_in_editor(conn: &ConnectionId, sql: String, run: bool, cx: &mut App) {
     request_workspace_flush(cx);
 }
 
+/// Name for a saved card query: its first `--` comment, else the opening words.
+fn query_name(sql: &str) -> String {
+    let comment = sql
+        .lines()
+        .next()
+        .and_then(|l| l.trim().strip_prefix("--"))
+        .map(|l| l.trim().to_owned())
+        .filter(|l| !l.is_empty());
+    comment.unwrap_or_else(|| {
+        let words: Vec<&str> = sql.split_whitespace().take(6).collect();
+        format!("Assistant: {}", words.join(" "))
+    })
+}
+
+/// Writes the card's SQL into the project's queries folder.
+fn save_to_project(conn: &ConnectionId, engine: EngineKind, sql: &str, cx: &mut App) {
+    let Some(root) = cx.try_global::<ProjectRoot>().map(|r| r.0.clone()) else {
+        notify::push_info(cx, "Open a project to save queries.");
+        return;
+    };
+    let target = save_target_for(conn, engine, cx);
+    let name = query_name(sql);
+    match save_sql_query(&root, &name, sql, &target, None) {
+        Ok(_) => notify::push_info(cx, format!("Saved {name}")),
+        Err(e) => notify::push_error(cx, "Could not save query", e.to_string()),
+    }
+}
+
 pub(super) fn sql_card(
     id: impl Into<ElementId>,
     sql: &str,
@@ -119,7 +151,8 @@ pub(super) fn sql_card(
     let key = |suffix: &str| -> SharedString { format!("{id}-{suffix}").into() };
     let button = |suffix: &str| Button::new(key(suffix)).small();
     let (run_sql, insert_sql, copy_sql) = (sql.to_owned(), sql.to_owned(), sql.to_owned());
-    let (run_conn, insert_conn) = (conn.clone(), conn.clone());
+    let (run_conn, insert_conn, save_conn) = (conn.clone(), conn.clone(), conn.clone());
+    let save_sql = sql.to_owned();
     let mut footer = h_flex().gap_1().px_2().py_1p5().items_center().flex_wrap();
     if read_only {
         footer = footer.child(
@@ -136,6 +169,12 @@ pub(super) fn sql_card(
                 .on_click(move |_, _, cx| {
                     open_in_editor(&insert_conn, insert_sql.clone(), false, cx);
                 }),
+        )
+        .child(
+            button("save")
+                .ghost()
+                .label("Save as query")
+                .on_click(move |_, _, cx| save_to_project(&save_conn, engine, &save_sql, cx)),
         )
         .child(div().flex_1())
         .child(
@@ -206,6 +245,15 @@ mod tests {
         );
         let open = split_reply("```sql\nSELECT");
         assert!(matches!(open.as_slice(), [Segment::Text(t)] if t.contains("SELECT")));
+    }
+
+    #[test]
+    fn names_come_from_the_comment_or_the_opening_words() {
+        assert_eq!(query_name("-- Top customers\nSELECT 1"), "Top customers");
+        assert_eq!(
+            query_name("SELECT a, b FROM t WHERE x > 1 ORDER BY a"),
+            "Assistant: SELECT a, b FROM t WHERE"
+        );
     }
 
     #[test]

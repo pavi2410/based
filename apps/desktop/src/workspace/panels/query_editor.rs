@@ -841,28 +841,7 @@ impl QueryEditorPanel {
 
     /// Where a saved copy of this query should run.
     fn save_target(&self, cx: &App) -> SaveTarget {
-        let entry = cx.try_global::<WorkspaceRef>().and_then(|ws| {
-            ws.0.read(cx)
-                .registry()
-                .read(cx)
-                .get(&self.conn_id, cx)
-                .cloned()
-        });
-        if let Some(entry) = entry {
-            let e = entry.read(cx);
-            if include_in_project_target(e.origin, &e.id) {
-                return SaveTarget::Connection(e.id.0.clone());
-            }
-        }
-        SaveTarget::Engine(
-            match self.source.engine() {
-                EngineKind::Postgres => "postgres",
-                EngineKind::SQLite => "sqlite",
-                EngineKind::MongoDB => "mongodb",
-                EngineKind::Redis => "redis",
-            }
-            .into(),
-        )
+        save_target_for(&self.conn_id, self.source.engine(), cx)
     }
 
     /// Save the editor text into the project: in place if it was saved before, else
@@ -1596,4 +1575,27 @@ impl Render for QueryEditorPanel {
             footer,
         )
     }
+}
+
+/// Where a query saved for `conn_id` runs: that connection when it is part of the project,
+/// else any connection of its engine.
+pub(crate) fn save_target_for(conn_id: &ConnectionId, engine: EngineKind, cx: &App) -> SaveTarget {
+    let entry = cx
+        .try_global::<WorkspaceRef>()
+        .and_then(|ws| ws.0.read(cx).registry().read(cx).get(conn_id, cx).cloned());
+    if let Some(entry) = entry {
+        let e = entry.read(cx);
+        if include_in_project_target(e.origin, &e.id) {
+            return SaveTarget::Connection(e.id.0.clone());
+        }
+    }
+    SaveTarget::Engine(
+        match engine {
+            EngineKind::Postgres => "postgres",
+            EngineKind::SQLite => "sqlite",
+            EngineKind::MongoDB => "mongodb",
+            EngineKind::Redis => "redis",
+        }
+        .into(),
+    )
 }

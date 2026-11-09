@@ -192,12 +192,29 @@ impl AiPrompt {
 
     fn on_event(&mut self, event: StreamEvent, cx: &mut Context<Self>) {
         match event {
-            StreamEvent::Text(t) => self.reply.push_str(&t),
+            StreamEvent::Text(t) => {
+                self.reply.push_str(&t);
+                self.preview_diff(cx);
+            }
             StreamEvent::Tool(_) => {}
             StreamEvent::Done(_) => self.finish(cx),
             StreamEvent::Failed(e) => self.fail(e, cx),
         }
         cx.notify();
+    }
+
+    /// Refreshes the diff while the reply streams, once per completed line so a half-written
+    /// line never flickers in and out of the diff.
+    fn preview_diff(&mut self, cx: &mut Context<Self>) {
+        if !self.reply.ends_with('\n') {
+            return;
+        }
+        let code = prompt::extract_code(&self.reply);
+        if code.trim().is_empty() {
+            return;
+        }
+        let code = prompt::match_final_newline(&self.original, code);
+        self.diff = AiDiff::new("query.sql", "sql", &self.original, &code, cx);
     }
 
     fn finish(&mut self, cx: &mut Context<Self>) {
@@ -237,13 +254,14 @@ impl AiPrompt {
         let muted = cx.theme().muted_foreground;
         match &self.phase {
             Phase::Idle => None,
-            Phase::Streaming => {
-                let preview = prompt::extract_code(&self.reply);
-                Some(
-                    v_flex()
-                        .gap_1()
-                        .child(div().text_xs().text_color(muted).child("Generating..."))
-                        .when(!preview.is_empty(), |v| {
+            Phase::Streaming => Some(
+                v_flex()
+                    .gap_1()
+                    .child(div().text_xs().text_color(muted).child("Generating..."))
+                    .children(self.diff.as_ref().map(|diff| diff.view(px(220.0))))
+                    .when(self.diff.is_none(), |v| {
+                        let preview = prompt::extract_code(&self.reply);
+                        v.when(!preview.is_empty(), |v| {
                             v.child(
                                 div()
                                     .id("ai-preview")
@@ -254,9 +272,9 @@ impl AiPrompt {
                                     .child(preview),
                             )
                         })
-                        .into_any_element(),
-                )
-            }
+                    })
+                    .into_any_element(),
+            ),
             Phase::Failed(e) => Some(
                 v_flex()
                     .gap_2()

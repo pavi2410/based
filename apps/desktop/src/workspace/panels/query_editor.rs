@@ -167,7 +167,7 @@ pub struct QueryEditorPanel {
     /// Project-relative path once saved, so Save overwrites instead of asking again.
     saved_path: Option<String>,
     /// Where the last error points in the editor text, when the message names a token.
-    error_span: Option<Range<usize>>,
+    pub(super) error_span: Option<Range<usize>>,
     /// A write on a production connection is waiting for confirmation.
     write_confirm: bool,
     write_approved: bool,

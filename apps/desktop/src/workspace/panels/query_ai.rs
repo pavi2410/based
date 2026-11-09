@@ -13,6 +13,7 @@ use gpui_kit::{AnyElement, Context, IntoElement, ParentElement, Styled, Window, 
 
 use super::query_editor::{QueryEditorPanel, QueryStatus};
 use crate::ai::{AiPromptEvent, ask_assistant, connection_ai, schema};
+use crate::editor::statements::{split_statements, statement_at};
 use crate::widgets::sql_editor::{set_input_text, text_from_input};
 
 const FIX_LABEL: &str = "Fix the error";
@@ -167,6 +168,17 @@ impl QueryEditorPanel {
         }
         if self.ai_level(cx) == ContextLevel::Off {
             return;
+        }
+        // With several statements, fix only the one the error points into.
+        let all = text_from_input(&self.sql_input, cx);
+        if let Some(range) = self
+            .error_span
+            .as_ref()
+            .filter(|_| split_statements(&all).len() > 1)
+            .and_then(|span| statement_at(&all, span.start))
+        {
+            self.sql_input
+                .update(cx, |state, cx| state.set_selected_range(range, cx));
         }
         self.ai
             .prompt()

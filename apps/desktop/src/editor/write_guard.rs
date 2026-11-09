@@ -11,6 +11,29 @@ pub fn changes_data(sql: &str) -> bool {
     words(sql).any(|w| WRITE_KEYWORDS.contains(&w.as_str()))
 }
 
+/// What a write does, for a confirmation: the distinct write verbs in order, and a warning
+/// when an UPDATE or DELETE has no WHERE clause. Empty for a read.
+pub fn write_summary(sql: &str) -> String {
+    let all: Vec<String> = words(sql).collect();
+    let mut verbs: Vec<String> = Vec::new();
+    for w in &all {
+        if WRITE_KEYWORDS.contains(&w.as_str()) && !verbs.contains(w) {
+            verbs.push(w.clone());
+        }
+    }
+    let unbounded =
+        verbs.iter().any(|v| v == "update" || v == "delete") && !all.iter().any(|w| w == "where");
+    let mut out = verbs
+        .iter()
+        .map(|v| v.to_ascii_uppercase())
+        .collect::<Vec<_>>()
+        .join(", ");
+    if unbounded {
+        out.push_str(" with no WHERE clause");
+    }
+    out
+}
+
 /// Lower-cased words outside string literals, quoted identifiers and comments.
 fn words(sql: &str) -> impl Iterator<Item = String> + '_ {
     let mut out = Vec::new();
@@ -61,7 +84,17 @@ fn words(sql: &str) -> impl Iterator<Item = String> + '_ {
 
 #[cfg(test)]
 mod tests {
-    use super::changes_data;
+    use super::{changes_data, write_summary};
+
+    #[test]
+    fn summary_names_verbs_and_unbounded_writes() {
+        assert_eq!(write_summary("SELECT 1"), "");
+        assert_eq!(write_summary("DELETE FROM t WHERE id = 1"), "DELETE");
+        assert_eq!(
+            write_summary("update t set a = 1; drop table x"),
+            "UPDATE, DROP with no WHERE clause"
+        );
+    }
 
     #[test]
     fn writes_are_detected() {

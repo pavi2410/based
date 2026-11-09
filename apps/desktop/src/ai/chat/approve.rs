@@ -9,11 +9,14 @@ use gpui_kit::component::{
     button::{Button, ButtonVariants as _},
     h_flex, v_flex,
 };
-use gpui_kit::{AnyElement, Context, FontWeight, IntoElement, ParentElement, Styled, div};
+use gpui_kit::{
+    AnyElement, App, Context, Entity, FontWeight, IntoElement, ParentElement, Styled, div,
+};
 
 use super::{ChatPane, style};
 use crate::app::prefs;
-use crate::connection::ConnectionState;
+use crate::connection::{ConnectionEntry, ConnectionState, Environment};
+use crate::widgets::metadata_pill::env_pill;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Verdict {
@@ -35,6 +38,7 @@ pub(super) struct Approval {
     kind: Action,
     title: String,
     detail: String,
+    env: Option<Environment>,
     reply: oneshot::Sender<Verdict>,
 }
 
@@ -48,31 +52,37 @@ impl ChatPane {
         call: &ToolCall,
         cx: &mut Context<Self>,
     ) -> Option<oneshot::Receiver<Verdict>> {
-        let (kind, title, detail) = match call.name.as_str() {
+        let (kind, title, detail, env) = match call.name.as_str() {
             CONNECT => {
                 let name = call.args["connection"].as_str()?;
                 let entry = self.find(name, cx)?;
                 if matches!(entry.read(cx).state, ConnectionState::Connected(_)) {
                     return None;
                 }
+                let env = environment_of(&entry, cx);
                 (
                     Action::Connect,
                     format!("Connect to {name}?"),
                     String::new(),
+                    env,
                 )
             }
             RUN_QUERY => {
                 let label = self.active().map_or("the database", |c| c.label.as_str());
                 let query = call.args["query"].as_str().unwrap_or_default();
+                let env = self.active().and_then(|c| environment_of(&c.entry, cx));
                 (
                     Action::Query,
-                    format!("Run this query on {label}?"),
+                    format!("Run this read-only query on {label}?"),
                     query.to_owned(),
+                    env,
                 )
             }
             _ => return None,
         };
-        if self.trusted.contains(&kind) {
+        // Production always asks: trusting a kind for the chat never covers it.
+        let remember = env != Some(Environment::Production);
+        if remember && self.trusted.contains(&kind) {
             return None;
         }
         let (reply, rx) = oneshot::channel();
@@ -80,6 +90,7 @@ impl ChatPane {
             kind,
             title,
             detail,
+            env,
             reply,
         });
         cx.notify();
@@ -114,10 +125,16 @@ impl ChatPane {
             .border_color(theme.warning)
             .bg(theme.muted.opacity(0.25))
             .child(
-                div()
-                    .text_size(body)
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .child(a.title.clone()),
+                h_flex()
+                    .gap_2()
+                    .items_center()
+                    .child(
+                        div()
+                            .text_size(body)
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .child(a.title.clone()),
+                    )
+                    .children(a.env.map(|env| env_pill(env, cx))),
             );
         if !a.detail.is_empty() {
             card = card.child(
@@ -139,13 +156,13 @@ impl ChatPane {
                             .label("Allow")
                             .on_click(cx.listener(|t, _, _, cx| t.answer(Verdict::Once, cx))),
                     )
-                    .child(
+                    .children((a.env != Some(Environment::Production)).then(|| {
                         Button::new("chat-allow-chat")
                             .ghost()
                             .small()
                             .label("Allow for this chat")
-                            .on_click(cx.listener(|t, _, _, cx| t.answer(Verdict::Always, cx))),
-                    )
+                            .on_click(cx.listener(|t, _, _, cx| t.answer(Verdict::Always, cx)))
+                    }))
                     .child(
                         Button::new("chat-deny")
                             .ghost()
@@ -157,4 +174,9 @@ impl ChatPane {
             .into_any_element(),
         )
     }
+}
+
+/// Environment marked on a connection's tags.
+fn environment_of(entry: &Entity<ConnectionEntry>, cx: &App) -> Option<Environment> {
+    Environment::from_tags(&entry.read(cx).tags)
 }

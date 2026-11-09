@@ -247,12 +247,10 @@ impl QueryEditorPanel {
                 .border_color(warn.opacity(0.4))
                 .bg(warn.opacity(0.08))
                 .child(Icon::new(IconName::TriangleAlert).small().text_color(warn))
-                .child(
-                    div()
-                        .flex_1()
-                        .text_sm()
-                        .child("This query came from AI and may change data or schema. Run it?"),
-                )
+                .child(div().flex_1().text_sm().child(format!(
+                    "AI wrote a query that runs {}. Run it?",
+                    self.held_summary()
+                )))
                 .child(
                     Button::new(format!("{id}-ai-run"))
                         .primary()

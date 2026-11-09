@@ -35,7 +35,7 @@ use crate::db;
 use crate::editor::error_locate::{line_col, locate_error};
 use crate::editor::sql_completion::InlineAi;
 use crate::editor::statements::{split_statements, statement_at};
-use crate::editor::write_guard::changes_data;
+use crate::editor::write_guard::{changes_data, write_summary};
 use crate::editor::{SchemaCache, lint::lint};
 use crate::project::{ProjectRoot, ProjectVars, substitute};
 use crate::query_store::{HistoryEntry, QueryStore};
@@ -659,6 +659,17 @@ impl QueryEditorPanel {
         hold
     }
 
+    /// What the held text does, e.g. "DELETE with no WHERE clause".
+    pub(super) fn held_summary(&self) -> String {
+        let sql = self.held_sql.as_deref().unwrap_or_default();
+        let summary = write_summary(sql);
+        if summary.is_empty() {
+            "a change".to_owned()
+        } else {
+            summary
+        }
+    }
+
     fn confirm_write_run(&mut self, cx: &mut Context<Self>) {
         self.write_confirm = false;
         self.write_approved = true;
@@ -686,12 +697,10 @@ impl QueryEditorPanel {
                         .small()
                         .text_color(danger),
                 )
-                .child(
-                    div()
-                        .flex_1()
-                        .text_sm()
-                        .child(format!("This changes data on {name} (production). Run it?")),
-                )
+                .child(div().flex_1().text_sm().child(format!(
+                    "This runs {} on {name} (production). Run it?",
+                    self.held_summary()
+                )))
                 .child(
                     Button::new(format!("{id}-write-run"))
                         .danger()

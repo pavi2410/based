@@ -2,6 +2,7 @@
 
 mod ask;
 pub mod chat;
+pub mod explain;
 mod host;
 pub mod keys;
 mod launch;

@@ -19,6 +19,8 @@ use gpui_kit::component::{
 };
 use gpui_kit::{prelude::*, *};
 
+use crate::ai::explain::{column_prompt, distinct_samples};
+use crate::ai::{ask_assistant, connection_ai, schema};
 use crate::app::prefs;
 use crate::connection::ConnectionId;
 use crate::connection::is_connection_read_only;
@@ -44,6 +46,7 @@ use crate::widgets::virtual_table::{
 use crate::workspace::WorkspaceRef;
 use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::tabs::{DrillFilter, TabSpec, inbox, request_workspace_flush};
+use based_ai::context::ContextLevel;
 
 fn is_array_type(ty: Option<&str>) -> bool {
     ty.is_some_and(|t| t.trim().ends_with("[]") || t.trim().eq_ignore_ascii_case("array"))
@@ -245,7 +248,34 @@ impl DataViewerPanel {
         Some((table.to_string(), filter))
     }
 
-    /// Right-click menu for the cell at `(row, col)`.
+    /// The "explain this column" question, or `None` when AI is off for the connection.
+    /// Sample values are included only when the connection shares rows.
+    fn explain_prompt(&self, col: usize, cx: &App) -> Option<String> {
+        let level = schema::level(connection_ai(&self.conn_id, cx));
+        if level == ContextLevel::Off {
+            return None;
+        }
+        let del = self.table.read(cx).delegate();
+        let name = del.columns.get(col)?.key.to_string();
+        let meta = del.column_meta.get(col).cloned().unwrap_or_default();
+        let samples = if level == ContextLevel::SchemaRows {
+            let rows: Vec<Vec<String>> = del
+                .rows
+                .iter()
+                .map(|r| r.iter().map(|c| c.to_string()).collect())
+                .collect();
+            distinct_samples(&rows, col)
+        } else {
+            Vec::new()
+        };
+        Some(column_prompt(
+            &self.source.path().join("."),
+            &name,
+            &meta,
+            &samples,
+        ))
+    }
+
     /// Right-click menu for the header of column `col`.
     fn header_menu(
         this: &Entity<Self>,
@@ -280,6 +310,16 @@ impl DataViewerPanel {
         let filter_name = name.clone();
         let copy_name = name.to_string();
         let hide_table = table.clone();
+        let explain = this.read(cx).explain_prompt(col, cx);
+        let conn = this.read(cx).conn_id.clone();
+        let menu = match explain {
+            Some(prompt) => menu.item(
+                PopupMenuItem::new("Explain Column")
+                    .icon(IconName::Bot)
+                    .on_click(move |_, _, cx| ask_assistant(conn.clone(), prompt.clone(), cx)),
+            ),
+            None => menu,
+        };
         menu.item(sort("Sort Ascending", IconName::ArrowUp, true))
             .item(sort("Sort Descending", IconName::ArrowDown, false))
             .separator()

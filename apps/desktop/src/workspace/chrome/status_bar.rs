@@ -226,6 +226,48 @@ fn ai_item(cx: &App) -> impl IntoElement {
         )
 }
 
+/// Whether inline completions are on, with what they send; click toggles them.
+fn ghost_item(cx: &App) -> impl IntoElement {
+    let ai = prefs::ai_prefs(cx);
+    let on = ai.inline();
+    let color = if on {
+        cx.theme().accent_foreground
+    } else {
+        cx.theme().muted_foreground
+    };
+    let tooltip = if on {
+        format!(
+            "Ghost text is on: the text around the cursor goes to {} on each pause. Click to turn off.",
+            ai.provider().label()
+        )
+    } else {
+        "Ghost text is off. Click to suggest completions as you type; the text around the cursor goes to the AI provider on each pause.".to_owned()
+    };
+    Button::new("status-ghost")
+        .ghost()
+        .small()
+        .tooltip(tooltip)
+        .on_click(move |_, _, cx| prefs::set_ai_inline(!on, cx))
+        .child(
+            h_flex()
+                .items_center()
+                .gap(px(4.0))
+                .child(
+                    div()
+                        .w(px(5.0))
+                        .h(px(5.0))
+                        .rounded_full()
+                        .flex_shrink_0()
+                        .bg(color.opacity(if on { 1.0 } else { 0.5 })),
+                )
+                .child(div().text_xs().text_color(color).child(if on {
+                    "Ghost text"
+                } else {
+                    "Ghost off"
+                })),
+        )
+}
+
 /// Version label doubling as the update entry point; the click menu depends on the phase.
 fn version_item(
     snapshot: &UpdateBarSnapshot,
@@ -418,6 +460,7 @@ impl RenderOnce for StatusBar {
                     .items_center()
                     .flex_shrink_0()
                     .child(ai_item(cx))
+                    .child(ghost_item(cx))
                     .child(status_divider(muted))
                     .child(version_item(&update_snapshot, registry, cx))
                     .child(status_divider(muted))

@@ -76,7 +76,7 @@ fn command_item(result: &PaletteResult) -> CommandItem {
 
 fn command_footer(cx: &mut App) -> AnyElement {
     let muted = cx.theme().muted_foreground;
-    let hint = |stroke: &str| kbd(stroke).outline().text_color(cx.theme().foreground);
+    let hint = |stroke: &'static str| kbd(stroke).outline().text_color(cx.theme().foreground);
     h_flex()
         .flex_shrink_0()
         .w_full()

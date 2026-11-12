@@ -7,7 +7,7 @@ use crate::app::prefs;
 use crate::bindings::{ToggleCommandPalette, ToggleSidebarRail};
 
 /// Unbound / literal keys — `Kbd` formats symbols vs labels per platform.
-pub fn kbd(stroke: &str) -> Kbd {
+pub fn kbd(stroke: &'static str) -> Kbd {
     Kbd::new(Keystroke::parse(stroke).expect("valid keystroke"))
 }
 

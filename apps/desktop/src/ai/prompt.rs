@@ -407,7 +407,7 @@ impl Render for AiPrompt {
                 } else if ev.keystroke.key == "escape" {
                     this.dismiss(cx);
                 } else if ev.keystroke.key == "enter"
-                    && ev.keystroke.modifiers.secondary()
+                    && ev.keystroke.modifiers.secondary(cx)
                     && matches!(this.phase, Phase::Proposal)
                     && this.diff.is_some()
                 {

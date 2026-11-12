@@ -1,5 +1,9 @@
 use anyhow::Result;
-use sqlx::{AssertSqlSafe, Column as SqlxColumn, PgPool, Row, TypeInfo};
+use futures::TryStreamExt;
+use sqlx::postgres::PgColumn;
+use sqlx::{
+    AssertSqlSafe, Column as SqlxColumn, Either, Executor, PgPool, Row, SqlSafeStr, TypeInfo,
+};
 
 use crate::decode::pg_cell_display;
 
@@ -51,37 +55,47 @@ pub async fn delete_row(
     Ok(r.rows_affected())
 }
 
+/// Runs one statement and returns whatever it produced.
+///
+/// Postgres decides whether a statement returns rows (`SELECT`, `VALUES`, `TABLE`,
+/// `… RETURNING`, set-returning functions, a leading comment …), so nothing here
+/// guesses from the SQL text. When no rows come back, `describe` supplies the
+/// column headers so an empty result set still shows its shape.
 pub async fn execute_sql(
     pool: &PgPool,
     sql: &str,
 ) -> Result<(Vec<QueryColumn>, Vec<Vec<String>>, u64)> {
-    let t = sql.trim_start();
-    let lower = t.to_ascii_lowercase();
-    if lower.starts_with("select")
-        || lower.starts_with("with")
-        || lower.starts_with("explain")
-        || lower.starts_with("show")
-    {
-        let rows = sqlx::query(AssertSqlSafe(sql)).fetch_all(pool).await?;
-        let columns: Vec<QueryColumn> = rows
-            .first()
-            .map(|r| {
-                r.columns()
-                    .iter()
-                    .map(|c| QueryColumn {
-                        name: c.name().to_string(),
-                        type_name: c.type_info().name().to_string(),
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-        let data: Vec<Vec<String>> = rows
-            .iter()
-            .map(|row| (0..row.len()).map(|i| pg_cell_display(row, i)).collect())
-            .collect();
-        Ok((columns, data, 0))
-    } else {
-        let r = sqlx::query(AssertSqlSafe(sql)).execute(pool).await?;
-        Ok((vec![], vec![], r.rows_affected()))
+    let mut stream = pool.fetch_many(sqlx::query(AssertSqlSafe(sql)));
+    let mut columns: Vec<QueryColumn> = Vec::new();
+    let mut data: Vec<Vec<String>> = Vec::new();
+    let mut affected = 0u64;
+    while let Some(item) = stream.try_next().await? {
+        match item {
+            Either::Left(done) => affected += done.rows_affected(),
+            Either::Right(row) => {
+                if columns.is_empty() {
+                    columns = query_columns(row.columns());
+                }
+                data.push((0..row.len()).map(|i| pg_cell_display(&row, i)).collect());
+            }
+        }
     }
+    drop(stream);
+    if data.is_empty() {
+        let described = pool.describe(AssertSqlSafe(sql).into_sql_str()).await?;
+        columns = query_columns(described.columns());
+    } else {
+        // Postgres reports `SELECT n` as n rows affected; the grid already shows n.
+        affected = 0;
+    }
+    Ok((columns, data, affected))
+}
+
+fn query_columns(cols: &[PgColumn]) -> Vec<QueryColumn> {
+    cols.iter()
+        .map(|c| QueryColumn {
+            name: c.name().to_string(),
+            type_name: c.type_info().name().to_string(),
+        })
+        .collect()
 }

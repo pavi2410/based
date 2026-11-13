@@ -1,16 +1,12 @@
 use std::env;
 use std::path::{Path, PathBuf};
 
-use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqliteConnectOptions;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct SqlitePragma {
-    #[serde(default = "default_journal_mode")]
     pub journal_mode: String,
-    #[serde(default = "default_synchronous")]
     pub synchronous: String,
-    #[serde(default = "default_foreign_keys")]
     pub foreign_keys: bool,
 }
 
@@ -26,13 +22,11 @@ fn default_foreign_keys() -> bool {
     true
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct SqliteConfig {
     pub label: String,
     pub path: PathBuf,
-    #[serde(default)]
     pub read_only: bool,
-    #[serde(default)]
     pub pragma: Option<SqlitePragma>,
 }
 

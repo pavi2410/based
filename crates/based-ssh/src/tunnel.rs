@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{Context, Result, bail};
-use based_core::SshTunnelConfig;
+use based_core::{Secret, SshTunnelConfig};
 use russh::keys::{HashAlg, PrivateKeyWithHashAlg, PublicKey, load_secret_key};
 use russh::{
     Channel, client,
@@ -158,7 +158,7 @@ async fn authenticate(
         .filter(|p| !p.trim().is_empty())
     {
         let path = expand_key_path(key_path);
-        let key = load_secret_key(&path, ssh.key_passphrase.as_deref())
+        let key = load_secret_key(&path, ssh.key_passphrase.as_ref().map(Secret::expose))
             .with_context(|| format!("SSH tunnel: could not load key {}", path.display()))?;
         let hash = session
             .best_supported_rsa_hash()

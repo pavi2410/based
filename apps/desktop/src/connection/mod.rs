@@ -14,7 +14,6 @@ pub use environment::Environment;
 pub use open::{OpenedConnection, open_connection, opened_into_any};
 
 use based_core::ContextLevel;
-use serde::{Deserialize, Serialize};
 
 use crate::db::{close_pg_pool, close_sqlite_pool};
 use crate::mongodb::{MongoConfig, MongoConnection};
@@ -46,8 +45,7 @@ impl ConnectionOrigin {
 
 // ── Connection config (engine-tagged) ────────────────────────────────────────
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "engine", rename_all = "snake_case")]
+#[derive(Debug, Clone)]
 pub enum ConnectionConfig {
     Postgres(PostgresConfig),
     MongoDB(MongoConfig),

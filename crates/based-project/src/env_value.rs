@@ -21,10 +21,22 @@ impl fmt::Display for MissingEnvVar {
 
 impl Error for MissingEnvVar {}
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Every use holds a secret (password, URL with credentials, passphrase), so
+/// `Debug` hides a literal and shows only an env var's name.
+#[derive(Clone, PartialEq, Eq)]
 pub enum EnvOrString {
     Literal(String),
     FromEnv { var: String },
+}
+
+impl fmt::Debug for EnvOrString {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Literal(s) if s.is_empty() => f.write_str("Literal(<empty>)"),
+            Self::Literal(_) => f.write_str("Literal(***)"),
+            Self::FromEnv { var } => f.debug_struct("FromEnv").field("var", var).finish(),
+        }
+    }
 }
 
 impl EnvOrString {
@@ -90,6 +102,16 @@ impl Serialize for EnvOrString {
 mod tests {
     use super::*;
     use std::collections::HashMap;
+
+    #[test]
+    fn debug_hides_a_literal_but_names_the_env_var() {
+        let lit = EnvOrString::Literal("hunter2".into());
+        assert_eq!(format!("{lit:?}"), "Literal(***)");
+        let var = EnvOrString::FromEnv {
+            var: "PG_PASS".into(),
+        };
+        assert_eq!(format!("{var:?}"), r#"FromEnv { var: "PG_PASS" }"#);
+    }
 
     #[test]
     fn literal_resolves_as_is() {

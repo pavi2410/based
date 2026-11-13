@@ -1,11 +1,22 @@
-use serde::{Deserialize, Serialize};
+use std::fmt;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone)]
 pub struct MongoConfig {
     pub label: String,
     pub uri: String,
     pub database: Option<String>,
     pub auth_source: Option<String>,
+}
+
+impl fmt::Debug for MongoConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MongoConfig")
+            .field("label", &self.label)
+            .field("uri", &redact_mongo_password(&self.uri))
+            .field("database", &self.database)
+            .field("auth_source", &self.auth_source)
+            .finish()
+    }
 }
 
 /// Connection URI. Password is omitted unless requested.
@@ -64,6 +75,16 @@ mod tests {
             mongo_uri(&sample("mongodb://alice:s3cret@db.example:27017/app"), true),
             "mongodb://alice:s3cret@db.example:27017/app"
         );
+    }
+
+    #[test]
+    fn debug_hides_the_password() {
+        let shown = format!(
+            "{:?}",
+            sample("mongodb://alice:s3cret@db.example:27017/app")
+        );
+        assert!(!shown.contains("s3cret"), "{shown}");
+        assert!(shown.contains("alice@db.example"), "{shown}");
     }
 
     #[test]

@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::Secret;
+
 fn default_ssh_port() -> u16 {
     22
 }
@@ -25,12 +27,10 @@ impl SshEndpoint {
 }
 
 /// One SSH hop used as a local-forward transport to a database.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SshTunnelConfig {
-    #[serde(flatten)]
     pub endpoint: SshEndpoint,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub key_passphrase: Option<String>,
+    pub key_passphrase: Option<Secret>,
 }
 
 impl SshTunnelConfig {
@@ -45,10 +45,10 @@ mod tests {
 
     #[test]
     fn default_port_is_22() {
-        let m: SshTunnelConfig =
+        let m: SshEndpoint =
             serde_json::from_str(r#"{"host":"bastion.example.com","user":"ec2-user"}"#).unwrap();
-        assert_eq!(m.endpoint.port, 22);
-        assert!(m.endpoint.key_path.is_none());
+        assert_eq!(m.port, 22);
+        assert!(m.key_path.is_none());
         assert!(m.is_configured());
     }
 

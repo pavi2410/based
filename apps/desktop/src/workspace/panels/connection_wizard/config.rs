@@ -1,3 +1,5 @@
+use based_core::Secret;
+
 use super::*;
 
 impl ConnectionWizardPanel {
@@ -28,7 +30,7 @@ impl ConnectionWizardPanel {
                 set_field(&self.port, &c.port.to_string(), window, cx);
                 set_field(&self.database, &c.database, window, cx);
                 set_field(&self.username, &c.username, window, cx);
-                set_field(&self.password, &c.password, window, cx);
+                set_field(&self.password, c.password.expose(), window, cx);
                 self.ssl_enabled = ssl_toggle_enabled(c.ssl_mode);
                 if self.ssl_enabled {
                     let mode = ssl_on_choice(c.ssl_mode);
@@ -87,7 +89,7 @@ impl ConnectionWizardPanel {
                 );
                 set_field(
                     &self.ssh_key_passphrase,
-                    ssh.key_passphrase.as_deref().unwrap_or(""),
+                    ssh.key_passphrase.as_ref().map_or("", Secret::expose),
                     window,
                     cx,
                 );
@@ -111,7 +113,7 @@ impl ConnectionWizardPanel {
                 user: self.ssh_user.read(cx).value().to_string(),
                 key_path: nonempty_opt(&key_path),
             },
-            key_passphrase: nonempty_opt(&key_passphrase),
+            key_passphrase: Some(Secret::new(key_passphrase)).filter(|p| !p.is_empty()),
         })
     }
 
@@ -136,7 +138,7 @@ impl ConnectionWizardPanel {
                 port: self.port.read(cx).value().parse().unwrap_or(5432u16),
                 database: self.database.read(cx).value().to_string(),
                 username: self.username.read(cx).value().to_string(),
-                password: self.password.read(cx).value().to_string(),
+                password: Secret::new(self.password.read(cx).value().to_string()),
                 ssl_mode: self.current_ssl_mode(cx),
                 ssh: self.current_ssh(cx),
             }),
@@ -178,7 +180,7 @@ impl ConnectionWizardPanel {
         set_field(&self.port, &cfg.port.to_string(), window, cx);
         set_field(&self.database, &cfg.database, window, cx);
         set_field(&self.username, &cfg.username, window, cx);
-        set_field(&self.password, &cfg.password, window, cx);
+        set_field(&self.password, cfg.password.expose(), window, cx);
         self.ssl_enabled = ssl_toggle_enabled(cfg.ssl_mode);
         if self.ssl_enabled {
             let mode = ssl_on_choice(cfg.ssl_mode);

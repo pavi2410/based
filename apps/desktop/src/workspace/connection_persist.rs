@@ -41,19 +41,19 @@ fn persist_secret(
                 upsert_env_file(
                     &env_path,
                     &secret_env_key(relative_id, "PASSWORD"),
-                    &c.password,
+                    c.password.expose(),
                 )?;
             }
             if let Some(pass) = c
                 .ssh
                 .as_ref()
-                .and_then(|s| s.key_passphrase.as_deref())
+                .and_then(|s| s.key_passphrase.as_ref())
                 .filter(|p| !p.is_empty())
             {
                 upsert_env_file(
                     &env_path,
                     &secret_env_key(relative_id, "SSH_KEY_PASSPHRASE"),
-                    pass,
+                    pass.expose(),
                 )?;
             }
         }
@@ -176,7 +176,7 @@ fn pragma_from_sqlite(p: &SqlitePragma) -> PragmaSettings {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use based_core::SshEndpoint;
+    use based_core::{Secret, SshEndpoint};
     use based_project::{load_connections_from_based_dir, load_env_file};
     use std::path::PathBuf;
 
@@ -258,7 +258,7 @@ mod tests {
             port: 5432,
             database: "analytics".into(),
             username: "alice".into(),
-            password: String::new(),
+            password: Secret::default(),
             ssl_mode: SslMode::Disable,
             ssh: None,
         });
@@ -287,7 +287,7 @@ mod tests {
             port: 5432,
             database: "analytics".into(),
             username: "alice".into(),
-            password: String::new(),
+            password: Secret::default(),
             ssl_mode: SslMode::Disable,
             ssh: None,
         });
@@ -298,7 +298,7 @@ mod tests {
             port: 5432,
             database: "analytics".into(),
             username: "alice".into(),
-            password: String::new(),
+            password: Secret::default(),
             ssl_mode: SslMode::Disable,
             ssh: None,
         });
@@ -334,7 +334,7 @@ mod tests {
                     user: "ec2-user".into(),
                     key_path: Some("~/.ssh/id_ed25519".into()),
                 },
-                key_passphrase: Some("keypass".into()),
+                key_passphrase: Some(Secret::new("keypass")),
             }),
         });
         persist_config_to_based_dir(based, &config, &[], None, ContextLevel::Off).unwrap();

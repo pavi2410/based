@@ -53,7 +53,7 @@ pub(crate) fn parse_postgres_uri(input: &str) -> Option<PostgresConfig> {
         port,
         database,
         username,
-        password,
+        password: password.into(),
         ssl_mode,
         ssh: None,
     })
@@ -122,7 +122,7 @@ mod tests {
         )
         .expect("uri should parse");
         assert_eq!(cfg.username, "alice");
-        assert_eq!(cfg.password, "s3cret");
+        assert_eq!(cfg.password.expose(), "s3cret");
         assert_eq!(cfg.host, "db.example");
         assert_eq!(cfg.port, 6543);
         assert_eq!(cfg.database, "analytics");
@@ -144,7 +144,7 @@ mod tests {
     #[test]
     fn parse_url_encoded_password() {
         let cfg = parse_postgres_uri("postgresql://user:p%40ss@localhost/db").unwrap();
-        assert_eq!(cfg.password, "p@ss");
+        assert_eq!(cfg.password.expose(), "p@ss");
     }
 
     #[test]
@@ -158,7 +158,7 @@ mod tests {
         let cfg = parse_postgres_uri("alice:s3cret@db.example:6543/analytics?sslmode=require")
             .expect("schemeless uri should parse");
         assert_eq!(cfg.username, "alice");
-        assert_eq!(cfg.password, "s3cret");
+        assert_eq!(cfg.password.expose(), "s3cret");
         assert_eq!(cfg.host, "db.example");
         assert_eq!(cfg.port, 6543);
         assert_eq!(cfg.database, "analytics");

@@ -375,7 +375,7 @@ mod tests {
             port: 5432,
             database: "postgres".into(),
             username: "postgres".into(),
-            password: String::new(),
+            password: Default::default(),
             ssl_mode: SslMode::Disable,
             ssh: None,
         })

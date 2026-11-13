@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use based_core::SshTunnelConfig;
+use based_core::{Secret, SshTunnelConfig};
 use based_project::{
     ConnectionSpec, MissingEnvVar, PragmaSettings, ProjectConnection, SshSettings,
     load_connections_from_based_dir, load_env_file,
@@ -39,7 +39,7 @@ pub fn entry_from_tree(
             port: *port,
             database: database.clone(),
             username: username.clone(),
-            password: password.resolve_with(file_vars)?,
+            password: Secret::new(password.resolve_with(file_vars)?),
             ssl_mode: *ssl_mode,
             ssh: conn
                 .ssh
@@ -145,7 +145,7 @@ fn resolve_ssh(
         key_passphrase: ssh
             .key_passphrase
             .as_ref()
-            .map(|v| v.resolve_with(file_vars))
+            .map(|v| v.resolve_with(file_vars).map(Secret::new))
             .transpose()?,
     })
 }
@@ -247,7 +247,7 @@ password = { env = "BASED_TEST_LOADER_MISSING_SECRET" }
         vars.insert("BASED_PG_PASSWORD".into(), "from-file".into());
         let entry = entry_from_tree(&conn, ConnectionOrigin::Project, &vars).unwrap();
         match entry.config {
-            ConnectionConfig::Postgres(c) => assert_eq!(c.password, "from-file"),
+            ConnectionConfig::Postgres(c) => assert_eq!(c.password.expose(), "from-file"),
             other => panic!("expected postgres, got {other:?}"),
         }
     }
@@ -287,7 +287,10 @@ password = { env = "BASED_TEST_LOADER_MISSING_SECRET" }
             ConnectionConfig::Postgres(c) => {
                 let ssh = c.ssh.expect("ssh");
                 assert_eq!(ssh.endpoint.host, "bastion.example.com");
-                assert_eq!(ssh.key_passphrase.as_deref(), Some("from-file"));
+                assert_eq!(
+                    ssh.key_passphrase.as_ref().map(Secret::expose),
+                    Some("from-file")
+                );
             }
             other => panic!("expected postgres, got {other:?}"),
         }

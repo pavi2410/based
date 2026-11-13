@@ -1,17 +1,15 @@
-use based_core::SshTunnelConfig;
-use serde::{Deserialize, Serialize};
+use based_core::{Secret, SshTunnelConfig};
 use sqlx::postgres::{PgConnectOptions, PgSslMode};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct PostgresConfig {
     pub label: String,
     pub host: String,
     pub port: u16,
     pub database: String,
     pub username: String,
-    pub password: String,
+    pub password: Secret,
     pub ssl_mode: SslMode,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ssh: Option<SshTunnelConfig>,
 }
 
@@ -32,7 +30,7 @@ pub fn pg_connect_options(config: &PostgresConfig) -> PgConnectOptions {
         .host(&config.host)
         .port(config.port)
         .username(&config.username)
-        .password(&config.password)
+        .password(config.password.expose())
         .database(&config.database)
         .ssl_mode(pg_ssl_mode(config.ssl_mode))
 }
@@ -41,7 +39,7 @@ pub fn pg_connect_options(config: &PostgresConfig) -> PgConnectOptions {
 pub fn postgres_uri(config: &PostgresConfig, include_password: bool) -> String {
     let user = percent_encode(&config.username);
     let userinfo = if include_password && !config.password.is_empty() {
-        format!("{user}:{}", percent_encode(&config.password))
+        format!("{user}:{}", percent_encode(config.password.expose()))
     } else {
         user
     };
@@ -126,7 +124,7 @@ mod tests {
     #[test]
     fn uri_with_password_omits_empty_password() {
         let mut cfg = sample();
-        cfg.password.clear();
+        cfg.password = Secret::default();
         assert_eq!(postgres_uri(&cfg, true), postgres_uri(&cfg, false));
         assert_eq!(
             postgres_uri(&cfg, true),

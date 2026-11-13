@@ -1,10 +1,19 @@
-use serde::{Deserialize, Serialize};
+use std::fmt;
 
 /// A single-node Redis connection. The URL carries host, credentials, TLS (`rediss://`) and DB index.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone)]
 pub struct RedisConfig {
     pub label: String,
     pub url: String,
+}
+
+impl fmt::Debug for RedisConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RedisConfig")
+            .field("label", &self.label)
+            .field("url", &redact_password(&self.url))
+            .finish()
+    }
 }
 
 /// Connection URL. Password is omitted unless requested.
@@ -98,6 +107,13 @@ mod tests {
             redis_url(&cfg("rediss://:s3cret@h:6380"), false),
             "rediss://h:6380"
         );
+    }
+
+    #[test]
+    fn debug_hides_the_password() {
+        let shown = format!("{:?}", cfg("redis://alice:s3cret@h:6379/2"));
+        assert!(!shown.contains("s3cret"), "{shown}");
+        assert!(shown.contains("alice@h:6379"), "{shown}");
     }
 
     #[test]

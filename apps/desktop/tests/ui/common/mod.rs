@@ -228,7 +228,7 @@ pub fn store_session(cx: &mut TestAppContext, snapshot: &SessionSnapshot) {
 pub fn info(name: &str) -> TabSpec {
     TabSpec::ObjectInfo {
         conn_id: ConnectionId::parse("t"),
-        object_name: name.into(),
+        object: based_core::ObjectRef::bare(name),
         kind: ObjectKind::Trigger,
     }
 }

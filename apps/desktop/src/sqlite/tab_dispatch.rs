@@ -37,7 +37,7 @@ pub fn build_panel(
                 DataViewerPanel::new(
                     Arc::new(SqliteSource {
                         pool,
-                        table: object.clone(),
+                        table: object.name.clone(),
                     }),
                     conn_id.clone(),
                     filter.clone(),
@@ -85,7 +85,7 @@ pub fn build_panel(
                 TableInspectorPanel::new(
                     Arc::new(SqliteInspect {
                         pool,
-                        table: object.clone(),
+                        table: object.name.clone(),
                     }),
                     conn_id.clone(),
                     window,

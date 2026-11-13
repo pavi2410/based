@@ -385,7 +385,20 @@ impl Workspace {
     fn restore_session(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let store = storage::store(cx);
         let handle = Tokio::handle(cx);
-        let session = handle.block_on(tabs::SessionSnapshot::load(&store));
+        let mut session = handle.block_on(tabs::SessionSnapshot::load(&store));
+        {
+            let registry = self.registry().read(cx);
+            let engine_of = |id: &ConnectionId| registry.get(id, cx).map(|e| e.read(cx).engine());
+            for spec in session
+                .tabs
+                .iter_mut()
+                .chain(session.pinned_tabs.iter_mut())
+            {
+                if let Some(engine) = spec.conn_id().and_then(engine_of) {
+                    spec.migrate_legacy_object(engine);
+                }
+            }
+        }
 
         let active_spec = session
             .active

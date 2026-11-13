@@ -32,10 +32,9 @@ pub fn build_panel(
 ) -> Option<Arc<dyn PanelView>> {
     match spec {
         TabSpec::DataViewer { object, filter, .. } => {
-            let (schema, name) = match object.rsplit_once('.') {
-                Some((s, n)) if !n.is_empty() => (s.to_string(), n.to_string()),
-                _ => ("public".to_string(), object.clone()),
-            };
+            // The tree always sets the schema; legacy sessions are migrated on restore.
+            let schema = object.schema.clone().unwrap_or_else(|| "public".into());
+            let name = object.name.clone();
             let label = tab_label_for_spec(spec, false);
             let panel = cx.new(|cx| {
                 DataViewerPanel::new(
@@ -85,10 +84,9 @@ pub fn build_panel(
             ..
         } => None,
         TabSpec::Inspector { object, .. } => {
-            let (schema, name) = match object.rsplit_once('.') {
-                Some((s, n)) if !n.is_empty() => (s.to_string(), n.to_string()),
-                _ => ("public".to_string(), object.clone()),
-            };
+            // The tree always sets the schema; legacy sessions are migrated on restore.
+            let schema = object.schema.clone().unwrap_or_else(|| "public".into());
+            let name = object.name.clone();
             let label = tab_label_for_spec(spec, false);
             let panel = cx.new(|cx| {
                 TableInspectorPanel::new(

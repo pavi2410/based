@@ -379,7 +379,7 @@ impl ConnectionTree {
                 ObjectKind::Table | ObjectKind::View => {
                     cx.emit(TreeEvent::OpenTab(TabSpec::DataViewer {
                         conn_id: ent.read(cx).id.clone(),
-                        object: object.display_name(),
+                        object: object.object_ref(),
                         filter: None,
                     }));
                 }
@@ -389,7 +389,7 @@ impl ConnectionTree {
                 ObjectKind::Table | ObjectKind::View | ObjectKind::MaterializedView => {
                     cx.emit(TreeEvent::OpenTab(TabSpec::DataViewer {
                         conn_id: ent.read(cx).id.clone(),
-                        object: object.display_name(),
+                        object: object.object_ref(),
                         filter: None,
                     }));
                 }
@@ -399,7 +399,7 @@ impl ConnectionTree {
                 if matches!(object.kind, ObjectKind::Collection) {
                     cx.emit(TreeEvent::OpenTab(TabSpec::DataViewer {
                         conn_id: ent.read(cx).id.clone(),
-                        object: object.display_name(),
+                        object: object.object_ref(),
                         filter: None,
                     }));
                 } else {
@@ -410,7 +410,7 @@ impl ConnectionTree {
                 if matches!(object.kind, ObjectKind::Key) {
                     cx.emit(TreeEvent::OpenTab(TabSpec::DataViewer {
                         conn_id: ent.read(cx).id.clone(),
-                        object: object.display_name(),
+                        object: object.object_ref(),
                         filter: None,
                     }));
                 }
@@ -462,7 +462,7 @@ impl ConnectionTree {
         let conn_id = ent.read(cx).id.clone();
         cx.emit(TreeEvent::OpenTab(TabSpec::ObjectInfo {
             conn_id,
-            object_name: object.display_name(),
+            object: object.object_ref(),
             kind: object.kind,
         }));
     }
@@ -475,7 +475,7 @@ impl ConnectionTree {
     ) {
         cx.emit(TreeEvent::OpenTab(TabSpec::Inspector {
             conn_id,
-            object: object.display_name(),
+            object: object.object_ref(),
         }));
     }
 }

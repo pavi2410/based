@@ -125,7 +125,7 @@ fn clicking_a_table_opens_its_data_viewer(cx: &mut TestAppContext) {
     tree.click_object("users", cx);
     assert!(tree.tabs(cx).contains(&TabSpec::DataViewer {
         conn_id: tree.conn.clone(),
-        object: "users".into(),
+        object: based_core::ObjectRef::bare("users"),
         filter: None,
     }));
 }
@@ -134,9 +134,11 @@ fn clicking_a_table_opens_its_data_viewer(cx: &mut TestAppContext) {
 fn clicking_a_trigger_opens_object_info(cx: &mut TestAppContext) {
     let tree = opened(cx);
     tree.click_object("posts_ai", cx);
-    assert!(tree.tabs(cx).iter().any(
-        |t| matches!(t, TabSpec::ObjectInfo { object_name, .. } if object_name == "posts_ai")
-    ));
+    assert!(
+        tree.tabs(cx)
+            .iter()
+            .any(|t| matches!(t, TabSpec::ObjectInfo { object, .. } if object.name == "posts_ai"))
+    );
 }
 
 #[gpui_kit::test]

@@ -39,7 +39,7 @@ fn show_home_command_activates_home(cx: &mut TestAppContext) {
     let (win, ws) = open_workspace(cx);
     let info = TabSpec::ObjectInfo {
         conn_id: ConnectionId::parse("t"),
-        object_name: "a".into(),
+        object: based_core::ObjectRef::bare("a"),
         kind: ObjectKind::Trigger,
     };
     cx.update_window(win, |_, window, cx| {

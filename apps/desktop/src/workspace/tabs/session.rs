@@ -215,7 +215,7 @@ mod tests {
             },
             TabSpec::DataViewer {
                 conn_id: ConnectionId::parse("events"),
-                object: "events".into(),
+                object: based_core::ObjectRef::bare("events"),
                 filter: None,
             },
         ];
@@ -250,7 +250,7 @@ mod tests {
             },
             TabSpec::DataViewer {
                 conn_id: conn,
-                object: "txns".into(),
+                object: based_core::ObjectRef::bare("txns"),
                 filter: None,
             },
         ];
@@ -271,7 +271,7 @@ mod tests {
         assert!(
             tabs.iter().any(|t| matches!(
                 t,
-                TabSpec::DataViewer { object, .. } if object == "txns"
+                TabSpec::DataViewer { object, .. } if object.name == "txns"
             )),
             "data viewer must survive dashboard+blank snapshot: {tabs:?}"
         );
@@ -289,7 +289,7 @@ mod tests {
         let mut st = SessionState::default();
         let viewer = TabSpec::DataViewer {
             conn_id: ConnectionId::parse("c"),
-            object: "t".into(),
+            object: based_core::ObjectRef::bare("t"),
             filter: None,
         };
         st.set_pending([TabSpec::Home, viewer.clone()]);

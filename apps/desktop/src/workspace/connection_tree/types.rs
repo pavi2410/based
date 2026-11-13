@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use based_core::ObjectRef;
 use serde::{Deserialize, Serialize};
 
 use crate::workspace::TabSpec;
@@ -74,6 +75,14 @@ pub struct SchemaObject {
 }
 
 impl SchemaObject {
+    /// The object as tabs refer to it.
+    pub fn object_ref(&self) -> ObjectRef {
+        ObjectRef {
+            schema: self.schema.clone(),
+            name: self.name.clone(),
+        }
+    }
+
     pub fn display_name(&self) -> String {
         if let Some(schema) = &self.schema {
             format!("{schema}.{}", self.name)

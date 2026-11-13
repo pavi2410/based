@@ -159,7 +159,7 @@ fn push_schema_objects(
             conn_label: String::new(),
             spec: TabSpec::DataViewer {
                 conn_id: conn_id.clone(),
-                object: display,
+                object: obj.object_ref(),
                 filter: None,
             },
             command_action: None,

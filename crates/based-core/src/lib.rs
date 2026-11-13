@@ -4,6 +4,7 @@ pub mod auth;
 pub mod connection_error;
 pub mod connection_id;
 pub mod engine;
+pub mod object;
 pub mod page;
 pub mod session;
 pub mod ssh;
@@ -16,6 +17,7 @@ pub use connection_error::{
 };
 pub use connection_id::{ConnectionId, ConnectionKey, ConnectionScope};
 pub use engine::{EngineKind, UnknownEngine};
+pub use object::ObjectRef;
 pub use page::{ColumnMeta, Grid, RawPage, TableExtra, TableInfo, quote_ident};
 pub use session::{PersistedConnection, WorkspaceState};
 pub use ssh::SshTunnelConfig;

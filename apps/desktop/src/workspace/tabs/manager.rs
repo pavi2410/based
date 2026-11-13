@@ -206,7 +206,7 @@ mod tests {
     fn open_or_focus_deduplicates_data_viewer() {
         let spec_a = TabSpec::DataViewer {
             conn_id: ConnectionId::parse("pg"),
-            object: "users".into(),
+            object: based_core::ObjectRef::bare("users"),
             filter: None,
         };
         let spec_b = spec_a.clone();

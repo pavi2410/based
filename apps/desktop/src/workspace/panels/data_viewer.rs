@@ -454,7 +454,12 @@ impl DataViewerPanel {
         inbox::open_tab(
             TabSpec::DataViewer {
                 conn_id: self.conn_id.clone(),
-                object,
+                // Postgres FK targets are "schema.table"; SQLite's are bare.
+                object: if object.contains('.') {
+                    based_core::ObjectRef::from_legacy_qualified(&object, "public")
+                } else {
+                    based_core::ObjectRef::bare(object)
+                },
                 filter: Some(filter),
             },
             cx,

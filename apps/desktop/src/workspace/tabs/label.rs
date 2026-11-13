@@ -134,9 +134,7 @@ fn tab_info(label: &SharedString, spec: Option<&TabSpec>) -> SharedString {
         TabSpec::Inspector { object, .. } => format!("Schema · {object}"),
         TabSpec::QueryEditor { .. } => "Query editor".into(),
         TabSpec::Pipeline { collection, .. } => format!("Aggregation pipeline · {collection}"),
-        TabSpec::ObjectInfo {
-            object_name, kind, ..
-        } => format!("{} · {object_name}", kind.label()),
+        TabSpec::ObjectInfo { object, kind, .. } => format!("{} · {object}", kind.label()),
         TabSpec::DocumentInsert { collection, .. } => format!("Insert document · {collection}"),
         TabSpec::Dashboard { .. } => "Connection dashboard".into(),
         TabSpec::Home | TabSpec::ReleaseNotes { .. } | TabSpec::Builtin { .. } => String::new(),
@@ -173,15 +171,13 @@ pub fn tab_label_for_spec(spec: &TabSpec, dirty: bool) -> SharedString {
         TabSpec::Home => "Home".to_string(),
         TabSpec::Dashboard { conn_id } => conn_id.to_string(),
         TabSpec::DataViewer { object, filter, .. } => match filter {
-            Some(f) => format!("{} · {}={}", short_object_name(object), f.column, f.value),
-            None => short_object_name(object),
+            Some(f) => format!("{} · {}={}", object.name, f.column, f.value),
+            None => object.name.clone(),
         },
         TabSpec::QueryEditor { .. } => "Query".to_string(),
         TabSpec::Pipeline { collection, .. } => collection.clone(),
-        TabSpec::Inspector { object, .. } => format!("{} (schema)", short_object_name(object)),
-        TabSpec::ObjectInfo {
-            object_name, kind, ..
-        } => format!("{object_name} ({})", kind.label()),
+        TabSpec::Inspector { object, .. } => format!("{} (schema)", object.name),
+        TabSpec::ObjectInfo { object, kind, .. } => format!("{} ({})", object.name, kind.label()),
         TabSpec::DocumentInsert { collection, .. } => format!("Insert · {collection}"),
         TabSpec::ReleaseNotes { version } => format!("What's New in v{version}"),
         TabSpec::Builtin { panel, .. } => panel.clone(),
@@ -205,13 +201,6 @@ fn push_dirty_marker(s: &mut String) {
     }
 }
 
-fn short_object_name(object: &str) -> String {
-    object
-        .rsplit_once('.')
-        .map(|(_, name)| name.to_string())
-        .unwrap_or_else(|| object.to_string())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -221,7 +210,7 @@ mod tests {
     fn data_viewer_short_name() {
         let spec = TabSpec::DataViewer {
             conn_id: ConnectionId::parse("x"),
-            object: "public.orders".into(),
+            object: based_core::ObjectRef::qualified("public", "orders"),
             filter: None,
         };
         assert_eq!(tab_label_for_spec(&spec, false).as_ref(), "orders");

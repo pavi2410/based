@@ -80,7 +80,7 @@ fn tabs_for_unavailable_connections_survive_a_save(cx: &mut TestAppContext) {
     // A previous run left a data viewer for a connection that is not (yet) live.
     let gone = TabSpec::DataViewer {
         conn_id: ConnectionId::parse("gone"),
-        object: "users".into(),
+        object: based_core::ObjectRef::bare("users"),
         filter: None,
     };
     let (win, ws) = open_workspace(cx);

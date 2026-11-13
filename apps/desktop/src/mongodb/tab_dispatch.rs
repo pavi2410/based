@@ -29,7 +29,7 @@ pub fn build_panel(
     match spec {
         TabSpec::DataViewer { object, .. } => {
             let label = tab_label_for_spec(spec, false);
-            let collection: Collection<Document> = db.collection(object);
+            let collection: Collection<Document> = db.collection(&object.name);
             let panel = cx
                 .new(|cx| super::document_viewer::DocumentViewerPanel::new(collection, window, cx));
             panel.update(cx, |p, _| p.tab_label = label);
@@ -82,7 +82,7 @@ pub fn build_panel(
         }
         TabSpec::Inspector { object, .. } => {
             let label = tab_label_for_spec(spec, false);
-            let coll: Collection<Document> = db.collection(object);
+            let coll: Collection<Document> = db.collection(&object.name);
             let panel = cx.new(|cx| {
                 super::inspector::CollectionInspectorPanel::new(coll, conn_id.clone(), window, cx)
             });

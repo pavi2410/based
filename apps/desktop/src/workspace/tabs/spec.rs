@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use crate::connection::ConnectionId;
+use based_core::ObjectRef;
+
+use crate::connection::{ConnectionId, EngineKind};
 use crate::workspace::connection_tree::ObjectKind;
 
 /// Typed initialization payload for a query editor tab.
@@ -85,7 +87,7 @@ pub enum TabSpec {
     },
     DataViewer {
         conn_id: ConnectionId,
-        object: String,
+        object: ObjectRef,
         /// Initial `column = value` filter (foreign-key drill-down).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         filter: Option<DrillFilter>,
@@ -101,12 +103,13 @@ pub enum TabSpec {
     },
     Inspector {
         conn_id: ConnectionId,
-        object: String,
+        object: ObjectRef,
     },
     /// Lightweight placeholder for triggers and other objects without a schema inspector tab.
     ObjectInfo {
         conn_id: ConnectionId,
-        object_name: String,
+        #[serde(alias = "object_name")]
+        object: ObjectRef,
         kind: ObjectKind,
     },
     /// MongoDB insert-document JSON editor for a collection.
@@ -126,6 +129,23 @@ pub enum TabSpec {
 }
 
 impl TabSpec {
+    /// Sessions written before objects were structured stored Postgres objects as
+    /// `"schema.name"`, which now reads as a bare name. Split those the way they
+    /// were opened then (last dot, else `public`) so a restored tab equals the one
+    /// the tree opens. Other engines never had a schema, so their names stay whole.
+    pub fn migrate_legacy_object(&mut self, engine: EngineKind) {
+        if engine != EngineKind::Postgres {
+            return;
+        }
+        if let Self::DataViewer { object, .. }
+        | Self::Inspector { object, .. }
+        | Self::ObjectInfo { object, .. } = self
+            && object.schema.is_none()
+        {
+            *object = ObjectRef::from_legacy_qualified(&object.name, "public");
+        }
+    }
+
     pub fn blank_query_editor(conn_id: ConnectionId) -> Self {
         Self::QueryEditor {
             conn_id,
@@ -166,12 +186,12 @@ mod tests {
     fn data_viewer_equality() {
         let a = TabSpec::DataViewer {
             conn_id: ConnectionId::parse("pg"),
-            object: "users".into(),
+            object: ObjectRef::bare("users"),
             filter: None,
         };
         let b = TabSpec::DataViewer {
             conn_id: ConnectionId::parse("pg"),
-            object: "users".into(),
+            object: ObjectRef::bare("users"),
             filter: None,
         };
         assert_eq!(a, b);
@@ -181,12 +201,12 @@ mod tests {
     fn different_objects_not_equal() {
         let a = TabSpec::DataViewer {
             conn_id: ConnectionId::parse("pg"),
-            object: "users".into(),
+            object: ObjectRef::bare("users"),
             filter: None,
         };
         let b = TabSpec::DataViewer {
             conn_id: ConnectionId::parse("pg"),
-            object: "orders".into(),
+            object: ObjectRef::bare("orders"),
             filter: None,
         };
         assert_ne!(a, b);
@@ -251,9 +271,55 @@ mod tests {
             viewer,
             TabSpec::DataViewer {
                 conn_id: ConnectionId::parse("pg"),
-                object: "users".into(),
+                object: ObjectRef::bare("users"),
                 filter: None,
             }
         );
+    }
+
+    #[test]
+    fn legacy_postgres_objects_migrate_to_what_the_tree_opens() {
+        let legacy = r#"[
+            {"type":"data_viewer","conn_id":"pg","object":"public.users"},
+            {"type":"inspector","conn_id":"pg","object":"sales.orders"},
+            {"type":"object_info","conn_id":"pg","object_name":"audit.trg","kind":"trigger"}
+        ]"#;
+        let mut specs: Vec<TabSpec> = serde_json::from_str(legacy).unwrap();
+        for s in &mut specs {
+            s.migrate_legacy_object(EngineKind::Postgres);
+        }
+        let pg = ConnectionId::parse("pg");
+        assert_eq!(
+            specs,
+            [
+                TabSpec::DataViewer {
+                    conn_id: pg.clone(),
+                    object: ObjectRef::qualified("public", "users"),
+                    filter: None,
+                },
+                TabSpec::Inspector {
+                    conn_id: pg.clone(),
+                    object: ObjectRef::qualified("sales", "orders"),
+                },
+                TabSpec::ObjectInfo {
+                    conn_id: pg,
+                    object: ObjectRef::qualified("audit", "trg"),
+                    kind: ObjectKind::Trigger,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn legacy_names_of_other_engines_stay_whole() {
+        let mut spec: TabSpec = serde_json::from_str(
+            r#"{"type":"data_viewer","conn_id":"m","object":"system.profile"}"#,
+        )
+        .unwrap();
+        spec.migrate_legacy_object(EngineKind::MongoDB);
+        assert!(matches!(
+            spec,
+            TabSpec::DataViewer { object, .. } if object == ObjectRef::bare("system.profile")
+        ));
     }
 }

@@ -84,7 +84,7 @@ fn open_tab(
 ) {
     let spec = TabSpec::DataViewer {
         conn_id,
-        object: "items".into(),
+        object: based_core::ObjectRef::bare("items"),
         filter,
     };
     open_spec(win, ws, spec, cx);

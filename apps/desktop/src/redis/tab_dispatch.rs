@@ -24,7 +24,7 @@ pub fn build_panel(
 ) -> Option<Arc<dyn PanelView>> {
     match spec {
         TabSpec::DataViewer { object, .. } => {
-            let key = object.clone();
+            let key = object.name.clone();
             let panel = cx.new(|cx| KeyViewPanel::new(conn, key, window, cx));
             panel.update(cx, |p, _| p.tab_label = tab_label_for_spec(spec, false));
             Some(Arc::new(panel))

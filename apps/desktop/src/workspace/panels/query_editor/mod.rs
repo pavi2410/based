@@ -212,6 +212,8 @@ pub struct QueryEditorPanel {
     last_run: LastRun,
     /// The project query this tab edits, so Save overwrites instead of asking again.
     saved: Option<SavedQueryRef>,
+    /// The next run goes through [`QuerySource::run_read_only`] (assistant cards).
+    read_only_next: bool,
     pub(crate) tab_label: SharedString,
 }
 
@@ -254,6 +256,7 @@ impl QueryEditorPanel {
             ai: AiHost::new(window, cx, Self::on_ai_event),
             ai_scope: None,
             held: None,
+            read_only_next: false,
             last_run: LastRun::default(),
             saved: None,
             tab_label: "Query".into(),
@@ -379,6 +382,18 @@ impl QueryEditorPanel {
     ///
     /// One undoable edit: ⌘Z restores the previous text. Marks the tab dirty and
     /// re-lints, like a typed edit.
+    /// The editor now holds SQL the assistant wrote: running it unchanged asks first
+    /// when it may write, as text applied from the prompt bar does.
+    pub fn mark_ai_written(&mut self, sql: &str) {
+        self.ai.note_applied(sql);
+    }
+
+    /// Run the editor's SQL once where the database refuses writes.
+    pub fn run_read_only(&mut self, cx: &mut Context<Self>) {
+        self.read_only_next = true;
+        self.run_all(cx);
+    }
+
     pub fn set_sql(&mut self, sql: &str, window: &mut Window, cx: &mut Context<Self>) {
         replace_input_text(&self.sql_input, sql, window, cx);
         self.dirty = true;

@@ -5,6 +5,7 @@ use based_desktop::query_store::QueryStore;
 use based_desktop::workspace::panels::query_editor::{HoldReason, QueryEditorPanel};
 use based_desktop::workspace::panels::query_view::ResultSnapshot;
 use based_desktop::workspace::tabs::spec::SavedQueryRef;
+use based_desktop::workspace::tabs::{inbox, request_workspace_flush};
 use based_desktop::workspace::{QueryEditorInit, TabSpec, Workspace};
 use based_query::RunOutcome;
 use gpui_kit::test::TestWindowExt;
@@ -430,4 +431,63 @@ fn ai_write_on_production_asks_on_both_banners(cx: &mut TestAppContext) {
     wait_until(cx, |cx| !ed.snapshot(cx).running);
     assert_eq!(ed.hold(cx), None);
     assert_eq!(ed.row_count(cx), "1");
+}
+
+/// An assistant card's SQL, as its Run (`run`) or "Use in editor" button sends it.
+fn send_card_sql(cx: &mut TestAppContext, sql: &str, run: bool) {
+    cx.update(|cx| {
+        inbox::ai_sql(ConnectionId::parse("demo"), sql.into(), run, cx);
+        request_workspace_flush(cx);
+    });
+    settle(cx);
+}
+
+fn editors(ws: &Entity<Workspace>, cx: &mut TestAppContext) -> Vec<Entity<QueryEditorPanel>> {
+    ws.read_with(cx, |ws, cx| {
+        ws.tab_manager()
+            .read(cx)
+            .tabs
+            .iter()
+            .filter_map(|t| t.downcast::<QueryEditorPanel>())
+            .collect()
+    })
+}
+
+#[gpui_kit::test]
+fn card_sql_used_in_the_editor_asks_before_writing(cx: &mut TestAppContext) {
+    let (editor, _ws, _dir) = open_editor(cx, "select 1", false);
+    send_card_sql(cx, "delete from t", false);
+    editor.click("sqlite-run", cx);
+    assert_eq!(editor.hold(cx), Some(HoldReason::AiWrite));
+    assert_eq!(editor.row_count(cx), "2", "nothing ran before confirming");
+}
+
+#[gpui_kit::test]
+fn card_run_of_a_write_waits_for_confirmation(cx: &mut TestAppContext) {
+    let (editor, ws, _dir) = open_editor(cx, "select 1", false);
+    // Cards only offer Run on text that looks read-only; a mislabelled write still waits.
+    send_card_sql(cx, "delete from t", true);
+    let run = editors(&ws, cx).pop().expect("a tab for the card's run");
+    let card = Editor {
+        win: editor.win,
+        panel: run,
+    };
+    assert_eq!(
+        card.hold(cx),
+        Some(HoldReason::AiWrite),
+        "held, so nothing ran"
+    );
+}
+
+#[gpui_kit::test]
+fn card_run_shows_rows(cx: &mut TestAppContext) {
+    let (editor, ws, _dir) = open_editor(cx, "select 1", false);
+    send_card_sql(cx, "select name from t order by id", true);
+    let run = editors(&ws, cx).pop().expect("a tab for the card's run");
+    let card = Editor {
+        win: editor.win,
+        panel: run,
+    };
+    let s = card.finished(cx);
+    assert_eq!(s.rows, [["ada"], ["grace"]]);
 }

@@ -22,7 +22,6 @@ use crate::project::ProjectRoot;
 use crate::workspace::notify;
 use crate::workspace::panels::query_editor::save_target_for;
 use crate::workspace::tabs::inbox::{self, request_workspace_flush};
-use crate::workspace::tabs::spec::{QueryEditorInit, TabSpec};
 
 /// A piece of a reply: prose, or one fenced SQL block.
 #[derive(Debug, PartialEq, Eq)]
@@ -82,23 +81,7 @@ pub(super) fn supports_cards(engine: EngineKind) -> bool {
 }
 
 fn open_in_editor(conn: &ConnectionId, sql: String, run: bool, cx: &mut App) {
-    if run {
-        let init = QueryEditorInit {
-            sql: Some(sql),
-            auto_run: true,
-            saved: None,
-            dirty: false,
-        };
-        inbox::open_tab(
-            TabSpec::QueryEditor {
-                conn_id: conn.clone(),
-                init,
-            },
-            cx,
-        );
-    } else {
-        inbox::inject_sql(conn.clone(), sql, cx);
-    }
+    inbox::ai_sql(conn.clone(), sql, run, cx);
     request_workspace_flush(cx);
 }
 
@@ -167,7 +150,7 @@ pub(super) fn sql_card(
     footer = footer
         .child(
             button("insert")
-                .label("Insert in editor")
+                .label("Use in editor")
                 .on_click(move |_, _, cx| {
                     open_in_editor(&insert_conn, insert_sql.clone(), false, cx);
                 }),

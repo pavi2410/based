@@ -1,6 +1,10 @@
 //! Running SQL: holds and confirmations, statement batches, results, errors.
 
 use super::*;
+use std::mem;
+
+/// Row cap for an assistant card's read-only run.
+const READ_ONLY_ROWS: usize = 1000;
 
 impl QueryEditorPanel {
     /// What Run executes: the selection, else the statement under the cursor when the
@@ -159,9 +163,14 @@ impl QueryEditorPanel {
         let source = self.source.clone();
         let timeout = prefs::query_timeout_secs(cx);
         let total = resolved.len();
+        let read_only = mem::take(&mut self.read_only_next);
         let task = cx.spawn(async move |this, cx| {
             for (index, sent) in resolved.into_iter().enumerate() {
-                let fut = source.run(sent.sql.clone(), timeout);
+                let fut = if read_only {
+                    source.run_read_only(sent.sql.clone(), READ_ONLY_ROWS)
+                } else {
+                    source.run(sent.sql.clone(), timeout)
+                };
                 let start = Instant::now();
                 let outcome = db::run_try(cx, fut, |e| QueryError::new(e.to_string())).await;
                 let ms = start.elapsed().as_millis() as u64;

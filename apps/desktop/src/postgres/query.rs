@@ -75,6 +75,20 @@ impl QuerySource for PgQuery {
         })
     }
 
+    fn run_read_only(
+        &self,
+        sql: String,
+        limit: usize,
+    ) -> BoxFuture<'static, Result<SqlOutcome, QueryError>> {
+        let pool = self.pool.clone();
+        Box::pin(async move {
+            based_postgres::query_readonly(&pool, &sql, limit)
+                .await
+                .map(SqlOutcome::Rows)
+                .map_err(|e| QueryError::new(e.to_string()))
+        })
+    }
+
     fn explain(&self, sql: String) -> Fut<Explained> {
         let pool = self.pool.clone();
         Box::pin(async move {

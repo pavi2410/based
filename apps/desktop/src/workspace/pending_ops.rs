@@ -2,7 +2,7 @@
 //!
 //! These are called from `render()` on every frame; see the comment in `render.rs` for why.
 
-use gpui_kit::{BorrowAppContext, Context};
+use gpui_kit::{App, BorrowAppContext, Context, Entity};
 
 use super::Workspace;
 use super::panels::query_editor::QueryEditorPanel;
@@ -53,7 +53,10 @@ impl Workspace {
                 Request::OpenTab(spec) => {
                     self.dispatch_open_tab(spec, window, cx);
                 }
-                Request::InjectSql { conn_id, sql } => self.inject_sql(conn_id, sql, window, cx),
+                Request::InjectSql { conn_id, sql } => {
+                    self.inject_sql(conn_id, sql, window, cx);
+                }
+                Request::AiSql { conn_id, sql, run } => self.ai_sql(conn_id, sql, run, window, cx),
                 Request::ShowHome => self.show_home(window, cx),
                 Request::ToggleSidePane(pane) => self.toggle_side_pane(pane, cx),
                 Request::ToggleLeftPane(pane) => self.toggle_left_pane(pane, cx),
@@ -99,31 +102,76 @@ impl Workspace {
         }
     }
 
+    /// SQL from an assistant card: run it read-only in a new tab, or put it in the
+    /// editor marked as AI-written so a write asks before it runs.
+    fn ai_sql(
+        &mut self,
+        conn_id: ConnectionId,
+        sql: String,
+        run: bool,
+        window: &mut gpui_kit::Window,
+        cx: &mut Context<Self>,
+    ) {
+        let editor = if run {
+            let init = QueryEditorInit {
+                sql: Some(sql.clone()),
+                auto_run: false,
+                saved: None,
+                dirty: false,
+            };
+            match self.dispatch_open_tab(TabSpec::QueryEditor { conn_id, init }, window, cx) {
+                OpenOutcome::Opened(id) => self.editor_for_tab(id, cx),
+                _ => None,
+            }
+        } else {
+            self.inject_sql(conn_id, sql.clone(), window, cx)
+        };
+        let Some(editor) = editor else {
+            return;
+        };
+        editor.update(cx, |e, cx| {
+            e.mark_ai_written(&sql);
+            if run {
+                e.run_read_only(cx);
+            }
+        });
+    }
+
+    fn editor_for_tab(&self, id: TabId, cx: &App) -> Option<Entity<QueryEditorPanel>> {
+        self.tab_manager
+            .read(cx)
+            .tab(id)
+            .and_then(|t| t.downcast::<QueryEditorPanel>())
+    }
+
     /// Replace the SQL in the active editor for `conn_id`, or open a tab holding it.
+    /// Returns the editor that now holds it.
     fn inject_sql(
         &mut self,
         conn_id: ConnectionId,
         sql: String,
         window: &mut gpui_kit::Window,
         cx: &mut Context<Self>,
-    ) {
+    ) -> Option<Entity<QueryEditorPanel>> {
         let editor = self
             .tab_manager
             .read(cx)
             .active_tab()
             .and_then(|t| t.downcast::<QueryEditorPanel>())
             .filter(|e| e.read(cx).connection_id() == &conn_id);
-        match editor {
-            Some(editor) => editor.update(cx, |e, cx| e.set_sql(&sql, window, cx)),
-            None => {
-                let init = QueryEditorInit {
-                    sql: Some(sql),
-                    auto_run: false,
-                    saved: None,
-                    dirty: false,
-                };
-                self.dispatch_open_tab(TabSpec::QueryEditor { conn_id, init }, window, cx);
-            }
+        if let Some(editor) = editor {
+            editor.update(cx, |e, cx| e.set_sql(&sql, window, cx));
+            return Some(editor);
+        }
+        let init = QueryEditorInit {
+            sql: Some(sql),
+            auto_run: false,
+            saved: None,
+            dirty: false,
+        };
+        match self.dispatch_open_tab(TabSpec::QueryEditor { conn_id, init }, window, cx) {
+            OpenOutcome::Opened(id) => self.editor_for_tab(id, cx),
+            _ => None,
         }
     }
 

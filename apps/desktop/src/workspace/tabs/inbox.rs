@@ -20,6 +20,13 @@ pub enum Request {
         conn_id: ConnectionId,
         sql: String,
     },
+    /// SQL from an assistant card. `run`: open it in a new tab and run it read-only;
+    /// otherwise put it in the editor, marked as AI-written.
+    AiSql {
+        conn_id: ConnectionId,
+        sql: String,
+        run: bool,
+    },
     ShowHome,
     ToggleSidePane(SidePane),
     ToggleLeftPane(LeftPane),
@@ -77,6 +84,10 @@ pub fn open_release_notes(version: String, cx: &mut impl BorrowAppContext) {
 
 pub fn connection_opened(conn_id: ConnectionId, cx: &mut impl BorrowAppContext) {
     post(Request::ConnectionOpened(conn_id), cx);
+}
+
+pub fn ai_sql(conn_id: ConnectionId, sql: String, run: bool, cx: &mut impl BorrowAppContext) {
+    post(Request::AiSql { conn_id, sql, run }, cx);
 }
 
 pub fn inject_sql(conn_id: ConnectionId, sql: String, cx: &mut impl BorrowAppContext) {

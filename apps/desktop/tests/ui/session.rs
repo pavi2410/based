@@ -46,8 +46,10 @@ fn next_launch_restores_tabs(cx: &mut TestAppContext) {
 
     let (_win2, ws2) = open_window(cx, no_project_env());
     let restored = specs(&ws2, cx);
-    assert!(restored.contains(&info("a")), "{restored:?}");
-    assert!(restored.contains(&info("b")), "{restored:?}");
+    let a = restored.iter().position(|s| *s == info("a"));
+    let b = restored.iter().position(|s| *s == info("b"));
+    assert!(a.is_some() && b.is_some(), "{restored:?}");
+    assert!(a < b, "restored in saved order: {restored:?}");
     assert_eq!(
         restored.iter().filter(|s| **s == TabSpec::Home).count(),
         1,
@@ -212,4 +214,25 @@ fn pinning_one_of_two_equal_tabs_pins_only_that_one(cx: &mut TestAppContext) {
     wait_until(cx, |cx| saved_session(cx).tabs.iter().any(|t| t.pinned));
     let pinned = saved_session(cx).tabs.iter().filter(|t| t.pinned).count();
     assert_eq!(pinned, 1);
+
+    // Next launch: both blank editors come back, and only one is pinned.
+    let (_w3, ws3) = open_window(cx, no_project_env());
+    connect_sqlite(cx, &ws3, "demo", r._dir.path().join("demo.db").as_path());
+    settle(cx);
+    let tabs = ws3.read_with(cx, |ws, cx| {
+        ws.tab_manager()
+            .read(cx)
+            .tabs
+            .iter()
+            // The new editors (they open with the same default SQL), not the
+            // restored `select 1` one.
+            .filter(|t| {
+                matches!(&t.spec, TabSpec::QueryEditor { init, .. }
+                    if init.sql.as_deref() != Some("select 1"))
+            })
+            .map(|t| t.pinned)
+            .collect::<Vec<_>>()
+    });
+    assert_eq!(tabs.len(), 2, "both blank editors restored: {tabs:?}");
+    assert_eq!(tabs.iter().filter(|p| **p).count(), 1, "{tabs:?}");
 }

@@ -216,6 +216,11 @@ impl SessionState {
         }
     }
 
+    /// Whether a restored tab is already linked to live tab `id`.
+    pub fn is_linked(&self, id: TabId) -> bool {
+        self.pending.iter().any(|p| p.live == Some(id))
+    }
+
     /// The restored tab at `index` can never open (its engine has no such tab).
     pub fn drop_pending(&mut self, index: usize) {
         if index < self.pending.len() {

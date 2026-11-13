@@ -96,15 +96,22 @@ impl Workspace {
         window: &mut gpui_kit::Window,
         cx: &mut Context<Self>,
     ) {
-        // Last first, so dropping an entry doesn't shift the ones still to visit.
-        for (index, saved) in self.session.to_open().into_iter().rev() {
-            let already_open = self
-                .tab_manager
-                .read(cx)
-                .tabs
-                .iter()
-                .find(|t| t.spec == saved.spec)
-                .map(|t| t.id);
+        let mut unsupported = Vec::new();
+        // In saved order, so the strip comes back as it was.
+        for (index, saved) in self.session.to_open() {
+            // A tab that is already open stands for this entry, unless another
+            // entry claimed it. Query editors never match by content: two
+            // equal blank editors are two tabs.
+            let already_open = (!matches!(saved.spec, TabSpec::QueryEditor { .. }))
+                .then(|| {
+                    self.tab_manager
+                        .read(cx)
+                        .tabs
+                        .iter()
+                        .find(|t| t.spec == saved.spec && !self.session.is_linked(t.id))
+                        .map(|t| t.id)
+                })
+                .flatten();
             let outcome = match already_open {
                 Some(id) => OpenOutcome::Focused(id),
                 None => self.dispatch_open_tab(saved.spec.clone(), window, cx),
@@ -120,9 +127,13 @@ impl Workspace {
                 OpenOutcome::NotYet => {}
                 OpenOutcome::Unsupported => {
                     log::info!("dropping saved tab that cannot open: {:?}", saved.spec);
-                    self.session.drop_pending(index);
+                    unsupported.push(index);
                 }
             }
+        }
+        // Last first, so removing one doesn't shift the others.
+        for index in unsupported.into_iter().rev() {
+            self.session.drop_pending(index);
         }
     }
 

@@ -8,7 +8,6 @@ pub mod object;
 pub mod page;
 pub mod session;
 pub mod ssh;
-pub mod tab;
 pub mod value;
 
 pub use auth::AuthMethod;
@@ -23,5 +22,4 @@ pub use page::{
 };
 pub use session::{PersistedConnection, WorkspaceState};
 pub use ssh::SshTunnelConfig;
-pub use tab::{TabId, TabKind};
 pub use value::Value;

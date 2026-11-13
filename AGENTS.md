@@ -75,7 +75,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for dependency rules between layers.
 
 - **Engine abstraction**: `AnyConnection` enum + `Connectable` trait unify all database engines. Each engine implements open/test/close; query execution is engine-specific.
 - **Async bridging**: `db.rs` bridges Tokio futures to GPUI tasks. All blocking I/O must go through this bridge to keep the UI responsive.
-- **Tab system**: `TabId` encodes (connection id, tab kind, payload) — tabs are the primary navigation unit in the workspace.
+- **Tab system**: `TabSpec` is what a tab shows (and what the session saves); `TabId` is a tab's per-run identity, which closing, pinning and session restore follow. Tabs are the primary navigation unit in the workspace.
 - **PopOutManager**: Tracks detached child windows and their lifecycle; consult before creating new window types.
 - **Project format**: `.based/project.toml` holds the manifest; `.based/connections/` and `.based/queries/` hold per-file connections and queries; `.based/.env` holds secrets (git-ignored); `.based/state/` holds per-user workspace state.
 

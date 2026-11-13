@@ -143,6 +143,10 @@ impl Workspace {
             }
         });
         for id in removed_ids {
+            // A user close: a restored tab in this pane must not come back.
+            if let Some(tab_id) = self.tab_manager.read(cx).tab_for_panel_id(id).map(|t| t.id) {
+                self.forget_session_tab(tab_id);
+            }
             self.unregister_center_panel(id, cx);
         }
         self.sync_tab_manager_from_dock(cx);

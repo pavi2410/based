@@ -96,10 +96,22 @@ impl MetadataStore {
             } else {
                 password_template
             };
+            // The column defaults to 'postgres'; an empty value is a pre-engine row.
+            let engine = if engine.trim().is_empty() {
+                based_core::EngineKind::Postgres
+            } else {
+                match engine.parse() {
+                    Ok(e) => e,
+                    Err(e) => {
+                        log::warn!("skipping connection template {id}: {e}");
+                        continue;
+                    }
+                }
+            };
             out.push(ConnectionTemplate {
                 id,
                 label,
-                engine: based_core::EngineKind::from_str_lossy(&engine),
+                engine,
                 host,
                 port,
                 database,

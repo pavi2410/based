@@ -5,6 +5,7 @@ pub mod ai_diff;
 pub mod cell_detail;
 pub mod cell_hover;
 pub mod cell_render;
+pub mod choice;
 pub mod column_header;
 pub mod command_shell;
 pub mod data_table;

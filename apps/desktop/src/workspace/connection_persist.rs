@@ -101,7 +101,6 @@ fn project_connection_from_config(
             ProjectConnection {
                 id: relative_id,
                 label: c.label.clone(),
-                engine: "postgres".into(),
                 tags,
                 read_only: false,
                 spec: ConnectionSpec::Postgres {
@@ -127,7 +126,6 @@ fn project_connection_from_config(
             ProjectConnection {
                 id: relative_id,
                 label: c.label.clone(),
-                engine: "mongodb".into(),
                 tags,
                 read_only: false,
                 spec: ConnectionSpec::MongoDB {
@@ -141,7 +139,6 @@ fn project_connection_from_config(
         ConnectionConfig::Redis(c) => ProjectConnection {
             id: relative_id.clone(),
             label: c.label.clone(),
-            engine: "redis".into(),
             tags,
             read_only: false,
             spec: ConnectionSpec::Redis {
@@ -159,7 +156,6 @@ fn project_connection_from_config(
         ConnectionConfig::SQLite(c) => ProjectConnection {
             id: relative_id,
             label: c.label.clone(),
-            engine: "sqlite".into(),
             tags,
             read_only: c.read_only,
             spec: ConnectionSpec::Sqlite {

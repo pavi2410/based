@@ -23,7 +23,7 @@ use tokio::task::spawn_blocking;
 use uuid::Uuid;
 
 use based_core::SshTunnelConfig;
-use based_project::AiSettings;
+use based_project::{AiContext, AiSettings};
 
 use crate::app::prefs;
 use crate::connection::Environment;
@@ -40,15 +40,16 @@ use crate::postgres::{PgConnection, PostgresConfig, SslMode};
 use crate::project::ProjectRoot;
 use crate::redis::{RedisConfig, RedisConnection};
 use crate::sqlite::{SqliteConfig, SqliteConnection, SqlitePragma};
+use crate::widgets::choice::{Choice, choices};
 use crate::widgets::{form_section, labeled_field, labeled_fixed, new_field, set_field};
 use crate::workspace::WorkspaceRef;
 use crate::workspace::connection_destination::{
     ConnectionDestination, destination_row, resolve_wizard_destination,
 };
 use crate::workspace::wizard_logic::{
-    AI_LABELS, add_wizard_tag, ai_from_label, ai_label, can_edit_saved_connection,
+    AI_CHOICES, add_wizard_tag, ai_context_of, ai_settings_for, can_edit_saved_connection,
     remove_wizard_tag, save_label_from_config, ssl_mode_from_toggle, ssl_toggle_enabled,
-    wizard_engine_label, wizard_session_id,
+    wizard_session_id,
 };
 
 mod actions;
@@ -58,8 +59,18 @@ mod view;
 
 mod picker;
 
-const ENGINE_LABELS: &[&str] = &["PostgreSQL", "MongoDB", "SQLite", "Redis"];
-const SSL_ON_LABELS: &[&str] = &["require", "verify-ca", "verify-full"];
+const ENGINE_CHOICES: &[(EngineKind, &str)] = &[
+    (EngineKind::Postgres, EngineKind::Postgres.display_name()),
+    (EngineKind::MongoDB, EngineKind::MongoDB.display_name()),
+    (EngineKind::SQLite, EngineKind::SQLite.display_name()),
+    (EngineKind::Redis, EngineKind::Redis.display_name()),
+];
+/// TLS modes offered when the SSL toggle is on.
+const SSL_ON_CHOICES: &[(SslMode, &str)] = &[
+    (SslMode::Require, "require"),
+    (SslMode::VerifyCa, "verify-ca"),
+    (SslMode::VerifyFull, "verify-full"),
+];
 const WIZARD_COLUMN_W: f32 = 480.0;
 
 /// Which step of the New connection flow is showing.
@@ -84,14 +95,14 @@ pub enum WizardStatus {
 
 pub struct ConnectionWizardPanel {
     focus_handle: FocusHandle,
-    engine: Entity<SelectState<Vec<&'static str>>>,
+    engine: Entity<SelectState<Vec<Choice<EngineKind>>>>,
     host: Entity<InputState>,
     port: Entity<InputState>,
     database: Entity<InputState>,
     username: Entity<InputState>,
     password: Entity<InputState>,
     ssl_enabled: bool,
-    ssl_mode: Entity<SelectState<Vec<&'static str>>>,
+    ssl_mode: Entity<SelectState<Vec<Choice<SslMode>>>>,
     ssh_enabled: bool,
     ssh_host: Entity<InputState>,
     ssh_port: Entity<InputState>,
@@ -108,7 +119,7 @@ pub struct ConnectionWizardPanel {
     name: Entity<InputState>,
     tag_input: Entity<InputState>,
     tags: Vec<String>,
-    ai_select: Entity<SelectState<Vec<&'static str>>>,
+    ai_select: Entity<SelectState<Vec<Choice<AiContext>>>>,
     destination: Option<ConnectionDestination>,
     session_id: Option<ConnectionId>,
     status: WizardStatus,
@@ -145,7 +156,7 @@ impl ConnectionWizardPanel {
         .detach();
 
         let engine = cx.new(|cx| {
-            SelectState::new(ENGINE_LABELS.to_vec(), Some(IndexPath::new(0)), window, cx)
+            SelectState::new(choices(ENGINE_CHOICES), Some(IndexPath::new(0)), window, cx)
         });
         cx.subscribe_in(&engine, window, |panel, _, _: &SelectEvent<_>, _, cx| {
             panel.status = WizardStatus::Idle;
@@ -180,7 +191,7 @@ impl ConnectionWizardPanel {
             }),
             ssl_enabled: false,
             ssl_mode: cx.new(|cx| {
-                SelectState::new(SSL_ON_LABELS.to_vec(), Some(IndexPath::new(0)), window, cx)
+                SelectState::new(choices(SSL_ON_CHOICES), Some(IndexPath::new(0)), window, cx)
             }),
             ssh_enabled: false,
             ssh_host: new_field(window, cx, "", "bastion.example.com"),
@@ -215,7 +226,7 @@ impl ConnectionWizardPanel {
             destination: None,
             session_id: None,
             ai_select: cx.new(|cx| {
-                SelectState::new(AI_LABELS.to_vec(), Some(IndexPath::new(0)), window, cx)
+                SelectState::new(choices(AI_CHOICES), Some(IndexPath::new(0)), window, cx)
             }),
             status: WizardStatus::Idle,
             stage: Stage::Pick,
@@ -246,7 +257,7 @@ impl ConnectionWizardPanel {
         panel.destination = Some(ConnectionDestination::from_origin(origin));
         panel.tags = tags;
         panel.ai_select.update(cx, |select, cx| {
-            select.set_selected_value(&ai_label(ai), window, cx);
+            select.set_selected_value(&ai_context_of(ai), window, cx);
         });
         panel.tab_label = config.label().to_string().into();
         panel.apply_config(&config, window, cx);

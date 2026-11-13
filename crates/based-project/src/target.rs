@@ -6,7 +6,7 @@ pub struct QueryTarget {
     #[serde(default)]
     pub connection: Option<TargetConnection>,
     #[serde(default)]
-    pub engine: Option<String>,
+    pub engine: Option<EngineKind>,
     #[serde(default)]
     pub tags: Vec<String>,
     #[serde(default, rename = "exclude_tags")]
@@ -68,8 +68,7 @@ pub fn resolve_target(
 
     let mut matches: Vec<&ConnectionRef> = connections.iter().collect();
 
-    if let Some(engine) = &target.engine {
-        let want = parse_engine(engine);
+    if let Some(want) = target.engine {
         matches.retain(|c| c.engine == want);
     }
     if !target.tags.is_empty() {
@@ -99,13 +98,4 @@ pub fn resolve_target(
     Err(ResolveError::Ambiguous(
         matches.iter().map(|c| c.id.clone()).collect(),
     ))
-}
-
-fn parse_engine(s: &str) -> EngineKind {
-    match s.to_lowercase().as_str() {
-        "mongodb" | "mongo" => EngineKind::MongoDB,
-        "sqlite" => EngineKind::SQLite,
-        "redis" => EngineKind::Redis,
-        _ => EngineKind::Postgres,
-    }
 }

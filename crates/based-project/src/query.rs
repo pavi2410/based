@@ -5,6 +5,8 @@ use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use toml_edit::{DocumentMut, value};
 
+use based_core::EngineKind;
+
 use crate::target::QueryTarget;
 use crate::walk::{rel_id, walk_toml_files};
 
@@ -63,8 +65,8 @@ struct AggregateSection {
 pub enum SaveTarget {
     /// One project connection, by its id.
     Connection(String),
-    /// Any connection of this engine (`postgres`, `sqlite`, `mongodb`, `redis`).
-    Engine(String),
+    /// Any connection of this engine.
+    Engine(EngineKind),
 }
 
 #[derive(serde::Serialize)]
@@ -80,7 +82,7 @@ struct TargetOut<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     connection: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    engine: Option<&'a str>,
+    engine: Option<EngineKind>,
 }
 
 #[derive(serde::Serialize)]
@@ -137,7 +139,7 @@ pub fn save_sql_query(
     }
     let (connection, engine) = match target {
         SaveTarget::Connection(id) => (Some(id.as_str()), None),
-        SaveTarget::Engine(e) => (None, Some(e.as_str())),
+        SaveTarget::Engine(e) => (None, Some(*e)),
     };
     let out = QueryFileOut {
         schema_version: QUERY_SCHEMA_VERSION,
@@ -362,7 +364,7 @@ query = "select 1"
             Some("Most active users this week")
         );
         assert_eq!(q.tags, ["reports"]);
-        assert_eq!(q.target.engine.as_deref(), Some("postgres"));
+        assert_eq!(q.target.engine, Some(EngineKind::Postgres));
         assert!(q.target.connection.is_none());
     }
 
@@ -373,12 +375,12 @@ query = "select 1"
             dir.path(),
             "q",
             "select 1",
-            &SaveTarget::Engine("sqlite".into()),
+            &SaveTarget::Engine(EngineKind::SQLite),
             None,
         )
         .unwrap();
         let q = load_queries(dir.path()).unwrap().queries.remove(0);
-        assert_eq!(q.target.engine.as_deref(), Some("sqlite"));
+        assert_eq!(q.target.engine, Some(EngineKind::SQLite));
         assert!(q.target.connection.is_none());
     }
 

@@ -15,7 +15,7 @@ pub struct PostgresConfig {
     pub ssh: Option<SshTunnelConfig>,
 }
 
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SslMode {
     #[default]

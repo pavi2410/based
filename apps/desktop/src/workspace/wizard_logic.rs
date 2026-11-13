@@ -4,7 +4,7 @@ use std::path::Path;
 
 use based_project::{AiContext, AiSettings};
 
-use crate::connection::{ConnectionConfig, ConnectionId, ConnectionOrigin, EngineKind};
+use crate::connection::{ConnectionConfig, ConnectionId, ConnectionOrigin};
 use crate::postgres::SslMode;
 
 /// Where a blank Name field should take its save label from.
@@ -89,37 +89,23 @@ pub fn ssl_toggle_enabled(mode: SslMode) -> bool {
     !matches!(mode, SslMode::Disable)
 }
 
-pub const AI_LABELS: &[&str] = &["Off", "Schema only", "Schema and sample rows"];
+pub const AI_CHOICES: &[(AiContext, &str)] = &[
+    (AiContext::Off, "Off"),
+    (AiContext::Schema, "Schema only"),
+    (AiContext::SchemaRows, "Schema and sample rows"),
+];
 
-/// Form label for a connection's `[ai]` settings.
-pub fn ai_label(ai: Option<AiSettings>) -> &'static str {
-    match ai.map(|a| a.effective_context()) {
-        None | Some(AiContext::Off) => AI_LABELS[0],
-        Some(AiContext::Schema) => AI_LABELS[1],
-        Some(AiContext::SchemaRows) => AI_LABELS[2],
-    }
+/// What the form's AI select shows for a connection's `[ai]` settings.
+pub fn ai_context_of(ai: Option<AiSettings>) -> AiContext {
+    ai.map_or(AiContext::Off, |a| a.effective_context())
 }
 
-/// `None` (no `[ai]` table) for Off.
-pub fn ai_from_label(label: &str) -> Option<AiSettings> {
-    let context = match AI_LABELS.iter().position(|l| *l == label)? {
-        1 => AiContext::Schema,
-        2 => AiContext::SchemaRows,
-        _ => return None,
-    };
-    Some(AiSettings {
+/// `[ai]` settings for a selected level; `None` (no `[ai]` table) for Off.
+pub fn ai_settings_for(context: AiContext) -> Option<AiSettings> {
+    (context != AiContext::Off).then_some(AiSettings {
         enabled: true,
         context,
     })
-}
-
-pub fn wizard_engine_label(engine: EngineKind) -> &'static str {
-    match engine {
-        EngineKind::Postgres => "PostgreSQL",
-        EngineKind::MongoDB => "MongoDB",
-        EngineKind::SQLite => "SQLite",
-        EngineKind::Redis => "Redis",
-    }
 }
 
 /// Reuse a saved id; otherwise mint an ephemeral live session id.
@@ -244,18 +230,17 @@ fn sqlite_stem(path: &str) -> String {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn ai_labels_round_trip() {
-        assert_eq!(ai_from_label("Off"), None);
-        assert_eq!(ai_from_label("nonsense"), None);
-        for label in &AI_LABELS[1..] {
-            assert_eq!(ai_label(ai_from_label(label)), *label);
+    fn ai_levels_round_trip() {
+        assert_eq!(ai_settings_for(AiContext::Off), None);
+        for &(level, _) in AI_CHOICES {
+            assert_eq!(ai_context_of(ai_settings_for(level)), level);
         }
         let disabled = AiSettings {
             enabled: false,
             context: AiContext::SchemaRows,
         };
-        assert_eq!(ai_label(Some(disabled)), "Off");
-        assert_eq!(ai_label(None), "Off");
+        assert_eq!(ai_context_of(Some(disabled)), AiContext::Off);
+        assert_eq!(ai_context_of(None), AiContext::Off);
     }
 
     use super::*;

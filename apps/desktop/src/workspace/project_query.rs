@@ -121,8 +121,8 @@ pub fn target_hint(target: &QueryTarget) -> String {
         Some(TargetConnection::OneOf(ids)) => ids.join(" | "),
         None => {
             let mut parts = Vec::new();
-            if let Some(e) = &target.engine {
-                parts.push(e.clone());
+            if let Some(e) = target.engine {
+                parts.push(e.to_string());
             }
             if !target.tags.is_empty() {
                 parts.push(format!("tags:{}", target.tags.join("+")));

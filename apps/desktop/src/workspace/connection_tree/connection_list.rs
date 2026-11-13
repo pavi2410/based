@@ -67,10 +67,22 @@ fn server_label(state: &ConnectionState, cx: &App) -> Option<SharedString> {
         return None;
     };
     let (name, raw) = match conn {
-        AnyConnection::Postgres(e) => ("PostgreSQL", e.read(cx).server_version.clone()),
-        AnyConnection::MongoDB(e) => ("MongoDB", e.read(cx).server_version.clone()),
-        AnyConnection::SQLite(e) => ("SQLite", e.read(cx).server_version.clone()),
-        AnyConnection::Redis(e) => ("Redis", e.read(cx).server_version.clone()),
+        AnyConnection::Postgres(e) => (
+            EngineKind::Postgres.display_name(),
+            e.read(cx).server_version.clone(),
+        ),
+        AnyConnection::MongoDB(e) => (
+            EngineKind::MongoDB.display_name(),
+            e.read(cx).server_version.clone(),
+        ),
+        AnyConnection::SQLite(e) => (
+            EngineKind::SQLite.display_name(),
+            e.read(cx).server_version.clone(),
+        ),
+        AnyConnection::Redis(e) => (
+            EngineKind::Redis.display_name(),
+            e.read(cx).server_version.clone(),
+        ),
     };
     raw.and_then(|r| short_version(name, &r)).map(Into::into)
 }

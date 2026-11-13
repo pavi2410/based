@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 
+use based_core::EngineKind;
+
 use crate::ai::AiSettings;
 use crate::env_value::EnvOrString;
 use crate::walk::{rel_id, walk_toml_files};
@@ -14,7 +16,6 @@ pub const CONNECTION_SCHEMA_VERSION: u64 = 1;
 pub struct ProjectConnection {
     pub id: String,
     pub label: String,
-    pub engine: String,
     pub tags: Vec<String>,
     pub read_only: bool,
     pub spec: ConnectionSpec,
@@ -73,6 +74,17 @@ pub enum ConnectionSpec {
     Redis {
         url: EnvOrString,
     },
+}
+
+impl ConnectionSpec {
+    pub fn engine(&self) -> EngineKind {
+        match self {
+            Self::Sqlite { .. } => EngineKind::SQLite,
+            Self::Postgres { .. } => EngineKind::Postgres,
+            Self::MongoDB { .. } => EngineKind::MongoDB,
+            Self::Redis { .. } => EngineKind::Redis,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -191,7 +203,7 @@ pub fn write_connection_file(based_dir: &Path, conn: &ProjectConnection) -> Resu
 struct WriteConnectionFile {
     schema_version: u64,
     label: String,
-    engine: String,
+    engine: EngineKind,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     tags: Vec<String>,
     #[serde(skip_serializing_if = "is_false")]
@@ -228,7 +240,7 @@ impl From<&ProjectConnection> for WriteConnectionFile {
         let mut out = Self {
             schema_version: CONNECTION_SCHEMA_VERSION,
             label: conn.label.clone(),
-            engine: conn.engine.clone(),
+            engine: conn.spec.engine(),
             tags: conn.tags.clone(),
             read_only: conn.read_only,
             file: None,
@@ -302,9 +314,12 @@ fn parse_connection_file(connections_dir: &Path, path: &Path) -> Result<ProjectC
             path.display()
         );
     }
-    let engine = file.engine.to_lowercase();
-    let spec = match engine.as_str() {
-        "sqlite" => {
+    let engine: EngineKind = file
+        .engine
+        .parse()
+        .with_context(|| format!("in {}", path.display()))?;
+    let spec = match engine {
+        EngineKind::SQLite => {
             let file_path = file
                 .file
                 .as_ref()
@@ -314,7 +329,7 @@ fn parse_connection_file(connections_dir: &Path, path: &Path) -> Result<ProjectC
                 pragma: file.pragma,
             }
         }
-        "postgres" | "postgresql" => ConnectionSpec::Postgres {
+        EngineKind::Postgres => ConnectionSpec::Postgres {
             host: file
                 .host
                 .clone()
@@ -336,7 +351,7 @@ fn parse_connection_file(connections_dir: &Path, path: &Path) -> Result<ProjectC
                 .ssl_mode
                 .unwrap_or_else(|| PostgresSslMode::from_legacy(file.ssl.unwrap_or(false))),
         },
-        "mongodb" | "mongo" => {
+        EngineKind::MongoDB => {
             let url = file
                 .url
                 .clone()
@@ -346,20 +361,18 @@ fn parse_connection_file(connections_dir: &Path, path: &Path) -> Result<ProjectC
                 database: file.database.clone(),
             }
         }
-        "redis" => ConnectionSpec::Redis {
+        EngineKind::Redis => ConnectionSpec::Redis {
             url: file
                 .url
                 .clone()
                 .with_context(|| format!("redis connection {id} requires `url`"))?,
         },
-        other => bail!("unknown engine {other:?} in {}", path.display()),
     };
     let read_only = resolve_read_only(file.read_only, &file.tags);
     let ssh = parse_ssh(file.ssh, &id)?;
     Ok(ProjectConnection {
         id,
         label: file.label,
-        engine,
         tags: file.tags,
         read_only,
         spec,
@@ -456,7 +469,6 @@ file = "data/index.db"
         let conn = ProjectConnection {
             id: "cache".into(),
             label: "Cache".into(),
-            engine: "redis".into(),
             tags: vec![],
             read_only: false,
             spec: ConnectionSpec::Redis {
@@ -625,7 +637,6 @@ ssl = false
         let conn = ProjectConnection {
             id: "prod".into(),
             label: "Prod".into(),
-            engine: "postgres".into(),
             tags: vec![],
             read_only: false,
             spec: ConnectionSpec::Postgres {
@@ -671,7 +682,6 @@ ssl = false
         let postgres = ProjectConnection {
             id: "analytics".into(),
             label: "Analytics".into(),
-            engine: "postgres".into(),
             tags: vec!["local".into()],
             read_only: false,
             spec: ConnectionSpec::Postgres {
@@ -690,7 +700,6 @@ ssl = false
         let sqlite = ProjectConnection {
             id: "northwind".into(),
             label: "Northwind".into(),
-            engine: "sqlite".into(),
             tags: vec![],
             read_only: true,
             spec: ConnectionSpec::Sqlite {
@@ -758,7 +767,6 @@ ssl = false
         let mut conn = ProjectConnection {
             id: "dev".into(),
             label: "Dev".into(),
-            engine: "redis".into(),
             tags: vec![],
             read_only: false,
             spec: ConnectionSpec::Redis {

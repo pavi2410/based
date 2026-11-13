@@ -195,7 +195,6 @@ mod tests {
         let conn = ProjectConnection {
             id: "analytics".into(),
             label: "Analytics".into(),
-            engine: "sqlite".into(),
             tags: vec![],
             read_only: false,
             spec: ConnectionSpec::Sqlite {
@@ -251,7 +250,6 @@ password = { env = "BASED_TEST_LOADER_MISSING_SECRET" }
         let conn = ProjectConnection {
             id: "pg".into(),
             label: "PG".into(),
-            engine: "postgres".into(),
             tags: vec![],
             read_only: false,
             spec: ConnectionSpec::Postgres {
@@ -281,7 +279,6 @@ password = { env = "BASED_TEST_LOADER_MISSING_SECRET" }
         let conn = ProjectConnection {
             id: "pg".into(),
             label: "PG".into(),
-            engine: "postgres".into(),
             tags: vec![],
             read_only: false,
             spec: ConnectionSpec::Postgres {

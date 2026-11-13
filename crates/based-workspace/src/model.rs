@@ -49,7 +49,7 @@ pub struct ConnectionTemplate {
     pub id: Uuid,
     pub label: String,
     /// Defaults to Postgres for templates created before the engine column existed.
-    #[serde(default)]
+    #[serde(default = "legacy_template_engine")]
     pub engine: EngineKind,
     pub host: String,
     pub port: String,
@@ -80,4 +80,8 @@ pub struct SavedQueryRef {
     pub name: String,
     pub sql: String,
     pub connection_template_id: Option<Uuid>,
+}
+
+fn legacy_template_engine() -> EngineKind {
+    EngineKind::Postgres
 }

@@ -1640,13 +1640,5 @@ pub(crate) fn save_target_for(conn_id: &ConnectionId, engine: EngineKind, cx: &A
             return SaveTarget::Connection(e.id.0.clone());
         }
     }
-    SaveTarget::Engine(
-        match engine {
-            EngineKind::Postgres => "postgres",
-            EngineKind::SQLite => "sqlite",
-            EngineKind::MongoDB => "mongodb",
-            EngineKind::Redis => "redis",
-        }
-        .into(),
-    )
+    SaveTarget::Engine(engine)
 }

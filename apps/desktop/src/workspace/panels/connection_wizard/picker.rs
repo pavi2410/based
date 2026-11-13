@@ -40,9 +40,9 @@ fn is_sqlite_file(name: &str) -> bool {
 }
 
 impl ConnectionWizardPanel {
-    fn choose_engine(&mut self, label: &'static str, window: &mut Window, cx: &mut Context<Self>) {
+    fn choose_engine(&mut self, engine: EngineKind, window: &mut Window, cx: &mut Context<Self>) {
         self.engine
-            .update(cx, |s, cx| s.set_selected_value(&label, window, cx));
+            .update(cx, |s, cx| s.set_selected_value(&engine, window, cx));
         self.status = WizardStatus::Idle;
         self.stage = Stage::Form;
         cx.notify();
@@ -65,15 +65,15 @@ impl ConnectionWizardPanel {
                     cx.notify();
                     return;
                 }
-                self.choose_engine("PostgreSQL", window, cx);
+                self.choose_engine(EngineKind::Postgres, window, cx);
             }
             Some(EngineKind::MongoDB) => {
                 set_field(&self.mongo_uri, &text, window, cx);
-                self.choose_engine("MongoDB", window, cx);
+                self.choose_engine(EngineKind::MongoDB, window, cx);
             }
             Some(EngineKind::Redis) => {
                 set_field(&self.redis_url, &text, window, cx);
-                self.choose_engine("Redis", window, cx);
+                self.choose_engine(EngineKind::Redis, window, cx);
             }
             _ if is_sqlite_file(&text) => self.use_sqlite_file(PathBuf::from(&text), window, cx),
             _ => {
@@ -91,7 +91,7 @@ impl ConnectionWizardPanel {
         if let Some(stem) = path.file_stem() {
             set_field(&self.name, &stem.to_string_lossy(), window, cx);
         }
-        self.choose_engine("SQLite", window, cx);
+        self.choose_engine(EngineKind::SQLite, window, cx);
     }
 
     /// SQLite files sitting at the top of the open project.
@@ -147,7 +147,7 @@ impl ConnectionWizardPanel {
                 )
                 .child(div().text_xs().text_color(muted).child(hint))
                 .on_click(cx.listener(move |panel, _, window, cx| {
-                    panel.choose_engine(label, window, cx);
+                    panel.choose_engine(engine, window, cx);
                 }))
         });
         let [pg, mongo, sqlite, redis] = cards;

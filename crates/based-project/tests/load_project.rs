@@ -44,7 +44,7 @@ fn resolve_exclusive_target() {
 fn resolve_filter_by_engine() {
     let target = QueryTarget {
         connection: None,
-        engine: Some("postgres".into()),
+        engine: Some(EngineKind::Postgres),
         tags: vec![],
         exclude_tags: vec![],
     };
@@ -67,7 +67,7 @@ fn resolve_filter_by_engine() {
 fn resolve_ambiguous() {
     let target = QueryTarget {
         connection: None,
-        engine: Some("postgres".into()),
+        engine: Some(EngineKind::Postgres),
         tags: vec![],
         exclude_tags: vec![],
     };
@@ -160,4 +160,29 @@ query = "SELECT 1"
     let snap = load_project(dir.path()).unwrap();
     assert!(snap.connections.is_empty());
     assert!(snap.queries.is_empty());
+}
+
+#[test]
+fn unknown_engine_skips_just_that_query() {
+    let dir = tempfile::tempdir().unwrap();
+    let based = dir.path().join(".based");
+    fs::create_dir_all(based.join("queries")).unwrap();
+    fs::write(
+        based.join("project.toml"),
+        "schema_version = 1\nname = \"t\"\n",
+    )
+    .unwrap();
+    let query = |engine: &str| {
+        format!(
+            "schema_version = 1\nname = \"Q\"\n\n[target]\nengine = \"{engine}\"\n\n[sql]\nquery = \"SELECT 1\"\n"
+        )
+    };
+    fs::write(based.join("queries/typo.toml"), query("mongdb")).unwrap();
+    fs::write(based.join("queries/ok.toml"), query("postgresql")).unwrap();
+    let snap = load_project(dir.path()).unwrap();
+    assert_eq!(snap.queries.len(), 1);
+    assert_eq!(snap.queries[0].target.engine, Some(EngineKind::Postgres));
+    assert_eq!(snap.skipped_queries.len(), 1);
+    assert_eq!(snap.skipped_queries[0].path, "typo");
+    assert!(snap.skipped_queries[0].reason.contains("mongdb"));
 }

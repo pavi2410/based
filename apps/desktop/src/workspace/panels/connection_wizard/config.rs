@@ -17,9 +17,9 @@ impl ConnectionWizardPanel {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let engine_label = wizard_engine_label(config.engine());
+        let engine = config.engine();
         self.engine.update(cx, |select, cx| {
-            select.set_selected_value(&engine_label, window, cx);
+            select.set_selected_value(&engine, window, cx);
         });
         set_field(&self.name, config.label(), window, cx);
         match config {
@@ -31,9 +31,9 @@ impl ConnectionWizardPanel {
                 set_field(&self.password, &c.password, window, cx);
                 self.ssl_enabled = ssl_toggle_enabled(c.ssl_mode);
                 if self.ssl_enabled {
-                    let label = ssl_on_label(c.ssl_mode);
+                    let mode = c.ssl_mode;
                     self.ssl_mode.update(cx, |select, cx| {
-                        select.set_selected_value(&label, window, cx);
+                        select.set_selected_value(&mode, window, cx);
                     });
                 }
                 self.apply_ssh(c.ssh.as_ref(), window, cx);
@@ -59,12 +59,12 @@ impl ConnectionWizardPanel {
     }
 
     pub(super) fn current_engine(&self, cx: &App) -> EngineKind {
-        match self.engine.read(cx).selected_value().copied() {
-            Some("MongoDB") => EngineKind::MongoDB,
-            Some("SQLite") => EngineKind::SQLite,
-            Some("Redis") => EngineKind::Redis,
-            _ => EngineKind::Postgres,
-        }
+        // The select always has a selection (it starts on the first choice).
+        self.engine
+            .read(cx)
+            .selected_value()
+            .copied()
+            .unwrap_or(EngineKind::Postgres)
     }
 
     pub(super) fn apply_ssh(
@@ -114,17 +114,11 @@ impl ConnectionWizardPanel {
     }
 
     pub(super) fn current_ai(&self, cx: &App) -> Option<AiSettings> {
-        let label = self.ai_select.read(cx).selected_value().copied()?;
-        ai_from_label(label)
+        ai_settings_for(self.ai_select.read(cx).selected_value().copied()?)
     }
 
     pub(super) fn current_ssl_mode(&self, cx: &App) -> SslMode {
-        let selected = self
-            .ssl_mode
-            .read(cx)
-            .selected_value()
-            .copied()
-            .and_then(ssl_mode_from_on_label);
+        let selected = self.ssl_mode.read(cx).selected_value().copied();
         ssl_mode_from_toggle(self.ssl_enabled, selected)
     }
 
@@ -181,9 +175,9 @@ impl ConnectionWizardPanel {
         set_field(&self.password, &cfg.password, window, cx);
         self.ssl_enabled = ssl_toggle_enabled(cfg.ssl_mode);
         if self.ssl_enabled {
-            let label = ssl_on_label(cfg.ssl_mode);
+            let mode = cfg.ssl_mode;
             self.ssl_mode.update(cx, |select, cx| {
-                select.set_selected_value(&label, window, cx);
+                select.set_selected_value(&mode, window, cx);
             });
         }
         self.status = WizardStatus::Idle;
@@ -250,21 +244,4 @@ pub(super) fn nonempty_opt(s: &str) -> Option<String> {
     } else {
         Some(t.to_string())
     }
-}
-
-pub(super) fn ssl_on_label(mode: SslMode) -> &'static str {
-    match mode {
-        SslMode::VerifyCa => "verify-ca",
-        SslMode::VerifyFull => "verify-full",
-        _ => "require",
-    }
-}
-
-pub(super) fn ssl_mode_from_on_label(label: &str) -> Option<SslMode> {
-    Some(match label {
-        "require" => SslMode::Require,
-        "verify-ca" => SslMode::VerifyCa,
-        "verify-full" => SslMode::VerifyFull,
-        _ => return None,
-    })
 }

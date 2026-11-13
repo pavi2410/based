@@ -235,6 +235,25 @@ mod tests {
     }
 
     #[test]
+    fn lexer_quirks_do_not_hide_statements() {
+        // A backslash in a plain string is literal in both databases.
+        for engine in [EngineKind::Postgres, EngineKind::SQLite] {
+            assert!(
+                check(engine, r"SELECT '\'; DELETE FROM t; SELECT '\'").is_err(),
+                "{engine:?}"
+            );
+        }
+        // SQLite has no nested comments: `*/` closes the first `/*`.
+        assert!(
+            check(
+                EngineKind::SQLite,
+                "SELECT 1 /* /* */; DELETE FROM t; -- */"
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
     fn quotes_do_not_hide_second_statement() {
         assert!(sql("SELECT 'a'; DELETE FROM t").is_err());
         assert!(sql("SELECT 'it''s'; SELECT 2").is_err());

@@ -2,11 +2,12 @@
 //! the bare words a script uses. One lexer for running, linting, completion and
 //! the write checks, so a `;` inside a string, comment or `$$` body is never a split.
 
+use std::iter;
 use std::ops::Range;
 
 use based_core::EngineKind;
 use sqlparser::dialect::{Dialect, GenericDialect, PostgreSqlDialect, SQLiteDialect};
-use sqlparser::tokenizer::{Token, Tokenizer, Whitespace};
+use sqlparser::tokenizer::{Location, Token, Tokenizer, Whitespace};
 
 pub(crate) fn dialect(engine: EngineKind) -> Box<dyn Dialect> {
     match engine {
@@ -35,16 +36,38 @@ struct Lexed {
     tail: Option<usize>,
 }
 
+/// Byte offsets of each line's start, so (line, column) → byte stays within one line.
+struct LineStarts(Vec<usize>);
+
+impl LineStarts {
+    fn new(text: &str) -> Self {
+        let mut starts = vec![0];
+        starts.extend(text.match_indices('\n').map(|(i, _)| i + 1));
+        Self(starts)
+    }
+
+    fn offset(&self, text: &str, line: u64, column: u64) -> usize {
+        let line = usize::try_from(line.saturating_sub(1)).unwrap_or(usize::MAX);
+        let Some(&start) = self.0.get(line) else {
+            return text.len();
+        };
+        let col = usize::try_from(column.saturating_sub(1)).unwrap_or(usize::MAX);
+        let rest = &text[start..];
+        start + rest.char_indices().nth(col).map_or(rest.len(), |(i, _)| i)
+    }
+}
+
 fn lex(script: &str, engine: EngineKind) -> Lexed {
     let dialect = dialect(engine);
     let with_ranges = |text: &str| {
+        let lines = LineStarts::new(text);
         Tokenizer::new(dialect.as_ref(), text)
             .tokenize_with_location()
             .map(|toks| {
                 toks.into_iter()
                     .map(|t| {
-                        let start = byte_offset(text, t.span.start.line, t.span.start.column);
-                        let end = byte_offset(text, t.span.end.line, t.span.end.column);
+                        let at = |l: Location| lines.offset(text, l.line, l.column);
+                        let (start, end) = (at(t.span.start), at(t.span.end));
                         (t.token, start..end.max(start))
                     })
                     .collect::<Vec<_>>()
@@ -53,12 +76,38 @@ fn lex(script: &str, engine: EngineKind) -> Lexed {
     match with_ranges(script) {
         Ok(tokens) => Lexed { tokens, tail: None },
         Err(e) => {
-            let at = byte_offset(script, e.location.line, e.location.column).min(script.len());
-            let tokens = with_ranges(&script[..at]).unwrap_or_default();
-            let tail = if tokens.is_empty() && at > 0 { 0 } else { at };
+            let at = LineStarts::new(script)
+                .offset(script, e.location.line, e.location.column)
+                .min(script.len());
+            // Where the error points is the start of the unterminated construct
+            // for strings, but the end of the text for comments and `$$` bodies.
+            // Keep the longest prefix that lexes cleanly and ends at a top-level
+            // `;` (or at the error, when that is a real boundary); the rest is one
+            // opaque run.
+            let clean_prefix = |end: usize| {
+                with_ranges(&script[..end]).ok().filter(|toks| {
+                    end == at
+                        || toks
+                            .iter()
+                            .rev()
+                            .find(|(t, _)| !matches!(t, Token::Whitespace(_)))
+                            .is_some_and(|(t, _)| matches!(t, Token::SemiColon))
+                })
+            };
+            let candidates = iter::once(at)
+                .filter(|&a| a < script.len())
+                .chain(script[..at].rmatch_indices(';').map(|(i, _)| i + 1));
+            for end in candidates {
+                if let Some(tokens) = clean_prefix(end) {
+                    return Lexed {
+                        tokens,
+                        tail: Some(end),
+                    };
+                }
+            }
             Lexed {
-                tokens,
-                tail: Some(tail),
+                tokens: Vec::new(),
+                tail: Some(0),
             }
         }
     }
@@ -96,9 +145,13 @@ pub fn split_statements(script: &str, engine: EngineKind) -> Vec<Range<usize>> {
         }
     }
     if let Some(tail) = lexed.tail {
-        let end = tail + script[tail..].trim_end().len();
-        seg = Some(seg.map_or(tail..end, |s| s.start..end));
-        has_code = true;
+        let rest = &script[tail..];
+        let start = tail + rest.len() - rest.trim_start().len();
+        let end = tail + rest.trim_end().len();
+        if start < end {
+            seg = Some(seg.map_or(start..end, |s| s.start..end));
+            has_code = true;
+        }
     }
     flush(&mut seg, &mut has_code);
     out
@@ -226,6 +279,18 @@ mod tests {
     fn an_unclosed_quote_runs_to_the_end() {
         let sql = "select 1; select 'unclosed; select 3";
         assert_eq!(texts(sql), vec!["select 1", "select 'unclosed; select 3"]);
+    }
+
+    #[test]
+    fn an_unclosed_comment_or_dollar_body_runs_to_the_end() {
+        assert_eq!(
+            texts("select 1; select /* open"),
+            vec!["select 1", "select /* open"]
+        );
+        assert_eq!(
+            texts("select 1; select $$ open"),
+            vec!["select 1", "select $$ open"]
+        );
     }
 
     #[test]

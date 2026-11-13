@@ -82,7 +82,7 @@ pub fn render_target_picker(
                             .read(cx)
                             .get(id, cx)
                             .map(|e| e.read(cx).config.label().to_string())
-                            .unwrap_or_else(|| id.0.clone());
+                            .unwrap_or_else(|| id.to_string());
                         let conn_id = id.clone();
                         let ws = workspace.clone();
                         h_flex()
@@ -111,7 +111,7 @@ pub fn render_target_picker(
                                             .text_xs()
                                             .text_color(muted)
                                             .truncate()
-                                            .child(conn_id.0.clone()),
+                                            .child(conn_id.to_string()),
                                     ),
                             )
                             .on_mouse_down(MouseButton::Left, move |_, _, cx| {

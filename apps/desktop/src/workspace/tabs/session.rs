@@ -15,7 +15,7 @@ pub struct SessionSnapshot {
     pub tabs: Vec<TabSpec>,
     pub active: Option<usize>,
     #[serde(default)]
-    pub active_connection_id: Option<String>,
+    pub active_connection_id: Option<ConnectionId>,
     #[serde(default)]
     pub pinned_tabs: Vec<TabSpec>,
 }
@@ -87,7 +87,7 @@ impl SessionSnapshot {
     pub fn capture(
         tm: &TabManager,
         pending: &[TabSpec],
-        active_connection_id: Option<String>,
+        active_connection_id: Option<ConnectionId>,
     ) -> Option<Self> {
         let mut tabs = Vec::new();
         let mut active = None;
@@ -211,10 +211,10 @@ mod tests {
         let live = vec![TabSpec::Home];
         let pending = vec![
             TabSpec::Dashboard {
-                conn_id: ConnectionId("events".into()),
+                conn_id: ConnectionId::parse("events"),
             },
             TabSpec::DataViewer {
-                conn_id: ConnectionId("events".into()),
+                conn_id: ConnectionId::parse("events"),
                 object: "events".into(),
                 filter: None,
             },
@@ -228,7 +228,7 @@ mod tests {
 
     #[test]
     fn dashboard_plus_blank_query_does_not_drop_restored_sql_or_viewer() {
-        let conn = ConnectionId("events".into());
+        let conn = ConnectionId::parse("events");
         let live = vec![
             TabSpec::Dashboard {
                 conn_id: conn.clone(),
@@ -288,7 +288,7 @@ mod tests {
     fn pending_tabs_open_once_until_forgotten() {
         let mut st = SessionState::default();
         let viewer = TabSpec::DataViewer {
-            conn_id: ConnectionId("c".into()),
+            conn_id: ConnectionId::parse("c"),
             object: "t".into(),
             filter: None,
         };
@@ -301,10 +301,10 @@ mod tests {
         assert_eq!(st.to_open(), slice::from_ref(&viewer));
         st.mark_opened(viewer.clone());
         assert!(st.to_open().is_empty());
-        assert!(st.awaits(&ConnectionId("c".into())));
+        assert!(st.awaits(&ConnectionId::parse("c")));
         st.forget(&viewer);
         assert!(st.pending().is_empty());
-        assert!(!st.awaits(&ConnectionId("c".into())));
+        assert!(!st.awaits(&ConnectionId::parse("c")));
     }
 
     #[test]

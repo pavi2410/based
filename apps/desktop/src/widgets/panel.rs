@@ -119,7 +119,7 @@ pub fn tab_breadcrumb_for_connection(
             let entry = entry.read(cx);
             (entry.config.engine(), entry.config.label().to_string())
         })
-        .unwrap_or_else(|| (EngineKind::Postgres, conn_id.0.clone()));
+        .unwrap_or_else(|| (EngineKind::Postgres, conn_id.to_string()));
 
     let mut segments = vec![conn_label.into()];
     segments.extend(tail.into_iter().map(Into::into));

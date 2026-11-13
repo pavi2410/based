@@ -87,12 +87,7 @@ impl Workspace {
         open_catalog: bool,
         cx: &mut Context<Self>,
     ) {
-        let origin = if session_id.is_workspace_local() {
-            ConnectionOrigin::Personal
-        } else {
-            ConnectionOrigin::Project
-        };
-        let mut entry = ConnectionEntry::with_origin(config, &session_id.0, tags, origin);
+        let mut entry = ConnectionEntry::new(session_id.clone(), config, tags);
         entry.state = ConnectionState::Connected(opened_into_any(opened, cx));
         self.upsert_registry_entry(entry, true, cx);
         if open_catalog {
@@ -132,7 +127,7 @@ impl Workspace {
     ) -> Result<(), String> {
         let Some((config, origin, tags)) = self.registry.read(cx).get(id, cx).map(|e| {
             let e = e.read(cx);
-            (e.config.clone(), e.origin, e.tags.clone())
+            (e.config.clone(), e.origin(), e.tags.clone())
         }) else {
             return Err("This connection is no longer open.".into());
         };
@@ -211,7 +206,7 @@ impl Workspace {
                 let vars = load_env_file(&based_dir.join(".env")).unwrap_or_default();
                 entry_from_tree(&conn, origin, &vars).unwrap_or_else(|err| {
                     log::warn!("resolve persisted connection failed: {err:#}");
-                    entry_from_config(&config, &conn.id, origin, tags.clone(), ai)
+                    entry_from_config(&config, conn.id.as_str(), origin, tags.clone(), ai)
                 })
             }
             Err(err) => {
@@ -245,7 +240,6 @@ impl Workspace {
             if let Some(existing) = reg.get(&entry.id, cx).cloned() {
                 existing.update(cx, |e, cx| {
                     e.config = entry.config.clone();
-                    e.origin = entry.origin;
                     e.tags = entry.tags.clone();
                     if !replace_live {
                         e.ai = entry.ai;
@@ -296,8 +290,8 @@ fn entry_from_config(
     tags: Vec<String>,
     ai: Option<AiSettings>,
 ) -> ConnectionEntry {
-    let key = super::wizard_logic::saved_id_for_destination(origin, relative_id).0;
-    let mut entry = ConnectionEntry::with_origin(config.clone(), &key, tags, origin);
+    let id = super::wizard_logic::saved_id_for_destination(origin, relative_id);
+    let mut entry = ConnectionEntry::new(id, config.clone(), tags);
     entry.ai = ai;
     entry
 }

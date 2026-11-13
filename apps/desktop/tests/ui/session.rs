@@ -79,7 +79,7 @@ fn next_launch_restores_pinned_tabs(cx: &mut TestAppContext) {
 fn tabs_for_unavailable_connections_survive_a_save(cx: &mut TestAppContext) {
     // A previous run left a data viewer for a connection that is not (yet) live.
     let gone = TabSpec::DataViewer {
-        conn_id: ConnectionId("gone".into()),
+        conn_id: ConnectionId::parse("gone"),
         object: "users".into(),
         filter: None,
     };

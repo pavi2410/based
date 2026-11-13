@@ -146,7 +146,7 @@ fn tab_info(label: &SharedString, spec: Option<&TabSpec>) -> SharedString {
         lines.push(detail);
     }
     if let Some(conn) = spec.conn_id() {
-        lines.push(format!("Connection · {}", conn.0));
+        lines.push(format!("Connection · {conn}"));
     }
     lines.join("\n").into()
 }
@@ -171,7 +171,7 @@ fn close_button(panel_id: EntityId, color: gpui_kit::Hsla) -> impl IntoElement {
 pub fn tab_label_for_spec(spec: &TabSpec, dirty: bool) -> SharedString {
     let base = match spec {
         TabSpec::Home => "Home".to_string(),
-        TabSpec::Dashboard { conn_id } => conn_id.0.clone(),
+        TabSpec::Dashboard { conn_id } => conn_id.to_string(),
         TabSpec::DataViewer { object, filter, .. } => match filter {
             Some(f) => format!("{} · {}={}", short_object_name(object), f.column, f.value),
             None => short_object_name(object),
@@ -220,7 +220,7 @@ mod tests {
     #[test]
     fn data_viewer_short_name() {
         let spec = TabSpec::DataViewer {
-            conn_id: ConnectionId("x".into()),
+            conn_id: ConnectionId::parse("x"),
             object: "public.orders".into(),
             filter: None,
         };

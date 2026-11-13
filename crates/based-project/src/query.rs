@@ -5,7 +5,7 @@ use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use toml_edit::{DocumentMut, value};
 
-use based_core::EngineKind;
+use based_core::{ConnectionKey, EngineKind};
 
 use crate::target::QueryTarget;
 use crate::walk::{rel_id, walk_toml_files};
@@ -64,7 +64,7 @@ struct AggregateSection {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SaveTarget {
     /// One project connection, by its id.
-    Connection(String),
+    Connection(ConnectionKey),
     /// Any connection of this engine.
     Engine(EngineKind),
 }

@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 
-use based_core::EngineKind;
+use based_core::{ConnectionKey, EngineKind};
 
 use crate::ai::AiSettings;
 use crate::env_value::EnvOrString;
@@ -14,7 +14,7 @@ pub const CONNECTION_SCHEMA_VERSION: u64 = 1;
 
 #[derive(Debug, Clone)]
 pub struct ProjectConnection {
-    pub id: String,
+    pub id: ConnectionKey,
     pub label: String,
     pub tags: Vec<String>,
     pub read_only: bool,
@@ -303,7 +303,7 @@ fn parse_connection_file(connections_dir: &Path, path: &Path) -> Result<ProjectC
     let rel = path
         .strip_prefix(connections_dir)
         .with_context(|| format!("connection path not under {}", connections_dir.display()))?;
-    let id = rel_id(rel);
+    let id = ConnectionKey::new(rel_id(rel));
     let raw = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
     let file: RawConnectionFile =
         toml::from_str(&raw).with_context(|| format!("parse {}", path.display()))?;
@@ -369,7 +369,7 @@ fn parse_connection_file(connections_dir: &Path, path: &Path) -> Result<ProjectC
         },
     };
     let read_only = resolve_read_only(file.read_only, &file.tags);
-    let ssh = parse_ssh(file.ssh, &id)?;
+    let ssh = parse_ssh(file.ssh, id.as_str())?;
     Ok(ProjectConnection {
         id,
         label: file.label,

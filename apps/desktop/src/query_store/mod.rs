@@ -133,7 +133,7 @@ mod tests {
 
     fn sample_history(sql: &str) -> HistoryEntry {
         HistoryEntry::new(
-            based_core::ConnectionId("ws-template:x".into()),
+            based_core::ConnectionId::parse("ws-template:x"),
             sql,
             1,
             Some(0),

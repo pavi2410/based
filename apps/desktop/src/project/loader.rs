@@ -90,11 +90,11 @@ pub fn entry_from_tree(
             })
         }
     };
-    let stable_key = match origin {
-        ConnectionOrigin::Project => conn.id.clone(),
-        ConnectionOrigin::Personal => ConnectionId::personal(&conn.id).0,
+    let id = match origin {
+        ConnectionOrigin::Project => ConnectionId::project(&conn.id),
+        ConnectionOrigin::Personal => ConnectionId::personal(conn.id.as_str()),
     };
-    let mut entry = ConnectionEntry::with_origin(config, &stable_key, conn.tags.clone(), origin);
+    let mut entry = ConnectionEntry::new(id, config, conn.tags.clone());
     entry.ai = conn.ai;
     Ok(entry)
 }
@@ -146,7 +146,7 @@ pub fn load_entries_from_based_dir(based_dir: &Path, origin: ConnectionOrigin) -
                     .find_map(|e| e.downcast_ref::<MissingEnvVar>())
                     .map(|m| m.var.clone());
                 loaded.skipped.push(SkippedConnection {
-                    id: conn.id.clone(),
+                    id: conn.id.to_string(),
                     missing_var,
                     reason: format!("{err:#}"),
                 });
@@ -208,7 +208,7 @@ mod tests {
         let entries = load_entries_from_based_dir(based, ConnectionOrigin::Personal).entries;
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].id, ConnectionId::personal("analytics"));
-        assert_eq!(entries[0].origin, ConnectionOrigin::Personal);
+        assert_eq!(entries[0].origin(), ConnectionOrigin::Personal);
     }
 
     #[test]

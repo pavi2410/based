@@ -25,12 +25,23 @@ use crate::sqlite::{SqliteConfig, SqliteConnection};
 pub use based_core::categorize_connect_error;
 pub use based_core::{ConnectionId, EngineKind};
 
-/// Which based-dir a connection was loaded from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// Which based-dir (and sidebar group) a connection belongs to. Derived from the
+/// id: project ids are `Project`; personal, unsaved and template ids are
+/// `Personal` (user-local).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConnectionOrigin {
-    #[default]
     Project,
     Personal,
+}
+
+impl ConnectionOrigin {
+    pub fn of(id: &ConnectionId) -> Self {
+        if id.is_workspace_local() {
+            Self::Personal
+        } else {
+            Self::Project
+        }
+    }
 }
 
 // ── Connection config (engine-tagged) ────────────────────────────────────────
@@ -120,7 +131,6 @@ pub struct ConnectionEntry {
     pub id: ConnectionId,
     pub config: ConnectionConfig,
     pub tags: Vec<String>,
-    pub origin: ConnectionOrigin,
     pub state: ConnectionState,
     pub last_error: Option<String>,
     /// `[ai]` table from the connection file; `None` means never configured (AI off).
@@ -128,18 +138,11 @@ pub struct ConnectionEntry {
 }
 
 impl ConnectionEntry {
-    pub fn with_origin(
-        config: ConnectionConfig,
-        stable_key: &str,
-        tags: Vec<String>,
-        origin: ConnectionOrigin,
-    ) -> Self {
-        let id = ConnectionId::from_key(stable_key);
+    pub fn new(id: ConnectionId, config: ConnectionConfig, tags: Vec<String>) -> Self {
         Self {
             id,
             config,
             tags,
-            origin,
             state: ConnectionState::Disconnected,
             last_error: None,
             ai: None,
@@ -148,6 +151,10 @@ impl ConnectionEntry {
 
     pub fn engine(&self) -> EngineKind {
         self.config.engine()
+    }
+
+    pub fn origin(&self) -> ConnectionOrigin {
+        ConnectionOrigin::of(&self.id)
     }
 }
 
@@ -203,9 +210,7 @@ pub fn live_project_connection_count(
         .iter()
         .filter(|ent| {
             let entry = ent.read(cx);
-            matches!(entry.state, ConnectionState::Connected(_))
-                && !entry.id.is_workspace_local()
-                && entry.origin != ConnectionOrigin::Personal
+            matches!(entry.state, ConnectionState::Connected(_)) && !entry.id.is_workspace_local()
         })
         .count()
 }

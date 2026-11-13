@@ -59,7 +59,7 @@ fn blank_command(action: WorkspacePaletteAction, label: &str, sublabel: &str) ->
         label: label.into(),
         sublabel: sublabel.into(),
         conn_label: String::new(),
-        spec: TabSpec::blank_query_editor(ConnectionId("".into())),
+        spec: TabSpec::blank_query_editor(ConnectionId::parse("")),
         command_action: Some(action),
         project_query_path: None,
     }
@@ -155,7 +155,7 @@ fn push_schema_objects(
         results.push(PaletteResult {
             kind: ResultKind::SchemaObject,
             label: display.clone(),
-            sublabel: format!("{} · {}", obj.kind.group(), conn_id.0),
+            sublabel: format!("{} · {}", obj.kind.group(), conn_id),
             conn_label: String::new(),
             spec: TabSpec::DataViewer {
                 conn_id: conn_id.clone(),
@@ -232,7 +232,7 @@ fn push_history(
             results.push(PaletteResult {
                 kind: ResultKind::History,
                 label: super::format::palette_single_line(&entry.query, 120),
-                sublabel: format!("history · {}", entry.conn_id.0),
+                sublabel: format!("history · {}", entry.conn_id),
                 conn_label: String::new(),
                 spec,
                 command_action: None,

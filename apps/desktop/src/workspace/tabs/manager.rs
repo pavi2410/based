@@ -205,7 +205,7 @@ mod tests {
     #[test]
     fn open_or_focus_deduplicates_data_viewer() {
         let spec_a = TabSpec::DataViewer {
-            conn_id: ConnectionId("pg".into()),
+            conn_id: ConnectionId::parse("pg"),
             object: "users".into(),
             filter: None,
         };
@@ -215,7 +215,7 @@ mod tests {
 
     #[test]
     fn query_editors_are_always_distinct_specs() {
-        let s = TabSpec::blank_query_editor(ConnectionId("pg".into()));
+        let s = TabSpec::blank_query_editor(ConnectionId::parse("pg"));
         assert!(matches!(s, TabSpec::QueryEditor { .. }));
     }
 }

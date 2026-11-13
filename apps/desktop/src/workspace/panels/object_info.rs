@@ -173,9 +173,12 @@ impl Render for ConnectionDashboardPanel {
             .iter()
             .filter(|q| {
                 use based_project::TargetConnection;
+                let Some(key) = conn_id.project_key() else {
+                    return false;
+                };
                 match &q.target.connection {
-                    Some(TargetConnection::Exclusive(id)) => id == &conn_id.0,
-                    Some(TargetConnection::OneOf(ids)) => ids.iter().any(|id| id == &conn_id.0),
+                    Some(TargetConnection::Exclusive(id)) => *id == key,
+                    Some(TargetConnection::OneOf(ids)) => ids.contains(&key),
                     None => false,
                 }
             })

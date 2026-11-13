@@ -196,7 +196,7 @@ fn new_actions(cx: &mut App) -> impl IntoElement {
 }
 
 fn open_loose_query(sql: &str, cx: &mut App) {
-    let conn_id = first_connected_conn_id(cx).unwrap_or_else(|| ConnectionId("pg".into()));
+    let conn_id = first_connected_conn_id(cx).unwrap_or_else(|| ConnectionId::parse("pg"));
     inbox::open_tab(
         TabSpec::QueryEditor {
             conn_id,

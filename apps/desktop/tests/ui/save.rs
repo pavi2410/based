@@ -40,7 +40,7 @@ fn origins(ws: &Entity<Workspace>, cx: &mut TestAppContext) -> Vec<ConnectionOri
             .read(cx)
             .connections()
             .iter()
-            .map(|c| c.read(cx).origin)
+            .map(|c| c.read(cx).origin())
             .collect()
     })
 }

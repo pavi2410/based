@@ -60,7 +60,7 @@ use crate::widgets::virtual_table::{
 use crate::widgets::wizard_fields::new_field;
 use crate::workspace::notify;
 use crate::workspace::pop_out::PopOutWindowTitle;
-use crate::workspace::project_query::include_in_project_target;
+
 use crate::workspace::tabs::spec::SavedQueryRef;
 use crate::workspace::{
     WorkspaceRef,
@@ -1636,8 +1636,8 @@ pub(crate) fn save_target_for(conn_id: &ConnectionId, engine: EngineKind, cx: &A
         .and_then(|ws| ws.0.read(cx).registry().read(cx).get(conn_id, cx).cloned());
     if let Some(entry) = entry {
         let e = entry.read(cx);
-        if include_in_project_target(e.origin, &e.id) {
-            return SaveTarget::Connection(e.id.0.clone());
+        if let Some(key) = e.id.project_key() {
+            return SaveTarget::Connection(key);
         }
     }
     SaveTarget::Engine(engine)

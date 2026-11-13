@@ -64,7 +64,7 @@ impl ConnectionRegistry {
             let id = entry.id.clone();
             let keep = retain_after_origin_sync(
                 origin,
-                entry.origin,
+                entry.origin(),
                 &id,
                 matches!(entry.state, ConnectionState::Connected(_)),
                 &new_ids,
@@ -80,7 +80,6 @@ impl ConnectionRegistry {
                 existing.update(cx, |e, _| {
                     e.config = entry.config;
                     e.tags = entry.tags;
-                    e.origin = entry.origin;
                 });
             } else {
                 self.add(entry, cx);
@@ -88,7 +87,7 @@ impl ConnectionRegistry {
         }
 
         self.connections
-            .sort_by_key(|entity| match entity.read(cx).origin {
+            .sort_by_key(|entity| match entity.read(cx).origin() {
                 ConnectionOrigin::Project => 0u8,
                 ConnectionOrigin::Personal => 1,
             });
@@ -159,7 +158,7 @@ mod tests {
     }
 
     fn id(key: &str) -> ConnectionId {
-        ConnectionId::from_key(key)
+        ConnectionId::parse(key)
     }
 
     #[test]

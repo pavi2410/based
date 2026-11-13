@@ -118,7 +118,7 @@ pub(crate) fn build_connection_rows(tree: &ConnectionTree, cx: &App) -> Vec<Conn
                 engine: entry.config.engine(),
                 state_color: connection_state_dot(&entry.state, cx.theme()),
                 link: Link::of(&entry.state),
-                origin: entry.origin,
+                origin: entry.origin(),
                 environment: Environment::from_tags(&entry.tags),
                 detail: config_detail(&entry.config).into(),
                 read_only: entry.config.is_read_only(),

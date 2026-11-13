@@ -1,4 +1,4 @@
-use based_core::EngineKind;
+use based_core::{ConnectionKey, EngineKind};
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -16,8 +16,8 @@ pub struct QueryTarget {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum TargetConnection {
-    Exclusive(String),
-    OneOf(Vec<String>),
+    Exclusive(ConnectionKey),
+    OneOf(Vec<ConnectionKey>),
 }
 
 impl QueryTarget {
@@ -42,23 +42,23 @@ impl QueryTarget {
 
 #[derive(Debug, Clone)]
 pub struct ConnectionRef {
-    pub id: String,
+    pub id: ConnectionKey,
     pub engine: EngineKind,
     pub tags: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResolveError {
-    ConnectionNotFound(String),
+    ConnectionNotFound(ConnectionKey),
     NoMatches,
-    Ambiguous(Vec<String>),
+    Ambiguous(Vec<ConnectionKey>),
 }
 
 pub fn resolve_target(
     target: &QueryTarget,
     connections: &[ConnectionRef],
-    focused: Option<&str>,
-) -> Result<String, ResolveError> {
+    focused: Option<&ConnectionKey>,
+) -> Result<ConnectionKey, ResolveError> {
     if let Some(TargetConnection::Exclusive(id)) = &target.connection {
         if connections.iter().any(|c| c.id == *id) {
             return Ok(id.clone());
@@ -86,7 +86,7 @@ pub fn resolve_target(
     }
 
     if let Some(focus) = focused
-        && let Some(found) = matches.iter().find(|c| c.id == focus)
+        && let Some(found) = matches.iter().find(|c| &c.id == focus)
     {
         return Ok(found.id.clone());
     }

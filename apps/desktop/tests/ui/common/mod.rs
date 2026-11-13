@@ -185,7 +185,7 @@ pub fn connect_sqlite_tagged(
         .foreground_executor()
         .block_test(task)
         .expect("open sqlite");
-    let conn_id = ConnectionId(id.into());
+    let conn_id = ConnectionId::parse(id);
     let session = conn_id.clone();
     ws.update(cx, |ws, cx| {
         ws.attach_wizard_session(config, opened, session, tags, false, cx)
@@ -227,7 +227,7 @@ pub fn store_session(cx: &mut TestAppContext, snapshot: &SessionSnapshot) {
 /// An object-info tab spec on a placeholder connection (needs no live connection).
 pub fn info(name: &str) -> TabSpec {
     TabSpec::ObjectInfo {
-        conn_id: ConnectionId("t".into()),
+        conn_id: ConnectionId::parse("t"),
         object_name: name.into(),
         kind: ObjectKind::Trigger,
     }

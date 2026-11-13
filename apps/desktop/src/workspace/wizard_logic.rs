@@ -118,19 +118,13 @@ pub fn wizard_session_id(saved_id: Option<&ConnectionId>, unsaved_key: &str) -> 
 pub fn saved_id_for_destination(origin: ConnectionOrigin, relative_id: &str) -> ConnectionId {
     match origin {
         ConnectionOrigin::Personal => ConnectionId::personal(relative_id),
-        ConnectionOrigin::Project => ConnectionId::from_key(relative_id),
+        ConnectionOrigin::Project => ConnectionId::project(&relative_id.into()),
     }
 }
 
 /// File stem under `connections/` for a saved project or personal id.
 pub fn relative_id_for_saved(id: &ConnectionId) -> Option<&str> {
-    if id.is_ephemeral() {
-        return None;
-    }
-    Some(
-        id.0.strip_prefix(ConnectionId::USER_PREFIX)
-            .unwrap_or(id.0.as_str()),
-    )
+    (!id.is_ephemeral()).then(|| id.key())
 }
 
 pub fn can_edit_saved_connection(id: &ConnectionId) -> bool {
@@ -369,17 +363,17 @@ mod tests {
         assert_eq!(wizard_session_id(Some(&saved), "ignored"), saved);
         let unsaved = wizard_session_id(None, "aabbccdd");
         assert!(unsaved.is_unsaved());
-        assert_eq!(unsaved.0, "unsaved:aabbccdd");
+        assert_eq!(unsaved.to_string(), "unsaved:aabbccdd");
     }
 
     #[test]
     fn saved_id_matches_destination_origin() {
         assert_eq!(
-            saved_id_for_destination(ConnectionOrigin::Personal, "analytics").0,
+            saved_id_for_destination(ConnectionOrigin::Personal, "analytics").to_string(),
             "user:analytics"
         );
         assert_eq!(
-            saved_id_for_destination(ConnectionOrigin::Project, "local/pg").0,
+            saved_id_for_destination(ConnectionOrigin::Project, "local/pg").to_string(),
             "local/pg"
         );
     }
@@ -436,7 +430,7 @@ mod tests {
     #[test]
     fn relative_id_strips_user_prefix_and_skips_ephemeral() {
         assert_eq!(
-            relative_id_for_saved(&ConnectionId::from_key("local/pg")),
+            relative_id_for_saved(&ConnectionId::parse("local/pg")),
             Some("local/pg")
         );
         assert_eq!(
@@ -448,9 +442,7 @@ mod tests {
         assert!(can_edit_saved_connection(&ConnectionId::personal(
             "analytics"
         )));
-        assert!(can_edit_saved_connection(&ConnectionId::from_key(
-            "northwind"
-        )));
+        assert!(can_edit_saved_connection(&ConnectionId::parse("northwind")));
     }
 
     #[test]

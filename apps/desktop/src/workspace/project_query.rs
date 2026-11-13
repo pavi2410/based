@@ -3,10 +3,10 @@ use based_project::{
 };
 
 use crate::connection::ConnectionId;
-use crate::connection::ConnectionOrigin;
 use crate::connection::registry::ConnectionRegistry;
 use crate::workspace::tabs::spec::SavedQueryRef;
 use crate::workspace::{QueryEditorInit, TabSpec};
+use based_core::ConnectionKey;
 
 pub enum OpenQueryResult {
     Open(TabSpec),
@@ -25,15 +25,15 @@ pub fn open_project_query(
 ) -> OpenQueryResult {
     let refs: Vec<ConnectionRef> = project_target_refs(registry, cx);
 
-    let focused_key = focused.map(|id| id.0.as_str());
-    let conn_id = match resolve_target(&query.target, &refs, focused_key) {
+    let focused_key = focused.and_then(ConnectionId::project_key);
+    let conn_id = match resolve_target(&query.target, &refs, focused_key.as_ref()) {
         Ok(id) => id,
         Err(ResolveError::Ambiguous(ids)) => {
             return OpenQueryResult::PickConnection {
                 query_path: query.path.clone(),
                 candidates: ids
                     .into_iter()
-                    .map(|id| ConnectionId::from_key(&id))
+                    .map(|key| ConnectionId::project(&key))
                     .collect(),
             };
         }
@@ -45,7 +45,7 @@ pub fn open_project_query(
         }
     };
 
-    OpenQueryResult::Open(tab_spec_for_query(query, ConnectionId::from_key(&conn_id)))
+    OpenQueryResult::Open(tab_spec_for_query(query, ConnectionId::project(&conn_id)))
 }
 
 pub fn tab_spec_for_query(query: &ProjectQuery, conn_id: ConnectionId) -> TabSpec {
@@ -85,9 +85,12 @@ pub fn query_targets_connection(
 ) -> bool {
     let refs: Vec<ConnectionRef> = project_target_refs(registry, cx);
 
-    match resolve_target(&query.target, &refs, Some(conn_id.0.as_str())) {
-        Ok(id) => id == conn_id.0,
-        Err(ResolveError::Ambiguous(ids)) => ids.iter().any(|id| id == &conn_id.0),
+    let Some(key) = conn_id.project_key() else {
+        return false;
+    };
+    match resolve_target(&query.target, &refs, Some(&key)) {
+        Ok(id) => id == key,
+        Err(ResolveError::Ambiguous(ids)) => ids.contains(&key),
         Err(_) => false,
     }
 }
@@ -98,11 +101,8 @@ fn project_target_refs(registry: &ConnectionRegistry, cx: &gpui_kit::App) -> Vec
         .iter()
         .filter_map(|e| {
             let ent = e.read(cx);
-            if !include_in_project_target(ent.origin, &ent.id) {
-                return None;
-            }
             Some(ConnectionRef {
-                id: ent.id.0.clone(),
+                id: ent.id.project_key()?,
                 engine: ent.engine(),
                 tags: ent.tags.clone(),
             })
@@ -110,15 +110,15 @@ fn project_target_refs(registry: &ConnectionRegistry, cx: &gpui_kit::App) -> Vec
         .collect()
 }
 
-pub(crate) fn include_in_project_target(origin: ConnectionOrigin, id: &ConnectionId) -> bool {
-    origin == ConnectionOrigin::Project && !id.is_personal()
-}
-
 pub fn target_hint(target: &QueryTarget) -> String {
     use based_project::TargetConnection;
     match &target.connection {
-        Some(TargetConnection::Exclusive(id)) => id.clone(),
-        Some(TargetConnection::OneOf(ids)) => ids.join(" | "),
+        Some(TargetConnection::Exclusive(id)) => id.to_string(),
+        Some(TargetConnection::OneOf(ids)) => ids
+            .iter()
+            .map(ConnectionKey::as_str)
+            .collect::<Vec<_>>()
+            .join(" | "),
         None => {
             let mut parts = Vec::new();
             if let Some(e) = target.engine {
@@ -139,24 +139,13 @@ pub fn target_hint(target: &QueryTarget) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::connection::{ConnectionId, ConnectionOrigin};
 
     #[test]
-    fn project_targets_ignore_personal_ids() {
-        let project = ConnectionId::from_key("local/northwind");
+    fn only_project_ids_are_query_targets() {
+        let project = ConnectionId::parse("local/northwind");
         let personal = ConnectionId::personal("local/northwind");
-        assert!(include_in_project_target(
-            ConnectionOrigin::Project,
-            &project
-        ));
-        assert!(!include_in_project_target(
-            ConnectionOrigin::Personal,
-            &personal
-        ));
-        assert!(!include_in_project_target(
-            ConnectionOrigin::Project,
-            &personal
-        ));
-        assert_ne!(project, personal);
+        assert_eq!(project.project_key(), Some("local/northwind".into()));
+        assert_eq!(personal.project_key(), None);
+        assert_eq!(ConnectionId::unsaved("aabb").project_key(), None);
     }
 }

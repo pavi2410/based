@@ -2,6 +2,7 @@
 
 use std::path::Path;
 
+use based_core::ConnectionKey;
 use based_project::{
     AiSettings, ConnectionSpec, EnvOrString, PragmaSettings, ProjectConnection, SshSettings,
     secret_env_key, slug_from_label, upsert_env_file, write_connection_file,
@@ -99,7 +100,7 @@ fn project_connection_from_config(
                         ),
                     });
             ProjectConnection {
-                id: relative_id,
+                id: ConnectionKey::new(relative_id),
                 label: c.label.clone(),
                 tags,
                 read_only: false,
@@ -124,7 +125,7 @@ fn project_connection_from_config(
                 }
             };
             ProjectConnection {
-                id: relative_id,
+                id: ConnectionKey::new(relative_id),
                 label: c.label.clone(),
                 tags,
                 read_only: false,
@@ -137,7 +138,7 @@ fn project_connection_from_config(
             }
         }
         ConnectionConfig::Redis(c) => ProjectConnection {
-            id: relative_id.clone(),
+            id: ConnectionKey::new(relative_id.clone()),
             label: c.label.clone(),
             tags,
             read_only: false,
@@ -154,7 +155,7 @@ fn project_connection_from_config(
             ai: None,
         },
         ConnectionConfig::SQLite(c) => ProjectConnection {
-            id: relative_id,
+            id: ConnectionKey::new(relative_id),
             label: c.label.clone(),
             tags,
             read_only: c.read_only,

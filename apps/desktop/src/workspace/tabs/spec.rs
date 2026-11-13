@@ -165,12 +165,12 @@ mod tests {
     #[test]
     fn data_viewer_equality() {
         let a = TabSpec::DataViewer {
-            conn_id: ConnectionId("pg".into()),
+            conn_id: ConnectionId::parse("pg"),
             object: "users".into(),
             filter: None,
         };
         let b = TabSpec::DataViewer {
-            conn_id: ConnectionId("pg".into()),
+            conn_id: ConnectionId::parse("pg"),
             object: "users".into(),
             filter: None,
         };
@@ -180,12 +180,12 @@ mod tests {
     #[test]
     fn different_objects_not_equal() {
         let a = TabSpec::DataViewer {
-            conn_id: ConnectionId("pg".into()),
+            conn_id: ConnectionId::parse("pg"),
             object: "users".into(),
             filter: None,
         };
         let b = TabSpec::DataViewer {
-            conn_id: ConnectionId("pg".into()),
+            conn_id: ConnectionId::parse("pg"),
             object: "orders".into(),
             filter: None,
         };
@@ -196,8 +196,8 @@ mod tests {
     fn query_editor_specs_equal_but_open_or_focus_creates_distinct_tabs() {
         // Spec equality treats two QueryEditors the same conn as equal; TabManager::open_or_focus
         // still opens a fresh tab whenever the caller passes TabSpec::QueryEditor (branch `is_query`).
-        let a = TabSpec::blank_query_editor(ConnectionId("pg".into()));
-        let b = TabSpec::blank_query_editor(ConnectionId("pg".into()));
+        let a = TabSpec::blank_query_editor(ConnectionId::parse("pg"));
+        let b = TabSpec::blank_query_editor(ConnectionId::parse("pg"));
         assert_eq!(a, b);
     }
 
@@ -229,7 +229,7 @@ mod tests {
     #[test]
     fn dashboard_tab_round_trips_in_session_json() {
         let spec = TabSpec::Dashboard {
-            conn_id: ConnectionId("sqlite/local".into()),
+            conn_id: ConnectionId::parse("sqlite/local"),
         };
         let json = serde_json::to_string(&spec).expect("serialize dashboard tab");
         let restored: TabSpec = serde_json::from_str(&json).expect("deserialize dashboard tab");
@@ -250,7 +250,7 @@ mod tests {
         assert_eq!(
             viewer,
             TabSpec::DataViewer {
-                conn_id: ConnectionId("pg".into()),
+                conn_id: ConnectionId::parse("pg"),
                 object: "users".into(),
                 filter: None,
             }

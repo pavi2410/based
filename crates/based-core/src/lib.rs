@@ -14,7 +14,7 @@ pub use auth::AuthMethod;
 pub use connection_error::{
     ConnectionErrorCategory, ConnectionErrorDetail, categorize_connect_error,
 };
-pub use connection_id::{ConnectionId, ConnectionScope};
+pub use connection_id::{ConnectionId, ConnectionKey, ConnectionScope};
 pub use engine::{EngineKind, UnknownEngine};
 pub use page::{ColumnMeta, Grid, RawPage, TableExtra, TableInfo, quote_ident};
 pub use session::{PersistedConnection, WorkspaceState};

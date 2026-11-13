@@ -59,7 +59,7 @@ mod tests {
     use super::event_for_selection;
 
     fn conn(id: &str) -> ConnectionId {
-        ConnectionId(id.into())
+        ConnectionId::parse(id)
     }
 
     fn result(kind: ResultKind) -> PaletteResult {

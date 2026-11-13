@@ -482,7 +482,7 @@ mod tests {
 
     fn project_owned_live_count(rows: &[(&str, bool)]) -> usize {
         rows.iter()
-            .filter(|(id, live)| *live && !ConnectionId::from_key(id).is_workspace_local())
+            .filter(|(id, live)| *live && !ConnectionId::parse(id).is_workspace_local())
             .count()
     }
 }

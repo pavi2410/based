@@ -192,7 +192,7 @@ mod tests {
     fn entry(conn: &str, sql: &str) -> HistoryEntry {
         HistoryEntry {
             id: Uuid::new_v4(),
-            conn_id: ConnectionId(conn.into()),
+            conn_id: ConnectionId::parse(conn),
             database: None,
             query: sql.into(),
             ran_at: OffsetDateTime::now_utc(),
@@ -211,7 +211,7 @@ mod tests {
         let mut h = QueryHistory::load(dir.path());
         h.push(entry("pg", "SELECT 1"), Some(dir.path()));
         h.push(entry("pg", "SELECT 2"), Some(dir.path()));
-        let results = h.for_conn(&ConnectionId("pg".into()));
+        let results = h.for_conn(&ConnectionId::parse("pg"));
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].query, "SELECT 2");
     }

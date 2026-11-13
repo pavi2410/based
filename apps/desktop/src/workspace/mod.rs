@@ -324,7 +324,7 @@ impl Workspace {
     }
 
     fn save_session(&mut self, cx: &mut Context<Self>) {
-        let active_conn = self.focused_conn_id(cx).map(|id| id.0.clone());
+        let active_conn = self.focused_conn_id(cx);
         let tm = self.tab_manager.read(cx);
         let Some(snapshot) =
             tabs::SessionSnapshot::capture(tm, self.session.pending(), active_conn)
@@ -355,7 +355,7 @@ impl Workspace {
     pub fn flush_session(&mut self, cx: &mut Context<Self>) {
         self.session_edit_save = None;
         self.sync_tab_manager_from_dock(cx);
-        let active_conn = self.focused_conn_id(cx).map(|id| id.0.clone());
+        let active_conn = self.focused_conn_id(cx);
         let Some(snapshot) = tabs::SessionSnapshot::capture(
             self.tab_manager.read(cx),
             self.session.pending(),

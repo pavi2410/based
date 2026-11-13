@@ -38,7 +38,7 @@ fn cmd_k_toggles_and_escape_dismisses(cx: &mut TestAppContext) {
 fn show_home_command_activates_home(cx: &mut TestAppContext) {
     let (win, ws) = open_workspace(cx);
     let info = TabSpec::ObjectInfo {
-        conn_id: ConnectionId("t".into()),
+        conn_id: ConnectionId::parse("t"),
         object_name: "a".into(),
         kind: ObjectKind::Trigger,
     };

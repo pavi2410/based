@@ -560,7 +560,7 @@ impl ConnectionTree {
                     || name.to_lowercase().contains(&q)
                     || bare.contains(&q)
                     || schema.is_some_and(|s| s.contains(&q))
-                    || conn_id.0.to_lowercase().contains(&q)
+                    || conn_id.to_string().to_lowercase().contains(&q)
                 {
                     out.push((conn_id.clone(), obj.clone(), engine));
                 }

@@ -247,7 +247,7 @@ impl ConnectionWizardPanel {
                 e.id.clone(),
                 e.config.clone(),
                 e.tags.clone(),
-                e.origin,
+                e.origin(),
                 e.ai,
             )
         };

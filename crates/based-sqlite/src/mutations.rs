@@ -1,5 +1,8 @@
 use anyhow::Result;
+use based_core::Value;
 use sqlx::{AssertSqlSafe, Column as SqlxColumn, Row, SqlitePool, TypeInfo};
+
+use crate::page::sqlite_cell;
 
 #[derive(Debug, Clone)]
 pub struct QueryColumn {
@@ -71,7 +74,7 @@ pub async fn delete_row(pool: &SqlitePool, table: &str, pk_col: &str, pk_val: &s
 pub async fn execute_sql(
     pool: &SqlitePool,
     sql: &str,
-) -> Result<(Vec<QueryColumn>, Vec<Vec<String>>, u64)> {
+) -> Result<(Vec<QueryColumn>, Vec<Vec<Value>>, u64)> {
     let trimmed = sql.trim_start().to_ascii_uppercase();
     if trimmed.starts_with("SELECT")
         || trimmed.starts_with("WITH")
@@ -90,13 +93,9 @@ pub async fn execute_sql(
         } else {
             vec![]
         };
-        let data: Vec<Vec<String>> = rows
+        let data: Vec<Vec<Value>> = rows
             .iter()
-            .map(|row| {
-                (0..row.len())
-                    .map(|i| row.try_get::<String, _>(i).unwrap_or_default())
-                    .collect()
-            })
+            .map(|row| (0..row.len()).map(|i| sqlite_cell(row, i)).collect())
             .collect();
         Ok((columns, data, 0))
     } else {

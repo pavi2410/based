@@ -2,7 +2,7 @@
 
 use sqlx::{AssertSqlSafe, Row, SqlitePool};
 
-use based_sqlite::sqlite_cell_display;
+use based_sqlite::sqlite_cell;
 
 const PRAGMA_LIST: &[&str] = &[
     "page_size",
@@ -24,7 +24,7 @@ pub async fn fetch_sqlite_pragmas(pool: &SqlitePool) -> Vec<(String, String)> {
         let value = match sqlx::query(AssertSqlSafe(sql)).fetch_optional(pool).await {
             Ok(Some(row)) => {
                 let parts: Vec<String> = (0..row.len())
-                    .map(|i| sqlite_cell_display(&row, i))
+                    .map(|i| sqlite_cell(&row, i).display())
                     .collect();
                 parts.join(", ")
             }

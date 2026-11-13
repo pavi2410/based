@@ -12,7 +12,7 @@ use super::eqp_parse::{EqpNode, parse_eqp};
 use super::eqp_viewer::render_eqp_body;
 use crate::editor::{SchemaCache, sqlite_schema};
 use crate::workspace::panels::query_editor::{Explained, Fut, PlanView, QuerySource, RunOutput};
-use based_sqlite::sqlite_cell_display;
+use based_sqlite::sqlite_cell;
 
 pub struct SqliteQuery {
     pub pool: SqlitePool,
@@ -78,7 +78,7 @@ impl QuerySource for SqliteQuery {
                         .collect();
                     out.rows = rows
                         .iter()
-                        .map(|r| (0..r.len()).map(|c| sqlite_cell_display(r, c)).collect())
+                        .map(|r| (0..r.len()).map(|c| sqlite_cell(r, c)).collect())
                         .collect();
                 }
             }

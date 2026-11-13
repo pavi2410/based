@@ -5,7 +5,9 @@ use sqlx::{
     AssertSqlSafe, Column as SqlxColumn, Either, Executor, PgPool, Row, SqlSafeStr, TypeInfo,
 };
 
-use crate::decode::pg_cell_display;
+use based_core::Value;
+
+use crate::decode::pg_cell;
 
 #[derive(Debug, Clone)]
 pub struct QueryColumn {
@@ -64,12 +66,12 @@ pub async fn delete_row(
 pub async fn execute_sql(
     pool: &PgPool,
     sql: &str,
-) -> Result<(Vec<QueryColumn>, Vec<Vec<String>>, u64)> {
+) -> Result<(Vec<QueryColumn>, Vec<Vec<Value>>, u64)> {
     // One connection for both calls: `describe` must see the same session
     // (temp tables, search_path) the statement just ran in.
     let mut conn = pool.acquire().await?;
     let mut columns: Vec<QueryColumn> = Vec::new();
-    let mut data: Vec<Vec<String>> = Vec::new();
+    let mut data: Vec<Vec<Value>> = Vec::new();
     let mut affected = 0u64;
     {
         let mut stream = conn.fetch_many(sqlx::query(AssertSqlSafe(sql)));
@@ -80,7 +82,7 @@ pub async fn execute_sql(
                     if columns.is_empty() {
                         columns = query_columns(row.columns());
                     }
-                    data.push((0..row.len()).map(|i| pg_cell_display(&row, i)).collect());
+                    data.push((0..row.len()).map(|i| pg_cell(&row, i)).collect());
                 }
             }
         }

@@ -1,5 +1,6 @@
 // mongodb::pipeline_builder — run aggregation from a JSON pipeline array.
 
+use based_mongo::bson_to_value;
 use std::collections::HashMap;
 
 use based_ai::context::{
@@ -30,7 +31,7 @@ use crate::widgets::export;
 use crate::widgets::panel_status::PanelStatus;
 use crate::widgets::sql_editor::{self, new_json_input, set_input_text, text_from_input};
 use crate::widgets::virtual_table::{
-    RowDelegate, align_meta_to_columns, data_column, replace_table_data,
+    Cell, RowDelegate, align_meta_to_columns, data_column, replace_table_data,
 };
 use crate::workspace::notify::push_export_success;
 use std::time::Instant;
@@ -181,15 +182,11 @@ impl PipelineBuilderPanel {
                 .iter()
                 .map(|k| data_column(k.clone(), k.clone()))
                 .collect();
-            let rows: Vec<Vec<SharedString>> = docs
+            let rows: Vec<Vec<Cell>> = docs
                 .iter()
                 .map(|d| {
                     keys.iter()
-                        .map(|k| {
-                            d.get(k)
-                                .map(|v| SharedString::from(v.to_string()))
-                                .unwrap_or_default()
-                        })
+                        .map(|k| Cell::new(bson_to_value(d.get(k))))
                         .collect()
                 })
                 .collect();
@@ -301,11 +298,7 @@ impl Render for PipelineBuilderPanel {
                 .iter()
                 .map(|c| c.key.to_string())
                 .collect::<Vec<_>>();
-            let r = d
-                .rows
-                .iter()
-                .map(|row| row.iter().map(|c| c.to_string()).collect())
-                .collect::<Vec<Vec<String>>>();
+            let r = d.rows.clone();
             (h, r)
         };
 

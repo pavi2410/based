@@ -3,6 +3,7 @@
 use gpui_kit::{App, Context};
 
 use super::data_viewer::DataViewerPanel;
+use crate::widgets::virtual_table::display_rows;
 
 /// What the grid and pager currently show.
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -22,11 +23,7 @@ impl DataViewerPanel {
         let grid = self.table.read(cx).delegate();
         PageSnapshot {
             columns: grid.columns.iter().map(|c| c.key.to_string()).collect(),
-            rows: grid
-                .rows
-                .iter()
-                .map(|row| row.iter().map(|c| c.to_string()).collect())
-                .collect(),
+            rows: display_rows(&grid.rows),
             total: self.total_rows,
             offset: self.offset,
             page_size: self.page_size,

@@ -7,7 +7,9 @@ use futures::TryStreamExt;
 use sqlx::{AssertSqlSafe, Column, Row, SqliteConnection, SqlitePool};
 use tokio::time::timeout;
 
-use crate::page::sqlite_cell_display;
+use based_core::Value;
+
+use crate::page::sqlite_cell;
 
 const TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -20,16 +22,12 @@ pub async fn query_readonly(
     pool: &SqlitePool,
     sql: &str,
     limit: usize,
-) -> Result<(Vec<String>, Vec<Vec<String>>)> {
+) -> Result<(Vec<String>, Vec<Vec<Value>>)> {
     let (pool, sql) = (pool.clone(), sql.to_owned());
     tokio::spawn(async move { run(&pool, &sql, limit).await }).await?
 }
 
-async fn run(
-    pool: &SqlitePool,
-    sql: &str,
-    limit: usize,
-) -> Result<(Vec<String>, Vec<Vec<String>>)> {
+async fn run(pool: &SqlitePool, sql: &str, limit: usize) -> Result<(Vec<String>, Vec<Vec<Value>>)> {
     let mut conn = pool.acquire().await?;
     sqlx::query("PRAGMA query_only = ON")
         .execute(&mut *conn)
@@ -52,7 +50,7 @@ async fn collect(
     conn: &mut SqliteConnection,
     sql: &str,
     limit: usize,
-) -> Result<(Vec<String>, Vec<Vec<String>>)> {
+) -> Result<(Vec<String>, Vec<Vec<Value>>)> {
     let mut columns = Vec::new();
     let mut rows = Vec::new();
     let mut stream = sqlx::query(AssertSqlSafe(sql)).fetch(conn);
@@ -60,11 +58,7 @@ async fn collect(
         if columns.is_empty() {
             columns = row.columns().iter().map(|c| c.name().to_owned()).collect();
         }
-        rows.push(
-            (0..row.len())
-                .map(|i| sqlite_cell_display(&row, i))
-                .collect(),
-        );
+        rows.push((0..row.len()).map(|i| sqlite_cell(&row, i)).collect());
         if rows.len() > limit {
             break;
         }

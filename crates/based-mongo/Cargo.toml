@@ -8,9 +8,11 @@ publish = false
 
 [dependencies]
 anyhow = { workspace = true }
+based-core = { path = "../based-core" }
 mongodb = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+time = { workspace = true }
 
 [lints]
 workspace = true

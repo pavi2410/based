@@ -26,7 +26,6 @@ use crate::connection::ConnectionId;
 use crate::connection::is_connection_read_only;
 use crate::db;
 use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_with_meta};
-use crate::widgets::cell_render::is_null_cell;
 use crate::widgets::column_header::ColumnMeta;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::datetime::format_relative;
@@ -40,8 +39,8 @@ use crate::widgets::panel::{
     tab_breadcrumb_footer, tab_breadcrumb_for_connection,
 };
 use crate::widgets::virtual_table::{
-    NULL_CELL_DISPLAY, RowDelegate, align_meta_to_columns, column_visibility, data_column,
-    replace_table_data, sort_column, toggle_column,
+    Cell, RowDelegate, align_meta_to_columns, column_visibility, data_column, replace_table_data,
+    sort_column, toggle_column,
 };
 use crate::workspace::WorkspaceRef;
 use crate::workspace::pop_out::PopOutWindowTitle;
@@ -64,11 +63,11 @@ fn meta_array_columns(names: &[String], meta: &[ColumnMeta]) -> HashSet<String> 
 
 pub type Fut<T> = BoxFuture<'static, anyhow::Result<T>>;
 
-/// One page of table rows, already formatted for display.
+/// One page of table rows.
 pub struct PageData {
     pub total: i64,
     pub columns: Vec<Column>,
-    pub rows: Vec<Vec<SharedString>>,
+    pub rows: Vec<Vec<Cell>>,
 }
 
 impl PageData {
@@ -76,7 +75,7 @@ impl PageData {
     pub fn new(
         total: i64,
         names: Option<Vec<String>>,
-        rows: Vec<Vec<SharedString>>,
+        rows: Vec<Vec<Cell>>,
         catalog: &HashMap<String, ColumnMeta>,
     ) -> Self {
         let names = names.unwrap_or_else(|| {
@@ -227,19 +226,20 @@ impl DataViewerPanel {
         let st = self.table.read(cx);
         let del = st.delegate();
         let col_name = del.columns.get(col)?.key.to_string();
-        let txt = del.rows.get(row)?.get(col)?.to_string();
+        let cell = del.rows.get(row)?.get(col)?;
         let meta = del.column_meta.get(col).cloned().unwrap_or_default();
-        Some((col_name, interpret_cell_with_meta(&txt, &meta)))
+        Some((col_name, interpret_cell_with_meta(cell, &meta)))
     }
 
     /// Resolve the FK target (`[schema.]table(col)`) of a cell into a drill-down.
     fn fk_target_for(&self, row: usize, col: usize, cx: &App) -> Option<(String, DrillFilter)> {
         let del = self.table.read(cx).delegate();
         let target = del.column_meta.get(col)?.fk_target.as_ref()?;
-        let value = del.rows.get(row)?.get(col)?.to_string();
-        if value.is_empty() || value == NULL_CELL_DISPLAY {
+        let cell = del.rows.get(row)?.get(col)?;
+        if cell.is_null() {
             return None;
         }
+        let value = cell.display.to_string();
         let (table, column) = target.strip_suffix(')')?.rsplit_once('(')?;
         let filter = DrillFilter {
             column: column.to_string(),
@@ -259,12 +259,7 @@ impl DataViewerPanel {
         let name = del.columns.get(col)?.key.to_string();
         let meta = del.column_meta.get(col).cloned().unwrap_or_default();
         let samples = if level == ContextLevel::SchemaRows {
-            let rows: Vec<Vec<String>> = del
-                .rows
-                .iter()
-                .map(|r| r.iter().map(|c| c.to_string()).collect())
-                .collect();
-            distinct_samples(&rows, col)
+            distinct_samples(&del.rows, col)
         } else {
             Vec::new()
         };
@@ -360,15 +355,11 @@ impl DataViewerPanel {
             let this = p.read(cx);
             let del = this.table.read(cx).delegate();
             let name = del.columns.get(col).map(|c| c.key.to_string());
-            let value = del
-                .rows
-                .get(row)
-                .and_then(|r| r.get(col))
-                .map(|v| v.to_string());
+            let value = del.rows.get(row).and_then(|r| r.get(col)).cloned();
             let row_text: Vec<String> = del
                 .rows
                 .get(row)
-                .map(|r| r.iter().map(|c| c.to_string()).collect())
+                .map(|r| r.iter().map(|c| c.display.to_string()).collect())
                 .unwrap_or_default();
             let headers: Vec<String> = del.columns.iter().map(|c| c.key.to_string()).collect();
             let fk = this.fk_target_for(row, col, cx);
@@ -405,7 +396,7 @@ impl DataViewerPanel {
         };
         let fv = value.clone();
         let mut menu = menu
-            .item(copy("Copy Value", value))
+            .item(copy("Copy Value", value.display.to_string()))
             .item(copy("Copy Row (TSV)", row_tsv))
             .item(copy("Copy Row (JSON)", row_json))
             .separator()
@@ -431,8 +422,9 @@ impl DataViewerPanel {
                         m = m.item(PopupMenuItem::new(label).on_click(move |_, window, cx| {
                             let (name, fv) = (name.clone(), fv.clone());
                             let _ = this.update(cx, |p, cx| {
-                                p.filter_bar
-                                    .update(cx, |fb, cx| fb.preset(name, op, &fv, window, cx));
+                                p.filter_bar.update(cx, |fb, cx| {
+                                    fb.preset(name, op, fv.display.as_ref(), window, cx)
+                                });
                                 p.load_page(0, cx);
                             });
                         }));
@@ -637,10 +629,12 @@ fn filter_item(
     label: &'static str,
     negate: bool,
     column: &str,
-    value: &str,
+    cell: &Cell,
     this: &WeakEntity<DataViewerPanel>,
 ) -> PopupMenuItem {
-    let (this, column, value) = (this.clone(), column.to_string(), value.to_string());
+    let (this, column) = (this.clone(), column.to_string());
+    let is_null = cell.is_null();
+    let value = cell.display.to_string();
     PopupMenuItem::new(label)
         .icon(Icon::new(if negate {
             AssetIcon::FunnelX
@@ -648,7 +642,6 @@ fn filter_item(
             AssetIcon::Funnel
         }))
         .on_click(move |_, _, cx| {
-            let is_null = is_null_cell(&value);
             let op = match (is_null, negate) {
                 (true, false) => FilterOp::IsNull,
                 (true, true) => FilterOp::IsNotNull,
@@ -737,12 +730,7 @@ impl Render for DataViewerPanel {
             let st = self.table.read(cx);
             let d = st.delegate();
             let h = d.columns.iter().map(|c| c.key.to_string()).collect();
-            let r = d
-                .rows
-                .iter()
-                .map(|row| row.iter().map(|c| c.to_string()).collect())
-                .collect();
-            (h, r)
+            (h, d.rows.clone())
         };
 
         let toolbar = data_viewer_toolbar(cx)

@@ -4,7 +4,7 @@ use anyhow::Result;
 use based_core::RawPage;
 use sqlx::{AssertSqlSafe, Column, PgPool, Row};
 
-use crate::decode::pg_cell_display;
+use crate::decode::pg_cell;
 
 /// `table` must be a quoted (schema-qualified) identifier; `where_sql` is empty or ` WHERE …`.
 pub async fn fetch_page(
@@ -32,7 +32,7 @@ pub async fn fetch_page(
             .map(|r| r.columns().iter().map(|c| c.name().to_string()).collect()),
         rows: rows
             .iter()
-            .map(|r| (0..r.len()).map(|i| pg_cell_display(r, i)).collect())
+            .map(|r| (0..r.len()).map(|i| pg_cell(r, i)).collect())
             .collect(),
     })
 }

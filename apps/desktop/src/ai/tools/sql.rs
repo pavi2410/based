@@ -3,7 +3,7 @@
 use based_ai::AiError;
 use based_ai::context::Entity;
 use based_ai::tools::{QueryOutput, ToolBackend};
-use based_core::EngineKind;
+use based_core::{EngineKind, Value};
 use futures::future::BoxFuture;
 use sqlx::{PgPool, SqlitePool};
 
@@ -35,6 +35,10 @@ impl SqlTools {
             SqlPool::Sqlite(p) => based_sqlite::query_readonly(p, sql, limit).await,
         }
         .map_err(fail)?;
+        let rows = rows
+            .iter()
+            .map(|r| r.iter().map(Value::display).collect())
+            .collect();
         Ok(QueryOutput { columns, rows })
     }
 }

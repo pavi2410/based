@@ -15,5 +15,5 @@ pub use config::{
 };
 pub use inspect::inspect_table;
 pub use mutations::{QueryColumn, delete_row, execute_sql, insert_row, update_row};
-pub use page::{fetch_page, sqlite_cell_display};
+pub use page::{fetch_page, sqlite_cell};
 pub use readonly::query_readonly;

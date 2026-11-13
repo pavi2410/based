@@ -8,6 +8,7 @@ pub mod page;
 pub mod session;
 pub mod ssh;
 pub mod tab;
+pub mod value;
 
 pub use auth::AuthMethod;
 pub use connection_error::{
@@ -19,3 +20,4 @@ pub use page::{ColumnMeta, Grid, RawPage, TableExtra, TableInfo, quote_ident};
 pub use session::{PersistedConnection, WorkspaceState};
 pub use ssh::SshTunnelConfig;
 pub use tab::{TabId, TabKind};
+pub use value::Value;

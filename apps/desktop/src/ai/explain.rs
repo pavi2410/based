@@ -1,20 +1,25 @@
 //! "Explain this column": the question handed to the assistant from a grid header.
 
 use crate::widgets::column_header::ColumnMeta;
-use crate::widgets::virtual_table::NULL_CELL_DISPLAY;
+use crate::widgets::virtual_table::Cell;
 
 /// Distinct sample values shown to the model, and the longest one kept whole.
 const SAMPLES: usize = 8;
 const SAMPLE_CHARS: usize = 60;
 
 /// Up to [`SAMPLES`] distinct, non-null values of column `col`, in row order.
-pub fn distinct_samples(rows: &[Vec<String>], col: usize) -> Vec<String> {
+/// An empty string is a value, shown as `""`.
+pub fn distinct_samples(rows: &[Vec<Cell>], col: usize) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
-    for value in rows.iter().filter_map(|r| r.get(col)) {
-        if value.is_empty() || value == NULL_CELL_DISPLAY {
+    for cell in rows.iter().filter_map(|r| r.get(col)) {
+        if cell.is_null() {
             continue;
         }
-        let clipped: String = value.chars().take(SAMPLE_CHARS).collect();
+        let clipped: String = if cell.display.is_empty() {
+            "\"\"".into()
+        } else {
+            cell.display.chars().take(SAMPLE_CHARS).collect()
+        };
         if !out.contains(&clipped) {
             out.push(clipped);
         }
@@ -57,11 +62,18 @@ mod tests {
 
     #[test]
     fn samples_are_distinct_and_skip_nulls() {
-        let rows: Vec<Vec<String>> = ["a", "NULL", "a", "", "b"]
-            .iter()
-            .map(|v| vec![(*v).to_owned()])
-            .collect();
-        assert_eq!(distinct_samples(&rows, 0), ["a", "b"]);
+        let rows: Vec<Vec<Cell>> = [
+            Cell::text("a"),
+            Cell::new(based_core::Value::Null),
+            Cell::text("a"),
+            Cell::text("NULL"),
+            Cell::text(""),
+            Cell::text("b"),
+        ]
+        .into_iter()
+        .map(|c| vec![c])
+        .collect();
+        assert_eq!(distinct_samples(&rows, 0), ["a", "NULL", "\"\"", "b"]);
         assert!(distinct_samples(&rows, 3).is_empty());
     }
 

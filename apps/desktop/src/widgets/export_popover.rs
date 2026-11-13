@@ -10,6 +10,7 @@ use gpui_kit::component::{
 use gpui_kit::{prelude::*, *};
 
 use crate::widgets::export;
+use crate::widgets::virtual_table::Cell;
 use crate::workspace::notify::push_export_success;
 
 /// Trigger button + popover menu for CSV and Excel export.
@@ -19,7 +20,7 @@ use crate::workspace::notify::push_export_success;
 pub fn export_popover(
     id_prefix: &str,
     headers: Vec<String>,
-    rows: Vec<Vec<String>>,
+    rows: Vec<Vec<Cell>>,
 ) -> impl IntoElement {
     let id_prefix = id_prefix.to_string();
     let (h, r) = (headers.clone(), rows.clone());

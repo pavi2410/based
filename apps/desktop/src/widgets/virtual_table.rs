@@ -1,10 +1,12 @@
-// VirtualTable: a DataTable<RowDelegate> for displaying generic string-valued rows.
+// VirtualTable: a DataTable<RowDelegate> for displaying typed cell rows.
 // The DataTable widget in gpui-kit already virtualizes rows internally,
 // so this is a thin wrapper / type alias for the RowDelegate-based table.
 
+use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::rc::Rc;
 
+use based_core::Value;
 use gpui_kit::component::{
     StyleSized,
     menu::{ContextMenuExt, PopupMenu},
@@ -21,7 +23,59 @@ use crate::widgets::same_value::{self, SameValueMatch};
 
 pub use crate::widgets::column_header::{align_meta_to_columns, meta_from_query_type};
 
-pub const NULL_CELL_DISPLAY: &str = "NULL";
+/// One grid cell: the typed value and its display text, formatted once at load
+/// so rendering a frame doesn't re-format every visible cell.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Cell {
+    pub value: Value,
+    pub display: SharedString,
+}
+
+impl Cell {
+    pub fn new(value: Value) -> Self {
+        let display = value.display().into();
+        Self { value, display }
+    }
+
+    /// A plain text cell (metadata grids, labels).
+    pub fn text(s: impl Into<SharedString>) -> Self {
+        let display: SharedString = s.into();
+        Self {
+            value: Value::text(display.as_ref()),
+            display,
+        }
+    }
+
+    pub fn is_null(&self) -> bool {
+        self.value.is_null()
+    }
+}
+
+impl Default for Cell {
+    fn default() -> Self {
+        Self::new(Value::Missing)
+    }
+}
+
+impl From<Value> for Cell {
+    fn from(value: Value) -> Self {
+        Self::new(value)
+    }
+}
+
+/// Typed values into grid rows.
+pub fn cells(rows: Vec<Vec<Value>>) -> Vec<Vec<Cell>> {
+    rows.into_iter()
+        .map(|r| r.into_iter().map(Cell::new).collect())
+        .collect()
+}
+
+/// Display text of every cell, e.g. for export and snapshots.
+pub fn display_rows(rows: &[Vec<Cell>]) -> Vec<Vec<String>> {
+    rows.iter()
+        .map(|r| r.iter().map(|c| c.display.to_string()).collect())
+        .collect()
+}
 
 /// Sortable, resizable column for query/browse grids.
 pub fn data_column(key: impl Into<SharedString>, label: impl Into<SharedString>) -> Column {
@@ -41,15 +95,15 @@ pub type HeaderMenuFn =
 struct FullData {
     columns: Vec<Column>,
     meta: Vec<ColumnMeta>,
-    rows: Vec<Vec<SharedString>>,
+    rows: Vec<Vec<Cell>>,
 }
 
-/// Generic row data: column names + string-valued cells.
+/// Generic row data: column names + typed cells.
 #[derive(Default)]
 pub struct RowDelegate {
     pub columns: Vec<Column>,
     pub column_meta: Vec<ColumnMeta>,
-    pub rows: Vec<Vec<SharedString>>,
+    pub rows: Vec<Vec<Cell>>,
     pub sort_col: Option<usize>,
     pub sort_asc: bool,
     pub same_value_match: Option<SameValueMatch>,
@@ -104,14 +158,9 @@ impl TableDelegate for RowDelegate {
             .and_then(|row| row.get(col_ix))
             .cloned()
             .unwrap_or_default();
-        let highlight =
-            same_value::cell_is_match(col_ix, cell.as_ref(), self.same_value_match.as_ref());
-        let is_null = cell.is_empty() || cell.as_ref() == NULL_CELL_DISPLAY;
-        let display: SharedString = if cell.is_empty() {
-            NULL_CELL_DISPLAY.into()
-        } else {
-            cell
-        };
+        let highlight = same_value::cell_is_match(col_ix, &cell, self.same_value_match.as_ref());
+        let is_null = cell.is_null();
+        let display = cell.display;
         let meta = self.column_meta.get(col_ix).cloned().unwrap_or_default();
         let kind = cell_value_kind(meta.data_type.as_deref(), display.as_ref());
         let cell_size = prefs::table_cell_size(cx);
@@ -136,7 +185,7 @@ impl TableDelegate for RowDelegate {
     }
 
     fn cell_text(&self, row_ix: usize, col_ix: usize, _: &App) -> String {
-        self.rows[row_ix][col_ix].to_string()
+        self.rows[row_ix][col_ix].display.to_string()
     }
 
     fn move_column(
@@ -192,7 +241,15 @@ impl TableDelegate for RowDelegate {
         let meta = self.column_meta.get(col_ix).cloned().unwrap_or_default();
         let kind = column_value_kind(meta.data_type.as_deref());
         self.rows.sort_by(|a, b| {
-            let ord = compare_cells(kind, a[col_ix].as_ref(), b[col_ix].as_ref());
+            // NULL and missing fields sort last, whatever their display text.
+            let ord = match (a[col_ix].is_null(), b[col_ix].is_null()) {
+                (true, true) => Ordering::Equal,
+                (true, false) => Ordering::Greater,
+                (false, true) => Ordering::Less,
+                (false, false) => {
+                    compare_cells(kind, a[col_ix].display.as_ref(), b[col_ix].display.as_ref())
+                }
+            };
             if asc { ord } else { ord.reverse() }
         });
         if let Some(needle) = self.same_value_match.take()
@@ -201,8 +258,7 @@ impl TableDelegate for RowDelegate {
                 .get(needle.row_ix)
                 .and_then(|row| row.get(needle.col_ix))
         {
-            self.same_value_match =
-                same_value::match_from_cell(needle.row_ix, needle.col_ix, raw.as_ref());
+            self.same_value_match = same_value::match_from_cell(needle.row_ix, needle.col_ix, raw);
         }
     }
 }
@@ -218,7 +274,7 @@ pub fn empty_column_meta(count: usize) -> Vec<ColumnMeta> {
 pub fn replace_table_data(
     state: &mut TableState<RowDelegate>,
     columns: Vec<Column>,
-    rows: Vec<Vec<SharedString>>,
+    rows: Vec<Vec<Cell>>,
     column_meta: Vec<ColumnMeta>,
     cx: &mut Context<TableState<RowDelegate>>,
 ) {
@@ -340,7 +396,7 @@ pub fn refresh_same_value_highlight(
     let needle = if enabled && focused {
         cell.and_then(|(row, col)| {
             let raw = state.delegate().rows.get(row)?.get(col)?;
-            same_value::match_from_cell(row, col, raw.as_ref())
+            same_value::match_from_cell(row, col, raw)
         })
     } else {
         None

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use time::OffsetDateTime;
 
-use based_core::EngineKind;
+use based_core::{EngineKind, Value};
 use based_project::{SaveTarget, save_sql_query};
 use based_query::{Lint, Severity};
 use futures::future::BoxFuture;
@@ -55,7 +55,7 @@ use crate::widgets::result_tabs::{BottomTab, StripTab, result_tab_strip};
 use crate::widgets::shortcut_run_kbd_in_primary_button;
 use crate::widgets::sql_editor::{self, new_sql_input, replace_input_text, text_from_input};
 use crate::widgets::virtual_table::{
-    RowDelegate, data_column, meta_from_query_type, replace_table_data,
+    Cell, RowDelegate, cells, data_column, meta_from_query_type, replace_table_data,
 };
 use crate::widgets::wizard_fields::new_field;
 use crate::workspace::notify;
@@ -89,7 +89,7 @@ pub(super) struct HeldRun {
 #[derive(Default)]
 pub struct RunOutput {
     pub columns: Vec<(String, String)>,
-    pub rows: Vec<Vec<String>>,
+    pub rows: Vec<Vec<Value>>,
     pub affected: Option<u64>,
 }
 
@@ -147,7 +147,7 @@ enum ExplainView {
 pub(super) struct StatementResult {
     columns: Vec<Column>,
     meta: Vec<ColumnMeta>,
-    rows: Vec<Vec<SharedString>>,
+    rows: Vec<Vec<Cell>>,
 }
 
 pub struct QueryEditorPanel {
@@ -612,11 +612,7 @@ impl QueryEditorPanel {
                     .iter()
                     .map(|(_, t)| meta_from_query_type(t))
                     .collect();
-                let rows: Vec<Vec<SharedString>> = out
-                    .rows
-                    .into_iter()
-                    .map(|r| r.into_iter().map(SharedString::from).collect())
-                    .collect();
+                let rows = cells(out.rows);
                 let n = rows.len();
                 let tabular = !columns.is_empty();
                 let what = match (tabular, out.affected) {
@@ -1555,14 +1551,11 @@ impl Render for QueryEditorPanel {
                 });
             })
         };
-        let (headers, rows): (Vec<String>, Vec<Vec<String>>) = {
+        let (headers, rows): (Vec<String>, Vec<Vec<Cell>>) = {
             let d = self.result.read(cx).delegate();
             (
                 d.columns.iter().map(|c| c.key.to_string()).collect(),
-                d.rows
-                    .iter()
-                    .map(|row| row.iter().map(|c| c.to_string()).collect())
-                    .collect(),
+                d.rows.clone(),
             )
         };
         let result_counts: Vec<usize> = match (self.results.len(), &self.status) {

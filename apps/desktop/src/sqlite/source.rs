@@ -2,8 +2,8 @@
 
 use std::collections::HashMap;
 
+use crate::widgets::virtual_table::cells;
 use based_core::quote_ident;
-use gpui_kit::SharedString;
 use sqlx::SqlitePool;
 
 use crate::widgets::column_header::ColumnMeta;
@@ -47,12 +47,12 @@ impl DataSource for SqliteSource {
             .unwrap_or_default();
         Box::pin(async move {
             let page = based_sqlite::fetch_page(&pool, &table, &where_sql, limit, offset).await?;
-            let rows = page
-                .rows
-                .into_iter()
-                .map(|r| r.into_iter().map(SharedString::from).collect())
-                .collect();
-            Ok(PageData::new(page.total, page.columns, rows, &catalog))
+            Ok(PageData::new(
+                page.total,
+                page.columns,
+                cells(page.rows),
+                &catalog,
+            ))
         })
     }
 }

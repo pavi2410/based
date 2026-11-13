@@ -26,7 +26,7 @@ use crate::widgets::panel::{
 };
 use crate::widgets::sql_editor::{self, new_sql_input, set_input_text};
 use crate::widgets::virtual_table::{
-    RowDelegate, data_column, empty_column_meta, replace_table_data,
+    Cell, RowDelegate, data_column, empty_column_meta, replace_table_data,
 };
 
 #[derive(Clone, Copy)]
@@ -47,7 +47,7 @@ pub struct TabDef {
 pub enum Section {
     Table {
         columns: Vec<Column>,
-        rows: Vec<Vec<SharedString>>,
+        rows: Vec<Vec<Cell>>,
     },
     Code(String),
     Facts(Vec<(SharedString, SharedString)>),
@@ -61,7 +61,7 @@ impl Section {
             rows: g
                 .rows
                 .into_iter()
-                .map(|r| r.into_iter().map(SharedString::from).collect())
+                .map(|r| r.into_iter().map(Cell::text).collect())
                 .collect(),
         };
         let extra = match info.extra {

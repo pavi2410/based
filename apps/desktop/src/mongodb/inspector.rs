@@ -21,7 +21,7 @@ use crate::widgets::panel::{
     panel_tab_content, tab_breadcrumb_footer, tab_breadcrumb_for_connection, tab_button_styled,
 };
 use crate::widgets::virtual_table::{
-    RowDelegate, data_column, empty_column_meta, replace_table_data,
+    Cell, RowDelegate, data_column, empty_column_meta, replace_table_data,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -132,7 +132,7 @@ impl CollectionInspectorPanel {
                                 replace_table_data(
                                     state,
                                     vec![data_column("error", "Error")],
-                                    vec![vec![SharedString::from(msg)]],
+                                    vec![vec![Cell::text(msg)]],
                                     empty_column_meta(1),
                                     cx,
                                 );
@@ -156,9 +156,9 @@ impl CollectionInspectorPanel {
                         data_column("key", "Key"),
                         data_column("unique", "Unique"),
                     ];
-                    let ix_data: Vec<Vec<SharedString>> = ix_rows
+                    let ix_data: Vec<Vec<Cell>> = ix_rows
                         .into_iter()
-                        .map(|r| r.into_iter().map(SharedString::from).collect())
+                        .map(|r| r.into_iter().map(Cell::text).collect())
                         .collect();
 
                     let _ = cx.update(|cx| {

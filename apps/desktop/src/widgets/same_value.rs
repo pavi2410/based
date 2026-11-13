@@ -2,7 +2,7 @@
 
 use gpui_kit::{Hsla, SharedString, rgb};
 
-use crate::widgets::cell_render::is_null_cell;
+use crate::widgets::virtual_table::Cell;
 
 /// Warm gray `#57524f` at ~1/3 so the row / zebra color still shows through.
 pub fn wash_color() -> Hsla {
@@ -16,25 +16,25 @@ pub struct SameValueMatch {
     pub value: SharedString,
 }
 
-pub fn match_from_cell(row_ix: usize, col_ix: usize, raw: &str) -> Option<SameValueMatch> {
-    if is_null_cell(raw) {
+pub fn match_from_cell(row_ix: usize, col_ix: usize, cell: &Cell) -> Option<SameValueMatch> {
+    if cell.is_null() {
         return None;
     }
     Some(SameValueMatch {
         row_ix,
         col_ix,
-        value: raw.to_string().into(),
+        value: cell.display.clone(),
     })
 }
 
-pub fn cell_is_match(col_ix: usize, raw: &str, needle: Option<&SameValueMatch>) -> bool {
+pub fn cell_is_match(col_ix: usize, cell: &Cell, needle: Option<&SameValueMatch>) -> bool {
     let Some(needle) = needle else {
         return false;
     };
-    if col_ix != needle.col_ix || is_null_cell(raw) {
+    if col_ix != needle.col_ix || cell.is_null() {
         return false;
     }
-    raw == needle.value.as_ref()
+    cell.display == needle.value
 }
 
 pub fn remap_column(col_ix: usize, from: usize, to: usize) -> usize {

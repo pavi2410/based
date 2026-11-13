@@ -1,46 +1,66 @@
 //! Shared Postgres cell decoder for the query grid and the data viewer.
 
+use std::str;
+use std::sync::Arc;
+
+use based_core::Value;
 use sqlx::postgres::{PgRow, PgValueFormat};
 use sqlx::{Row, TypeInfo, ValueRef};
 use time::{Date, Duration, Month, PrimitiveDateTime, Time};
 
-pub const NULL_CELL: &str = "NULL";
-
-/// Format a column from a live `PgRow` for grid display.
-pub fn pg_cell_display(row: &PgRow, col: usize) -> String {
+/// Decode a column from a live `PgRow`.
+pub fn pg_cell(row: &PgRow, col: usize) -> Value {
     let Ok(raw) = row.try_get_raw(col) else {
-        return NULL_CELL.into();
+        return Value::undecodable("unknown");
     };
     if raw.is_null() {
-        return NULL_CELL.into();
+        return Value::Null;
     }
     let type_info = raw.type_info();
     let type_name = type_info.name();
     match raw.format() {
-        PgValueFormat::Text => raw
-            .as_str()
-            .map(str::to_string)
-            .unwrap_or_else(|_| NULL_CELL.into()),
+        PgValueFormat::Text => match raw.as_str() {
+            Ok(s) => parse_pg_text(type_name, s),
+            Err(_) => Value::undecodable(type_name),
+        },
         PgValueFormat::Binary => match raw.as_bytes() {
             Ok(bytes) => decode_pg_cell(type_name, Some(bytes)),
-            Err(_) => NULL_CELL.into(),
+            Err(_) => Value::undecodable(type_name),
         },
     }
 }
 
 /// Decode one Postgres cell from its type name and optional binary payload.
 ///
-/// `None` is SQL NULL. Query execution and the data viewer both go through here.
-pub fn decode_pg_cell(type_name: &str, bytes: Option<&[u8]>) -> String {
+/// `None` is SQL NULL. Bytes the decoder can't read become [`Value::Other`],
+/// never NULL.
+pub fn decode_pg_cell(type_name: &str, bytes: Option<&[u8]>) -> Value {
     let Some(bytes) = bytes else {
-        return NULL_CELL.into();
+        return Value::Null;
     };
     let type_name = type_name.trim();
     let decoded = match array_elem_type(type_name) {
         Some(elem) => decode_array(normalize_pg_type(elem), bytes),
         None => decode_binary(normalize_pg_type(type_name), bytes),
     };
-    decoded.unwrap_or_else(|| NULL_CELL.into())
+    decoded.unwrap_or_else(|| Value::undecodable(type_name))
+}
+
+/// Type a value Postgres sent in text format. Types without a text parser stay text.
+fn parse_pg_text(type_name: &str, s: &str) -> Value {
+    let parsed = match normalize_pg_type(type_name.trim()) {
+        "INT2" | "INT4" | "INT8" => s.parse().ok().map(Value::Int),
+        "FLOAT4" | "FLOAT8" => s.parse().ok().map(Value::Float),
+        "BOOL" => match s {
+            "t" | "true" => Some(Value::Bool(true)),
+            "f" | "false" => Some(Value::Bool(false)),
+            _ => None,
+        },
+        "NUMERIC" => Some(Value::Numeric(s.into())),
+        "JSON" | "JSONB" => Some(Value::Json(s.into())),
+        _ => None,
+    };
+    parsed.unwrap_or_else(|| Value::text(s))
 }
 
 /// Element type name for array types (`INT4[]`, `_text`); `None` for scalars.
@@ -81,24 +101,86 @@ fn normalize_pg_type(name: &str) -> &str {
     }
 }
 
-fn decode_binary(type_name: &str, bytes: &[u8]) -> Option<String> {
+fn decode_binary(type_name: &str, bytes: &[u8]) -> Option<Value> {
     match type_name {
-        "INT2" => Some(i16::from_be_bytes(bytes.try_into().ok()?).to_string()),
-        "INT4" => Some(i32::from_be_bytes(bytes.try_into().ok()?).to_string()),
-        "INT8" => Some(i64::from_be_bytes(bytes.try_into().ok()?).to_string()),
-        "FLOAT4" => Some(f32::from_be_bytes(bytes.try_into().ok()?).to_string()),
-        "FLOAT8" => Some(f64::from_be_bytes(bytes.try_into().ok()?).to_string()),
-        "BOOL" => Some((bytes.first().copied()? != 0).to_string()),
-        "TEXT" | "JSON" => String::from_utf8(bytes.to_vec()).ok(),
+        "INT2" => Some(Value::Int(
+            i16::from_be_bytes(bytes.try_into().ok()?).into(),
+        )),
+        "INT4" => Some(Value::Int(
+            i32::from_be_bytes(bytes.try_into().ok()?).into(),
+        )),
+        "INT8" => Some(Value::Int(i64::from_be_bytes(bytes.try_into().ok()?))),
+        // Through the f32's shortest text so 0.1::real reads 0.1, not 0.10000000149.
+        "FLOAT4" => f32::from_be_bytes(bytes.try_into().ok()?)
+            .to_string()
+            .parse()
+            .ok()
+            .map(Value::Float),
+        "FLOAT8" => Some(Value::Float(f64::from_be_bytes(bytes.try_into().ok()?))),
+        "BOOL" => Some(Value::Bool(bytes.first().copied()? != 0)),
+        "TEXT" => utf8(bytes).map(Value::Text),
+        "JSON" => utf8(bytes).map(Value::Json),
         "JSONB" => decode_jsonb(bytes),
-        "BYTEA" => Some(format!("<{} bytes>", bytes.len())),
+        "BYTEA" => Some(Value::Bytes(bytes.into())),
         "DATE" => decode_date(bytes),
         "TIME" => decode_time(bytes),
         "TIMESTAMP" => decode_timestamp(bytes, false),
         "TIMESTAMPTZ" => decode_timestamp(bytes, true),
-        "NUMERIC" => decode_numeric(bytes),
-        "UUID" => decode_uuid(bytes),
-        _ => String::from_utf8(bytes.to_vec()).ok(),
+        "NUMERIC" => decode_numeric(bytes).map(|s| Value::Numeric(s.into())),
+        "UUID" => Some(Value::Uuid(bytes.try_into().ok()?)),
+        // Binary layouts we don't parse: reading them as UTF-8 would show garbage.
+        other if is_binary_layout(other) => None,
+        // Enums, domains over text, `xml`, `citext` from an extension …: their
+        // binary form is the text itself.
+        _ => utf8(bytes)
+            .filter(|s| {
+                !s.chars()
+                    .any(|c| c.is_control() && !matches!(c, '\n' | '\r' | '\t'))
+            })
+            .map(Value::Text),
+    }
+}
+
+/// Built-in types whose binary wire format is not UTF-8 text.
+fn is_binary_layout(type_name: &str) -> bool {
+    let t = type_name.to_ascii_uppercase();
+    matches!(
+        t.as_str(),
+        "INTERVAL"
+            | "TIMETZ"
+            | "MONEY"
+            | "INET"
+            | "CIDR"
+            | "MACADDR"
+            | "MACADDR8"
+            | "OID"
+            | "XID"
+            | "XID8"
+            | "CID"
+            | "TID"
+            | "PG_LSN"
+            | "BIT"
+            | "VARBIT"
+            | "POINT"
+            | "LINE"
+            | "LSEG"
+            | "BOX"
+            | "PATH"
+            | "POLYGON"
+            | "CIRCLE"
+            | "TSVECTOR"
+            | "TSQUERY"
+    ) || t.ends_with("RANGE")
+}
+
+fn utf8(bytes: &[u8]) -> Option<Arc<str>> {
+    str::from_utf8(bytes).ok().map(Arc::from)
+}
+
+fn special(type_name: &str, text: &str) -> Value {
+    Value::Other {
+        type_name: type_name.into(),
+        text: Some(text.into()),
     }
 }
 
@@ -108,8 +190,8 @@ fn read_i32(bytes: &[u8], off: usize) -> Option<i32> {
     ))
 }
 
-/// Decode a binary array into Postgres literal syntax (`{1,2,NULL}`, nested for N-d).
-fn decode_array(elem: &str, bytes: &[u8]) -> Option<String> {
+/// Decode a binary array (nested for N-d).
+fn decode_array(elem: &str, bytes: &[u8]) -> Option<Value> {
     let ndim = usize::try_from(read_i32(bytes, 0)?).ok()?;
     // bytes 4..8 flags, 8..12 element OID.
     let mut off = 12;
@@ -119,123 +201,59 @@ fn decode_array(elem: &str, bytes: &[u8]) -> Option<String> {
         off += 8; // length + lower bound
     }
     if ndim == 0 {
-        return Some("{}".into());
+        return Some(Value::Array(Arc::from([])));
     }
-    let mut out = String::new();
-    write_array_level(elem, bytes, &mut off, &dims, &mut out)?;
-    Some(out)
+    read_array_level(elem, bytes, &mut off, &dims)
 }
 
-fn write_array_level(
-    elem: &str,
-    bytes: &[u8],
-    off: &mut usize,
-    dims: &[usize],
-    out: &mut String,
-) -> Option<()> {
-    out.push('{');
-    for i in 0..dims[0] {
-        if i > 0 {
-            out.push(',');
-        }
+fn read_array_level(elem: &str, bytes: &[u8], off: &mut usize, dims: &[usize]) -> Option<Value> {
+    let mut items = Vec::with_capacity(dims[0]);
+    for _ in 0..dims[0] {
         if dims.len() > 1 {
-            write_array_level(elem, bytes, off, &dims[1..], out)?;
+            items.push(read_array_level(elem, bytes, off, &dims[1..])?);
             continue;
         }
         let len = read_i32(bytes, *off)?;
         *off += 4;
         if len < 0 {
-            out.push_str("NULL");
+            items.push(Value::Null);
             continue;
         }
         let end = off.checked_add(len as usize)?;
-        let cell = decode_binary(elem, bytes.get(*off..end)?)?;
+        items.push(decode_binary(elem, bytes.get(*off..end)?)?);
         *off = end;
-        push_array_elem(out, &cell, elem);
     }
-    out.push('}');
-    Some(())
+    Some(Value::Array(items.into()))
 }
 
-/// Quote string-like elements the way Postgres does when needed.
-fn push_array_elem(out: &mut String, cell: &str, elem: &str) {
-    let plain = matches!(
-        elem,
-        "INT2" | "INT4" | "INT8" | "FLOAT4" | "FLOAT8" | "BOOL" | "NUMERIC" | "UUID"
-    );
-    let needs_quote = !plain
-        && (cell.is_empty()
-            || cell.eq_ignore_ascii_case("null")
-            || cell
-                .chars()
-                .any(|c| matches!(c, ',' | '{' | '}' | '"' | '\\') || c.is_whitespace()));
-    if needs_quote {
-        out.push('"');
-        for c in cell.chars() {
-            if matches!(c, '"' | '\\') {
-                out.push('\\');
-            }
-            out.push(c);
-        }
-        out.push('"');
-    } else {
-        out.push_str(cell);
-    }
-}
-
-fn decode_jsonb(bytes: &[u8]) -> Option<String> {
+fn decode_jsonb(bytes: &[u8]) -> Option<Value> {
     let rest = match bytes.first().copied() {
         Some(1) => bytes.get(1..)?,
         _ => bytes,
     };
-    String::from_utf8(rest.to_vec()).ok()
-}
-
-fn decode_uuid(bytes: &[u8]) -> Option<String> {
-    if bytes.len() != 16 {
-        return None;
-    }
-    Some(format!(
-        "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-        bytes[0],
-        bytes[1],
-        bytes[2],
-        bytes[3],
-        bytes[4],
-        bytes[5],
-        bytes[6],
-        bytes[7],
-        bytes[8],
-        bytes[9],
-        bytes[10],
-        bytes[11],
-        bytes[12],
-        bytes[13],
-        bytes[14],
-        bytes[15],
-    ))
+    utf8(rest).map(Value::Json)
 }
 
 fn pg_epoch() -> Option<Date> {
     Date::from_calendar_date(2000, Month::January, 1).ok()
 }
 
-fn decode_date(bytes: &[u8]) -> Option<String> {
+fn decode_date(bytes: &[u8]) -> Option<Value> {
     let days = i32::from_be_bytes(bytes.try_into().ok()?);
     if days == i32::MAX {
-        return Some("infinity".into());
+        return Some(special("DATE", "infinity"));
     }
     if days == i32::MIN {
-        return Some("-infinity".into());
+        return Some(special("DATE", "-infinity"));
     }
     let date = Date::from_julian_day(pg_epoch()?.to_julian_day().checked_add(days)?).ok()?;
-    Some(format_date(date))
+    Some(Value::Date(date))
 }
 
-fn decode_time(bytes: &[u8]) -> Option<String> {
+fn decode_time(bytes: &[u8]) -> Option<Value> {
     let us = i64::from_be_bytes(bytes.try_into().ok()?);
     if us == 86_400_000_000 {
-        return Some("24:00:00".into());
+        return Some(special("TIME", "24:00:00"));
     }
     if !(0..86_400_000_000).contains(&us) {
         return None;
@@ -249,52 +267,26 @@ fn decode_time(bytes: &[u8]) -> Option<String> {
         micros,
     )
     .ok()?;
-    Some(format_clock(time))
+    Some(Value::Time(time))
 }
 
-fn decode_timestamp(bytes: &[u8], with_tz: bool) -> Option<String> {
+/// `timestamptz` arrives as UTC microseconds.
+fn decode_timestamp(bytes: &[u8], with_tz: bool) -> Option<Value> {
+    let type_name = if with_tz { "TIMESTAMPTZ" } else { "TIMESTAMP" };
     let us = i64::from_be_bytes(bytes.try_into().ok()?);
     if us == i64::MAX {
-        return Some("infinity".into());
+        return Some(special(type_name, "infinity"));
     }
     if us == i64::MIN {
-        return Some("-infinity".into());
+        return Some(special(type_name, "-infinity"));
     }
     let dt = PrimitiveDateTime::new(pg_epoch()?, Time::MIDNIGHT)
         .checked_add(Duration::microseconds(us))?;
-    let mut s = format!("{} {}", format_date(dt.date()), format_clock(dt.time()));
-    if with_tz {
-        s.push_str("+00");
-    }
-    Some(s)
-}
-
-fn format_date(date: Date) -> String {
-    format!(
-        "{:04}-{:02}-{:02}",
-        date.year(),
-        date.month() as u8,
-        date.day()
-    )
-}
-
-fn format_clock(time: Time) -> String {
-    let mut s = format!(
-        "{:02}:{:02}:{:02}",
-        time.hour(),
-        time.minute(),
-        time.second()
-    );
-    if time.microsecond() != 0 {
-        s.push_str(&format!(".{:06}", time.microsecond()));
-        while s.ends_with('0') {
-            s.pop();
-        }
-        if s.ends_with('.') {
-            s.pop();
-        }
-    }
-    s
+    Some(if with_tz {
+        Value::TimestampTz(dt.assume_utc())
+    } else {
+        Value::Timestamp(dt)
+    })
 }
 
 const NUMERIC_POS: u16 = 0x0000;
@@ -417,7 +409,7 @@ mod tests {
         buf
     }
 
-    /// Binary fixtures for the types that currently render as blank cells.
+    /// Binary fixtures and their grid text.
     fn fixtures() -> Vec<(&'static str, Option<Vec<u8>>, &'static str)> {
         let uuid = [
             0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44,
@@ -433,11 +425,13 @@ mod tests {
             ("INT4", Some(be_i32(42).to_vec()), "42"),
             ("INT8", Some(be_i64(42).to_vec()), "42"),
             ("FLOAT4", Some(1.5f32.to_be_bytes().to_vec()), "1.5"),
+            ("FLOAT4", Some(0.1f32.to_be_bytes().to_vec()), "0.1"),
             ("FLOAT8", Some(1.5f64.to_be_bytes().to_vec()), "1.5"),
             ("BOOL", Some(vec![1]), "true"),
             ("TEXT", Some(b"hello".to_vec()), "hello"),
             ("BYTEA", Some(vec![0xde, 0xad, 0xbe, 0xef]), "<4 bytes>"),
             ("DATE", Some(be_i32(date_days).to_vec()), "2020-01-15"),
+            ("DATE", Some(be_i32(i32::MAX).to_vec()), "infinity"),
             (
                 "TIMESTAMP",
                 Some(be_i64(ts_us).to_vec()),
@@ -464,7 +458,9 @@ mod tests {
                 Some(uuid.to_vec()),
                 "550e8400-e29b-41d4-a716-446655440000",
             ),
-            ("TEXT", None, NULL_CELL),
+            ("TEXT", None, "NULL"),
+            // A user-defined enum: binary form is the label.
+            ("mood", Some(b"happy".to_vec()), "happy"),
         ]
     }
 
@@ -489,12 +485,20 @@ mod tests {
         b
     }
 
+    fn shown(type_name: &str, bytes: Option<&[u8]>) -> String {
+        decode_pg_cell(type_name, bytes).display()
+    }
+
     #[test]
     fn decodes_arrays() {
         let ints = array_bytes(23, &[3], &[Some(&be_i32(1)), None, Some(&be_i32(3))]);
-        assert_eq!(decode_pg_cell("INT4[]", Some(&ints)), "{1,NULL,3}");
+        assert_eq!(
+            decode_pg_cell("INT4[]", Some(&ints)),
+            Value::Array([Value::Int(1), Value::Null, Value::Int(3)].into())
+        );
+        assert_eq!(shown("INT4[]", Some(&ints)), "{1,NULL,3}");
         let texts = array_bytes(25, &[2], &[Some(b"a b"), Some(b"c")]);
-        assert_eq!(decode_pg_cell("TEXT[]", Some(&texts)), r#"{"a b",c}"#);
+        assert_eq!(shown("TEXT[]", Some(&texts)), r#"{"a b",c}"#);
         let grid = array_bytes(
             23,
             &[2, 2],
@@ -505,22 +509,51 @@ mod tests {
                 Some(&be_i32(4)),
             ],
         );
-        assert_eq!(decode_pg_cell("_int4", Some(&grid)), "{{1,2},{3,4}}");
-        assert_eq!(decode_pg_cell("INT4[]", Some(&be_i32(0).repeat(3))), "{}");
+        assert_eq!(shown("_int4", Some(&grid)), "{{1,2},{3,4}}");
+        assert_eq!(shown("INT4[]", Some(&be_i32(0).repeat(3))), "{}");
     }
 
     #[test]
     fn decode_pg_cell_shows_values_not_blanks() {
         for (type_name, bytes, expected) in fixtures() {
-            let got = decode_pg_cell(type_name, bytes.as_deref());
+            let got = shown(type_name, bytes.as_deref());
             assert_eq!(
                 got, expected,
                 "{type_name}: expected {expected:?}, got {got:?}"
             );
-            assert!(
-                !got.is_empty() || expected.is_empty(),
-                "{type_name} rendered as a blank cell"
-            );
         }
+    }
+
+    #[test]
+    fn null_is_typed_and_text_null_is_text() {
+        assert_eq!(decode_pg_cell("TEXT", None), Value::Null);
+        assert_eq!(decode_pg_cell("TEXT", Some(b"NULL")), Value::text("NULL"));
+        assert_eq!(decode_pg_cell("TEXT", Some(b"")), Value::text(""));
+    }
+
+    #[test]
+    fn undecodable_is_not_null() {
+        // A 16-byte binary INTERVAL: we don't parse it, but it isn't NULL.
+        let got = decode_pg_cell("INTERVAL", Some(&[0u8; 16]));
+        assert!(!got.is_null());
+        assert_eq!(got.display(), "<interval>");
+        // Unknown type whose bytes aren't text.
+        assert_eq!(
+            decode_pg_cell("mystery", Some(&[0u8, 1, 2])).display(),
+            "<mystery>"
+        );
+        // Malformed bytes for a known type.
+        assert_eq!(decode_pg_cell("INT4", Some(&[1, 2])).display(), "<int4>");
+    }
+
+    #[test]
+    fn types_text_format() {
+        assert_eq!(parse_pg_text("INT4", "7"), Value::Int(7));
+        assert_eq!(parse_pg_text("BOOL", "t"), Value::Bool(true));
+        assert_eq!(
+            parse_pg_text("NUMERIC", "1.50"),
+            Value::Numeric("1.50".into())
+        );
+        assert_eq!(parse_pg_text("INTERVAL", "1 day"), Value::text("1 day"));
     }
 }

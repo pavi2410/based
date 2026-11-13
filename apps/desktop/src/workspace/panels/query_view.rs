@@ -3,6 +3,7 @@
 use gpui_kit::App;
 
 use super::query_editor::{QueryEditorPanel, QueryStatus};
+use crate::widgets::virtual_table::display_rows;
 
 /// What the results grid and status line currently show.
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -22,11 +23,7 @@ impl QueryEditorPanel {
         let grid = self.result.read(cx).delegate();
         ResultSnapshot {
             columns: grid.columns.iter().map(|c| c.key.to_string()).collect(),
-            rows: grid
-                .rows
-                .iter()
-                .map(|row| row.iter().map(|c| c.to_string()).collect())
-                .collect(),
+            rows: display_rows(&grid.rows),
             running: matches!(self.status, QueryStatus::Running),
             result_count: self.results.len(),
             active_result: self.active_result,

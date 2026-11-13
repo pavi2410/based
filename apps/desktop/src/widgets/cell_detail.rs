@@ -6,6 +6,8 @@ use gpui_kit::{Context, IntoElement, MouseButton, Render, Window, div, prelude::
 use crate::app::prefs;
 use crate::widgets::cell_render::{ColumnValueKind, column_value_kind, parse_bool_display};
 use crate::widgets::column_header::ColumnMeta;
+use crate::widgets::virtual_table::Cell;
+use based_core::Value;
 
 #[derive(Default)]
 pub enum CellValue {
@@ -52,15 +54,6 @@ fn pretty_json(s: &str) -> String {
         .unwrap_or_else(|| s.to_string())
 }
 
-fn null_or_trimmed(s: &str) -> Option<&str> {
-    let t = s.trim();
-    if t.is_empty() || t.eq_ignore_ascii_case("null") {
-        None
-    } else {
-        Some(t)
-    }
-}
-
 fn parse_numeric_display(s: &str) -> CellValue {
     if let Ok(n) = s.parse::<i64>() {
         return CellValue::Integer(n);
@@ -71,12 +64,19 @@ fn parse_numeric_display(s: &str) -> CellValue {
     CellValue::Text(s.to_string())
 }
 
-/// Infer cell value using column schema type (not string heuristics).
-pub fn interpret_cell_with_meta(s: &str, meta: &ColumnMeta) -> CellValue {
-    let Some(t) = null_or_trimmed(s) else {
-        return CellValue::Null;
-    };
-
+/// Inspector value for a grid cell: typed values map directly; text falls back
+/// to the column's schema type.
+pub fn interpret_cell_with_meta(cell: &Cell, meta: &ColumnMeta) -> CellValue {
+    match &cell.value {
+        Value::Null | Value::Missing => return CellValue::Null,
+        Value::Int(n) => return CellValue::Integer(*n),
+        Value::Float(f) => return CellValue::Float(*f),
+        Value::Bool(b) => return CellValue::Boolean(*b),
+        Value::Bytes(b) => return CellValue::Blob(b.len()),
+        Value::Json(s) => return CellValue::Json(s.to_string()),
+        _ => {}
+    }
+    let t = cell.display.as_ref();
     match column_value_kind(meta.data_type.as_deref()) {
         ColumnValueKind::Numeric => parse_numeric_display(t),
         ColumnValueKind::Boolean => parse_bool_display(t)
@@ -214,13 +214,26 @@ mod tests {
     }
 
     #[test]
+    fn text_null_is_not_null() {
+        let meta = ColumnMeta::default();
+        assert!(matches!(
+            interpret_cell_with_meta(&Cell::text("null"), &meta),
+            CellValue::Text(s) if s == "null"
+        ));
+        assert!(matches!(
+            interpret_cell_with_meta(&Cell::new(Value::Null), &meta),
+            CellValue::Null
+        ));
+    }
+
+    #[test]
     fn meta_text_column_keeps_string_numbers() {
         let meta = ColumnMeta {
             data_type: Some("text".into()),
             ..Default::default()
         };
         assert!(matches!(
-            interpret_cell_with_meta("3.14", &meta),
+            interpret_cell_with_meta(&Cell::text("3.14"), &meta),
             CellValue::Text(s) if s == "3.14"
         ));
     }
@@ -233,7 +246,7 @@ mod tests {
         };
         let expected: f64 = "3.14".parse().unwrap();
         assert!(matches!(
-            interpret_cell_with_meta("3.14", &meta),
+            interpret_cell_with_meta(&Cell::text("3.14"), &meta),
             CellValue::Float(f) if (f - expected).abs() < 1e-6
         ));
     }
@@ -245,7 +258,7 @@ mod tests {
             ..Default::default()
         };
         assert!(matches!(
-            interpret_cell_with_meta("true", &meta),
+            interpret_cell_with_meta(&Cell::text("true"), &meta),
             CellValue::Boolean(true)
         ));
     }

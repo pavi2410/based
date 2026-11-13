@@ -1,33 +1,30 @@
 //! Table browse page fetch and cell formatting (no UI).
 
 use anyhow::Result;
-use based_core::RawPage;
-use sqlx::{AssertSqlSafe, Column, Row, SqlitePool, sqlite::SqliteRow};
+use based_core::{RawPage, Value};
+use sqlx::{AssertSqlSafe, Column, Row, SqlitePool, TypeInfo, ValueRef, sqlite::SqliteRow};
 
-const NULL_CELL: &str = "NULL";
-
-fn show<T: ToString>(v: Option<T>) -> String {
-    v.map_or_else(|| NULL_CELL.into(), |x| x.to_string())
-}
-
-/// Format a column from a SQLite row.
-pub fn sqlite_cell_display(row: &SqliteRow, col: usize) -> String {
-    if let Ok(v) = row.try_get::<Option<i64>, _>(col) {
-        return show(v);
+/// Decode a column from a SQLite row by the storage class of *this* value.
+///
+/// SQLite is dynamically typed: a column declared `DATETIME` can hold an integer, so
+/// the value's own class decides, not the declared type.
+pub fn sqlite_cell(row: &SqliteRow, col: usize) -> Value {
+    let Ok(raw) = row.try_get_raw(col) else {
+        return Value::undecodable("unknown");
+    };
+    if raw.is_null() {
+        return Value::Null;
     }
-    if let Ok(v) = row.try_get::<Option<f64>, _>(col) {
-        return show(v);
-    }
-    if let Ok(v) = row.try_get::<Option<bool>, _>(col) {
-        return show(v);
-    }
-    if let Ok(v) = row.try_get::<Option<String>, _>(col) {
-        return v.unwrap_or_else(|| NULL_CELL.into());
-    }
-    if let Ok(v) = row.try_get::<Option<Vec<u8>>, _>(col) {
-        return v.map_or_else(|| NULL_CELL.into(), |b| format!("<{} bytes>", b.len()));
-    }
-    NULL_CELL.into()
+    let class = raw.type_info().name().to_string();
+    let decoded = match class.as_str() {
+        "INTEGER" | "BOOLEAN" => row.try_get_unchecked::<i64, _>(col).map(Value::Int),
+        "REAL" => row.try_get_unchecked::<f64, _>(col).map(Value::Float),
+        "BLOB" => row
+            .try_get_unchecked::<Vec<u8>, _>(col)
+            .map(|b| Value::Bytes(b.into())),
+        _ => row.try_get_unchecked::<String, _>(col).map(Value::text),
+    };
+    decoded.unwrap_or_else(|_| Value::undecodable(class))
 }
 
 /// `table` must be a quoted identifier; `where_sql` is empty or ` WHERE …`.
@@ -56,7 +53,7 @@ pub async fn fetch_page(
             .map(|r| r.columns().iter().map(|c| c.name().to_string()).collect()),
         rows: rows
             .iter()
-            .map(|r| (0..r.len()).map(|i| sqlite_cell_display(r, i)).collect())
+            .map(|r| (0..r.len()).map(|i| sqlite_cell(r, i)).collect())
             .collect(),
     })
 }
@@ -82,10 +79,35 @@ mod tests {
         let p = fetch_page(&pool, "\"t\"", "", 2, 4).await.unwrap();
         assert_eq!(p.total, 5);
         assert_eq!(p.columns, Some(vec!["id".into(), "name".into()]));
-        assert_eq!(p.rows, vec![vec!["4".to_string(), "NULL".to_string()]]);
+        assert_eq!(p.rows, vec![vec![Value::Int(4), Value::Null]]);
         let p = fetch_page(&pool, "\"t\"", " WHERE id > 9", 10, 0)
             .await
             .unwrap();
         assert_eq!((p.total, p.columns, p.rows.len()), (0, None, 0));
+    }
+
+    #[tokio::test]
+    async fn cells_follow_the_value_not_the_declared_type() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        sqlx::query("CREATE TABLE t (a DATETIME, b TEXT, c TEXT, d TEXT, e REAL, f BLOB)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO t VALUES (1700000000, 'NULL', '', NULL, 1.5, x'0102')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let p = fetch_page(&pool, "\"t\"", "", 10, 0).await.unwrap();
+        assert_eq!(
+            p.rows,
+            vec![vec![
+                Value::Int(1_700_000_000),
+                Value::text("NULL"),
+                Value::text(""),
+                Value::Null,
+                Value::Float(1.5),
+                Value::Bytes(vec![1u8, 2].into()),
+            ]]
+        );
     }
 }

@@ -143,7 +143,12 @@ impl QueryEditorPanel {
             .join(" | ");
         for row in delegate.rows.iter().take(PREVIEW_ROWS) {
             out.push('\n');
-            out.push_str(&row.iter().map(|c| clip(c)).collect::<Vec<_>>().join(" | "));
+            out.push_str(
+                &row.iter()
+                    .map(|c| clip(&c.display))
+                    .collect::<Vec<_>>()
+                    .join(" | "),
+            );
         }
         let total = delegate.rows.len();
         if total > PREVIEW_ROWS {

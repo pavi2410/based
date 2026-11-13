@@ -1,5 +1,6 @@
 // mongodb::document_viewer — paginated find() as a virtual table.
 
+use based_mongo::bson_to_value;
 use gpui_kit::assets::IconName as AssetIcon;
 use std::collections::HashMap;
 
@@ -24,7 +25,7 @@ use crate::widgets::export;
 use crate::widgets::filter_bar::{FilterBar, FilterEvent, FilterSet};
 use crate::widgets::panel::data_viewer_toolbar;
 use crate::widgets::virtual_table::{
-    RowDelegate, align_meta_to_columns, data_column, replace_table_data,
+    Cell, RowDelegate, align_meta_to_columns, data_column, replace_table_data,
 };
 use crate::workspace::notify::push_export_success;
 
@@ -95,9 +96,9 @@ impl DocumentViewerPanel {
         let st = self.table.read(cx);
         let del = st.delegate();
         let col_name = del.columns.get(col)?.key.to_string();
-        let txt = del.rows.get(row)?.get(col)?.to_string();
+        let cell = del.rows.get(row)?.get(col)?;
         let meta = del.column_meta.get(col).cloned().unwrap_or_default();
-        Some((col_name, interpret_cell_with_meta(&txt, &meta)))
+        Some((col_name, interpret_cell_with_meta(cell, &meta)))
     }
 
     fn reload(&mut self, cx: &mut Context<Self>) {
@@ -152,15 +153,11 @@ impl DocumentViewerPanel {
                 .map(|k| data_column(k.clone(), k.clone()))
                 .collect();
 
-            let rows: Vec<Vec<SharedString>> = docs
+            let rows: Vec<Vec<Cell>> = docs
                 .iter()
                 .map(|d| {
                     keys.iter()
-                        .map(|k| {
-                            d.get(k)
-                                .map(|v| SharedString::from(v.to_string()))
-                                .unwrap_or_default()
-                        })
+                        .map(|k| Cell::new(bson_to_value(d.get(k))))
                         .collect()
                 })
                 .collect();
@@ -221,11 +218,7 @@ impl Render for DocumentViewerPanel {
                 .iter()
                 .map(|c| c.key.to_string())
                 .collect::<Vec<_>>();
-            let r = d
-                .rows
-                .iter()
-                .map(|row| row.iter().map(|c| c.to_string()).collect())
-                .collect::<Vec<Vec<String>>>();
+            let r = d.rows.clone();
             (h, r)
         };
 

@@ -724,9 +724,11 @@ name = "based-mongo"
 version = "0.0.0-dev"
 dependencies = [
  "anyhow",
+ "based-core",
  "mongodb",
  "serde",
  "serde_json",
+ "time",
 ]
 
 [[package]]

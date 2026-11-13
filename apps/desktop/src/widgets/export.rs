@@ -6,7 +6,7 @@ use gpui_kit::AsyncApp;
 use rust_xlsxwriter::{Format, Workbook};
 
 use crate::db;
-use crate::widgets::virtual_table::NULL_CELL_DISPLAY;
+use crate::widgets::virtual_table::Cell;
 
 use std::fs;
 use std::path::PathBuf;
@@ -17,21 +17,15 @@ use tokio::task::spawn_blocking;
 
 /// Serialise tabular data to CSV bytes.
 ///
-/// Cells that display as `"NULL"` (or are empty) are written as empty fields
-/// so spreadsheet tools don't receive the literal string "NULL".
-pub fn to_csv(headers: &[String], rows: &[Vec<String>]) -> anyhow::Result<Vec<u8>> {
+/// NULL cells are written as empty fields so spreadsheet tools don't receive
+/// the literal string "NULL". Text that reads "NULL" is written as-is.
+pub fn to_csv(headers: &[String], rows: &[Vec<Cell>]) -> anyhow::Result<Vec<u8>> {
     let mut wtr = csv::Writer::from_writer(vec![]);
     wtr.write_record(headers)?;
     for row in rows {
         let cells: Vec<&str> = row
             .iter()
-            .map(|c| {
-                if c.is_empty() || c == NULL_CELL_DISPLAY {
-                    ""
-                } else {
-                    c.as_str()
-                }
-            })
+            .map(|c| if c.is_null() { "" } else { c.display.as_ref() })
             .collect();
         wtr.write_record(&cells)?;
     }
@@ -42,7 +36,7 @@ pub fn to_csv(headers: &[String], rows: &[Vec<String>]) -> anyhow::Result<Vec<u8
 ///
 /// Row 0 is a bold header row; data starts at row 1. NULL cells are written
 /// as empty strings.
-pub fn to_xlsx(headers: &[String], rows: &[Vec<String>]) -> anyhow::Result<Vec<u8>> {
+pub fn to_xlsx(headers: &[String], rows: &[Vec<Cell>]) -> anyhow::Result<Vec<u8>> {
     let mut workbook = Workbook::new();
     let sheet = workbook.add_worksheet();
 
@@ -55,10 +49,10 @@ pub fn to_xlsx(headers: &[String], rows: &[Vec<String>]) -> anyhow::Result<Vec<u
 
     for (row_ix, row) in rows.iter().enumerate() {
         for (col_ix, cell) in row.iter().enumerate() {
-            let val = if cell.is_empty() || cell == NULL_CELL_DISPLAY {
+            let val = if cell.is_null() {
                 ""
             } else {
-                cell.as_str()
+                cell.display.as_ref()
             };
             sheet
                 .write(row_ix as u32 + 1, col_ix as u16, val)
@@ -71,18 +65,15 @@ pub fn to_xlsx(headers: &[String], rows: &[Vec<String>]) -> anyhow::Result<Vec<u
 
 /// Serialise tabular data to a pretty-printed JSON array of objects.
 ///
-/// Cells that display as `"NULL"` (or are empty) are written as
-/// `null` values rather than the string `"NULL"`.
-pub fn to_json(headers: &[String], rows: &[Vec<String>]) -> String {
+/// NULL cells are written as `null`; everything else as its display text.
+pub fn to_json(headers: &[String], rows: &[Vec<Cell>]) -> String {
     let arr: Vec<serde_json::Value> = rows
         .iter()
         .map(|row| {
             let mut obj = serde_json::Map::new();
             for (col_ix, header) in headers.iter().enumerate() {
                 let val = match row.get(col_ix) {
-                    Some(c) if !c.is_empty() && c != NULL_CELL_DISPLAY => {
-                        serde_json::Value::String(c.clone())
-                    }
+                    Some(c) if !c.is_null() => serde_json::Value::String(c.display.to_string()),
                     _ => serde_json::Value::Null,
                 };
                 obj.insert(header.clone(), val);

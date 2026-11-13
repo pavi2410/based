@@ -1,11 +1,13 @@
 //! Engine-agnostic table page, as returned by headless engine crates.
 
+use crate::Value;
+
 /// One page of a table browse. `columns` is `None` when the page is empty.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct RawPage {
     pub total: i64,
     pub columns: Option<Vec<String>>,
-    pub rows: Vec<Vec<String>>,
+    pub rows: Vec<Vec<Value>>,
 }
 
 /// Per-column metadata for table browse headers.

@@ -4,7 +4,9 @@ use anyhow::Result;
 use futures::TryStreamExt;
 use sqlx::{AssertSqlSafe, Column, PgPool, Row};
 
-use crate::decode::pg_cell_display;
+use based_core::Value;
+
+use crate::decode::pg_cell;
 
 const TIMEOUT_MS: u32 = 15_000;
 
@@ -14,7 +16,7 @@ pub async fn query_readonly(
     pool: &PgPool,
     sql: &str,
     limit: usize,
-) -> Result<(Vec<String>, Vec<Vec<String>>)> {
+) -> Result<(Vec<String>, Vec<Vec<Value>>)> {
     let mut tx = pool.begin().await?;
     sqlx::query("SET TRANSACTION READ ONLY")
         .execute(&mut *tx)
@@ -32,7 +34,7 @@ pub async fn query_readonly(
             if columns.is_empty() {
                 columns = row.columns().iter().map(|c| c.name().to_owned()).collect();
             }
-            rows.push((0..row.len()).map(|i| pg_cell_display(&row, i)).collect());
+            rows.push((0..row.len()).map(|i| pg_cell(&row, i)).collect());
             if rows.len() > limit {
                 break;
             }

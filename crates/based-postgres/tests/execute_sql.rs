@@ -3,6 +3,7 @@
 
 use std::env;
 
+use based_core::Value;
 use based_postgres::execute_sql;
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
@@ -28,7 +29,7 @@ async fn row_returning_statements_return_rows() {
         .await
         .unwrap();
     assert_eq!(names(&cols), ["one"]);
-    assert_eq!(rows, [["1"]]);
+    assert_eq!(rows, [[Value::Int(1)]]);
 
     let (cols, rows, _) = execute_sql(&pool, "/* c */ (SELECT 2 AS two)")
         .await
@@ -39,6 +40,15 @@ async fn row_returning_statements_return_rows() {
     let (cols, rows, _) = execute_sql(&pool, "VALUES (1), (2)").await.unwrap();
     assert_eq!(cols.len(), 1);
     assert_eq!(rows.len(), 2);
+}
+
+#[tokio::test]
+async fn null_and_the_text_null_stay_distinct() {
+    let Some(pool) = pool().await else { return };
+    let (_, rows, _) = execute_sql(&pool, "SELECT NULL::text, 'NULL'::text, ''::text")
+        .await
+        .unwrap();
+    assert_eq!(rows, [[Value::Null, Value::text("NULL"), Value::text("")]]);
 }
 
 #[tokio::test]
@@ -74,7 +84,7 @@ async fn empty_select_keeps_columns_and_dml_reports_affected() {
     .await
     .unwrap();
     assert_eq!(names(&cols), ["id"]);
-    assert_eq!(rows, [["3"]]);
+    assert_eq!(rows, [[Value::Int(3)]]);
 
     execute_sql(&pool, "DROP TABLE based_exec_test")
         .await

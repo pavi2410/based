@@ -87,6 +87,11 @@ pub type CellMenuFn =
 pub type HeaderMenuFn =
     Rc<dyn Fn(PopupMenu, usize, &mut Window, &mut Context<PopupMenu>) -> PopupMenu>;
 
+/// Sorts on the server instead of in memory: `Some((column, ascending))`, or `None`
+/// to go back to the default order. Table viewers page through the whole table, so
+/// sorting only the loaded page would be wrong.
+pub type ServerSortFn = Rc<dyn Fn(Option<(SharedString, bool)>, &mut App)>;
+
 /// Every column as delivered, so hidden ones can come back without a reload.
 #[derive(Default)]
 struct FullData {
@@ -107,6 +112,10 @@ pub struct RowDelegate {
     pub cell_focused: bool,
     pub cell_menu: Option<CellMenuFn>,
     pub header_menu: Option<HeaderMenuFn>,
+    /// When set, sorting asks the server; see [`ServerSortFn`].
+    pub server_sort: Option<ServerSortFn>,
+    /// The server-side sort in effect, re-marked on the header after each reload.
+    server_sort_key: Option<(SharedString, bool)>,
     /// Keys of columns the user hid.
     hidden: HashSet<SharedString>,
     full: Option<FullData>,
@@ -232,6 +241,15 @@ impl TableDelegate for RowDelegate {
         if !prefs::table_prefs(cx).sortable {
             return;
         }
+        if let Some(server_sort) = self.server_sort.clone() {
+            let key = self.columns.get(col_ix).map(|c| c.key.clone());
+            self.server_sort_key = match sort {
+                ColumnSort::Default => None,
+                s => key.map(|k| (k, matches!(s, ColumnSort::Ascending))),
+            };
+            server_sort(self.server_sort_key.clone(), cx);
+            return;
+        }
         self.sort_col = Some(col_ix);
         self.sort_asc = matches!(sort, ColumnSort::Ascending);
         let asc = self.sort_asc;
@@ -310,6 +328,19 @@ fn apply_visibility(d: &mut RowDelegate) {
         })
         .collect();
     d.sort_col = None;
+    if let Some((key, ascending)) = &d.server_sort_key {
+        for c in &mut d.columns {
+            if c.sort.is_some() {
+                c.sort = Some(if &c.key != key {
+                    ColumnSort::Default
+                } else if *ascending {
+                    ColumnSort::Ascending
+                } else {
+                    ColumnSort::Descending
+                });
+            }
+        }
+    }
 }
 
 /// `(key, name, visible)` for every column, in delivery order.

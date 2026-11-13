@@ -21,7 +21,8 @@ pub use connection_id::{ConnectionId, ConnectionKey, ConnectionScope};
 pub use engine::{EngineKind, UnknownEngine};
 pub use object::ObjectRef;
 pub use page::{
-    ColumnCatalog, ColumnMeta, FkTarget, Grid, RawPage, TableExtra, TableInfo, quote_ident,
+    ColumnCatalog, ColumnMeta, FkTarget, Grid, PageSort, RawPage, TableExtra, TableInfo,
+    page_order_sql, quote_ident,
 };
 pub use result::{QueryError, ResultColumn, ResultSet, SqlOutcome};
 pub use secret::Secret;

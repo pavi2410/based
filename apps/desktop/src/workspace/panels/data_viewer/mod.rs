@@ -46,7 +46,7 @@ use crate::workspace::WorkspaceRef;
 use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::tabs::{DrillFilter, TabSpec, inbox, request_workspace_flush};
 use based_ai::context::ContextLevel;
-use based_core::{ColumnCatalog, ObjectRef, RawPage, Value};
+use based_core::{ColumnCatalog, ObjectRef, PageSort, RawPage, Value};
 
 mod menus;
 
@@ -106,6 +106,7 @@ pub trait DataSource: Send + Sync + 'static {
     fn page(
         &self,
         filter: Option<FilterSet>,
+        sort: Option<PageSort>,
         offset: u64,
         limit: u64,
         catalog: ColumnCatalog,
@@ -128,6 +129,8 @@ pub struct DataViewerPanel {
     /// First line of the last load failure; cleared by the next load.
     load_error: Option<SharedString>,
     column_catalog: ColumnCatalog,
+    /// Server-side sort chosen in the grid; `None` pages by primary key.
+    sort: Option<PageSort>,
     /// Foreign-key jump for the selected cell.
     fk_jump: Option<(ObjectRef, DrillFilter)>,
     self_handle: WeakEntity<Self>,
@@ -168,6 +171,7 @@ impl DataViewerPanel {
             last_fetched: None,
             load_error: None,
             column_catalog: ColumnCatalog::default(),
+            sort: None,
             fk_jump: None,
             self_handle: cx.weak_entity(),
             tab_label,
@@ -191,7 +195,17 @@ impl DataViewerPanel {
         .detach();
         let weak = cx.weak_entity();
         let header_weak = cx.weak_entity();
+        let sort_weak = cx.weak_entity();
         panel.table.update(cx, |t, _| {
+            t.delegate_mut().server_sort = Some(Rc::new(move |sort, cx| {
+                let _ = sort_weak.update(cx, |panel, cx| {
+                    panel.sort = sort.map(|(column, ascending)| PageSort {
+                        column: column.to_string(),
+                        ascending,
+                    });
+                    panel.load_page(0, cx);
+                });
+            }));
             t.delegate_mut().header_menu = Some(Rc::new(move |menu, col, window, cx| {
                 match header_weak.upgrade() {
                     Some(p) => Self::header_menu(&p, menu, col, window, cx),
@@ -227,6 +241,7 @@ impl DataViewerPanel {
         let source = self.source.clone();
         let page_size = self.page_size;
         let filter = self.filter_bar.read(cx).current_set(cx);
+        let sort = self.sort.clone();
         let cached = self.column_catalog.clone();
 
         cx.spawn(async move |this, cx| {
@@ -235,7 +250,7 @@ impl DataViewerPanel {
             } else {
                 cached
             };
-            let fetch = source.page(filter, offset, page_size, catalog.clone());
+            let fetch = source.page(filter, sort, offset, page_size, catalog.clone());
             let res = db::run(cx, async move {
                 let start = Instant::now();
                 let page = fetch.await?;

@@ -29,11 +29,13 @@ pub fn sqlite_cell(row: &SqliteRow, col: usize) -> Value {
     decoded.unwrap_or_else(|_| Value::undecodable(class))
 }
 
-/// `table` must be a quoted identifier; `where_sql` is empty or ` WHERE …`.
+/// `table` must be a quoted identifier; `where_sql` is empty or ` WHERE …`;
+/// `order_sql` is empty or ` ORDER BY …` (see `based_core::page_order_sql`).
 pub async fn fetch_page(
     pool: &SqlitePool,
     table: &str,
     where_sql: &str,
+    order_sql: &str,
     limit: u64,
     offset: u64,
 ) -> Result<RawPage> {
@@ -44,7 +46,7 @@ pub async fn fetch_page(
     .await
     .unwrap_or(0);
     let rows = sqlx::query(AssertSqlSafe(format!(
-        "SELECT * FROM {table}{where_sql} LIMIT {limit} OFFSET {offset}"
+        "SELECT * FROM {table}{where_sql}{order_sql} LIMIT {limit} OFFSET {offset}"
     )))
     .fetch_all(pool)
     .await?;
@@ -86,11 +88,11 @@ mod tests {
                 .await
                 .unwrap();
         }
-        let p = fetch_page(&pool, "\"t\"", "", 2, 4).await.unwrap();
+        let p = fetch_page(&pool, "\"t\"", "", "", 2, 4).await.unwrap();
         assert_eq!(p.total, 5);
         assert_eq!(p.set.column_names().collect::<Vec<_>>(), ["id", "name"]);
         assert_eq!(p.set.rows, vec![vec![Value::Int(4), Value::Null]]);
-        let p = fetch_page(&pool, "\"t\"", " WHERE id > 9", 10, 0)
+        let p = fetch_page(&pool, "\"t\"", " WHERE id > 9", "", 10, 0)
             .await
             .unwrap();
         assert_eq!((p.total, p.set.columns.len(), p.set.rows.len()), (0, 0, 0));
@@ -107,7 +109,7 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
-        let p = fetch_page(&pool, "\"t\"", "", 10, 0).await.unwrap();
+        let p = fetch_page(&pool, "\"t\"", "", "", 10, 0).await.unwrap();
         assert_eq!(
             p.set.rows,
             vec![vec![

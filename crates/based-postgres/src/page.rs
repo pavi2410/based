@@ -8,11 +8,13 @@ use sqlx::{AssertSqlSafe, PgPool, Row};
 use crate::decode::pg_cell;
 use crate::mutations::result_columns;
 
-/// `table` must be a quoted (schema-qualified) identifier; `where_sql` is empty or ` WHERE …`.
+/// `table` must be a quoted (schema-qualified) identifier; `where_sql` is empty or
+/// ` WHERE …`; `order_sql` is empty or ` ORDER BY …` (see `based_core::page_order_sql`).
 pub async fn fetch_page(
     pool: &PgPool,
     table: &str,
     where_sql: &str,
+    order_sql: &str,
     limit: u64,
     offset: u64,
 ) -> Result<RawPage> {
@@ -23,7 +25,7 @@ pub async fn fetch_page(
     .await
     .unwrap_or(0);
     let rows = sqlx::query(AssertSqlSafe(format!(
-        "SELECT * FROM {table}{where_sql} LIMIT {limit} OFFSET {offset}"
+        "SELECT * FROM {table}{where_sql}{order_sql} LIMIT {limit} OFFSET {offset}"
     )))
     .fetch_all(pool)
     .await?;

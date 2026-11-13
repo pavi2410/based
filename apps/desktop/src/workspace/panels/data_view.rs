@@ -16,7 +16,8 @@ pub struct PageSnapshot {
     pub loading: bool,
 }
 
-use crate::widgets::virtual_table::toggle_column;
+use crate::widgets::virtual_table::{RowDelegate, toggle_column};
+use gpui_kit::component::table::TableState;
 
 impl DataViewerPanel {
     pub fn page_snapshot(&self, cx: &App) -> PageSnapshot {
@@ -40,5 +41,10 @@ impl DataViewerPanel {
     pub fn toggle_column_by_key(&mut self, key: &str, cx: &mut Context<Self>) {
         let key = gpui_kit::SharedString::from(key.to_string());
         self.table.update(cx, |t, cx| toggle_column(t, &key, cx));
+    }
+
+    /// The grid, for driving it as the user would (sorting, selecting).
+    pub fn table_state(&self) -> gpui_kit::Entity<TableState<RowDelegate>> {
+        self.table.clone()
     }
 }

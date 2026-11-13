@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use based_desktop::app::prefs;
 use based_desktop::connection::ConnectionId;
+use based_desktop::widgets::virtual_table::sort_column;
 use based_desktop::workspace::panels::data_view::PageSnapshot;
 use based_desktop::workspace::panels::data_viewer::DataViewerPanel;
 use based_desktop::workspace::tabs::DrillFilter;
@@ -97,6 +98,36 @@ fn first_page_loads(cx: &mut TestAppContext) {
     assert_eq!(s.columns, ["id", "grp", "label"]);
     assert_eq!((s.total, s.offset, s.rows.len()), (120, 0, 50));
     assert_eq!(s.rows[0], ["1", "odd", "item1"]);
+}
+
+#[gpui_kit::test]
+fn sorting_orders_the_whole_table_not_the_page(cx: &mut TestAppContext) {
+    let v = open_viewer(cx, None);
+    v.loaded(cx);
+    let panel = v.panel.clone();
+    cx.update_window(v.win, |_, window, cx| {
+        let table = panel.read(cx).table_state();
+        table.update(cx, |t, cx| sort_column(t, 0, false, window, cx));
+    })
+    .unwrap();
+    wait_until(cx, |cx| {
+        let s = v.snap(cx);
+        !s.loading && s.rows.first().is_some_and(|r| r[0] == "120")
+    });
+    let s = v.snap(cx);
+    assert_eq!(
+        s.rows[0][0], "120",
+        "descending starts at the table's last id"
+    );
+    assert_eq!(s.rows[49][0], "71");
+
+    v.panel.update(cx, |p, cx| p.show_page(2, cx));
+    wait_until(cx, |cx| v.snap(cx).offset == 50 && !v.snap(cx).loading);
+    assert_eq!(
+        v.snap(cx).rows[0][0],
+        "70",
+        "the next page continues the order"
+    );
 }
 
 #[gpui_kit::test]

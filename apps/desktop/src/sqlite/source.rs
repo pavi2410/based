@@ -1,6 +1,6 @@
 // SQLite table source for the shared data viewer.
 
-use based_core::quote_ident;
+use based_core::{PageSort, page_order_sql, quote_ident};
 use sqlx::SqlitePool;
 
 use crate::workspace::panels::data_viewer::{DataSource, Fut, PageData};
@@ -34,6 +34,7 @@ impl DataSource for SqliteSource {
     fn page(
         &self,
         filter: Option<FilterSet>,
+        sort: Option<PageSort>,
         offset: u64,
         limit: u64,
         catalog: ColumnCatalog,
@@ -43,8 +44,11 @@ impl DataSource for SqliteSource {
         let where_sql = filter
             .map(|e| format!(" WHERE {}", e.to_sql_sqlite()))
             .unwrap_or_default();
+        let order_sql = page_order_sql(&catalog, sort.as_ref());
         Box::pin(async move {
-            let page = based_sqlite::fetch_page(&pool, &table, &where_sql, limit, offset).await?;
+            let page =
+                based_sqlite::fetch_page(&pool, &table, &where_sql, &order_sql, limit, offset)
+                    .await?;
             Ok(PageData::new(page, &catalog))
         })
     }

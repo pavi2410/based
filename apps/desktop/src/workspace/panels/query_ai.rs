@@ -14,7 +14,7 @@ use gpui_kit::{AnyElement, Context, IntoElement, ParentElement, Styled, Window, 
 use super::query_editor::{QueryEditorPanel, QueryStatus};
 use crate::ai::{AiPromptEvent, ask_assistant, connection_ai, schema};
 use crate::editor::statements::{split_statements, statement_at};
-use crate::widgets::sql_editor::{set_input_text, text_from_input};
+use crate::widgets::sql_editor::text_from_input;
 
 const FIX_LABEL: &str = "Fix the error";
 const FIX_PROMPT: &str = "Fix this error without changing what the query does:";
@@ -199,7 +199,7 @@ impl QueryEditorPanel {
                 );
                 self.ai.note_applied(&text);
                 self.ai_confirm = false;
-                set_input_text(&self.sql_input, &text, window, cx);
+                self.set_sql(&text, window, cx);
                 self.ai.close(cx);
                 self.focus_editor(window, cx);
             }

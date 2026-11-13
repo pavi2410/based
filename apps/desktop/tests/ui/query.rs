@@ -168,3 +168,39 @@ fn run_all_stops_at_the_first_failure(cx: &mut TestAppContext) {
         "only the statement before the failure produced a result"
     );
 }
+
+#[gpui_kit::test]
+fn replacing_the_query_is_undoable_and_marks_the_tab_dirty(cx: &mut TestAppContext) {
+    let (ed, ws, _dir) = open_editor(cx, "select 1", false);
+    assert!(
+        !ws.read_with(cx, |ws, cx| ws.has_dirty_tabs(cx)),
+        "fresh tab is clean"
+    );
+
+    cx.update_window(ed.win, |_, window, cx| {
+        ed.panel.update(cx, |p, cx| {
+            p.set_sql("select 2", window, cx);
+            p.focus_editor(window, cx);
+        });
+        window.render_frame(cx);
+    })
+    .unwrap();
+    settle(cx);
+    assert_eq!(
+        ed.panel.read_with(cx, |p, cx| p.current_sql(cx)),
+        "select 2"
+    );
+    assert!(ws.read_with(cx, |ws, cx| ws.has_dirty_tabs(cx)));
+
+    let undo = if cfg!(target_os = "macos") {
+        "cmd-z"
+    } else {
+        "ctrl-z"
+    };
+    cx.simulate_keystrokes(ed.win, undo);
+    settle(cx);
+    assert_eq!(
+        ed.panel.read_with(cx, |p, cx| p.current_sql(cx)),
+        "select 1"
+    );
+}

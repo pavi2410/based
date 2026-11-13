@@ -62,6 +62,21 @@ pub fn set_input_text(input: &Entity<EditorState>, text: &str, window: &mut Wind
     });
 }
 
+/// Replace the whole text as one undoable edit (Format, AI Apply, history inserts).
+///
+/// Unlike [`set_input_text`], ⌘Z brings the previous text back. Use
+/// `set_input_text` only to load text the user did not just ask to change.
+pub fn replace_input_text(
+    input: &Entity<EditorState>,
+    text: &str,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    input.update(cx, |state, cx| {
+        state.replace_all(text.to_string(), window, cx);
+    });
+}
+
 fn code_editor_shell(
     input: &Entity<EditorState>,
     is_error: bool,

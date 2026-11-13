@@ -54,7 +54,7 @@ use crate::widgets::query_panel_extras;
 use crate::widgets::query_status::{QueryStatusDisplay, query_error_card, query_result_meta};
 use crate::widgets::result_tabs::{BottomTab, StripTab, result_tab_strip};
 use crate::widgets::shortcut_run_kbd_in_primary_button;
-use crate::widgets::sql_editor::{self, new_sql_input, set_input_text, text_from_input};
+use crate::widgets::sql_editor::{self, new_sql_input, replace_input_text, text_from_input};
 use crate::widgets::virtual_table::{
     RowDelegate, data_column, meta_from_query_type, replace_table_data,
 };
@@ -345,11 +345,16 @@ impl QueryEditorPanel {
         &self.conn_id
     }
 
-    /// Replace the editor text (palette history, saved queries).
+    /// Replace the editor text (palette history, saved queries, Format, AI Apply).
+    ///
+    /// One undoable edit: ⌘Z restores the previous text. Marks the tab dirty and
+    /// re-lints, like a typed edit.
     pub fn set_sql(&mut self, sql: &str, window: &mut Window, cx: &mut Context<Self>) {
-        set_input_text(&self.sql_input, sql, window, cx);
+        replace_input_text(&self.sql_input, sql, window, cx);
         self.dirty = true;
+        self.write_confirm = false;
         mark_tab_dirty(cx.entity_id(), cx);
+        self.schedule_lint(cx);
     }
 
     pub fn current_sql(&self, cx: &App) -> String {
@@ -362,7 +367,10 @@ impl QueryEditorPanel {
         if sql.trim().is_empty() {
             return;
         }
-        set_input_text(&self.sql_input, &based_query::format_sql(&sql), window, cx);
+        let formatted = based_query::format_sql(&sql);
+        if formatted != sql {
+            self.set_sql(&formatted, window, cx);
+        }
     }
 
     /// Switch to the Explain tab and (re)run EXPLAIN inline.

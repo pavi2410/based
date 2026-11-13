@@ -65,25 +65,32 @@ pub async fn execute_sql(
     pool: &PgPool,
     sql: &str,
 ) -> Result<(Vec<QueryColumn>, Vec<Vec<String>>, u64)> {
-    let mut stream = pool.fetch_many(sqlx::query(AssertSqlSafe(sql)));
+    // One connection for both calls: `describe` must see the same session
+    // (temp tables, search_path) the statement just ran in.
+    let mut conn = pool.acquire().await?;
     let mut columns: Vec<QueryColumn> = Vec::new();
     let mut data: Vec<Vec<String>> = Vec::new();
     let mut affected = 0u64;
-    while let Some(item) = stream.try_next().await? {
-        match item {
-            Either::Left(done) => affected += done.rows_affected(),
-            Either::Right(row) => {
-                if columns.is_empty() {
-                    columns = query_columns(row.columns());
+    {
+        let mut stream = conn.fetch_many(sqlx::query(AssertSqlSafe(sql)));
+        while let Some(item) = stream.try_next().await? {
+            match item {
+                Either::Left(done) => affected += done.rows_affected(),
+                Either::Right(row) => {
+                    if columns.is_empty() {
+                        columns = query_columns(row.columns());
+                    }
+                    data.push((0..row.len()).map(|i| pg_cell_display(&row, i)).collect());
                 }
-                data.push((0..row.len()).map(|i| pg_cell_display(&row, i)).collect());
             }
         }
     }
-    drop(stream);
     if data.is_empty() {
-        let described = pool.describe(AssertSqlSafe(sql).into_sql_str()).await?;
-        columns = query_columns(described.columns());
+        // Headers for an empty result set. The statement already succeeded, so a
+        // describe failure (e.g. it dropped the table it read) just means none.
+        if let Ok(described) = conn.describe(AssertSqlSafe(sql).into_sql_str()).await {
+            columns = query_columns(described.columns());
+        }
     } else {
         // Postgres reports `SELECT n` as n rows affected; the grid already shows n.
         affected = 0;

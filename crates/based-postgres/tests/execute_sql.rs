@@ -5,6 +5,7 @@ use std::env;
 
 use based_postgres::execute_sql;
 use sqlx::PgPool;
+use sqlx::postgres::PgPoolOptions;
 
 async fn pool() -> Option<PgPool> {
     let url = env::var("BASED_TEST_PG_URL").ok()?;
@@ -78,4 +79,23 @@ async fn empty_select_keeps_columns_and_dml_reports_affected() {
     execute_sql(&pool, "DROP TABLE based_exec_test")
         .await
         .unwrap();
+}
+
+#[tokio::test]
+async fn empty_select_from_a_temp_table_keeps_its_columns() {
+    let Ok(url) = env::var("BASED_TEST_PG_URL") else {
+        return;
+    };
+    // Temp tables live on one session; the column lookup must use the same one.
+    let pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&url)
+        .await
+        .unwrap();
+    execute_sql(&pool, "CREATE TEMP TABLE based_tmp (id int, note text)")
+        .await
+        .unwrap();
+    let (cols, rows, _) = execute_sql(&pool, "SELECT * FROM based_tmp").await.unwrap();
+    assert_eq!(names(&cols), ["id", "note"]);
+    assert!(rows.is_empty());
 }

@@ -202,6 +202,11 @@ impl ChatPane {
         self.pinned.as_ref().or(self.ctx.as_ref())
     }
 
+    /// AI is off for the active connection: nothing may be sent.
+    pub(super) fn ai_off(&self) -> bool {
+        self.active().is_some_and(|c| c.level == ContextLevel::Off)
+    }
+
     fn busy(&self) -> bool {
         matches!(self.phase, Phase::Streaming | Phase::Tools)
     }
@@ -240,6 +245,11 @@ impl ChatPane {
         Some(Arc::new(ReadOnlyTools::new(backend, ctx.level)))
     }
 
+    /// Messages in the conversation so far, user and assistant.
+    pub fn turn_count(&self) -> usize {
+        self.turns.len()
+    }
+
     /// Sends `text` as if typed; `false` when the assistant is busy or unavailable.
     pub fn ask(&mut self, text: String, cx: &mut Context<Self>) -> bool {
         self.send(text, cx)
@@ -247,7 +257,8 @@ impl ChatPane {
 
     /// `true` when the message was accepted.
     fn send(&mut self, text: String, cx: &mut Context<Self>) -> bool {
-        if self.busy() {
+        // "AI off" means nothing reaches the provider, the message included.
+        if self.busy() || self.ai_off() {
             return false;
         }
         self.tools = self.connection_tools(cx);

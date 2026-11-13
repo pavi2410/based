@@ -114,6 +114,7 @@ impl ChatPane {
             let result = ws.update(cx, |w, cx| w.set_connection_ai(&id, level, cx));
             if let Err(message) = result {
                 log::warn!("could not change AI access: {message}");
+                crate::workspace::notify::push_error(cx, "Couldn't change AI access", message);
             }
         });
     }

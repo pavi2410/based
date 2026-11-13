@@ -84,6 +84,7 @@ impl QueryEditorPanel {
     pub(super) fn assist_menu(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let kinds = [Assist::Explain, Assist::Optimize];
         let panel = cx.weak_entity();
+        let off = self.ai_level(cx) == ContextLevel::Off;
         Button::new(format!("{}-ai-more", self.source.id()))
             .ghost()
             .small()
@@ -92,9 +93,11 @@ impl QueryEditorPanel {
             .dropdown_menu(move |mut menu, _, _| {
                 for kind in &kinds {
                     let (kind, panel) = (*kind, panel.clone());
-                    menu = menu.item(PopupMenuItem::new(kind.label()).on_click(move |_, _, cx| {
-                        let _ = panel.update(cx, |p, cx| p.assist(kind, cx));
-                    }));
+                    menu = menu.item(PopupMenuItem::new(kind.label()).disabled(off).on_click(
+                        move |_, _, cx| {
+                            let _ = panel.update(cx, |p, cx| p.assist(kind, cx));
+                        },
+                    ));
                 }
                 menu
             })
@@ -108,6 +111,9 @@ impl QueryEditorPanel {
 
     /// Hands the selected query text (or the whole editor) to the assistant.
     pub(super) fn assist(&mut self, kind: Assist, cx: &mut Context<Self>) {
+        if self.ai_level(cx) == ContextLevel::Off {
+            return;
+        }
         let selected = self.sql_input.read(cx).selected_value().to_string();
         let sql = if selected.trim().is_empty() {
             text_from_input(&self.sql_input, cx)

@@ -48,15 +48,26 @@ impl ChatPane {
             .border_color(cx.theme().border.opacity(0.72))
             .children(self.approval_card(cx))
             .child(self.status_line(cx))
-            .child(
+            .child(if self.ai_off() {
+                // Off means nothing is sent, so there is nothing to type into.
+                div()
+                    .px_3()
+                    .pb_2()
+                    .pt_1()
+                    .text_size(style::small(cx))
+                    .text_color(cx.theme().muted_foreground)
+                    .child("AI is off for this connection. Change it with the chip above to chat.")
+                    .into_any_element()
+            } else {
                 h_flex()
                     .gap_1()
                     .items_end()
                     .p_2()
                     .child(self.tag_button(cx))
                     .child(div().flex_1().child(Textarea::new(&self.input).small()))
-                    .children(stop),
-            )
+                    .children(stop)
+                    .into_any_element()
+            })
             .into_any_element()
     }
 }

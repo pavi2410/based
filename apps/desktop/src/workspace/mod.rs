@@ -363,6 +363,11 @@ impl Workspace {
         &self.connection_tree
     }
 
+    /// The assistant pane.
+    pub fn chat(&self) -> &Entity<ChatPane> {
+        &self.chat
+    }
+
     pub fn command_palette(&self) -> &Entity<CommandPalette> {
         &self.command_palette
     }

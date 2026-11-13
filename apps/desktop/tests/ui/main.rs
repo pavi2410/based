@@ -1,5 +1,6 @@
 //! UI integration tests: real views in a headless GPUI window.
 
+mod ai;
 mod close;
 mod common;
 mod inbox;

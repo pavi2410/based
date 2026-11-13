@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 
-use based_core::{ConnectionKey, EngineKind, SslMode};
+use based_core::{ConnectionKey, EngineKind, SshEndpoint, SslMode};
 
 use crate::ai::AiSettings;
 use crate::env_value::EnvOrString;
@@ -35,10 +35,8 @@ fn ssl_mode_from_legacy(ssl: bool) -> SslMode {
 /// Optional SSH hop persisted as `[ssh]` on a connection file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SshSettings {
-    pub host: String,
-    pub port: u16,
-    pub user: String,
-    pub key_path: Option<String>,
+    pub endpoint: SshEndpoint,
+    /// Env ref or literal; resolved into the runtime `SshTunnelConfig`.
     pub key_passphrase: Option<EnvOrString>,
 }
 
@@ -243,10 +241,10 @@ impl From<&ProjectConnection> for WriteConnectionFile {
             url: None,
             pragma: None,
             ssh: conn.ssh.as_ref().map(|s| RawSsh {
-                host: Some(s.host.clone()),
-                port: Some(s.port),
-                user: Some(s.user.clone()),
-                key_path: s.key_path.clone(),
+                host: Some(s.endpoint.host.clone()),
+                port: Some(s.endpoint.port),
+                user: Some(s.endpoint.user.clone()),
+                key_path: s.endpoint.key_path.clone(),
                 key_passphrase: s.key_passphrase.clone(),
             }),
             ai: conn.ai,
@@ -380,10 +378,12 @@ fn parse_ssh(raw: Option<RawSsh>, connection_id: &str) -> Result<Option<SshSetti
         bail!("connection {connection_id} [ssh] requires `host` and `user`");
     }
     Ok(Some(SshSettings {
-        host,
-        port: raw.port.unwrap_or(22),
-        user,
-        key_path: raw.key_path.filter(|p| !p.trim().is_empty()),
+        endpoint: SshEndpoint {
+            host,
+            port: raw.port.unwrap_or(22),
+            user,
+            key_path: raw.key_path.filter(|p| !p.trim().is_empty()),
+        },
         key_passphrase: raw.key_passphrase,
     }))
 }
@@ -582,10 +582,10 @@ key_path = "~/.ssh/id_ed25519"
         .unwrap();
         let conn = parse_connection_file(&conn_dir, &path).unwrap();
         let ssh = conn.ssh.expect("ssh table");
-        assert_eq!(ssh.host, "bastion.example.com");
-        assert_eq!(ssh.port, 22);
-        assert_eq!(ssh.user, "ec2-user");
-        assert_eq!(ssh.key_path.as_deref(), Some("~/.ssh/id_ed25519"));
+        assert_eq!(ssh.endpoint.host, "bastion.example.com");
+        assert_eq!(ssh.endpoint.port, 22);
+        assert_eq!(ssh.endpoint.user, "ec2-user");
+        assert_eq!(ssh.endpoint.key_path.as_deref(), Some("~/.ssh/id_ed25519"));
         assert!(ssh.key_passphrase.is_none());
     }
 
@@ -637,10 +637,12 @@ ssl = false
                 ssl_mode: SslMode::Require,
             },
             ssh: Some(SshSettings {
-                host: "bastion.example.com".into(),
-                port: 22,
-                user: "ec2-user".into(),
-                key_path: Some("~/.ssh/id_ed25519".into()),
+                endpoint: SshEndpoint {
+                    host: "bastion.example.com".into(),
+                    port: 22,
+                    user: "ec2-user".into(),
+                    key_path: Some("~/.ssh/id_ed25519".into()),
+                },
                 key_passphrase: Some(EnvOrString::FromEnv {
                     var: "BASED_PROD_SSH_KEY_PASSPHRASE".into(),
                 }),
@@ -655,7 +657,7 @@ ssl = false
         assert!(!raw.contains("s3cret"));
         let loaded = load_connections_from_based_dir(based).unwrap();
         let ssh = loaded[0].ssh.as_ref().expect("ssh");
-        assert_eq!(ssh.user, "ec2-user");
+        assert_eq!(ssh.endpoint.user, "ec2-user");
         assert_eq!(
             ssh.key_passphrase,
             Some(EnvOrString::FromEnv {

@@ -98,14 +98,18 @@ pub async fn open_tunnel_with_known_hosts(
     }
 
     let handler = ClientHandler {
-        host: ssh.host.clone(),
-        port: ssh.port,
+        host: ssh.endpoint.host.clone(),
+        port: ssh.endpoint.port,
         known_hosts,
     };
     let config = Arc::new(client::Config::default());
-    let mut session = client::connect(config, (ssh.host.as_str(), ssh.port), handler)
-        .await
-        .map_err(|err| anyhow::anyhow!("SSH tunnel: {err}"))?;
+    let mut session = client::connect(
+        config,
+        (ssh.endpoint.host.as_str(), ssh.endpoint.port),
+        handler,
+    )
+    .await
+    .map_err(|err| anyhow::anyhow!("SSH tunnel: {err}"))?;
 
     authenticate(&mut session, ssh).await?;
 
@@ -147,7 +151,12 @@ async fn authenticate(
     session: &mut client::Handle<ClientHandler>,
     ssh: &SshTunnelConfig,
 ) -> Result<()> {
-    if let Some(key_path) = ssh.key_path.as_deref().filter(|p| !p.trim().is_empty()) {
+    if let Some(key_path) = ssh
+        .endpoint
+        .key_path
+        .as_deref()
+        .filter(|p| !p.trim().is_empty())
+    {
         let path = expand_key_path(key_path);
         let key = load_secret_key(&path, ssh.key_passphrase.as_deref())
             .with_context(|| format!("SSH tunnel: could not load key {}", path.display()))?;
@@ -159,7 +168,7 @@ async fn authenticate(
             .flatten();
         let key = PrivateKeyWithHashAlg::new(Arc::new(key), hash);
         let result = session
-            .authenticate_publickey(ssh.user.clone(), key)
+            .authenticate_publickey(ssh.endpoint.user.clone(), key)
             .await
             .context("SSH tunnel: public-key authentication failed")?;
         if !result.success() {
@@ -168,7 +177,7 @@ async fn authenticate(
         return Ok(());
     }
 
-    authenticate_with_agent(session, &ssh.user).await
+    authenticate_with_agent(session, &ssh.endpoint.user).await
 }
 
 async fn authenticate_with_agent(

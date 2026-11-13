@@ -22,7 +22,7 @@ use gpui_kit::{prelude::*, *};
 use tokio::task::spawn_blocking;
 use uuid::Uuid;
 
-use based_core::SshTunnelConfig;
+use based_core::{SshEndpoint, SshTunnelConfig};
 use based_project::{AiContext, AiSettings};
 
 use crate::app::prefs;

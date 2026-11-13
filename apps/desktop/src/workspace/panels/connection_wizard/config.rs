@@ -76,12 +76,12 @@ impl ConnectionWizardPanel {
         match ssh {
             Some(ssh) => {
                 self.ssh_enabled = true;
-                set_field(&self.ssh_host, &ssh.host, window, cx);
-                set_field(&self.ssh_port, &ssh.port.to_string(), window, cx);
-                set_field(&self.ssh_user, &ssh.user, window, cx);
+                set_field(&self.ssh_host, &ssh.endpoint.host, window, cx);
+                set_field(&self.ssh_port, &ssh.endpoint.port.to_string(), window, cx);
+                set_field(&self.ssh_user, &ssh.endpoint.user, window, cx);
                 set_field(
                     &self.ssh_key_path,
-                    ssh.key_path.as_deref().unwrap_or(""),
+                    ssh.endpoint.key_path.as_deref().unwrap_or(""),
                     window,
                     cx,
                 );
@@ -105,10 +105,12 @@ impl ConnectionWizardPanel {
         let key_path = self.ssh_key_path.read(cx).value().to_string();
         let key_passphrase = self.ssh_key_passphrase.read(cx).value().to_string();
         Some(SshTunnelConfig {
-            host: self.ssh_host.read(cx).value().to_string(),
-            port: self.ssh_port.read(cx).value().parse().unwrap_or(22),
-            user: self.ssh_user.read(cx).value().to_string(),
-            key_path: nonempty_opt(&key_path),
+            endpoint: SshEndpoint {
+                host: self.ssh_host.read(cx).value().to_string(),
+                port: self.ssh_port.read(cx).value().parse().unwrap_or(22),
+                user: self.ssh_user.read(cx).value().to_string(),
+                key_path: nonempty_opt(&key_path),
+            },
             key_passphrase: nonempty_opt(&key_passphrase),
         })
     }

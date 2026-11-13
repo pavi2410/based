@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use based_core::SshTunnelConfig;
+use based_core::{SshEndpoint, SshTunnelConfig};
 use based_ssh::open_tunnel_with_known_hosts;
 use rand_core::OsRng;
 use russh::keys::known_hosts::learn_known_hosts_path;
@@ -109,10 +109,12 @@ async fn unknown_host_key_is_rejected() {
     fs::write(&known_hosts, "").unwrap();
 
     let ssh = SshTunnelConfig {
-        host: "127.0.0.1".into(),
-        port: ssh_port,
-        user: "test".into(),
-        key_path: Some(key_path.display().to_string()),
+        endpoint: SshEndpoint {
+            host: "127.0.0.1".into(),
+            port: ssh_port,
+            user: "test".into(),
+            key_path: Some(key_path.display().to_string()),
+        },
         key_passphrase: None,
     };
     let err = match open_tunnel_with_known_hosts(&ssh, "127.0.0.1", 1, Some(known_hosts)).await {
@@ -143,10 +145,12 @@ async fn forwards_bytes_through_local_port() {
     learn_known_hosts_path("127.0.0.1", ssh_port, &server_pub, &known_hosts).unwrap();
 
     let ssh = SshTunnelConfig {
-        host: "127.0.0.1".into(),
-        port: ssh_port,
-        user: "test".into(),
-        key_path: Some(key_path.display().to_string()),
+        endpoint: SshEndpoint {
+            host: "127.0.0.1".into(),
+            port: ssh_port,
+            user: "test".into(),
+            key_path: Some(key_path.display().to_string()),
+        },
         key_passphrase: None,
     };
     let tunnel = open_tunnel_with_known_hosts(&ssh, "127.0.0.1", echo_port, Some(known_hosts))

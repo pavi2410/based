@@ -141,10 +141,7 @@ fn resolve_ssh(
     file_vars: &HashMap<String, String>,
 ) -> anyhow::Result<SshTunnelConfig> {
     Ok(SshTunnelConfig {
-        host: ssh.host.clone(),
-        port: ssh.port,
-        user: ssh.user.clone(),
-        key_path: ssh.key_path.clone(),
+        endpoint: ssh.endpoint.clone(),
         key_passphrase: ssh
             .key_passphrase
             .as_ref()
@@ -164,6 +161,7 @@ fn map_pragma(p: &PragmaSettings) -> SqlitePragma {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use based_core::SshEndpoint;
     use based_project::{EnvOrString, write_connection_file};
     use std::fs;
     use std::path::PathBuf;
@@ -270,10 +268,12 @@ password = { env = "BASED_TEST_LOADER_MISSING_SECRET" }
                 ssl_mode: based_core::SslMode::Require,
             },
             ssh: Some(SshSettings {
-                host: "bastion.example.com".into(),
-                port: 22,
-                user: "ec2-user".into(),
-                key_path: Some("~/.ssh/id_ed25519".into()),
+                endpoint: SshEndpoint {
+                    host: "bastion.example.com".into(),
+                    port: 22,
+                    user: "ec2-user".into(),
+                    key_path: Some("~/.ssh/id_ed25519".into()),
+                },
                 key_passphrase: Some(EnvOrString::FromEnv {
                     var: "BASED_PG_SSH_KEY_PASSPHRASE".into(),
                 }),
@@ -286,7 +286,7 @@ password = { env = "BASED_TEST_LOADER_MISSING_SECRET" }
         match entry.config {
             ConnectionConfig::Postgres(c) => {
                 let ssh = c.ssh.expect("ssh");
-                assert_eq!(ssh.host, "bastion.example.com");
+                assert_eq!(ssh.endpoint.host, "bastion.example.com");
                 assert_eq!(ssh.key_passphrase.as_deref(), Some("from-file"));
             }
             other => panic!("expected postgres, got {other:?}"),

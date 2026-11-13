@@ -249,6 +249,7 @@ mod tests {
     use super::*;
     use crate::postgres::PostgresConfig;
     use crate::sqlite::SqliteConfig;
+    use based_core::SshEndpoint;
     use std::path::PathBuf;
 
     #[test]
@@ -483,10 +484,12 @@ mod tests {
         let mut new = pg("Prod", "mydb.internal");
         if let ConnectionConfig::Postgres(c) = &mut new {
             c.ssh = Some(based_core::SshTunnelConfig {
-                host: "bastion.example.com".into(),
-                port: 22,
-                user: "ec2-user".into(),
-                key_path: None,
+                endpoint: SshEndpoint {
+                    host: "bastion.example.com".into(),
+                    port: 22,
+                    user: "ec2-user".into(),
+                    key_path: None,
+                },
                 key_passphrase: None,
             });
         }

@@ -88,10 +88,7 @@ fn project_connection_from_config(
                     .as_ref()
                     .filter(|s| s.is_configured())
                     .map(|s| SshSettings {
-                        host: s.host.clone(),
-                        port: s.port,
-                        user: s.user.clone(),
-                        key_path: s.key_path.clone(),
+                        endpoint: s.endpoint.clone(),
                         key_passphrase: s.key_passphrase.as_ref().filter(|p| !p.is_empty()).map(
                             |_| EnvOrString::FromEnv {
                                 var: secret_env_key(&relative_id, "SSH_KEY_PASSPHRASE"),
@@ -179,6 +176,7 @@ fn pragma_from_sqlite(p: &SqlitePragma) -> PragmaSettings {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use based_core::SshEndpoint;
     use based_project::{load_connections_from_based_dir, load_env_file};
     use std::path::PathBuf;
 
@@ -326,10 +324,12 @@ mod tests {
             password: "dbpass".into(),
             ssl_mode: SslMode::Require,
             ssh: Some(SshTunnelConfig {
-                host: "bastion.example.com".into(),
-                port: 22,
-                user: "ec2-user".into(),
-                key_path: Some("~/.ssh/id_ed25519".into()),
+                endpoint: SshEndpoint {
+                    host: "bastion.example.com".into(),
+                    port: 22,
+                    user: "ec2-user".into(),
+                    key_path: Some("~/.ssh/id_ed25519".into()),
+                },
                 key_passphrase: Some("keypass".into()),
             }),
         });

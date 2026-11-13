@@ -157,9 +157,26 @@ fn reveal_path(path: &Path) {
 pub fn error_one_liner(message: &str) -> SharedString {
     let line = message.lines().next().unwrap_or(message).trim();
     const MAX: usize = 80;
-    if line.len() > MAX {
-        format!("{}…", &line[..MAX]).into()
-    } else {
-        line.to_string().into()
+    match line.char_indices().nth(MAX) {
+        Some((cut, _)) => format!("{}…", &line[..cut]).into(),
+        None => line.to_string().into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::error_one_liner;
+
+    #[test]
+    fn one_liner_cuts_on_char_boundaries() {
+        // Byte 80 falls inside the curly quote, which used to panic.
+        let quoted = format!("{}\u{201c}tbl\u{201d} does not exist", "x".repeat(79));
+        let out = error_one_liner(&quoted);
+        assert_eq!(out.chars().count(), 81);
+        assert!(out.ends_with('…'));
+
+        let cjk = "関係".repeat(60);
+        assert_eq!(error_one_liner(&cjk).chars().count(), 81);
+        assert_eq!(error_one_liner("short\nsecond line").as_ref(), "short");
     }
 }

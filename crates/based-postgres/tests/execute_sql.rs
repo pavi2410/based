@@ -1,11 +1,13 @@
 //! Runs against a live Postgres. Set `BASED_TEST_PG_URL` (e.g. the docker compose
 //! instance: `postgres://based:based@localhost:15432/based`); skipped otherwise.
 
+use std::env;
+
 use based_postgres::execute_sql;
 use sqlx::PgPool;
 
 async fn pool() -> Option<PgPool> {
-    let url = std::env::var("BASED_TEST_PG_URL").ok()?;
+    let url = env::var("BASED_TEST_PG_URL").ok()?;
     Some(
         PgPool::connect(&url)
             .await

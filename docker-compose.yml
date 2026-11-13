@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: based
       POSTGRES_DB: based
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U based -d based"]
       interval: 5s

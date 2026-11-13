@@ -5,6 +5,7 @@ use based_project::{
 use crate::connection::ConnectionId;
 use crate::connection::ConnectionOrigin;
 use crate::connection::registry::ConnectionRegistry;
+use crate::workspace::tabs::spec::SavedQueryRef;
 use crate::workspace::{QueryEditorInit, TabSpec};
 
 pub enum OpenQueryResult {
@@ -48,12 +49,18 @@ pub fn open_project_query(
 }
 
 pub fn tab_spec_for_query(query: &ProjectQuery, conn_id: ConnectionId) -> TabSpec {
+    let (query_path, name) = (&query.path, &query.name);
     match &query.body {
         QueryBody::Sql { query } => TabSpec::QueryEditor {
             conn_id,
             init: QueryEditorInit::Sql {
                 sql: Some(query.clone()),
                 auto_run: false,
+                saved: Some(SavedQueryRef {
+                    path: query_path.clone(),
+                    name: name.clone(),
+                }),
+                dirty: false,
             },
         },
         QueryBody::Aggregate {

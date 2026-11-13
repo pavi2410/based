@@ -85,10 +85,11 @@ impl TabManager {
             return;
         }
         let idx = self.tabs.len();
+        let dirty = restored_dirty(&spec);
         self.tabs.push(Tab {
             spec,
             panel,
-            dirty: false,
+            dirty,
             pinned: false,
         });
         self.active_idx = Some(idx);
@@ -158,10 +159,11 @@ impl TabManager {
                     tab.spec = spec.clone();
                 }
             } else {
+                let spec = d.inferred.clone().unwrap_or_else(|| d.fallback.clone());
                 self.tabs.push(Tab {
-                    spec: d.inferred.clone().unwrap_or_else(|| d.fallback.clone()),
+                    dirty: restored_dirty(&spec),
+                    spec,
                     panel: d.panel.clone(),
-                    dirty: false,
                     pinned: false,
                 });
             }
@@ -187,6 +189,11 @@ impl TabManager {
 }
 
 impl EventEmitter<TabEvent> for TabManager {}
+
+/// A query tab restored with unsaved edits starts dirty, so closing it still asks.
+fn restored_dirty(spec: &TabSpec) -> bool {
+    matches!(spec, TabSpec::QueryEditor { init, .. } if init.restored_dirty())
+}
 
 #[cfg(test)]
 mod tests {

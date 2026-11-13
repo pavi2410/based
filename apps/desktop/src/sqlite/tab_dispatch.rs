@@ -49,7 +49,13 @@ pub fn build_panel(
             Some(Arc::new(panel))
         }
         TabSpec::QueryEditor {
-            init: QueryEditorInit::Sql { sql, auto_run },
+            init:
+                QueryEditorInit::Sql {
+                    sql,
+                    auto_run,
+                    saved,
+                    dirty,
+                },
             ..
         } => {
             let label = tab_label_for_spec(spec, false);
@@ -63,7 +69,10 @@ pub fn build_panel(
                     cx,
                 )
             });
-            panel.update(cx, |p, _| p.tab_label = label);
+            panel.update(cx, |p, _| {
+                p.tab_label = label;
+                p.restore_saved_state(saved.as_ref(), *dirty);
+            });
             Some(Arc::new(panel))
         }
         TabSpec::QueryEditor {

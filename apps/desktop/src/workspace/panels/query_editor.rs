@@ -62,6 +62,7 @@ use crate::widgets::wizard_fields::new_field;
 use crate::workspace::notify;
 use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::project_query::include_in_project_target;
+use crate::workspace::tabs::spec::SavedQueryRef;
 use crate::workspace::{
     WorkspaceRef,
     tabs::{clear_tab_dirty, mark_tab_dirty},
@@ -355,6 +356,27 @@ impl QueryEditorPanel {
         self.write_confirm = false;
         mark_tab_dirty(cx.entity_id(), cx);
         self.schedule_lint(cx);
+    }
+
+    /// Re-link a restored or reopened tab to its saved query and unsaved state.
+    pub fn restore_saved_state(&mut self, saved: Option<&SavedQueryRef>, dirty: bool) {
+        if let Some(saved) = saved {
+            self.saved_path = Some(saved.path.clone());
+            self.tab_label = saved.name.clone().into();
+        }
+        self.dirty = dirty;
+    }
+
+    /// The project query this tab was opened from or last saved to.
+    pub fn saved_query(&self) -> Option<SavedQueryRef> {
+        self.saved_path.as_ref().map(|path| SavedQueryRef {
+            path: path.clone(),
+            name: self.tab_label.to_string(),
+        })
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.dirty
     }
 
     pub fn current_sql(&self, cx: &App) -> String {

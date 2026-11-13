@@ -84,6 +84,8 @@ pub fn render_history_pane(
                         init: QueryEditorInit::Sql {
                             sql: Some(full_query.clone()),
                             auto_run: false,
+                            saved: None,
+                            dirty: false,
                         },
                     },
                     cx,

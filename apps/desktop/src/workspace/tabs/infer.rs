@@ -17,7 +17,7 @@ use crate::workspace::panels::query_editor::QueryEditorPanel;
 use crate::workspace::panels::release_notes::ReleaseNotesPanel;
 
 use super::kind::PanelKind;
-use super::spec::{QueryEditorInit, TabSpec};
+use super::spec::{QueryEditorInit, SavedQueryRef, TabSpec};
 
 pub(crate) fn infer_tab_spec(panel: &Arc<dyn PanelView>, cx: &App) -> Option<TabSpec> {
     match PanelKind::of(panel, cx) {
@@ -31,7 +31,12 @@ pub(crate) fn infer_tab_spec(panel: &Arc<dyn PanelView>, cx: &App) -> Option<Tab
             }),
         PanelKind::QueryEditor => panel.view().downcast::<QueryEditorPanel>().ok().map(|ent| {
             let panel = ent.read(cx);
-            query_editor_spec(panel.connection_id().clone(), panel.current_sql(cx))
+            query_editor_spec(
+                panel.connection_id().clone(),
+                panel.current_sql(cx),
+                panel.saved_query(),
+                panel.is_dirty(),
+            )
         }),
         PanelKind::Pipeline => panel
             .view()
@@ -63,12 +68,19 @@ pub(crate) fn infer_tab_spec(panel: &Arc<dyn PanelView>, cx: &App) -> Option<Tab
     }
 }
 
-fn query_editor_spec(conn_id: ConnectionId, sql: String) -> TabSpec {
+fn query_editor_spec(
+    conn_id: ConnectionId,
+    sql: String,
+    saved: Option<SavedQueryRef>,
+    dirty: bool,
+) -> TabSpec {
     TabSpec::QueryEditor {
         conn_id,
         init: QueryEditorInit::Sql {
             sql: (!sql.is_empty()).then_some(sql),
             auto_run: false,
+            saved,
+            dirty,
         },
     }
 }

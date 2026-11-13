@@ -86,6 +86,8 @@ fn open_in_editor(conn: &ConnectionId, sql: String, run: bool, cx: &mut App) {
         let init = QueryEditorInit::Sql {
             sql: Some(sql),
             auto_run: true,
+            saved: None,
+            dirty: false,
         };
         inbox::open_tab(
             TabSpec::QueryEditor {

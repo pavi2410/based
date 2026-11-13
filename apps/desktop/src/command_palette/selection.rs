@@ -103,6 +103,8 @@ mod tests {
                 init: QueryEditorInit::Sql {
                     sql: Some("SELECT 1".into()),
                     auto_run: false,
+                    saved: None,
+                    dirty: false,
                 },
             },
             project_query_path: None,

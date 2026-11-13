@@ -244,6 +244,8 @@ mod tests {
                 init: QueryEditorInit::Sql {
                     sql: Some("SELECT * FROM txns".into()),
                     auto_run: false,
+                    saved: None,
+                    dirty: false,
                 },
             },
             TabSpec::DataViewer {

@@ -16,6 +16,12 @@ pub enum QueryEditorInit {
         sql: Option<String>,
         #[serde(default = "default_auto_run")]
         auto_run: bool,
+        /// The project query this tab edits, so Save overwrites it after a restart.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        saved: Option<SavedQueryRef>,
+        /// Unsaved edits at session save time; restored so close still asks first.
+        #[serde(default, skip_serializing_if = "is_false")]
+        dirty: bool,
     },
     /// MongoDB aggregation pipeline editor.
     MongoPipeline {
@@ -31,11 +37,31 @@ fn default_auto_run() -> bool {
     true
 }
 
+fn is_false(v: &bool) -> bool {
+    !*v
+}
+
+/// A saved project query: its path under `.based/queries/` (no `.toml`) and name.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct SavedQueryRef {
+    pub path: String,
+    pub name: String,
+}
+
+impl QueryEditorInit {
+    /// Whether the tab had unsaved edits when the session was saved.
+    pub fn restored_dirty(&self) -> bool {
+        matches!(self, Self::Sql { dirty: true, .. })
+    }
+}
+
 impl Default for QueryEditorInit {
     fn default() -> Self {
         Self::Sql {
             sql: None,
             auto_run: true,
+            saved: None,
+            dirty: false,
         }
     }
 }
@@ -173,6 +199,22 @@ mod tests {
         let a = TabSpec::blank_query_editor(ConnectionId("pg".into()));
         let b = TabSpec::blank_query_editor(ConnectionId("pg".into()));
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn query_editor_init_reads_sessions_saved_before_saved_and_dirty() {
+        let old = r#"{"kind":"sql","sql":"select 1","auto_run":false}"#;
+        let init: QueryEditorInit = serde_json::from_str(old).unwrap();
+        assert_eq!(
+            init,
+            QueryEditorInit::Sql {
+                sql: Some("select 1".into()),
+                auto_run: false,
+                saved: None,
+                dirty: false,
+            }
+        );
+        assert!(!init.restored_dirty());
     }
 
     #[test]

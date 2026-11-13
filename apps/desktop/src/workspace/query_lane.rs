@@ -203,6 +203,8 @@ fn open_loose_query(sql: &str, cx: &mut App) {
             init: QueryEditorInit::Sql {
                 sql: Some(sql.to_string()),
                 auto_run: false,
+                saved: None,
+                dirty: false,
             },
         },
         cx,

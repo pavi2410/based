@@ -83,6 +83,8 @@ impl Workspace {
                 let init = QueryEditorInit::Sql {
                     sql: Some(sql),
                     auto_run: false,
+                    saved: None,
+                    dirty: false,
                 };
                 self.dispatch_open_tab(TabSpec::QueryEditor { conn_id, init }, window, cx);
             }

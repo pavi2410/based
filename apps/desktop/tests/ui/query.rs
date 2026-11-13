@@ -3,6 +3,7 @@
 use based_desktop::connection::ConnectionId;
 use based_desktop::workspace::panels::query_editor::QueryEditorPanel;
 use based_desktop::workspace::panels::query_view::ResultSnapshot;
+use based_desktop::workspace::tabs::spec::SavedQueryRef;
 use based_desktop::workspace::{QueryEditorInit, TabSpec, Workspace};
 use gpui_kit::test::TestWindowExt;
 use gpui_kit::{AnyWindowHandle, AppContext, Entity, TestAppContext};
@@ -70,6 +71,8 @@ fn open_query_tab(
         init: QueryEditorInit::Sql {
             sql: Some(sql.into()),
             auto_run,
+            saved: None,
+            dirty: false,
         },
     };
     cx.update_window(win, |_, window, cx| {
@@ -203,4 +206,49 @@ fn replacing_the_query_is_undoable_and_marks_the_tab_dirty(cx: &mut TestAppConte
         ed.panel.read_with(cx, |p, cx| p.current_sql(cx)),
         "select 1"
     );
+}
+
+#[gpui_kit::test]
+fn restored_tab_keeps_its_saved_query_and_unsaved_state(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("demo.db");
+    seed_sqlite(&db, SEED);
+    let (win, ws) = open_workspace(cx);
+    let conn_id = connect_sqlite(cx, &ws, "demo", &db);
+    let saved = SavedQueryRef {
+        path: "reports/top-users".into(),
+        name: "Top users".into(),
+    };
+    let spec = TabSpec::QueryEditor {
+        conn_id,
+        init: QueryEditorInit::Sql {
+            sql: Some("select 1".into()),
+            auto_run: false,
+            saved: Some(saved.clone()),
+            dirty: true,
+        },
+    };
+    cx.update_window(win, |_, window, cx| {
+        assert!(ws.update(cx, |ws, cx| ws.dispatch_open_tab(spec, window, cx)));
+        window.render_frame(cx);
+    })
+    .unwrap();
+    settle(cx);
+
+    let panel = ws.read_with(cx, |ws, cx| {
+        ws.tab_manager()
+            .read(cx)
+            .tabs
+            .iter()
+            .find_map(|t| t.downcast::<QueryEditorPanel>())
+            .expect("query editor tab")
+    });
+    assert!(
+        ws.read_with(cx, |ws, cx| ws.has_dirty_tabs(cx)),
+        "close must still ask"
+    );
+    // The saved name doubles as the tab title and as the name Save overwrites.
+    let (linked, dirty) = panel.read_with(cx, |p, _| (p.saved_query(), p.is_dirty()));
+    assert_eq!(linked, Some(saved));
+    assert!(dirty);
 }

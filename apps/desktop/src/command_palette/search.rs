@@ -224,6 +224,8 @@ fn push_history(
                     init: QueryEditorInit::Sql {
                         sql: Some(entry.query.clone()),
                         auto_run: false,
+                        saved: None,
+                        dirty: false,
                     },
                 },
             };

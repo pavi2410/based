@@ -9,7 +9,9 @@ use time::OffsetDateTime;
 
 use based_core::{EngineKind, Value};
 use based_project::{SaveTarget, save_sql_query};
-use based_query::{Lint, RunOutcome, Severity};
+use based_query::{
+    Lint, RunOutcome, Severity, changes_data, split_statements, statement_at, write_summary,
+};
 use futures::future::BoxFuture;
 use gpui_kit::component::{
     ActiveTheme, Disableable as _, Icon, IconName, Selectable as _, Sizable as _, Theme, WindowExt,
@@ -34,8 +36,6 @@ use crate::connection::{ConnectionId, Environment, is_connection_read_only};
 use crate::db;
 use crate::editor::error_locate::{line_col, locate_error};
 use crate::editor::sql_completion::InlineAi;
-use crate::editor::statements::{split_statements, statement_at};
-use crate::editor::write_guard::{changes_data, write_summary};
 use crate::editor::{SchemaCache, lint::lint};
 use crate::project::{ProjectRoot, ProjectVars, substitute};
 use crate::query_store::{HistoryEntry, QueryStore};
@@ -461,8 +461,9 @@ impl QueryEditorPanel {
             return selected;
         }
         let all = state.value().to_string();
-        if split_statements(&all).len() > 1
-            && let Some(range) = statement_at(&all, state.cursor())
+        let engine = self.source.engine();
+        if split_statements(&all, engine).len() > 1
+            && let Some(range) = statement_at(&all, engine, state.cursor())
         {
             return all[range].to_string();
         }
@@ -509,7 +510,10 @@ impl QueryEditorPanel {
     fn hold_for(&self, sql: &str, skip_production_gate: bool, cx: &App) -> Option<HoldReason> {
         if self.ai.needs_confirm(self.source.engine(), sql) {
             Some(HoldReason::AiWrite)
-        } else if !skip_production_gate && changes_data(sql) && self.production_name(cx).is_some() {
+        } else if !skip_production_gate
+            && changes_data(sql, self.source.engine())
+            && self.production_name(cx).is_some()
+        {
             Some(HoldReason::ProductionWrite)
         } else {
             None
@@ -548,7 +552,7 @@ impl QueryEditorPanel {
             connection: project_vars.clone(),
         };
         let texts: Vec<String> = if batch {
-            split_statements(&sql_raw)
+            split_statements(&sql_raw, self.source.engine())
                 .into_iter()
                 .map(|r| sql_raw[r].to_string())
                 .collect()
@@ -745,7 +749,7 @@ impl QueryEditorPanel {
     /// What the held text does, e.g. "DELETE with no WHERE clause".
     pub(super) fn held_summary(&self) -> String {
         let sql = self.held.as_ref().map_or("", |h| h.sql.as_str());
-        let summary = write_summary(sql);
+        let summary = write_summary(sql, self.source.engine());
         if summary.is_empty() {
             "a change".to_owned()
         } else {
@@ -1089,18 +1093,19 @@ impl QueryEditorPanel {
         let view = st.input_bounds();
         let left = st.input_bounds().origin.x + px(3.0);
         let text = st.value().to_string();
-        let marks: Vec<(usize, Range<usize>, Pixels)> = split_statements(&text)
-            .into_iter()
-            .enumerate()
-            .filter_map(|(i, range)| {
-                let line = text[..range.start].matches('\n').count();
-                let row = st.display_map().buffer_line_to_display_row(line);
-                let y = text_bounds.origin.y + line_height * row as f32;
-                let inside =
-                    y >= view.top() - px(1.0) && y + line_height <= view.bottom() + px(1.0);
-                inside.then_some((i, range, y))
-            })
-            .collect();
+        let marks: Vec<(usize, Range<usize>, Pixels)> =
+            split_statements(&text, self.source.engine())
+                .into_iter()
+                .enumerate()
+                .filter_map(|(i, range)| {
+                    let line = text[..range.start].matches('\n').count();
+                    let row = st.display_map().buffer_line_to_display_row(line);
+                    let y = text_bounds.origin.y + line_height * row as f32;
+                    let inside =
+                        y >= view.top() - px(1.0) && y + line_height <= view.bottom() + px(1.0);
+                    inside.then_some((i, range, y))
+                })
+                .collect();
         let (success, hover) = (cx.theme().success_foreground, cx.theme().muted.opacity(0.6));
         let id = self.source.id();
         marks

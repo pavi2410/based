@@ -57,11 +57,9 @@ impl QuerySource for SqliteQuery {
         Box::pin(async move {
             let limit = Duration::from_secs(timeout_secs as u64);
             let mut out = RunOutput::default();
-            for (i, stmt) in based_query::statements_in_script(&sql).iter().enumerate() {
-                let text = stmt.text(&sql);
-                if text.is_empty() {
-                    continue;
-                }
+            let statements = based_query::split_statements(&sql, EngineKind::SQLite);
+            for (i, stmt) in statements.into_iter().enumerate() {
+                let text = &sql[stmt];
                 let fetch = sqlx::query(AssertSqlSafe(text.to_string())).fetch_all(&pool);
                 let rows = match timeout(limit, fetch).await {
                     Err(_) => anyhow::bail!(

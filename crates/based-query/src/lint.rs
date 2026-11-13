@@ -1,10 +1,9 @@
 //! Syntax checking for SQL scripts (no UI, no database).
 
 use based_core::EngineKind;
-use sqlparser::dialect::{Dialect, GenericDialect, PostgreSqlDialect, SQLiteDialect};
 use sqlparser::parser::Parser;
 
-use crate::statements_in_script;
+use crate::sql::{byte_offset, dialect, split_statements};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Severity {
@@ -21,26 +20,17 @@ pub struct Lint {
     pub message: String,
 }
 
-fn dialect(engine: EngineKind) -> Box<dyn Dialect> {
-    match engine {
-        EngineKind::Postgres => Box::new(PostgreSqlDialect {}),
-        EngineKind::SQLite => Box::new(SQLiteDialect {}),
-        _ => Box::new(GenericDialect {}),
-    }
-}
-
 /// Parse each statement of `script`; report syntax errors at the offending token.
 pub fn syntax_lints(script: &str, engine: EngineKind) -> Vec<Lint> {
     let dialect = dialect(engine);
     let mut out = Vec::new();
-    for stmt in statements_in_script(script) {
-        let text = stmt.text(script);
+    for stmt in split_statements(script, engine) {
+        let text = &script[stmt.clone()];
         let Err(err) = Parser::parse_sql(dialect.as_ref(), text) else {
             continue;
         };
         let msg = err.to_string();
-        let raw = &script[stmt.start..stmt.end];
-        let base = stmt.start + raw.len() - raw.trim_start().len();
+        let base = stmt.start;
         let (start, end) = match locate(&msg, text) {
             Some((s, e)) => (base + s, base + e),
             None => (base, base + text.len()),
@@ -59,19 +49,12 @@ pub fn syntax_lints(script: &str, engine: EngineKind) -> Vec<Lint> {
 fn locate(msg: &str, text: &str) -> Option<(usize, usize)> {
     let tail = &msg[msg.rfind("Line: ")? + 6..];
     let (line, col) = tail.split_once(", Column: ")?;
-    let line: usize = line.trim().parse().ok()?;
-    let col: usize = col.trim().parse().ok()?;
-    let line_start: usize = text
-        .split_inclusive('\n')
-        .take(line.checked_sub(1)?)
-        .map(str::len)
-        .sum();
-    let rest = &text[line_start..];
-    let start = line_start
-        + rest
-            .char_indices()
-            .nth(col.checked_sub(1)?)
-            .map_or(rest.len(), |(i, _)| i);
+    let line: u64 = line.trim().parse().ok()?;
+    let col: u64 = col.trim().parse().ok()?;
+    if line == 0 || col == 0 {
+        return None;
+    }
+    let start = byte_offset(text, line, col);
     let word = text[start..]
         .char_indices()
         .find(|&(i, c)| i > 0 && !(c.is_alphanumeric() || c == '_'))

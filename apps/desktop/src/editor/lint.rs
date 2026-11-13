@@ -1,7 +1,7 @@
 //! Editor diagnostics: parser errors plus schema-aware checks.
 
 use based_core::EngineKind;
-use based_query::{Lint, Severity, statements_in_script, syntax_lints};
+use based_query::{Lint, Severity, split_statements, syntax_lints};
 
 use super::schema_cache::SchemaCache;
 use super::sql_scope::{cte_names, tables_in_scope, unfiltered_write};
@@ -17,11 +17,9 @@ pub fn lint(sql: &str, engine: EngineKind, cache: &SchemaCache) -> Vec<Lint> {
     if !out.is_empty() {
         return out;
     }
-    for stmt in statements_in_script(sql) {
-        let raw = &sql[stmt.start..stmt.end];
-        let lead = raw.len() - raw.trim_start().len();
-        let text = stmt.text(sql);
-        let base = stmt.start + lead;
+    for stmt in split_statements(sql, engine) {
+        let base = stmt.start;
+        let text = &sql[stmt];
 
         if let Some(kind) = unfiltered_write(text) {
             out.push(Lint {

@@ -699,6 +699,7 @@ name = "based-ai"
 version = "0.0.0-dev"
 dependencies = [
  "based-core",
+ "based-query",
  "futures",
  "reqwest",
  "serde",

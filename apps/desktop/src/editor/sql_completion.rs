@@ -205,7 +205,9 @@ impl CompletionProvider for SqlCompletionProvider {
         };
         let range = Range::new(rope.offset_to_position(from), rope.offset_to_position(end));
 
-        let (scope, prev) = match based_query::statement_at_offset(&text, end) {
+        // Without a known engine, Postgres' dialect is the broadest SQL lexer we use.
+        let engine = self.cache.engine.unwrap_or(EngineKind::Postgres);
+        let (scope, prev) = match based_query::statement_at(&text, engine, end) {
             Some(s) => (
                 tables_in_scope(&text[s.start..s.end]),
                 previous_word(&text[s.start..start.clamp(s.start, s.end)]),

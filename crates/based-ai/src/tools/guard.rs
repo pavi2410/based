@@ -4,6 +4,7 @@
 use std::fmt;
 
 use based_core::EngineKind;
+use based_query::{has_ambiguous_quoting, keywords, split_statements};
 
 const SQL_START: &[&str] = &["select", "with", "values", "show", "explain"];
 const SQL_FORBIDDEN: &[&str] = &[
@@ -48,6 +49,8 @@ pub enum Refusal {
     RedisCommand(String),
     MongoOperator(&'static str),
     MultipleStatements,
+    /// Quoting the checker can't read the way the database will (`$1$ … $1$`).
+    AmbiguousQuoting,
     Statement(String),
     ExplainAnalyze,
     Keyword(String),
@@ -64,6 +67,9 @@ impl fmt::Display for Refusal {
                 write!(f, "mongo operator `{op}` is not allowed in read-only mode")
             }
             Self::MultipleStatements => f.write_str("multiple statements are not allowed"),
+            Self::AmbiguousQuoting => {
+                f.write_str("dollar-quote tags cannot start with a digit; use $$ or $tag$")
+            }
             Self::Statement(first) => {
                 write!(f, "`{first}` statements are not allowed in read-only mode")
             }
@@ -87,8 +93,7 @@ impl From<Refusal> for String {
 /// Returns `Err(refusal)` when `text` is not provably read-only for `engine`.
 pub fn check(engine: EngineKind, text: &str) -> Result<(), Refusal> {
     match engine {
-        EngineKind::Postgres => check_sql(text, true),
-        EngineKind::SQLite => check_sql(text, false),
+        EngineKind::Postgres | EngineKind::SQLite => check_sql(text, engine),
         EngineKind::Redis => check_redis(text),
         EngineKind::MongoDB => check_mongo(text),
     }
@@ -132,9 +137,14 @@ fn forbidden_key(v: &serde_json::Value) -> Option<&'static str> {
     }
 }
 
-fn check_sql(sql: &str, postgres: bool) -> Result<(), Refusal> {
-    let (words, statements) = scan(sql, postgres);
-    if statements > 1 {
+fn check_sql(sql: &str, engine: EngineKind) -> Result<(), Refusal> {
+    let postgres = engine == EngineKind::Postgres;
+    // The same tokenizer the editor uses to split and run statements.
+    if has_ambiguous_quoting(sql, engine) {
+        return Err(Refusal::AmbiguousQuoting);
+    }
+    let words = keywords(sql, engine);
+    if split_statements(sql, engine).len() > 1 {
         return Err(Refusal::MultipleStatements);
     }
     let first = words.first().map(String::as_str).unwrap_or("");
@@ -148,106 +158,6 @@ fn check_sql(sql: &str, postgres: bool) -> Result<(), Refusal> {
         Some(w) => Err(Refusal::Keyword(w.clone())),
         None => Ok(()),
     }
-}
-
-/// Lowercased bare words outside strings/identifiers/comments, plus the number of
-/// non-empty statements.
-fn scan(sql: &str, postgres: bool) -> (Vec<String>, usize) {
-    let chars: Vec<char> = sql.chars().collect();
-    let mut words = Vec::new();
-    let mut statements = 0;
-    let mut has_content = false;
-    let mut i = 0;
-    while i < chars.len() {
-        let c = chars[i];
-        match c {
-            '\'' | '"' | '`' => {
-                i = skip_quoted(&chars, i, c);
-                has_content = true;
-                continue;
-            }
-            '-' if chars.get(i + 1) == Some(&'-') => {
-                while i < chars.len() && chars[i] != '\n' {
-                    i += 1;
-                }
-                continue;
-            }
-            '/' if chars.get(i + 1) == Some(&'*') => {
-                i += 2;
-                while i < chars.len() && !(chars[i] == '*' && chars.get(i + 1) == Some(&'/')) {
-                    i += 1;
-                }
-                i += 2;
-                continue;
-            }
-            '$' if postgres => {
-                if let Some(end) = dollar_quote_end(&chars, i) {
-                    i = end;
-                    has_content = true;
-                    continue;
-                }
-            }
-            ';' => {
-                if has_content {
-                    statements += 1;
-                    has_content = false;
-                }
-            }
-            c if c.is_ascii_alphabetic() || c == '_' => {
-                let start = i;
-                while i < chars.len() && (chars[i].is_ascii_alphanumeric() || chars[i] == '_') {
-                    i += 1;
-                }
-                words.push(
-                    chars[start..i]
-                        .iter()
-                        .collect::<String>()
-                        .to_ascii_lowercase(),
-                );
-                has_content = true;
-                continue;
-            }
-            c if !c.is_whitespace() => has_content = true,
-            _ => {}
-        }
-        i += 1;
-    }
-    if has_content {
-        statements += 1;
-    }
-    (words, statements)
-}
-
-/// Index just past the closing quote (doubled quotes are escapes).
-fn skip_quoted(chars: &[char], start: usize, quote: char) -> usize {
-    let mut i = start + 1;
-    while i < chars.len() {
-        if chars[i] == quote {
-            if chars.get(i + 1) == Some(&quote) {
-                i += 2;
-                continue;
-            }
-            return i + 1;
-        }
-        i += 1;
-    }
-    chars.len()
-}
-
-/// For `$tag$ ... $tag$`, returns the index past the closing tag. Tags cannot start
-/// with a digit, so `$1` stays a bind parameter.
-fn dollar_quote_end(chars: &[char], start: usize) -> Option<usize> {
-    let tag_end = chars[start + 1..].iter().position(|&c| c == '$')? + start + 1;
-    let tag = &chars[start..=tag_end];
-    let inner = &tag[1..tag.len() - 1];
-    if inner.first().is_some_and(|c| c.is_ascii_digit())
-        || !inner.iter().all(|c| c.is_ascii_alphanumeric() || *c == '_')
-    {
-        return None;
-    }
-    let body = &chars[tag_end + 1..];
-    let close = body.windows(tag.len()).position(|w| w == tag);
-    Some(close.map_or(chars.len(), |p| tag_end + 1 + p + tag.len()))
 }
 
 #[cfg(test)]

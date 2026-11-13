@@ -13,8 +13,8 @@ use gpui_kit::{AnyElement, Context, IntoElement, ParentElement, Styled, Window, 
 
 use super::query_editor::{HoldReason, QueryEditorPanel, QueryStatus};
 use crate::ai::{AiPromptEvent, ask_assistant, connection_ai, schema};
-use crate::editor::statements::{split_statements, statement_at};
 use crate::widgets::sql_editor::text_from_input;
+use based_query::{split_statements, statement_at};
 
 const FIX_LABEL: &str = "Fix the error";
 const FIX_PROMPT: &str = "Fix this error without changing what the query does:";
@@ -176,8 +176,8 @@ impl QueryEditorPanel {
         if let Some(range) = self
             .status
             .error_span()
-            .filter(|_| split_statements(&all).len() > 1)
-            .and_then(|span| statement_at(&all, span.start))
+            .filter(|_| split_statements(&all, self.source.engine()).len() > 1)
+            .and_then(|span| statement_at(&all, self.source.engine(), span.start))
         {
             self.sql_input
                 .update(cx, |state, cx| state.set_selected_range(range, cx));

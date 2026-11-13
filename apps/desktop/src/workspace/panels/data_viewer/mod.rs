@@ -544,7 +544,7 @@ impl Render for DataViewerPanel {
                             div()
                                 .absolute()
                                 .inset_0()
-                                .child(motion::skeleton_table("dv-skel", 10, 4, cx)),
+                                .child(motion::skeleton_table(10, 4, cx)),
                         )
                     })
                     .when_some(overlay, |d, o| {

@@ -20,6 +20,7 @@ use gpui_kit::{
 use super::launch::{error_text, launch};
 use super::stream::{AiStream, StreamEvent};
 use crate::widgets::ai_diff::AiDiff;
+use gpui_kit::component::shimmer::ShimmerText;
 
 /// The entry to show after pressing up (`older`) or down. `None` leaves browsing: past the
 /// newest entry, or when there is nothing to recall.
@@ -257,7 +258,12 @@ impl AiPrompt {
             Phase::Streaming => Some(
                 v_flex()
                     .gap_1()
-                    .child(div().text_xs().text_color(muted).child("Generating..."))
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(muted)
+                            .child(ShimmerText::new("Generating…")),
+                    )
                     .children(self.diff.as_ref().map(|diff| diff.view(px(220.0))))
                     .when(self.diff.is_none(), |v| {
                         let preview = prompt::extract_code(&self.reply);

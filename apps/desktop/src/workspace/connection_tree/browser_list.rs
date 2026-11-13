@@ -19,11 +19,11 @@ use gpui_kit::{
 use crate::connection::EngineKind;
 use crate::widgets::empty_state::empty_state;
 use crate::widgets::list_row::{SchemaRowStyle, schema_object_row};
-use crate::widgets::motion;
 use crate::widgets::{
     BrowserTreeIndent, CONNECTION_CHEVRON_SLOT_W, SIDEBAR_INSET, sidebar_row_inner_gap,
     sidebar_row_padding_y,
 };
+use gpui_kit::component::{shimmer::ShimmerText, skeleton::Skeleton};
 
 use super::ConnectionTree;
 use super::connection_list::{Link, build_connection_rows};
@@ -379,12 +379,11 @@ fn status_row(
         .pr(px(SIDEBAR_INSET))
         .py(px(sidebar_row_padding_y(cx)))
         .text_xs()
-        .text_color(cx.theme().muted_foreground)
-        .child(message.clone());
+        .text_color(cx.theme().muted_foreground);
     if busy {
-        motion::pulse(SharedString::from(format!("tree-busy-{message}")), row)
+        row.child(ShimmerText::new(message)).into_any_element()
     } else {
-        row.into_any_element()
+        row.child(message).into_any_element()
     }
 }
 
@@ -426,18 +425,13 @@ fn skeleton_row(
         .py(px(sidebar_row_padding_y(cx)))
         .gap(px(8.0))
         .items_center()
-        .child(motion::shimmer_block(
-            SharedString::from(format!("tree-sk-i{index}")),
-            px(14.0),
-            px(14.0),
-            cx,
-        ))
-        .child(motion::shimmer_block(
-            SharedString::from(format!("tree-sk-l{index}")),
-            px(WIDTHS[index % WIDTHS.len()]),
-            px(10.0),
-            cx,
-        ))
+        .child(Skeleton::new().w(px(14.0)).h(px(14.0)).rounded(px(4.0)))
+        .child(
+            Skeleton::new()
+                .w(px(WIDTHS[index % WIDTHS.len()]))
+                .h(px(10.0))
+                .rounded(px(4.0)),
+        )
 }
 
 fn schema_row_element(

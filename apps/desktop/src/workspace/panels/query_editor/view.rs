@@ -252,7 +252,7 @@ impl QueryEditorPanel {
                             div()
                                 .absolute()
                                 .inset_0()
-                                .child(motion::skeleton_table("qe-skel", 6, 4, cx)),
+                                .child(motion::skeleton_table(6, 4, cx)),
                         )
                     })
                     .into_any_element()
@@ -300,7 +300,14 @@ impl QueryEditorPanel {
                     muted,
                 )
             }
-            QueryStatus::Running(_) => hint("Running…", muted),
+            QueryStatus::Running(_) => div()
+                .flex_1()
+                .min_h(px(0.0))
+                .p_3()
+                .text_xs()
+                .text_color(muted)
+                .child(ShimmerText::new("Running…"))
+                .into_any_element(),
             QueryStatus::Cancelled { after_ms } => hint(
                 format!(
                     "Stopped after {:.1} s. The server may still finish the statement; nothing is rolled back.",

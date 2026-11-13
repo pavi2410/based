@@ -24,6 +24,7 @@ use gpui_kit::component::{
     },
     menu::{DropdownMenu as _, PopupMenu, PopupMenuItem},
     resizable::{ResizableState, resizable_panel, v_resizable},
+    shimmer::ShimmerText,
     table::{Column, TableState},
     tooltip::Tooltip,
     v_flex,

@@ -1,18 +1,17 @@
-//! Shared motion primitives: shimmer skeletons, pulsing text, rise-in, glimmer bar, spring pop.
+//! Shared motion primitives: a skeleton table, pulsing elements, rise-in, glimmer bar, spring pop.
+//! Skeleton blocks and shimmering text come from gpui-kit (`Skeleton`, `ShimmerText`).
 //!
 //! GPUI divs cannot be transformed, so effects are built from opacity, position
 //! offsets and two-stop gradients. All colors derive from the active theme.
 
 use std::time::Duration;
 
-use gpui_kit::component::{ActiveTheme, h_flex, v_flex};
+use gpui_kit::component::{ActiveTheme, h_flex, skeleton::Skeleton, v_flex};
 use gpui_kit::{
-    Animation, AnimationExt, AnyElement, App, ElementId, IntoElement, SharedString, SpringConfig,
-    Styled, div, linear_color_stop, linear_gradient, prelude::*, px, relative, sampled_easing,
+    Animation, AnimationExt, AnyElement, App, ElementId, IntoElement, SpringConfig, Styled, div,
+    linear_color_stop, linear_gradient, prelude::*, px, relative, sampled_easing,
 };
 
-/// One shimmer sweep.
-pub const SHIMMER: Duration = Duration::from_millis(1500);
 /// Entry transitions.
 pub const RISE: Duration = Duration::from_millis(320);
 /// Delay between staggered siblings.
@@ -20,79 +19,6 @@ pub const STAGGER_MS: u64 = 45;
 
 fn ease_out_cubic(t: f32) -> f32 {
     1.0 - (1.0 - t).powi(3)
-}
-
-/// Skeleton block with a highlight band sweeping left to right.
-pub fn shimmer_block(
-    id: impl Into<ElementId>,
-    width: gpui_kit::Pixels,
-    height: gpui_kit::Pixels,
-    cx: &App,
-) -> impl IntoElement {
-    let theme = cx.theme();
-    let base = theme.muted.opacity(0.55);
-    let glint = theme.foreground.opacity(0.07);
-    let clear = glint.opacity(0.0);
-    let id: ElementId = id.into();
-
-    let band = move |left: f32| {
-        div()
-            .absolute()
-            .top_0()
-            .bottom_0()
-            .left(relative(left))
-            .w(relative(0.3))
-            .flex()
-            .child(div().h_full().w_1_2().bg(linear_gradient(
-                90.0,
-                linear_color_stop(clear, 0.0),
-                linear_color_stop(glint, 1.0),
-            )))
-            .child(div().h_full().w_1_2().bg(linear_gradient(
-                90.0,
-                linear_color_stop(glint, 0.0),
-                linear_color_stop(clear, 1.0),
-            )))
-    };
-
-    div()
-        .relative()
-        .w(width)
-        .h(height)
-        .rounded(px(4.0))
-        .overflow_hidden()
-        .bg(base)
-        .child(div().size_full().with_animation(
-            id,
-            Animation::new(SHIMMER).repeat(),
-            move |el, delta| el.child(band(-0.3 + delta * 1.3)),
-        ))
-}
-
-/// `rows` skeleton list rows (icon chip + label bar), each with a different label width.
-pub fn skeleton_rows(id: &'static str, rows: usize, indent: f32, cx: &App) -> impl IntoElement {
-    const WIDTHS: [f32; 5] = [118.0, 92.0, 104.0, 76.0, 110.0];
-    v_flex()
-        .gap(px(6.0))
-        .pl(px(indent))
-        .py(px(4.0))
-        .children((0..rows).map(|i| {
-            h_flex()
-                .gap(px(8.0))
-                .items_center()
-                .child(shimmer_block(
-                    SharedString::from(format!("{id}-i{i}")),
-                    px(14.0),
-                    px(14.0),
-                    cx,
-                ))
-                .child(shimmer_block(
-                    SharedString::from(format!("{id}-l{i}")),
-                    px(WIDTHS[i % WIDTHS.len()]),
-                    px(10.0),
-                    cx,
-                ))
-        }))
 }
 
 /// Gentle opacity breathing for in-flight status text ("Connecting…").
@@ -177,7 +103,7 @@ pub fn pop(delta: f32) -> f32 {
 }
 
 /// Grid placeholder: a header strip and `rows` rows of shimmering cells.
-pub fn skeleton_table(id: &'static str, rows: usize, cols: usize, cx: &App) -> impl IntoElement {
+pub fn skeleton_table(rows: usize, cols: usize, cx: &App) -> impl IntoElement {
     const W: [f32; 5] = [0.7, 0.45, 0.85, 0.55, 0.65];
     let theme = cx.theme();
     v_flex()
@@ -199,12 +125,12 @@ pub fn skeleton_table(id: &'static str, rows: usize, cols: usize, cx: &App) -> i
                 .items_center()
                 .children((0..cols).map(move |c| {
                     let w = W[(r + c * 2) % W.len()];
-                    div().flex_1().child(shimmer_block(
-                        SharedString::from(format!("{id}-{r}-{c}")),
-                        px(120.0 * w),
-                        px(10.0),
-                        cx,
-                    ))
+                    div().flex_1().child(
+                        Skeleton::new()
+                            .w(px(120.0 * w))
+                            .h(px(10.0))
+                            .rounded(px(4.0)),
+                    )
                 }))
         }))
 }

@@ -32,6 +32,7 @@ use crate::widgets::{metadata_pill, new_field, set_field};
 use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::tabs::kind::names;
 use gpui_kit::component::input::EditorState;
+use gpui_kit::component::shimmer::ShimmerText;
 
 pub struct KeyViewPanel {
     focus_handle: FocusHandle,
@@ -324,7 +325,12 @@ impl KeyViewPanel {
                 .into_any_element()
         };
         if !self.loaded {
-            return note("Loading…");
+            return div()
+                .p_4()
+                .text_sm()
+                .text_color(muted)
+                .child(ShimmerText::new("Loading…"))
+                .into_any_element();
         }
         let Some(kind) = self.kind() else {
             return note("Key does not exist (it may have expired or been deleted).");

@@ -36,6 +36,7 @@ use crate::widgets::virtual_table::{
 };
 use crate::workspace::notify::push_export_success;
 use crate::workspace::tabs::kind::names;
+use gpui_kit::component::shimmer::ShimmerText;
 
 /// The filter as a query document. An error rather than `{}`: an empty filter
 /// would quietly match every document.
@@ -242,7 +243,12 @@ impl Render for DocumentViewerPanel {
                     )
                     .child(self.filter_bar.clone())
                     .when(self.load.is_loading(), |h| {
-                        h.child(div().text_sm().text_color(muted).child("Loading…"))
+                        h.child(
+                            div()
+                                .text_sm()
+                                .text_color(muted)
+                                .child(ShimmerText::new("Loading…")),
+                        )
                     })
                     .child(
                         Button::new("mongo-export-json")

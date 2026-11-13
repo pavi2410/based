@@ -10,8 +10,8 @@ pub mod readonly;
 
 pub use catalog::column_catalog;
 pub use config::{
-    SqliteConfig, SqliteOpenOptions, SqlitePathContext, SqlitePragma, resolve_sqlite_path,
-    sqlite_connect_options, sqlite_uri, sqlite3_command,
+    JournalMode, SqliteConfig, SqliteOpenOptions, SqlitePathContext, SqlitePragma, Synchronous,
+    UnknownPragmaValue, resolve_sqlite_path, sqlite_connect_options, sqlite_uri, sqlite3_command,
 };
 pub use inspect::inspect_table;
 pub use mutations::{QueryColumn, delete_row, execute_sql, insert_row, update_row};

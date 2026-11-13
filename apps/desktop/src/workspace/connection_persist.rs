@@ -167,8 +167,8 @@ fn project_connection_from_config(
 
 fn pragma_from_sqlite(p: &SqlitePragma) -> PragmaSettings {
     PragmaSettings {
-        journal_mode: Some(p.journal_mode.clone()),
-        synchronous: Some(p.synchronous.clone()),
+        journal_mode: Some(p.journal_mode.as_str().to_string()),
+        synchronous: Some(p.synchronous.as_str().to_string()),
         foreign_keys: Some(p.foreign_keys),
     }
 }

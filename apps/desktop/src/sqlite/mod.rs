@@ -88,39 +88,16 @@ impl Connectable for SqliteConnection {
 async fn apply_sqlite_pragmas(pool: &SqlitePool, config: &SqliteConfig) -> anyhow::Result<()> {
     if let Some(p) = &config.pragma {
         if !config.read_only {
-            let journal = journal_mode_pragma(&p.journal_mode)?;
-            sqlx::query(AssertSqlSafe(journal)).execute(pool).await?;
-            let sync = synchronous_pragma(&p.synchronous)?;
-            sqlx::query(AssertSqlSafe(sync)).execute(pool).await?;
+            sqlx::query(AssertSqlSafe(p.journal_mode.pragma()))
+                .execute(pool)
+                .await?;
+            sqlx::query(AssertSqlSafe(p.synchronous.pragma()))
+                .execute(pool)
+                .await?;
         }
-        let fk = if p.foreign_keys {
-            "PRAGMA foreign_keys=ON"
-        } else {
-            "PRAGMA foreign_keys=OFF"
-        };
-        sqlx::query(AssertSqlSafe(fk)).execute(pool).await?;
+        sqlx::query(AssertSqlSafe(p.foreign_keys_pragma()))
+            .execute(pool)
+            .await?;
     }
     Ok(())
-}
-
-fn journal_mode_pragma(mode: &str) -> anyhow::Result<&'static str> {
-    match mode.to_ascii_lowercase().as_str() {
-        "wal" => Ok("PRAGMA journal_mode=WAL"),
-        "delete" => Ok("PRAGMA journal_mode=DELETE"),
-        "truncate" => Ok("PRAGMA journal_mode=TRUNCATE"),
-        "persist" => Ok("PRAGMA journal_mode=PERSIST"),
-        "memory" => Ok("PRAGMA journal_mode=MEMORY"),
-        "off" => Ok("PRAGMA journal_mode=OFF"),
-        other => anyhow::bail!("unsupported journal_mode: {other}"),
-    }
-}
-
-fn synchronous_pragma(mode: &str) -> anyhow::Result<&'static str> {
-    match mode.to_ascii_lowercase().as_str() {
-        "off" => Ok("PRAGMA synchronous=OFF"),
-        "normal" => Ok("PRAGMA synchronous=NORMAL"),
-        "full" => Ok("PRAGMA synchronous=FULL"),
-        "extra" => Ok("PRAGMA synchronous=EXTRA"),
-        other => anyhow::bail!("unsupported synchronous: {other}"),
-    }
 }

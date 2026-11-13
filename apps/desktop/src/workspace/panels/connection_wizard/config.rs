@@ -55,7 +55,7 @@ impl ConnectionWizardPanel {
             ConnectionConfig::SQLite(c) => {
                 set_field(&self.sqlite_path, &c.path.to_string_lossy(), window, cx);
                 self.sqlite_read_only = c.read_only;
-                self.sqlite_pragma = c.pragma.clone();
+                self.sqlite_pragma = c.pragma;
             }
         }
     }
@@ -159,7 +159,7 @@ impl ConnectionWizardPanel {
                 label: self.name.read(cx).value().to_string(),
                 path: PathBuf::from(self.sqlite_path.read(cx).value().as_ref()),
                 read_only: self.sqlite_read_only,
-                pragma: self.sqlite_pragma.clone(),
+                pragma: self.sqlite_pragma,
             }),
         }
     }

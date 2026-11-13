@@ -24,7 +24,7 @@ pub fn entry_from_tree(
             label: conn.label.clone(),
             path: file.clone(),
             read_only: conn.read_only,
-            pragma: pragma.as_ref().map(map_pragma),
+            pragma: pragma.as_ref().map(map_pragma).transpose()?,
         }),
         ConnectionSpec::Postgres {
             host,
@@ -150,12 +150,24 @@ fn resolve_ssh(
     })
 }
 
-fn map_pragma(p: &PragmaSettings) -> SqlitePragma {
-    SqlitePragma {
-        journal_mode: p.journal_mode.clone().unwrap_or_else(|| "wal".into()),
-        synchronous: p.synchronous.clone().unwrap_or_else(|| "normal".into()),
-        foreign_keys: p.foreign_keys.unwrap_or(true),
-    }
+/// Unset keys take [`SqlitePragma::default`]; an unknown value skips this connection.
+fn map_pragma(p: &PragmaSettings) -> anyhow::Result<SqlitePragma> {
+    let d = SqlitePragma::default();
+    Ok(SqlitePragma {
+        journal_mode: p
+            .journal_mode
+            .as_deref()
+            .map(str::parse)
+            .transpose()?
+            .unwrap_or(d.journal_mode),
+        synchronous: p
+            .synchronous
+            .as_deref()
+            .map(str::parse)
+            .transpose()?
+            .unwrap_or(d.synchronous),
+        foreign_keys: p.foreign_keys.unwrap_or(d.foreign_keys),
+    })
 }
 
 #[cfg(test)]
@@ -221,6 +233,42 @@ password = { env = "BASED_TEST_LOADER_MISSING_SECRET" }
             loaded.skipped[0].missing_var.as_deref(),
             Some("BASED_TEST_LOADER_MISSING_SECRET")
         );
+    }
+
+    #[test]
+    fn unknown_pragma_skips_only_that_connection() {
+        let dir = tempfile::tempdir().unwrap();
+        let based = dir.path();
+        let conn_dir = based.join("connections");
+        fs::create_dir_all(&conn_dir).unwrap();
+        fs::write(
+            conn_dir.join("bad.toml"),
+            "schema_version = 1\nlabel = \"Bad\"\nengine = \"sqlite\"\nfile = \"/tmp/b.db\"\n\n[pragma]\njournal_mode = \"fast\"\n",
+        )
+        .unwrap();
+        fs::write(
+            conn_dir.join("good.toml"),
+            "schema_version = 1\nlabel = \"Good\"\nengine = \"sqlite\"\nfile = \"/tmp/g.db\"\n\n[pragma]\njournal_mode = \"DELETE\"\n",
+        )
+        .unwrap();
+        let loaded = load_entries_from_based_dir(based, ConnectionOrigin::Project);
+        assert_eq!(loaded.skipped.len(), 1);
+        assert_eq!(loaded.skipped[0].id, "bad");
+        assert!(
+            loaded.skipped[0]
+                .reason
+                .contains("unsupported journal_mode: fast")
+        );
+        assert_eq!(loaded.entries.len(), 1);
+        match &loaded.entries[0].config {
+            ConnectionConfig::SQLite(c) => {
+                let p = c.pragma.expect("pragma");
+                assert_eq!(p.journal_mode, based_sqlite::JournalMode::Delete);
+                assert_eq!(p.synchronous, based_sqlite::Synchronous::Normal);
+                assert!(p.foreign_keys);
+            }
+            other => panic!("expected sqlite, got {other:?}"),
+        }
     }
 
     #[test]

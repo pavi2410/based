@@ -1,25 +1,157 @@
 use std::env;
+use std::error::Error;
+use std::fmt;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 use sqlx::sqlite::SqliteConnectOptions;
 
-#[derive(Debug, Clone, Default)]
+/// Pragmas applied when a connection opens. Defaults: WAL, NORMAL, foreign keys on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SqlitePragma {
-    pub journal_mode: String,
-    pub synchronous: String,
+    pub journal_mode: JournalMode,
+    pub synchronous: Synchronous,
     pub foreign_keys: bool,
 }
 
-fn default_journal_mode() -> String {
-    "wal".into()
+impl Default for SqlitePragma {
+    fn default() -> Self {
+        Self {
+            journal_mode: JournalMode::default(),
+            synchronous: Synchronous::default(),
+            foreign_keys: true,
+        }
+    }
 }
 
-fn default_synchronous() -> String {
-    "normal".into()
+impl SqlitePragma {
+    pub fn foreign_keys_pragma(&self) -> &'static str {
+        if self.foreign_keys {
+            "PRAGMA foreign_keys=ON"
+        } else {
+            "PRAGMA foreign_keys=OFF"
+        }
+    }
 }
 
-fn default_foreign_keys() -> bool {
-    true
+/// A pragma value a connection file names that SQLite doesn't have.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnknownPragmaValue {
+    pub pragma: &'static str,
+    pub value: String,
+}
+
+impl fmt::Display for UnknownPragmaValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "unsupported {}: {}", self.pragma, self.value)
+    }
+}
+
+impl Error for UnknownPragmaValue {}
+
+/// `PRAGMA journal_mode`, written lowercase in connection files.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum JournalMode {
+    Delete,
+    Truncate,
+    Persist,
+    Memory,
+    #[default]
+    Wal,
+    Off,
+}
+
+impl JournalMode {
+    const ALL: [Self; 6] = [
+        Self::Delete,
+        Self::Truncate,
+        Self::Persist,
+        Self::Memory,
+        Self::Wal,
+        Self::Off,
+    ];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Delete => "delete",
+            Self::Truncate => "truncate",
+            Self::Persist => "persist",
+            Self::Memory => "memory",
+            Self::Wal => "wal",
+            Self::Off => "off",
+        }
+    }
+
+    pub fn pragma(self) -> &'static str {
+        match self {
+            Self::Delete => "PRAGMA journal_mode=DELETE",
+            Self::Truncate => "PRAGMA journal_mode=TRUNCATE",
+            Self::Persist => "PRAGMA journal_mode=PERSIST",
+            Self::Memory => "PRAGMA journal_mode=MEMORY",
+            Self::Wal => "PRAGMA journal_mode=WAL",
+            Self::Off => "PRAGMA journal_mode=OFF",
+        }
+    }
+}
+
+impl FromStr for JournalMode {
+    type Err = UnknownPragmaValue;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::ALL
+            .into_iter()
+            .find(|m| m.as_str().eq_ignore_ascii_case(s))
+            .ok_or_else(|| UnknownPragmaValue {
+                pragma: "journal_mode",
+                value: s.to_string(),
+            })
+    }
+}
+
+/// `PRAGMA synchronous`, written lowercase in connection files.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum Synchronous {
+    Off,
+    #[default]
+    Normal,
+    Full,
+    Extra,
+}
+
+impl Synchronous {
+    const ALL: [Self; 4] = [Self::Off, Self::Normal, Self::Full, Self::Extra];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::Normal => "normal",
+            Self::Full => "full",
+            Self::Extra => "extra",
+        }
+    }
+
+    pub fn pragma(self) -> &'static str {
+        match self {
+            Self::Off => "PRAGMA synchronous=OFF",
+            Self::Normal => "PRAGMA synchronous=NORMAL",
+            Self::Full => "PRAGMA synchronous=FULL",
+            Self::Extra => "PRAGMA synchronous=EXTRA",
+        }
+    }
+}
+
+impl FromStr for Synchronous {
+    type Err = UnknownPragmaValue;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::ALL
+            .into_iter()
+            .find(|m| m.as_str().eq_ignore_ascii_case(s))
+            .ok_or_else(|| UnknownPragmaValue {
+                pragma: "synchronous",
+                value: s.to_string(),
+            })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -117,6 +249,28 @@ pub fn sqlite_connect_options(opts: &SqliteOpenOptions<'_>) -> SqliteConnectOpti
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pragma_defaults_are_wal_normal_foreign_keys_on() {
+        let p = SqlitePragma::default();
+        assert_eq!(p.journal_mode, JournalMode::Wal);
+        assert_eq!(p.synchronous, Synchronous::Normal);
+        assert!(p.foreign_keys);
+    }
+
+    #[test]
+    fn pragma_values_parse_case_insensitively_and_round_trip() {
+        assert_eq!("WAL".parse::<JournalMode>(), Ok(JournalMode::Wal));
+        assert_eq!("extra".parse::<Synchronous>(), Ok(Synchronous::Extra));
+        for m in JournalMode::ALL {
+            assert_eq!(m.as_str().parse::<JournalMode>(), Ok(m));
+        }
+        for m in Synchronous::ALL {
+            assert_eq!(m.as_str().parse::<Synchronous>(), Ok(m));
+        }
+        let err = "fast".parse::<Synchronous>().unwrap_err();
+        assert_eq!(err.to_string(), "unsupported synchronous: fast");
+    }
 
     #[test]
     fn absolute_path_unchanged() {

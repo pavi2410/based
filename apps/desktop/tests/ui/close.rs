@@ -269,13 +269,16 @@ fn the_prompt_renders_a_dialog(cx: &mut TestAppContext) {
 
 /// The saved query editor spec: its SQL and whether it was unsaved.
 fn saved_query_tab(cx: &mut TestAppContext) -> Option<(Option<String>, bool)> {
-    saved_session(cx).tabs.into_iter().find_map(|t| match t {
-        TabSpec::QueryEditor {
-            init: QueryEditorInit::Sql { sql, dirty, .. },
-            ..
-        } => Some((sql, dirty)),
-        _ => None,
-    })
+    saved_session(cx)
+        .tabs
+        .into_iter()
+        .find_map(|t| match t.spec {
+            TabSpec::QueryEditor {
+                init: QueryEditorInit::Sql { sql, dirty, .. },
+                ..
+            } => Some((sql, dirty)),
+            _ => None,
+        })
 }
 
 #[gpui_kit::test]

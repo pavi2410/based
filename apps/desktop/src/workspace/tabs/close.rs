@@ -223,13 +223,8 @@ impl Workspace {
             let Some(panel) = self.find_center_panel(id, cx) else {
                 continue;
             };
-            if let Some(spec) = self
-                .tab_manager
-                .read(cx)
-                .tab_for_panel_id(id)
-                .map(|t| t.spec.clone())
-            {
-                self.forget_session_tab(&spec);
+            if let Some(tab_id) = self.tab_manager.read(cx).tab_for_panel_id(id).map(|t| t.id) {
+                self.forget_session_tab(tab_id);
             }
             self.dock_area.update(cx, |dock, ecx| {
                 remove_presentation_panel(dock, &panel, window, ecx);

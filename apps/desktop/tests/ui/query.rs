@@ -132,7 +132,7 @@ fn open_query_tab(
     };
     cx.update_window(win, |_, window, cx| {
         let opened = ws.update(cx, |ws, cx| ws.dispatch_open_tab(spec, window, cx));
-        assert!(opened, "query tab refused (connection not live?)");
+        assert!(opened.is_open(), "query tab refused (connection not live?)");
         window.render_frame(cx);
     })
     .unwrap();
@@ -284,7 +284,10 @@ fn restored_tab_keeps_its_saved_query_and_unsaved_state(cx: &mut TestAppContext)
         },
     };
     cx.update_window(win, |_, window, cx| {
-        assert!(ws.update(cx, |ws, cx| ws.dispatch_open_tab(spec, window, cx)));
+        assert!(
+            ws.update(cx, |ws, cx| ws.dispatch_open_tab(spec, window, cx))
+                .is_open()
+        );
         window.render_frame(cx);
     })
     .unwrap();

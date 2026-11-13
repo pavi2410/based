@@ -15,7 +15,10 @@ pub fn open_tab(
 ) {
     cx.update_window(win, |_, window, cx| {
         let opened = ws.update(cx, |ws, cx| ws.dispatch_open_tab(spec.clone(), window, cx));
-        assert!(opened, "dispatch_open_tab refused {spec:?}");
+        assert!(
+            opened.is_open(),
+            "dispatch_open_tab refused {spec:?}: {opened:?}"
+        );
         window.render_frame(cx);
     })
     .unwrap();

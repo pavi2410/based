@@ -294,13 +294,13 @@ impl Workspace {
         .detach();
 
         let tab_mgr_observe = workspace.tab_manager.clone();
-        cx.subscribe(&tab_mgr_observe, |ws, _, event: &tabs::TabEvent, ecx| {
-            if matches!(event, tabs::TabEvent::Edited) {
-                ws.note_editor_edit(ecx);
-            } else {
-                ws.save_session(ecx);
-            }
-        })
+        cx.subscribe(
+            &tab_mgr_observe,
+            |ws, _, event: &tabs::TabEvent, ecx| match event {
+                tabs::TabEvent::Edited => ws.note_editor_edit(ecx),
+                tabs::TabEvent::Changed => ws.save_session(ecx),
+            },
+        )
         .detach();
 
         let registry_for_close = registry.clone();
@@ -338,9 +338,7 @@ impl Workspace {
     fn save_session(&mut self, cx: &mut Context<Self>) {
         let active_conn = self.focused_conn_id(cx);
         let tm = self.tab_manager.read(cx);
-        let Some(snapshot) =
-            tabs::SessionSnapshot::capture(tm, self.session.pending(), active_conn)
-        else {
+        let Some(snapshot) = tabs::SessionSnapshot::capture(tm, &self.session, active_conn) else {
             return;
         };
         if !self.session.enqueue(snapshot) {
@@ -368,11 +366,9 @@ impl Workspace {
         self.session_edit_save = None;
         self.sync_tab_manager_from_dock(cx);
         let active_conn = self.focused_conn_id(cx);
-        let Some(snapshot) = tabs::SessionSnapshot::capture(
-            self.tab_manager.read(cx),
-            self.session.pending(),
-            active_conn,
-        ) else {
+        let Some(snapshot) =
+            tabs::SessionSnapshot::capture(self.tab_manager.read(cx), &self.session, active_conn)
+        else {
             return;
         };
         let store = storage::store(cx);
@@ -401,39 +397,24 @@ impl Workspace {
         {
             let registry = self.registry().read(cx);
             let engine_of = |id: &ConnectionId| registry.get(id, cx).map(|e| e.read(cx).engine());
-            for spec in session
-                .tabs
-                .iter_mut()
-                .chain(session.pinned_tabs.iter_mut())
-            {
-                if let Some(engine) = spec.conn_id().and_then(engine_of) {
-                    spec.migrate_legacy_object(engine);
+            for tab in &mut session.tabs {
+                if let Some(engine) = tab.spec.conn_id().and_then(engine_of) {
+                    tab.spec.migrate_legacy_object(engine);
                 }
             }
         }
 
         let active_spec = session
             .active
-            .and_then(|idx| session.tabs.get(idx).cloned());
+            .and_then(|idx| session.tabs.get(idx))
+            .map(|t| t.spec.clone());
         self.session.set_pending(session.tabs);
         self.flush_pending_session_tabs(window, cx);
         if let Some(spec) = active_spec.filter(TabSpec::persist_in_session) {
             self.focus_existing_tab(&spec, window, cx);
         }
-        let pinned: Vec<TabSpec> = session
-            .pinned_tabs
-            .into_iter()
-            .filter(TabSpec::persist_in_session)
-            .collect();
-        if !pinned.is_empty() {
-            self.sync_tab_manager_from_dock(cx);
-            self.tab_manager.update(cx, |tm, ecx| {
-                tm.apply_pinned_specs(&pinned, ecx);
-            });
-            self.refresh_tab_strip_chrome(cx);
-        } else {
-            self.sync_tab_manager_from_dock(cx);
-        }
+        self.sync_tab_manager_from_dock(cx);
+        self.refresh_tab_strip_chrome(cx);
     }
 
     pub fn has_dirty_tabs(&self, cx: &App) -> bool {

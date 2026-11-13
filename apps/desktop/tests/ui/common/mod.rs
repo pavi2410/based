@@ -214,6 +214,11 @@ pub fn saved_session(cx: &mut TestAppContext) -> SessionSnapshot {
     })
 }
 
+/// The specs of the stored session's tabs, in order.
+pub fn saved_specs(cx: &mut TestAppContext) -> Vec<TabSpec> {
+    saved_session(cx).tabs.into_iter().map(|t| t.spec).collect()
+}
+
 /// Store `snapshot` as if a previous run had saved it.
 pub fn store_session(cx: &mut TestAppContext, snapshot: &SessionSnapshot) {
     cx.update(|cx| {

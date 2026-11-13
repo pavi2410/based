@@ -6,7 +6,7 @@ use gpui_kit::{BorrowAppContext, Context};
 
 use super::Workspace;
 use super::panels::query_editor::QueryEditorPanel;
-use super::tabs::{Inbox, QueryEditorInit, Request, TabSpec, inbox};
+use super::tabs::{Inbox, OpenOutcome, QueryEditorInit, Request, TabId, TabSpec, inbox};
 use crate::app::logging::open_logs;
 use crate::app::updater::check_now;
 use crate::command_palette::WorkspacePaletteAction;
@@ -96,21 +96,38 @@ impl Workspace {
         window: &mut gpui_kit::Window,
         cx: &mut Context<Self>,
     ) {
-        for spec in self.session.to_open() {
-            let open = self
+        // Last first, so dropping an entry doesn't shift the ones still to visit.
+        for (index, saved) in self.session.to_open().into_iter().rev() {
+            let already_open = self
                 .tab_manager
                 .read(cx)
                 .tabs
                 .iter()
-                .any(|t| t.spec == spec);
-            if open || self.dispatch_open_tab(spec.clone(), window, cx) {
-                self.session.mark_opened(spec);
+                .find(|t| t.spec == saved.spec)
+                .map(|t| t.id);
+            let outcome = match already_open {
+                Some(id) => OpenOutcome::Focused(id),
+                None => self.dispatch_open_tab(saved.spec.clone(), window, cx),
+            };
+            match outcome {
+                OpenOutcome::Opened(id) | OpenOutcome::Focused(id) => {
+                    self.session.link(index, id);
+                    if saved.pinned {
+                        self.tab_manager
+                            .update(cx, |tm, ecx| tm.set_pinned(id, true, ecx));
+                    }
+                }
+                OpenOutcome::NotYet => {}
+                OpenOutcome::Unsupported => {
+                    log::info!("dropping saved tab that cannot open: {:?}", saved.spec);
+                    self.session.drop_pending(index);
+                }
             }
         }
     }
 
-    pub(crate) fn forget_session_tab(&mut self, spec: &TabSpec) {
-        self.session.forget(spec);
+    pub(crate) fn forget_session_tab(&mut self, id: TabId) {
+        self.session.forget(id);
     }
 
     pub(crate) fn should_preserve_restored_tabs(&self, conn_id: &ConnectionId) -> bool {

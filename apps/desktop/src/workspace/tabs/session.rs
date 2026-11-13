@@ -6,25 +6,50 @@ use std::mem;
 
 use based_storage::{ACTIVE_CONNECTION_ID, ACTIVE_TAB_INDEX, MetadataStore, OPEN_TABS};
 
-use super::manager::TabManager;
+use super::manager::{TabId, TabManager};
 use super::spec::TabSpec;
 use crate::connection::ConnectionId;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+/// Older builds kept pins as a separate list of specs; read once, then cleared.
+const LEGACY_PINNED_TABS: &str = "pinned_tabs";
+
+/// One saved tab: what it shows, and whether it is pinned.
+///
+/// Serialized flat, so an entry written before pins moved here (a bare
+/// `TabSpec`) reads as an unpinned tab.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionTab {
+    #[serde(flatten)]
+    pub spec: TabSpec,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub pinned: bool,
+}
+
+fn is_false(v: &bool) -> bool {
+    !*v
+}
+
+impl SessionTab {
+    pub fn new(spec: TabSpec) -> Self {
+        Self {
+            spec,
+            pinned: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct SessionSnapshot {
-    pub tabs: Vec<TabSpec>,
+    pub tabs: Vec<SessionTab>,
     pub active: Option<usize>,
-    #[serde(default)]
     pub active_connection_id: Option<ConnectionId>,
-    #[serde(default)]
-    pub pinned_tabs: Vec<TabSpec>,
 }
 
 /// Load tabs from the session, skipping any that fail to deserialize.
 /// This gracefully handles the migration from pre-QueryEditorInit sessions
 /// (P3 refactor), where QueryEditor had flat serde fields.
-async fn load_tabs_with_migration(store: &MetadataStore) -> Vec<TabSpec> {
-    if let Ok(Some(tabs)) = store.get_session_json::<Vec<TabSpec>>(OPEN_TABS).await {
+async fn load_tabs_with_migration(store: &MetadataStore) -> Vec<SessionTab> {
+    if let Ok(Some(tabs)) = store.get_session_json::<Vec<SessionTab>>(OPEN_TABS).await {
         return tabs;
     }
     if let Ok(Some(raw)) = store
@@ -39,9 +64,25 @@ async fn load_tabs_with_migration(store: &MetadataStore) -> Vec<TabSpec> {
     vec![]
 }
 
+/// Mark the first unpinned tab equal to each legacy pinned spec as pinned.
+fn apply_legacy_pins(tabs: &mut [SessionTab], pinned: &[TabSpec]) {
+    for spec in pinned {
+        if let Some(tab) = tabs.iter_mut().find(|t| !t.pinned && t.spec == *spec) {
+            tab.pinned = true;
+        }
+    }
+}
+
 impl SessionSnapshot {
     pub async fn load(store: &MetadataStore) -> Self {
-        let tabs = load_tabs_with_migration(store).await;
+        let mut tabs = load_tabs_with_migration(store).await;
+        let legacy_pins: Vec<TabSpec> = store
+            .get_session_json(LEGACY_PINNED_TABS)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        apply_legacy_pins(&mut tabs, &legacy_pins);
         let active = store
             .get_session_json(ACTIVE_TAB_INDEX)
             .await
@@ -52,17 +93,10 @@ impl SessionSnapshot {
             .await
             .ok()
             .flatten();
-        let pinned_tabs = store
-            .get_session_json("pinned_tabs")
-            .await
-            .ok()
-            .flatten()
-            .unwrap_or_default();
         Self {
             tabs,
             active,
             active_connection_id,
-            pinned_tabs,
         }
     }
 
@@ -74,19 +108,19 @@ impl SessionSnapshot {
         store
             .set_session_json(ACTIVE_CONNECTION_ID, &self.active_connection_id)
             .await?;
+        // Pins live on the tabs now; an old list would re-pin by equality.
         store
-            .set_session_json("pinned_tabs", &self.pinned_tabs)
+            .set_session_json(LEGACY_PINNED_TABS, &Vec::<TabSpec>::new())
             .await?;
         Ok(())
     }
-}
 
-impl SessionSnapshot {
-    /// Snapshot of the open tabs; `pending` are restored tabs whose connection is still down.
-    /// `None` when there is nothing worth saving.
+    /// Snapshot of the open tabs plus restored tabs that are not live (their
+    /// connection is down, or the center was replaced). `None` when there is
+    /// nothing worth saving.
     pub fn capture(
         tm: &TabManager,
-        pending: &[TabSpec],
+        session: &SessionState,
         active_connection_id: Option<ConnectionId>,
     ) -> Option<Self> {
         let mut tabs = Vec::new();
@@ -98,9 +132,12 @@ impl SessionSnapshot {
             if tm.active_idx == Some(i) {
                 active = Some(tabs.len());
             }
-            tabs.push(t.spec.clone());
+            tabs.push(SessionTab {
+                spec: t.spec.clone(),
+                pinned: t.pinned,
+            });
         }
-        let tabs = merge_live_and_pending(tabs, pending);
+        tabs.extend(session.not_live(tm).cloned());
         if tabs.is_empty() {
             return None;
         }
@@ -108,23 +145,24 @@ impl SessionSnapshot {
             tabs,
             active,
             active_connection_id,
-            pinned_tabs: tm
-                .pinned_specs()
-                .into_iter()
-                .filter(TabSpec::persist_in_session)
-                .collect(),
         })
     }
+}
+
+/// A restored tab and, once it opened this run, the live tab that stands for it.
+#[derive(Debug, Clone)]
+struct PendingTab {
+    tab: SessionTab,
+    live: Option<TabId>,
 }
 
 /// Restore bookkeeping and the coalescing write queue for one workspace.
 #[derive(Default)]
 pub struct SessionState {
     restored: bool,
-    /// Saved tabs waiting for their connection. Kept until the user closes them.
-    pending: Vec<TabSpec>,
-    /// Pending specs already dispatched this run, so edits do not spawn duplicates.
-    opened: Vec<TabSpec>,
+    /// Saved tabs, kept until the user closes them: opening a connection can
+    /// replace the center, and these bring the tabs back next launch.
+    pending: Vec<PendingTab>,
     /// Newest snapshot waiting for the writer (newer replaces older).
     queued: Option<SessionSnapshot>,
     writing: bool,
@@ -137,39 +175,56 @@ impl SessionState {
     }
 
     /// Tabs to bring back (Home and non-persistent specs are skipped).
-    pub fn set_pending(&mut self, tabs: impl IntoIterator<Item = TabSpec>) {
+    pub fn set_pending(&mut self, tabs: impl IntoIterator<Item = SessionTab>) {
         self.pending = tabs
             .into_iter()
-            .filter(|s| !matches!(s, TabSpec::Home) && s.persist_in_session())
+            .filter(|t| !matches!(t.spec, TabSpec::Home) && t.spec.persist_in_session())
+            .map(|tab| PendingTab { tab, live: None })
             .collect();
     }
 
-    pub fn pending(&self) -> &[TabSpec] {
-        &self.pending
-    }
-
-    /// Pending specs that have not been dispatched yet.
-    pub fn to_open(&self) -> Vec<TabSpec> {
+    /// Restored tabs not dispatched yet this run, by position.
+    pub fn to_open(&self) -> Vec<(usize, SessionTab)> {
         self.pending
             .iter()
-            .filter(|s| !self.opened.contains(s))
-            .cloned()
+            .enumerate()
+            .filter(|(_, p)| p.live.is_none())
+            .map(|(i, p)| (i, p.tab.clone()))
             .collect()
     }
 
-    pub fn mark_opened(&mut self, spec: TabSpec) {
-        self.opened.push(spec);
+    /// The restored tab at `index` opened as `live`; the live tab is saved in its place.
+    pub fn link(&mut self, index: usize, live: TabId) {
+        if let Some(p) = self.pending.get_mut(index) {
+            p.live = Some(live);
+        }
+    }
+
+    /// The restored tab at `index` can never open (its engine has no such tab).
+    pub fn drop_pending(&mut self, index: usize) {
+        if index < self.pending.len() {
+            self.pending.remove(index);
+        }
+    }
+
+    /// Restored tabs that no live tab stands for.
+    fn not_live<'a>(&'a self, tm: &'a TabManager) -> impl Iterator<Item = &'a SessionTab> {
+        self.pending
+            .iter()
+            .filter(|p| p.live.is_none_or(|id| tm.tab(id).is_none()))
+            .map(|p| &p.tab)
     }
 
     /// The user closed this tab: stop restoring and re-saving it.
-    pub fn forget(&mut self, spec: &TabSpec) {
-        self.pending.retain(|s| s != spec);
-        self.opened.retain(|s| s != spec);
+    pub fn forget(&mut self, id: TabId) {
+        self.pending.retain(|p| p.live != Some(id));
     }
 
     /// Whether a restored tab for `conn` is still pending (so its tabs must not be reset).
     pub fn awaits(&self, conn: &ConnectionId) -> bool {
-        self.pending.iter().any(|s| s.conn_id() == Some(conn))
+        self.pending
+            .iter()
+            .any(|p| p.tab.spec.conn_id() == Some(conn))
     }
 
     /// Queue a snapshot. Returns `true` when the caller must start the writer.
@@ -187,94 +242,17 @@ impl SessionState {
     }
 }
 
-/// Live dock tabs plus session tabs that have not opened yet (connection still down).
-pub fn merge_live_and_pending(live: Vec<TabSpec>, pending: &[TabSpec]) -> Vec<TabSpec> {
-    let mut tabs = live;
-    for spec in pending {
-        if spec.persist_in_session() && !tabs.iter().any(|open| open == spec) {
-            tabs.push(spec.clone());
-        }
-    }
-    tabs
-}
-
 #[cfg(test)]
 mod tests {
-    use std::slice;
-
     use super::*;
     use crate::connection::ConnectionId;
-    use crate::workspace::tabs::spec::QueryEditorInit;
 
-    #[test]
-    fn pending_session_tabs_survive_home_only_live_set() {
-        let live = vec![TabSpec::Home];
-        let pending = vec![
-            TabSpec::Dashboard {
-                conn_id: ConnectionId::parse("events"),
-            },
-            TabSpec::DataViewer {
-                conn_id: ConnectionId::parse("events"),
-                object: based_core::ObjectRef::bare("events"),
-                filter: None,
-            },
-        ];
-        let tabs = merge_live_and_pending(live, &pending);
-        assert_eq!(tabs.len(), 3);
-        assert!(matches!(tabs[0], TabSpec::Home));
-        assert!(matches!(tabs[1], TabSpec::Dashboard { .. }));
-        assert!(matches!(tabs[2], TabSpec::DataViewer { .. }));
-    }
-
-    #[test]
-    fn dashboard_plus_blank_query_does_not_drop_restored_sql_or_viewer() {
-        let conn = ConnectionId::parse("events");
-        let live = vec![
-            TabSpec::Dashboard {
-                conn_id: conn.clone(),
-            },
-            TabSpec::blank_query_editor(conn.clone()),
-        ];
-        let pending = vec![
-            TabSpec::Dashboard {
-                conn_id: conn.clone(),
-            },
-            TabSpec::QueryEditor {
-                conn_id: conn.clone(),
-                init: QueryEditorInit::Sql {
-                    sql: Some("SELECT * FROM txns".into()),
-                    auto_run: false,
-                    saved: None,
-                    dirty: false,
-                },
-            },
-            TabSpec::DataViewer {
-                conn_id: conn,
-                object: based_core::ObjectRef::bare("txns"),
-                filter: None,
-            },
-        ];
-        let tabs = merge_live_and_pending(live, &pending);
-        assert!(
-            tabs.iter().any(|t| matches!(
-                t,
-                TabSpec::QueryEditor {
-                    init: QueryEditorInit::Sql {
-                        sql: Some(sql),
-                        ..
-                    },
-                    ..
-                } if sql == "SELECT * FROM txns"
-            )),
-            "saved SQL must survive a live blank query: {tabs:?}"
-        );
-        assert!(
-            tabs.iter().any(|t| matches!(
-                t,
-                TabSpec::DataViewer { object, .. } if object.name == "txns"
-            )),
-            "data viewer must survive dashboard+blank snapshot: {tabs:?}"
-        );
+    fn viewer(object: &str) -> TabSpec {
+        TabSpec::DataViewer {
+            conn_id: ConnectionId::parse("c"),
+            object: based_core::ObjectRef::bare(object),
+            filter: None,
+        }
     }
 
     #[test]
@@ -285,26 +263,39 @@ mod tests {
     }
 
     #[test]
-    fn pending_tabs_open_once_until_forgotten() {
+    fn pending_tabs_open_once_and_close_by_id() {
         let mut st = SessionState::default();
-        let viewer = TabSpec::DataViewer {
-            conn_id: ConnectionId::parse("c"),
-            object: based_core::ObjectRef::bare("t"),
-            filter: None,
-        };
-        st.set_pending([TabSpec::Home, viewer.clone()]);
-        assert_eq!(
-            st.pending(),
-            slice::from_ref(&viewer),
-            "Home is never restored"
-        );
-        assert_eq!(st.to_open(), slice::from_ref(&viewer));
-        st.mark_opened(viewer.clone());
+        st.set_pending([SessionTab::new(TabSpec::Home), SessionTab::new(viewer("t"))]);
+        let to_open = st.to_open();
+        assert_eq!(to_open.len(), 1, "Home is never restored");
+        assert_eq!(to_open[0].1.spec, viewer("t"));
+        let id = TabId::new();
+        st.link(to_open[0].0, id);
         assert!(st.to_open().is_empty());
         assert!(st.awaits(&ConnectionId::parse("c")));
-        st.forget(&viewer);
-        assert!(st.pending().is_empty());
+        st.forget(TabId::new());
+        assert!(st.awaits(&ConnectionId::parse("c")), "another tab's id");
+        st.forget(id);
         assert!(!st.awaits(&ConnectionId::parse("c")));
+    }
+
+    #[test]
+    fn old_entries_read_as_unpinned_tabs_and_legacy_pins_apply_once() {
+        let raw = r#"[
+            {"type":"object_info","conn_id":"t","object_name":"a","kind":"trigger"},
+            {"type":"object_info","conn_id":"t","object_name":"a","kind":"trigger"}
+        ]"#;
+        let mut tabs: Vec<SessionTab> = serde_json::from_str(raw).unwrap();
+        assert!(tabs.iter().all(|t| !t.pinned));
+        let spec = tabs[0].spec.clone();
+        apply_legacy_pins(&mut tabs, &[spec]);
+        assert_eq!(
+            tabs.iter().map(|t| t.pinned).collect::<Vec<_>>(),
+            [true, false],
+            "one pinned spec pins one tab, not every equal one"
+        );
+        let json = serde_json::to_string(&tabs[0]).unwrap();
+        assert!(json.contains(r#""pinned":true"#) && json.contains(r#""type":"object_info""#));
     }
 
     #[test]

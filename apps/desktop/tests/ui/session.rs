@@ -3,18 +3,28 @@
 //! A "launch" is a Workspace window over the same app (and metadata store).
 
 use based_desktop::connection::ConnectionId;
-use based_desktop::workspace::TabSpec;
-use based_desktop::workspace::tabs::SessionSnapshot;
-use gpui_kit::TestAppContext;
+use based_desktop::workspace::panels::query_editor::QueryEditorPanel;
+use based_desktop::workspace::tabs::{CloseScope, SessionSnapshot, SessionTab};
+use based_desktop::workspace::{QueryEditorInit, TabSpec, Workspace};
+use gpui_kit::test::TestWindowExt;
+use gpui_kit::{AnyWindowHandle, AppContext as _, Entity, TestAppContext};
 
 use crate::common::strip::{active_spec, open_tab, specs};
 use crate::common::{
-    info, no_project_env, open_window, open_workspace, saved_session, store_session, wait_until,
+    connect_sqlite, info, no_project_env, open_window, open_workspace, saved_session, saved_specs,
+    seed_sqlite, settle, store_session, wait_until,
 };
 
 /// Wait for the async writer to store a session containing `spec`.
 fn wait_saved(cx: &mut TestAppContext, spec: &TabSpec) {
-    wait_until(cx, |cx| saved_session(cx).tabs.contains(spec));
+    wait_until(cx, |cx| saved_specs(cx).contains(spec));
+}
+
+fn snapshot(specs: impl IntoIterator<Item = TabSpec>) -> SessionSnapshot {
+    SessionSnapshot {
+        tabs: specs.into_iter().map(SessionTab::new).collect(),
+        ..Default::default()
+    }
 }
 
 #[gpui_kit::test]
@@ -23,7 +33,7 @@ fn open_tabs_are_saved(cx: &mut TestAppContext) {
     open_tab(win, &ws, info("a"), cx);
     open_tab(win, &ws, info("b"), cx);
     wait_saved(cx, &info("b"));
-    let saved = saved_session(cx).tabs;
+    let saved = saved_specs(cx);
     assert!(saved.contains(&TabSpec::Home) && saved.contains(&info("a")));
 }
 
@@ -53,7 +63,7 @@ fn next_launch_restores_the_active_tab(cx: &mut TestAppContext) {
     open_tab(win, &ws, info("a"), cx); // re-open focuses `a`
     wait_until(cx, |cx| {
         let s = saved_session(cx);
-        s.active.and_then(|i| s.tabs.get(i)) == Some(&info("a"))
+        s.active.and_then(|i| s.tabs.get(i)).map(|t| &t.spec) == Some(&info("a"))
     });
 
     let (_win2, ws2) = open_window(cx, no_project_env());
@@ -68,7 +78,12 @@ fn next_launch_restores_pinned_tabs(cx: &mut TestAppContext) {
         let id = ws.active_center_panel_id(cx).expect("active panel");
         ws.toggle_pin_tab(id, cx);
     });
-    wait_until(cx, |cx| saved_session(cx).pinned_tabs == [info("a")]);
+    wait_until(cx, |cx| {
+        saved_session(cx)
+            .tabs
+            .iter()
+            .any(|t| t.pinned && t.spec == info("a"))
+    });
 
     let (_win2, ws2) = open_window(cx, no_project_env());
     let pinned = ws2.read_with(cx, |ws, cx| ws.tab_manager().read(cx).pinned_specs());
@@ -84,13 +99,7 @@ fn tabs_for_unavailable_connections_survive_a_save(cx: &mut TestAppContext) {
         filter: None,
     };
     let (win, ws) = open_workspace(cx);
-    store_session(
-        cx,
-        &SessionSnapshot {
-            tabs: vec![TabSpec::Home, gone.clone()],
-            ..Default::default()
-        },
-    );
+    store_session(cx, &snapshot([TabSpec::Home, gone.clone()]));
     let (win2, ws2) = open_window(cx, no_project_env());
     assert!(
         !specs(&ws2, cx).contains(&gone),
@@ -100,9 +109,107 @@ fn tabs_for_unavailable_connections_survive_a_save(cx: &mut TestAppContext) {
     // Any later change re-saves the session; the pending tab must not be dropped.
     open_tab(win2, &ws2, info("a"), cx);
     wait_saved(cx, &info("a"));
-    assert!(
-        saved_session(cx).tabs.contains(&gone),
-        "pending tab lost on save"
-    );
+    assert!(saved_specs(cx).contains(&gone), "pending tab lost on save");
     let _ = (win, ws);
+}
+
+/// A previous run saved one query tab for SQLite connection `demo`; a new
+/// launch restores it once `demo` is connected.
+struct Restored {
+    win: AnyWindowHandle,
+    ws: Entity<Workspace>,
+    _dir: tempfile::TempDir,
+}
+
+fn restored_query(cx: &mut TestAppContext) -> Restored {
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("demo.db");
+    seed_sqlite(&db, &["create table t (id integer)"]);
+    let spec = TabSpec::QueryEditor {
+        conn_id: ConnectionId::parse("demo"),
+        init: QueryEditorInit::Sql {
+            sql: Some("select 1".into()),
+            auto_run: false,
+            saved: None,
+            dirty: false,
+        },
+    };
+    let _first = open_workspace(cx);
+    store_session(cx, &snapshot([TabSpec::Home, spec]));
+    let (win, ws) = open_window(cx, no_project_env());
+    connect_sqlite(cx, &ws, "demo", &db);
+    settle(cx);
+    Restored { win, ws, _dir: dir }
+}
+
+impl Restored {
+    fn editor(&self, cx: &mut TestAppContext) -> Entity<QueryEditorPanel> {
+        self.ws.read_with(cx, |ws, cx| {
+            ws.tab_manager()
+                .read(cx)
+                .tabs
+                .iter()
+                .find_map(|t| t.downcast::<QueryEditorPanel>())
+                .expect("restored query tab")
+        })
+    }
+
+    /// Change something else so the session is written, then read it back.
+    fn save_and_read(&self, cx: &mut TestAppContext) -> Vec<TabSpec> {
+        open_tab(self.win, &self.ws, info("z"), cx);
+        wait_saved(cx, &info("z"));
+        saved_specs(cx)
+    }
+}
+
+fn query_tabs(specs: &[TabSpec]) -> usize {
+    specs
+        .iter()
+        .filter(|s| matches!(s, TabSpec::QueryEditor { .. }))
+        .count()
+}
+
+#[gpui_kit::test]
+fn editing_a_restored_query_saves_it_once(cx: &mut TestAppContext) {
+    let r = restored_query(cx);
+    let editor = r.editor(cx);
+    cx.update_window(r.win, |_, window, cx| {
+        editor.update(cx, |p, cx| p.focus_editor(window, cx));
+        window.input(" -- edited", cx);
+        window.render_frame(cx);
+    })
+    .unwrap();
+    settle(cx);
+    let saved = r.save_and_read(cx);
+    assert_eq!(query_tabs(&saved), 1, "{saved:?}");
+}
+
+#[gpui_kit::test]
+fn a_closed_restored_tab_does_not_come_back(cx: &mut TestAppContext) {
+    let r = restored_query(cx);
+    let editor = r.editor(cx);
+    let id = editor.entity_id();
+    cx.update_window(r.win, |_, window, cx| {
+        r.ws.update(cx, |ws, cx| ws.close_tabs(CloseScope::Tab(id), window, cx))
+    })
+    .unwrap();
+    settle(cx);
+    let saved = r.save_and_read(cx);
+    assert_eq!(query_tabs(&saved), 0, "{saved:?}");
+}
+
+#[gpui_kit::test]
+fn pinning_one_of_two_equal_tabs_pins_only_that_one(cx: &mut TestAppContext) {
+    // Two blank editors on one connection have equal specs.
+    let r = restored_query(cx);
+    let blank = TabSpec::blank_query_editor(ConnectionId::parse("demo"));
+    open_tab(r.win, &r.ws, blank.clone(), cx);
+    open_tab(r.win, &r.ws, blank.clone(), cx);
+    r.ws.update(cx, |ws, cx| {
+        let id = ws.active_center_panel_id(cx).expect("active panel");
+        ws.toggle_pin_tab(id, cx);
+    });
+    wait_until(cx, |cx| saved_session(cx).tabs.iter().any(|t| t.pinned));
+    let pinned = saved_session(cx).tabs.iter().filter(|t| t.pinned).count();
+    assert_eq!(pinned, 1);
 }

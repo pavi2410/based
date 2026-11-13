@@ -9,7 +9,6 @@ use based_project::{
 };
 
 use crate::connection::ConnectionConfig;
-use crate::project::loader::ssl_mode_to_project;
 use crate::sqlite::SqlitePragma;
 
 pub fn persist_config_to_based_dir(
@@ -110,7 +109,7 @@ fn project_connection_from_config(
                     database: c.database.clone(),
                     username: c.username.clone(),
                     password,
-                    ssl_mode: ssl_mode_to_project(c.ssl_mode),
+                    ssl_mode: c.ssl_mode,
                 },
                 ssh,
                 ai: None,

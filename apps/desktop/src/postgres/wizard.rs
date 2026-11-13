@@ -84,14 +84,9 @@ fn parse_path_and_query(path_query: &str) -> (String, SslMode) {
     (db, ssl)
 }
 
+/// `?sslmode=`; anything libpq wouldn't accept falls back to its default, `prefer`.
 fn ssl_mode_from_str(s: &str) -> SslMode {
-    match s.to_ascii_lowercase().as_str() {
-        "disable" | "off" => SslMode::Disable,
-        "require" => SslMode::Require,
-        "verify-ca" => SslMode::VerifyCa,
-        "verify-full" => SslMode::VerifyFull,
-        _ => SslMode::Prefer,
-    }
+    s.parse().unwrap_or_default()
 }
 
 fn url_decode(s: &str) -> String {

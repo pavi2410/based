@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 
-use based_core::{ConnectionKey, EngineKind};
+use based_core::{ConnectionKey, EngineKind, SslMode};
 
 use crate::ai::AiSettings;
 use crate::env_value::EnvOrString;
@@ -23,23 +23,12 @@ pub struct ProjectConnection {
     pub ai: Option<AiSettings>,
 }
 
-/// Postgres TLS mode, persisted as `ssl_mode = "verify-full"` etc.
-///
-/// Older files only have `ssl = true|false`; those read as `require` / `disable`.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum PostgresSslMode {
-    Disable,
-    #[default]
-    Prefer,
-    Require,
-    VerifyCa,
-    VerifyFull,
-}
-
-impl PostgresSslMode {
-    fn from_legacy(ssl: bool) -> Self {
-        if ssl { Self::Require } else { Self::Disable }
+/// `ssl = true|false` from files written before `ssl_mode` existed.
+fn ssl_mode_from_legacy(ssl: bool) -> SslMode {
+    if ssl {
+        SslMode::Require
+    } else {
+        SslMode::Disable
     }
 }
 
@@ -65,7 +54,7 @@ pub enum ConnectionSpec {
         database: String,
         username: String,
         password: EnvOrString,
-        ssl_mode: PostgresSslMode,
+        ssl_mode: SslMode,
     },
     MongoDB {
         url: EnvOrString,
@@ -119,7 +108,7 @@ struct RawConnectionFile {
     #[serde(default)]
     ssl: Option<bool>,
     #[serde(default)]
-    ssl_mode: Option<PostgresSslMode>,
+    ssl_mode: Option<SslMode>,
     #[serde(default)]
     url: Option<EnvOrString>,
     #[serde(default)]
@@ -224,7 +213,7 @@ struct WriteConnectionFile {
     #[serde(skip_serializing_if = "Option::is_none")]
     ssl: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    ssl_mode: Option<PostgresSslMode>,
+    ssl_mode: Option<SslMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     url: Option<EnvOrString>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -280,7 +269,7 @@ impl From<&ProjectConnection> for WriteConnectionFile {
                 out.database = Some(database.clone());
                 out.username = Some(username.clone());
                 out.password = Some(password.clone());
-                out.ssl = Some(*ssl_mode != PostgresSslMode::Disable);
+                out.ssl = Some(*ssl_mode != SslMode::Disable);
                 out.ssl_mode = Some(*ssl_mode);
             }
             ConnectionSpec::MongoDB { url, database } => {
@@ -349,7 +338,7 @@ fn parse_connection_file(connections_dir: &Path, path: &Path) -> Result<ProjectC
                 .unwrap_or(EnvOrString::Literal(String::new())),
             ssl_mode: file
                 .ssl_mode
-                .unwrap_or_else(|| PostgresSslMode::from_legacy(file.ssl.unwrap_or(false))),
+                .unwrap_or_else(|| ssl_mode_from_legacy(file.ssl.unwrap_or(false))),
         },
         EngineKind::MongoDB => {
             let url = file
@@ -560,9 +549,9 @@ ssl = false
             ConnectionSpec::Postgres { ssl_mode, .. } => *ssl_mode,
             other => panic!("expected postgres, got {other:?}"),
         };
-        assert_eq!(mode("legacy_on"), PostgresSslMode::Require);
-        assert_eq!(mode("legacy_off"), PostgresSslMode::Disable);
-        assert_eq!(mode("both"), PostgresSslMode::VerifyCa);
+        assert_eq!(mode("legacy_on"), SslMode::Require);
+        assert_eq!(mode("legacy_off"), SslMode::Disable);
+        assert_eq!(mode("both"), SslMode::VerifyCa);
     }
 
     #[test]
@@ -645,7 +634,7 @@ ssl = false
                 database: "app".into(),
                 username: "app".into(),
                 password: EnvOrString::Literal(String::new()),
-                ssl_mode: PostgresSslMode::Require,
+                ssl_mode: SslMode::Require,
             },
             ssh: Some(SshSettings {
                 host: "bastion.example.com".into(),
@@ -692,7 +681,7 @@ ssl = false
                 password: EnvOrString::FromEnv {
                     var: "BASED_ANALYTICS_PASSWORD".into(),
                 },
-                ssl_mode: PostgresSslMode::VerifyFull,
+                ssl_mode: SslMode::VerifyFull,
             },
             ssh: None,
             ai: None,
@@ -745,7 +734,7 @@ ssl = false
                         var: "BASED_ANALYTICS_PASSWORD".into()
                     }
                 );
-                assert_eq!(ssl_mode, &PostgresSslMode::VerifyFull);
+                assert_eq!(ssl_mode, &SslMode::VerifyFull);
             }
             other => panic!("expected postgres, got {other:?}"),
         }

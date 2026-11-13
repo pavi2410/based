@@ -14,8 +14,8 @@ mod walk;
 
 pub use ai::{AiContext, AiSettings};
 pub use connection::{
-    ConnectionSpec, PostgresSslMode, PragmaSettings, ProjectConnection, SshSettings,
-    load_connections, load_connections_from_based_dir, slug_from_label, write_connection_file,
+    ConnectionSpec, PragmaSettings, ProjectConnection, SshSettings, load_connections,
+    load_connections_from_based_dir, slug_from_label, write_connection_file,
 };
 pub use dotenv::{load_env_file, remove_env_key, secret_env_key, upsert_env_file};
 pub use env_value::{EnvOrString, MissingEnvVar};

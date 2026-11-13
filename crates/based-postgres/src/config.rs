@@ -15,16 +15,7 @@ pub struct PostgresConfig {
     pub ssh: Option<SshTunnelConfig>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum SslMode {
-    #[default]
-    Prefer,
-    Require,
-    Disable,
-    VerifyCa,
-    VerifyFull,
-}
+pub use based_core::SslMode;
 
 pub fn pg_ssl_mode(m: SslMode) -> PgSslMode {
     match m {

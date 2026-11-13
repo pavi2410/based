@@ -3,36 +3,16 @@ use std::path::Path;
 
 use based_core::SshTunnelConfig;
 use based_project::{
-    ConnectionSpec, MissingEnvVar, PostgresSslMode, PragmaSettings, ProjectConnection, SshSettings,
+    ConnectionSpec, MissingEnvVar, PragmaSettings, ProjectConnection, SshSettings,
     load_connections_from_based_dir, load_env_file,
 };
 use based_sqlite::SqlitePragma;
 
 use crate::connection::{ConnectionConfig, ConnectionEntry, ConnectionId, ConnectionOrigin};
 use crate::mongodb::MongoConfig;
-use crate::postgres::{PostgresConfig, SslMode};
+use crate::postgres::PostgresConfig;
 use crate::redis::RedisConfig;
 use crate::sqlite::SqliteConfig;
-
-pub(crate) fn ssl_mode_from_project(mode: PostgresSslMode) -> SslMode {
-    match mode {
-        PostgresSslMode::Disable => SslMode::Disable,
-        PostgresSslMode::Prefer => SslMode::Prefer,
-        PostgresSslMode::Require => SslMode::Require,
-        PostgresSslMode::VerifyCa => SslMode::VerifyCa,
-        PostgresSslMode::VerifyFull => SslMode::VerifyFull,
-    }
-}
-
-pub(crate) fn ssl_mode_to_project(mode: SslMode) -> PostgresSslMode {
-    match mode {
-        SslMode::Disable => PostgresSslMode::Disable,
-        SslMode::Prefer => PostgresSslMode::Prefer,
-        SslMode::Require => PostgresSslMode::Require,
-        SslMode::VerifyCa => PostgresSslMode::VerifyCa,
-        SslMode::VerifyFull => PostgresSslMode::VerifyFull,
-    }
-}
 
 pub fn entry_from_tree(
     conn: &ProjectConnection,
@@ -60,7 +40,7 @@ pub fn entry_from_tree(
             database: database.clone(),
             username: username.clone(),
             password: password.resolve_with(file_vars)?,
-            ssl_mode: ssl_mode_from_project(*ssl_mode),
+            ssl_mode: *ssl_mode,
             ssh: conn
                 .ssh
                 .as_ref()
@@ -260,7 +240,7 @@ password = { env = "BASED_TEST_LOADER_MISSING_SECRET" }
                 password: EnvOrString::FromEnv {
                     var: "BASED_PG_PASSWORD".into(),
                 },
-                ssl_mode: PostgresSslMode::Disable,
+                ssl_mode: based_core::SslMode::Disable,
             },
             ssh: None,
             ai: None,
@@ -287,7 +267,7 @@ password = { env = "BASED_TEST_LOADER_MISSING_SECRET" }
                 database: "db".into(),
                 username: "u".into(),
                 password: EnvOrString::Literal(String::new()),
-                ssl_mode: PostgresSslMode::Require,
+                ssl_mode: based_core::SslMode::Require,
             },
             ssh: Some(SshSettings {
                 host: "bastion.example.com".into(),

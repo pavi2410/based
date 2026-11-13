@@ -8,6 +8,7 @@ pub mod object;
 pub mod page;
 pub mod session;
 pub mod ssh;
+pub mod ssl;
 pub mod value;
 
 pub use auth::AuthMethod;
@@ -22,4 +23,5 @@ pub use page::{
 };
 pub use session::{PersistedConnection, WorkspaceState};
 pub use ssh::SshTunnelConfig;
+pub use ssl::{SslMode, UnknownSslMode};
 pub use value::Value;

@@ -9,7 +9,7 @@ use time::OffsetDateTime;
 
 use based_core::{EngineKind, Value};
 use based_project::{SaveTarget, save_sql_query};
-use based_query::{Lint, Severity};
+use based_query::{Lint, RunOutcome, Severity};
 use futures::future::BoxFuture;
 use gpui_kit::component::{
     ActiveTheme, Disableable as _, Icon, IconName, Selectable as _, Sizable as _, Theme, WindowExt,
@@ -627,7 +627,7 @@ impl QueryEditorPanel {
             .trim()
             .to_string();
         let batch = total > 1;
-        let (history_rows, proceed) = match outcome {
+        let (history_outcome, proceed) = match outcome {
             Ok(out) => {
                 let columns: Vec<Column> = out
                     .columns
@@ -673,7 +673,12 @@ impl QueryEditorPanel {
                         self.bottom_tab = BottomTab::Messages;
                     }
                 }
-                (Some(n as u64), true)
+                (
+                    RunOutcome::Ok {
+                        rows: Some(n as u64),
+                    },
+                    true,
+                )
             }
             Err(e) => {
                 self.bottom_tab = BottomTab::Messages;
@@ -683,23 +688,18 @@ impl QueryEditorPanel {
                     .push(format!("{}  {first_line} — failed", index + 1));
                 let editor_sql = self.current_sql(cx);
                 let span = locate_error(&editor_sql, &message);
+                let history = RunOutcome::error(&message);
                 self.status = QueryStatus::Error { message, span };
                 self.mark_error(cx);
-                (None, false)
+                (history, false)
             }
-        };
-        let run_status = if history_rows.is_some() {
-            based_query::RunStatus::Ok
-        } else {
-            based_query::RunStatus::Error
         };
         cx.update_global(|store: &mut QueryStore, _| {
             store.push_history(HistoryEntry::new(
                 conn_id,
                 sql,
-                ms,
-                history_rows,
-                run_status,
+                Duration::from_millis(ms),
+                history_outcome,
             ));
         });
         cx.notify();
@@ -826,7 +826,7 @@ impl QueryEditorPanel {
                         let meta = format!(
                             "{} · {} ms",
                             format_relative(h.ran_at, OffsetDateTime::now_utc()),
-                            h.duration_ms
+                            h.duration.as_millis()
                         );
                         (first_line, meta)
                     })
@@ -1025,9 +1025,13 @@ impl QueryEditorPanel {
                 }
                 (
                     line,
-                    format!("{} · {} ms", format_relative(h.ran_at, now), h.duration_ms),
+                    format!(
+                        "{} · {} ms",
+                        format_relative(h.ran_at, now),
+                        h.duration.as_millis()
+                    ),
                     h.query.clone(),
-                    h.status == based_query::RunStatus::Ok,
+                    h.outcome.is_ok(),
                 )
             })
             .collect()

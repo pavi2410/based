@@ -95,6 +95,7 @@ mod tests {
     use based_project::{ProjectQuery, QueryBody, QueryTarget};
     use std::env;
     use std::sync::Mutex;
+    use std::time::Duration;
 
     static CWD_LOCK: Mutex<()> = Mutex::new(());
 
@@ -135,9 +136,8 @@ mod tests {
         HistoryEntry::new(
             based_core::ConnectionId::parse("ws-template:x"),
             sql,
-            1,
-            Some(0),
-            based_query::RunStatus::Ok,
+            Duration::from_millis(1),
+            based_query::RunOutcome::Ok { rows: Some(0) },
         )
     }
 

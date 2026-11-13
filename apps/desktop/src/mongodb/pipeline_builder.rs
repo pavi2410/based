@@ -35,7 +35,7 @@ use crate::widgets::virtual_table::{
 };
 use crate::workspace::notify::push_export_success;
 use crate::workspace::tabs::kind::names;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 pub struct PipelineBuilderPanel {
     focus_handle: FocusHandle,
@@ -204,9 +204,10 @@ impl PipelineBuilderPanel {
                         store.push_history(HistoryEntry::new(
                             conn_id.clone(),
                             pipeline_for_history,
-                            ms,
-                            Some(row_count),
-                            based_query::RunStatus::Ok,
+                            Duration::from_millis(ms),
+                            based_query::RunOutcome::Ok {
+                                rows: Some(row_count),
+                            },
                         ));
                     });
                     let column_meta = align_meta_to_columns(

@@ -7,7 +7,7 @@ pub mod saved;
 pub mod sql;
 pub mod variables;
 
-pub use history::{HistoryEntry, MAX_HISTORY_PER_CONNECTION, QueryHistory, RunStatus};
+pub use history::{HistoryEntry, MAX_HISTORY_PER_CONNECTION, QueryHistory, RunOutcome};
 pub use lint::{Lint, Severity, syntax_lints};
 pub use resolve::{ResolveError, VariableContext, resolve_query};
 pub use saved::{SavedQueries, SavedQuery};

@@ -1,6 +1,7 @@
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use based_core::ConnectionId;
 use serde::{Deserialize, Serialize};
@@ -9,47 +10,53 @@ use uuid::Uuid;
 
 pub const MAX_HISTORY_PER_CONNECTION: usize = 500;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RunStatus {
-    #[default]
-    Ok,
-    Error,
+/// How a run ended.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RunOutcome {
+    /// `rows`: rows returned, when the statement returned any.
+    Ok { rows: Option<u64> },
+    /// `summary`: the first line of the error.
+    Error { summary: String },
+}
+
+impl RunOutcome {
+    pub fn is_ok(&self) -> bool {
+        matches!(self, Self::Ok { .. })
+    }
+
+    /// An error outcome summarised to the message's first line.
+    pub fn error(message: &str) -> Self {
+        Self::Error {
+            summary: message
+                .lines()
+                .next()
+                .unwrap_or_default()
+                .trim()
+                .to_string(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(from = "RawEntry", into = "RawEntry")]
 pub struct HistoryEntry {
-    #[serde(default = "new_entry_id")]
     pub id: Uuid,
     pub conn_id: ConnectionId,
-    #[serde(default)]
     pub database: Option<String>,
     pub query: String,
-    #[serde(with = "time::serde::rfc3339")]
     pub ran_at: OffsetDateTime,
-    pub duration_ms: u64,
-    pub row_count: Option<u64>,
-    #[serde(default)]
-    pub status: RunStatus,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub error_summary: Option<String>,
-    #[serde(default)]
+    pub duration: Duration,
+    pub outcome: RunOutcome,
     pub pinned: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
-}
-
-fn new_entry_id() -> Uuid {
-    Uuid::new_v4()
 }
 
 impl HistoryEntry {
     pub fn new(
         conn_id: ConnectionId,
         query: impl Into<String>,
-        duration_ms: u64,
-        row_count: Option<u64>,
-        status: RunStatus,
+        duration: Duration,
+        outcome: RunOutcome,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -57,12 +64,90 @@ impl HistoryEntry {
             database: None,
             query: query.into(),
             ran_at: OffsetDateTime::now_utc(),
-            duration_ms,
-            row_count,
-            status,
-            error_summary: None,
+            duration,
+            outcome,
             pinned: false,
             label: None,
+        }
+    }
+}
+
+/// On-disk shape of a history line (flat `status` / `row_count` /
+/// `error_summary`), unchanged so existing files and older builds read it.
+#[derive(Serialize, Deserialize)]
+struct RawEntry {
+    #[serde(default = "new_entry_id")]
+    id: Uuid,
+    conn_id: ConnectionId,
+    #[serde(default)]
+    database: Option<String>,
+    query: String,
+    #[serde(with = "time::serde::rfc3339")]
+    ran_at: OffsetDateTime,
+    duration_ms: u64,
+    row_count: Option<u64>,
+    #[serde(default)]
+    status: RawStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    error_summary: Option<String>,
+    #[serde(default)]
+    pinned: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    label: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum RawStatus {
+    #[default]
+    Ok,
+    Error,
+}
+
+fn new_entry_id() -> Uuid {
+    Uuid::new_v4()
+}
+
+impl From<RawEntry> for HistoryEntry {
+    fn from(r: RawEntry) -> Self {
+        let outcome = match r.status {
+            RawStatus::Ok => RunOutcome::Ok { rows: r.row_count },
+            RawStatus::Error => RunOutcome::Error {
+                summary: r.error_summary.unwrap_or_default(),
+            },
+        };
+        Self {
+            id: r.id,
+            conn_id: r.conn_id,
+            database: r.database,
+            query: r.query,
+            ran_at: r.ran_at,
+            duration: Duration::from_millis(r.duration_ms),
+            outcome,
+            pinned: r.pinned,
+            label: r.label,
+        }
+    }
+}
+
+impl From<HistoryEntry> for RawEntry {
+    fn from(e: HistoryEntry) -> Self {
+        let (status, row_count, error_summary) = match e.outcome {
+            RunOutcome::Ok { rows } => (RawStatus::Ok, rows, None),
+            RunOutcome::Error { summary } => (RawStatus::Error, None, Some(summary)),
+        };
+        Self {
+            id: e.id,
+            conn_id: e.conn_id,
+            database: e.database,
+            query: e.query,
+            ran_at: e.ran_at,
+            duration_ms: u64::try_from(e.duration.as_millis()).unwrap_or(u64::MAX),
+            row_count,
+            status,
+            error_summary,
+            pinned: e.pinned,
+            label: e.label,
         }
     }
 }
@@ -190,19 +275,12 @@ mod tests {
     use tempfile::tempdir;
 
     fn entry(conn: &str, sql: &str) -> HistoryEntry {
-        HistoryEntry {
-            id: Uuid::new_v4(),
-            conn_id: ConnectionId::parse(conn),
-            database: None,
-            query: sql.into(),
-            ran_at: OffsetDateTime::now_utc(),
-            duration_ms: 10,
-            row_count: Some(5),
-            status: RunStatus::Ok,
-            error_summary: None,
-            pinned: false,
-            label: None,
-        }
+        HistoryEntry::new(
+            ConnectionId::parse(conn),
+            sql,
+            Duration::from_millis(10),
+            RunOutcome::Ok { rows: Some(5) },
+        )
     }
 
     #[test]
@@ -244,5 +322,28 @@ mod tests {
         assert!(h.set_pinned(id, true, Some(dir.path())));
         let h2 = QueryHistory::load(dir.path());
         assert!(h2.entries[0].pinned);
+    }
+
+    #[test]
+    fn old_lines_read_and_errors_keep_their_summary() {
+        let old = r#"{"conn_id":"pg","query":"select 1","ran_at":"2026-01-01T00:00:00Z","duration_ms":7,"row_count":3}"#;
+        let e: HistoryEntry = serde_json::from_str(old).unwrap();
+        assert_eq!(e.outcome, RunOutcome::Ok { rows: Some(3) });
+        assert_eq!(e.duration, Duration::from_millis(7));
+
+        let failed = HistoryEntry::new(
+            ConnectionId::parse("pg"),
+            "selec 1",
+            Duration::from_millis(1),
+            RunOutcome::error("syntax error at or near \"selec\"\nLINE 1: selec 1"),
+        );
+        let json = serde_json::to_string(&failed).unwrap();
+        assert!(json.contains(r#""status":"error""#), "{json}");
+        assert!(
+            json.contains(r#""error_summary":"syntax error at or near \"selec\"""#),
+            "{json}"
+        );
+        let back: HistoryEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.outcome, failed.outcome);
     }
 }

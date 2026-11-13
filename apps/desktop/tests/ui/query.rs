@@ -1,10 +1,12 @@
 //! SQLite query round trip: real connection, real editor panel, real results grid.
 
 use based_desktop::connection::ConnectionId;
+use based_desktop::query_store::QueryStore;
 use based_desktop::workspace::panels::query_editor::{HoldReason, QueryEditorPanel};
 use based_desktop::workspace::panels::query_view::ResultSnapshot;
 use based_desktop::workspace::tabs::spec::SavedQueryRef;
 use based_desktop::workspace::{QueryEditorInit, TabSpec, Workspace};
+use based_query::RunOutcome;
 use gpui_kit::test::TestWindowExt;
 use gpui_kit::{AnyWindowHandle, AppContext, Entity, TestAppContext};
 
@@ -187,6 +189,18 @@ fn invalid_sql_reports_an_error(cx: &mut TestAppContext) {
     let result = ed.finished(cx);
     assert!(result.error.is_some(), "{result:?}");
     assert!(result.rows.is_empty());
+    // History records why it failed.
+    let outcome = cx.update(|cx| {
+        cx.global::<QueryStore>()
+            .history
+            .recent(1)
+            .first()
+            .map(|h| h.outcome.clone())
+    });
+    assert!(
+        matches!(&outcome, Some(RunOutcome::Error { summary }) if !summary.is_empty()),
+        "{outcome:?}"
+    );
 }
 
 #[gpui_kit::test]

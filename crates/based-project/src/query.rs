@@ -3,6 +3,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
+use toml_edit::{DocumentMut, value};
 
 use crate::target::QueryTarget;
 use crate::walk::{rel_id, walk_toml_files};
@@ -102,8 +103,9 @@ pub fn slugify(name: &str) -> String {
 }
 
 /// Write a SQL query into `.based/queries/` and return its project-relative path
-/// (no `.toml`). With `overwrite` the file at that path is replaced; otherwise a
-/// numeric suffix keeps an existing file safe.
+/// (no `.toml`). With `overwrite` an existing `[sql]` file keeps everything but its
+/// name and query text (description, tags, target, comments); otherwise a numeric
+/// suffix keeps an existing file safe.
 pub fn save_sql_query(
     project_root: &Path,
     name: &str,
@@ -126,6 +128,13 @@ pub fn save_sql_query(
             candidate
         }
     };
+    let file = dir.join(format!("{rel}.toml"));
+    if overwrite.is_some()
+        && let Some(text) = update_sql_in_place(&file, name, sql)
+    {
+        fs::write(&file, text).with_context(|| format!("write {}", file.display()))?;
+        return Ok(rel);
+    }
     let (connection, engine) = match target {
         SaveTarget::Connection(id) => (Some(id.as_str()), None),
         SaveTarget::Engine(e) => (None, Some(e.as_str())),
@@ -137,12 +146,22 @@ pub fn save_sql_query(
         sql: SqlOut { query: sql },
     };
     let text = toml::to_string(&out).context("encode query")?;
-    let file = dir.join(format!("{rel}.toml"));
     if let Some(parent) = file.parent() {
         fs::create_dir_all(parent)?;
     }
     fs::write(&file, text).with_context(|| format!("write {}", file.display()))?;
     Ok(rel)
+}
+
+/// The existing query file with only `name` and `[sql] query` replaced, or `None`
+/// when there is no `[sql]` file to update (missing, unreadable, `[aggregate]`).
+fn update_sql_in_place(file: &Path, name: &str, sql: &str) -> Option<String> {
+    let raw = fs::read_to_string(file).ok()?;
+    let mut doc: DocumentMut = raw.parse().ok()?;
+    let table = doc.get_mut("sql")?.as_table_mut()?;
+    table["query"] = value(sql);
+    doc["name"] = value(name);
+    Some(doc.to_string())
 }
 
 pub fn load_queries(project_root: &Path) -> Result<Vec<ProjectQuery>> {
@@ -279,6 +298,48 @@ query = "SELECT 1"
         let loaded = load_queries(dir.path()).unwrap();
         let again = loaded.iter().find(|q| q.path == "my-query").unwrap();
         assert!(matches!(&again.body, QueryBody::Sql { query } if query == "select 3"));
+    }
+
+    #[test]
+    fn overwriting_keeps_description_tags_and_target() {
+        let dir = tempfile::tempdir().unwrap();
+        let queries = dir.path().join(".based").join("queries");
+        fs::create_dir_all(&queries).unwrap();
+        fs::write(
+            queries.join("top.toml"),
+            r#"# Shared report, keep the target generic.
+schema_version = 1
+name = "Top users"
+description = "Most active users this week"
+tags = ["reports"]
+
+[target]
+engine = "postgres"
+
+[sql]
+query = "select 1"
+"#,
+        )
+        .unwrap();
+        save_sql_query(
+            dir.path(),
+            "Top users",
+            "select 2",
+            &SaveTarget::Connection("my-local-pg".into()),
+            Some("top"),
+        )
+        .unwrap();
+        let raw = fs::read_to_string(queries.join("top.toml")).unwrap();
+        assert!(raw.starts_with("# Shared report"), "{raw}");
+        let q = load_queries(dir.path()).unwrap().remove(0);
+        assert!(matches!(&q.body, QueryBody::Sql { query } if query == "select 2"));
+        assert_eq!(
+            q.description.as_deref(),
+            Some("Most active users this week")
+        );
+        assert_eq!(q.tags, ["reports"]);
+        assert_eq!(q.target.engine.as_deref(), Some("postgres"));
+        assert!(q.target.connection.is_none());
     }
 
     #[test]

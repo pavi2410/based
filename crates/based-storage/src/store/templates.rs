@@ -2,7 +2,7 @@
 
 use anyhow::{Context, Result};
 use based_workspace::ConnectionTemplate;
-use uuid::Uuid;
+use based_workspace::{TemplateId, WorkspaceId};
 
 use super::{MetadataStore, parse_uuid};
 use crate::secrets::SecretStore;
@@ -12,7 +12,7 @@ impl MetadataStore {
 
     pub async fn upsert_connection_template(
         &self,
-        workspace_id: Uuid,
+        workspace_id: WorkspaceId,
         template: &ConnectionTemplate,
     ) -> Result<()> {
         let mut tx = self.pool.begin().await.context("begin upsert template")?;
@@ -32,7 +32,7 @@ impl MetadataStore {
 
     pub async fn set_template_password_secret(
         &self,
-        template_id: Uuid,
+        template_id: TemplateId,
         password: &str,
     ) -> Result<()> {
         let ref_key = SecretStore::template_password_ref(template_id);
@@ -170,7 +170,7 @@ impl MetadataStore {
 }
 
 fn split_template_password(
-    template_id: Uuid,
+    template_id: TemplateId,
     password: &str,
     secrets: &SecretStore,
 ) -> Result<(String, Option<String>)> {

@@ -3,16 +3,17 @@ use std::collections::HashMap;
 use based_core::EngineKind;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
-use uuid::Uuid;
+
+use crate::ids::{CollectionId, EnvironmentId, QueryId, TemplateId, WorkspaceId};
 
 /// Workspace-level model (not repo-bound by default).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkspaceModel {
-    pub id: Uuid,
+    pub id: WorkspaceId,
     pub name: String,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
-    pub active_environment_id: Option<Uuid>,
+    pub active_environment_id: Option<EnvironmentId>,
     pub environments: Vec<Environment>,
     pub connection_templates: Vec<ConnectionTemplate>,
     pub collections: Vec<Collection>,
@@ -23,7 +24,7 @@ impl WorkspaceModel {
     pub fn new(name: impl Into<String>) -> Self {
         let now = OffsetDateTime::now_utc();
         Self {
-            id: Uuid::new_v4(),
+            id: WorkspaceId::new(),
             name: name.into(),
             created_at: now,
             updated_at: now,
@@ -38,7 +39,7 @@ impl WorkspaceModel {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Environment {
-    pub id: Uuid,
+    pub id: EnvironmentId,
     pub name: String,
     #[serde(default)]
     pub variables: HashMap<String, String>,
@@ -46,7 +47,7 @@ pub struct Environment {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectionTemplate {
-    pub id: Uuid,
+    pub id: TemplateId,
     pub label: String,
     /// Defaults to Postgres for templates created before the engine column existed.
     #[serde(default = "legacy_template_engine")]
@@ -61,25 +62,25 @@ pub struct ConnectionTemplate {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LooseQuery {
-    pub id: Uuid,
+    pub id: QueryId,
     pub name: String,
     pub sql: String,
-    pub connection_template_id: Option<Uuid>,
+    pub connection_template_id: Option<TemplateId>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Collection {
-    pub id: Uuid,
+    pub id: CollectionId,
     pub name: String,
     pub queries: Vec<SavedQueryRef>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SavedQueryRef {
-    pub id: Uuid,
+    pub id: QueryId,
     pub name: String,
     pub sql: String,
-    pub connection_template_id: Option<Uuid>,
+    pub connection_template_id: Option<TemplateId>,
 }
 
 fn legacy_template_engine() -> EngineKind {

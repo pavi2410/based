@@ -48,7 +48,7 @@ impl SecretStore {
     }
 
     /// Stable ref for a connection-template password field.
-    pub fn template_password_ref(template_id: uuid::Uuid) -> String {
+    pub fn template_password_ref(template_id: based_workspace::TemplateId) -> String {
         format!("connection-template:{template_id}:password")
     }
 }
@@ -73,7 +73,7 @@ mod tests {
 
     #[test]
     fn template_password_ref_is_stable() {
-        let id = uuid::Uuid::nil();
+        let id = based_workspace::TemplateId::from(uuid::Uuid::nil());
         assert_eq!(
             SecretStore::template_password_ref(id),
             "connection-template:00000000-0000-0000-0000-000000000000:password"

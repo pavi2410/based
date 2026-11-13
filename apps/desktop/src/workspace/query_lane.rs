@@ -5,11 +5,11 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use based_storage::MetadataStore;
+use based_workspace::QueryId;
 use gpui_kit::component::{ActiveTheme, menu::ContextMenuExt, menu::PopupMenuItem, v_flex};
 use gpui_kit::{
     AnyElement, App, FontWeight, MouseButton, ParentElement, SharedString, Styled, div, prelude::*,
 };
-use uuid::Uuid;
 
 use crate::connection::ConnectionId;
 use crate::connection::ConnectionState::Connected;
@@ -279,7 +279,7 @@ fn create_collection(cx: &mut App) {
     });
 }
 
-fn move_loose_to_collection(query_id: Uuid, collection_name: &str, cx: &mut App) {
+fn move_loose_to_collection(query_id: QueryId, collection_name: &str, cx: &mut App) {
     let name = collection_name.to_string();
     mutate(cx, move |store, ctx| async move {
         let Some(c) = ctx.active.collections.iter().find(|c| c.name == name) else {
@@ -292,7 +292,7 @@ fn move_loose_to_collection(query_id: Uuid, collection_name: &str, cx: &mut App)
     });
 }
 
-fn move_collection_to_loose(query_id: Uuid, cx: &mut App) {
+fn move_collection_to_loose(query_id: QueryId, cx: &mut App) {
     mutate(cx, move |store, ctx| async move {
         store.move_query_to_loose(ctx.active.id, query_id).await?;
         Ok(())

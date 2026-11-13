@@ -36,7 +36,7 @@ impl WorkspaceContext {
 
 pub async fn refresh_context(
     store: Arc<MetadataStore>,
-    workspace_id: uuid::Uuid,
+    workspace_id: based_workspace::WorkspaceId,
 ) -> Result<WorkspaceContext> {
     let active = store
         .get_workspace(workspace_id)

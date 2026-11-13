@@ -2,14 +2,18 @@
 
 use anyhow::{Context, Result, bail};
 use based_workspace::{Collection, LooseQuery, SavedQueryRef};
-use uuid::Uuid;
+use based_workspace::{CollectionId, QueryId, TemplateId, WorkspaceId};
 
 use super::{MetadataStore, parse_uuid};
 
 impl MetadataStore {
     // ── Collections & queries ───────────────────────────────────────────────
 
-    pub async fn create_collection(&self, workspace_id: Uuid, name: &str) -> Result<Collection> {
+    pub async fn create_collection(
+        &self,
+        workspace_id: WorkspaceId,
+        name: &str,
+    ) -> Result<Collection> {
         let count: i64 =
             sqlx::query_scalar("SELECT COUNT(*) FROM collections WHERE workspace_id = ?")
                 .bind(workspace_id.to_string())
@@ -17,7 +21,7 @@ impl MetadataStore {
                 .await
                 .context("count collections")?;
         let collection = Collection {
-            id: Uuid::new_v4(),
+            id: CollectionId::new(),
             name: name.to_string(),
             queries: Vec::new(),
         };
@@ -38,10 +42,10 @@ impl MetadataStore {
 
     pub async fn create_loose_query(
         &self,
-        workspace_id: Uuid,
+        workspace_id: WorkspaceId,
         name: &str,
         sql: &str,
-        connection_template_id: Option<Uuid>,
+        connection_template_id: Option<TemplateId>,
     ) -> Result<LooseQuery> {
         let count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM queries WHERE workspace_id = ? AND collection_id IS NULL",
@@ -51,7 +55,7 @@ impl MetadataStore {
         .await
         .context("count loose queries")?;
         let query = LooseQuery {
-            id: Uuid::new_v4(),
+            id: QueryId::new(),
             name: name.to_string(),
             sql: sql.to_string(),
             connection_template_id,
@@ -76,9 +80,9 @@ impl MetadataStore {
 
     pub async fn move_query_to_collection(
         &self,
-        workspace_id: Uuid,
-        query_id: Uuid,
-        collection_id: Uuid,
+        workspace_id: WorkspaceId,
+        query_id: QueryId,
+        collection_id: CollectionId,
     ) -> Result<()> {
         let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM queries WHERE collection_id = ?")
             .bind(collection_id.to_string())
@@ -104,7 +108,11 @@ impl MetadataStore {
         Ok(())
     }
 
-    pub async fn move_query_to_loose(&self, workspace_id: Uuid, query_id: Uuid) -> Result<()> {
+    pub async fn move_query_to_loose(
+        &self,
+        workspace_id: WorkspaceId,
+        query_id: QueryId,
+    ) -> Result<()> {
         let count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM queries WHERE workspace_id = ? AND collection_id IS NULL",
         )

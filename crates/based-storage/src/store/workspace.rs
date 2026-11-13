@@ -2,19 +2,19 @@
 
 use anyhow::{Context, Result, bail};
 use based_workspace::{Environment, WorkspaceModel};
+use based_workspace::{EnvironmentId, WorkspaceId};
 use std::collections::HashMap;
 use time::OffsetDateTime;
-use uuid::Uuid;
 
 use super::{MetadataStore, WorkspaceSummary, format_rfc3339, parse_rfc3339, parse_uuid};
 use crate::session_keys::{ACTIVE_ENVIRONMENT_ID, ACTIVE_WORKSPACE_ID};
 
 impl MetadataStore {
-    pub async fn active_workspace_id(&self) -> Result<Option<Uuid>> {
+    pub async fn active_workspace_id(&self) -> Result<Option<WorkspaceId>> {
         self.get_session_json(ACTIVE_WORKSPACE_ID).await
     }
 
-    pub async fn set_active_workspace_id(&self, id: Option<Uuid>) -> Result<()> {
+    pub async fn set_active_workspace_id(&self, id: Option<WorkspaceId>) -> Result<()> {
         match id {
             Some(id) => self.set_session_json(ACTIVE_WORKSPACE_ID, &id).await,
             None => self.delete_session_key(ACTIVE_WORKSPACE_ID).await,
@@ -41,7 +41,7 @@ impl MetadataStore {
             .collect()
     }
 
-    pub async fn get_workspace(&self, id: Uuid) -> Result<Option<WorkspaceModel>> {
+    pub async fn get_workspace(&self, id: WorkspaceId) -> Result<Option<WorkspaceModel>> {
         let id_str = id.to_string();
         let row: Option<(String, String, String, String, Option<String>)> = sqlx::query_as(
             "SELECT id, name, created_at, updated_at, active_environment_id
@@ -79,7 +79,7 @@ impl MetadataStore {
     pub async fn create_workspace(&self, name: &str) -> Result<WorkspaceModel> {
         let now = OffsetDateTime::now_utc();
         let ws = WorkspaceModel {
-            id: Uuid::new_v4(),
+            id: WorkspaceId::new(),
             name: name.to_string(),
             created_at: now,
             updated_at: now,
@@ -115,7 +115,7 @@ impl MetadataStore {
         Ok(ws)
     }
 
-    pub async fn rename_workspace(&self, id: Uuid, name: &str) -> Result<()> {
+    pub async fn rename_workspace(&self, id: WorkspaceId, name: &str) -> Result<()> {
         let now = format_rfc3339(OffsetDateTime::now_utc());
         let rows = sqlx::query("UPDATE workspaces SET name = ?, updated_at = ? WHERE id = ?")
             .bind(name)
@@ -131,7 +131,7 @@ impl MetadataStore {
         Ok(())
     }
 
-    pub async fn delete_workspace(&self, id: Uuid) -> Result<()> {
+    pub async fn delete_workspace(&self, id: WorkspaceId) -> Result<()> {
         sqlx::query("DELETE FROM workspaces WHERE id = ?")
             .bind(id.to_string())
             .execute(&self.pool)
@@ -252,9 +252,13 @@ impl MetadataStore {
 
     // ── Environment ops ─────────────────────────────────────────────────────
 
-    pub async fn create_environment(&self, workspace_id: Uuid, name: &str) -> Result<Environment> {
+    pub async fn create_environment(
+        &self,
+        workspace_id: WorkspaceId,
+        name: &str,
+    ) -> Result<Environment> {
         let env = Environment {
-            id: Uuid::new_v4(),
+            id: EnvironmentId::new(),
             name: name.to_string(),
             variables: HashMap::new(),
         };
@@ -274,8 +278,8 @@ impl MetadataStore {
 
     pub async fn set_active_environment(
         &self,
-        workspace_id: Uuid,
-        environment_id: Option<Uuid>,
+        workspace_id: WorkspaceId,
+        environment_id: Option<EnvironmentId>,
     ) -> Result<()> {
         sqlx::query("UPDATE workspaces SET active_environment_id = ? WHERE id = ?")
             .bind(environment_id.map(|u| u.to_string()))
@@ -305,7 +309,7 @@ impl MetadataStore {
         Ok(())
     }
 
-    pub(super) async fn touch_workspace(&self, workspace_id: Uuid) -> Result<()> {
+    pub(super) async fn touch_workspace(&self, workspace_id: WorkspaceId) -> Result<()> {
         let now = format_rfc3339(OffsetDateTime::now_utc());
         sqlx::query("UPDATE workspaces SET updated_at = ? WHERE id = ?")
             .bind(&now)

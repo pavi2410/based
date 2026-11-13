@@ -18,7 +18,7 @@ use crate::secrets::SecretStore;
 
 #[derive(Debug, Clone)]
 pub struct WorkspaceSummary {
-    pub id: Uuid,
+    pub id: based_workspace::WorkspaceId,
     pub name: String,
     pub updated_at: OffsetDateTime,
 }
@@ -114,8 +114,10 @@ impl MetadataStore {
     }
 }
 
-pub(super) fn parse_uuid(s: &str) -> Result<Uuid> {
-    Uuid::parse_str(s).with_context(|| format!("invalid uuid: {s}"))
+pub(super) fn parse_uuid<T: From<Uuid>>(s: &str) -> Result<T> {
+    Uuid::parse_str(s)
+        .map(T::from)
+        .with_context(|| format!("invalid uuid: {s}"))
 }
 
 pub(super) fn format_rfc3339(ts: OffsetDateTime) -> String {
@@ -189,7 +191,7 @@ mod tests {
         let store = MetadataStore::open(dir.path().join("meta.db"))
             .await
             .unwrap();
-        let id = Uuid::new_v4();
+        let id = based_workspace::WorkspaceId::new();
         store.set_active_workspace_id(Some(id)).await.unwrap();
         assert_eq!(store.active_workspace_id().await.unwrap(), Some(id));
     }

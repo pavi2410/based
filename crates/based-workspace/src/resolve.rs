@@ -82,14 +82,14 @@ pub fn resolve_connection_template(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ids::{EnvironmentId, TemplateId};
     use crate::model::{ConnectionTemplate, Environment, WorkspaceModel};
-    use uuid::Uuid;
 
     #[test]
     fn resolves_from_no_environment_workspace_scope() {
         let ws = WorkspaceModel::new("dev");
         let template = ConnectionTemplate {
-            id: Uuid::new_v4(),
+            id: TemplateId::new(),
             label: "main".into(),
             engine: based_core::EngineKind::Postgres,
             host: "{{pg_host}}".into(),
@@ -118,7 +118,7 @@ mod tests {
 
     #[test]
     fn session_overrides_environment() {
-        let env_id = Uuid::new_v4();
+        let env_id = EnvironmentId::new();
         let mut ws = WorkspaceModel::new("dev");
         ws.active_environment_id = Some(env_id);
         ws.environments.push(Environment {
@@ -127,7 +127,7 @@ mod tests {
             variables: HashMap::from([("pg_host".into(), "staging-db".into())]),
         });
         let template = ConnectionTemplate {
-            id: Uuid::new_v4(),
+            id: TemplateId::new(),
             label: "main".into(),
             engine: based_core::EngineKind::Postgres,
             host: "{{pg_host}}".into(),

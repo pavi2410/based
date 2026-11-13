@@ -174,6 +174,28 @@ pub fn connect_sqlite_tagged(
     path: &Path,
     tags: Vec<String>,
 ) -> ConnectionId {
+    attach_sqlite(cx, ws, id, path, tags, false)
+}
+
+/// [`connect_sqlite`] the way the connection form does it: the catalog opens and
+/// the workspace gets the connection's first tab.
+pub fn connect_sqlite_and_open(
+    cx: &mut TestAppContext,
+    ws: &Entity<Workspace>,
+    id: &str,
+    path: &Path,
+) -> ConnectionId {
+    attach_sqlite(cx, ws, id, path, vec![], true)
+}
+
+fn attach_sqlite(
+    cx: &mut TestAppContext,
+    ws: &Entity<Workspace>,
+    id: &str,
+    path: &Path,
+    tags: Vec<String>,
+    open_catalog: bool,
+) -> ConnectionId {
     let config = ConnectionConfig::SQLite(SqliteConfig {
         path: path.to_path_buf(),
         read_only: false,
@@ -195,7 +217,7 @@ pub fn connect_sqlite_tagged(
             },
             opened,
             session,
-            false,
+            open_catalog,
             cx,
         )
     });

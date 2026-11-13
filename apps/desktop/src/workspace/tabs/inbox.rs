@@ -26,6 +26,8 @@ pub enum Request {
     OpenReleaseNotes {
         version: String,
     },
+    /// A connection just opened: add its first working tab beside the others.
+    ConnectionOpened(ConnectionId),
 }
 
 #[derive(Default)]
@@ -71,6 +73,10 @@ pub fn toggle_side_pane(pane: SidePane, cx: &mut impl BorrowAppContext) {
 
 pub fn open_release_notes(version: String, cx: &mut impl BorrowAppContext) {
     post(Request::OpenReleaseNotes { version }, cx);
+}
+
+pub fn connection_opened(conn_id: ConnectionId, cx: &mut impl BorrowAppContext) {
+    post(Request::ConnectionOpened(conn_id), cx);
 }
 
 pub fn inject_sql(conn_id: ConnectionId, sql: String, cx: &mut impl BorrowAppContext) {

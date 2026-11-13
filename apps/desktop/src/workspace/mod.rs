@@ -236,8 +236,7 @@ impl Workspace {
             area.set_center(tabs_layout(slice::from_ref(&home_arc), cx), window, cx);
         });
 
-        let connection_tree =
-            cx.new(|cx| ConnectionTree::new(registry.clone(), dock_area.clone(), cx));
+        let connection_tree = cx.new(|cx| ConnectionTree::new(registry.clone(), cx));
 
         let tab_manager = cx.new(|_| TabManager::with_tab(TabSpec::Home, home_arc.clone()));
         cx.set_global(TabManagerRef(tab_manager.clone()));

@@ -8,8 +8,10 @@ use based_desktop::workspace::{TabSpec, Workspace};
 use gpui_kit::test::TestWindowExt;
 use gpui_kit::{AnyWindowHandle, AppContext, Entity, TestAppContext};
 
-use crate::common::strip::open_tab;
-use crate::common::{info, open_workspace, settle};
+use crate::common::strip::{open_tab, specs};
+use crate::common::{
+    connect_sqlite, connect_sqlite_and_open, info, open_workspace, seed_sqlite, settle, wait_until,
+};
 
 /// Number of distinct tab panels (see `one_manager_entry_per_panel` for why not `tabs.len()`).
 fn tab_count(ws: &Entity<Workspace>, cx: &mut TestAppContext) -> usize {
@@ -159,4 +161,50 @@ fn tab_manager_active_follows_dock(cx: &mut TestAppContext) {
         active_is_home,
         "TabManager active tab should follow the dock"
     );
+}
+
+fn has_query_tab_for(ws: &Entity<Workspace>, id: &str, cx: &mut TestAppContext) -> bool {
+    specs(ws, cx)
+        .iter()
+        .any(|s| matches!(s, TabSpec::QueryEditor { conn_id, .. } if *conn_id == based_desktop::connection::ConnectionId::parse(id)))
+}
+
+#[gpui_kit::test]
+fn opening_a_connection_keeps_open_tabs(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let (a, b) = (dir.path().join("a.db"), dir.path().join("b.db"));
+    seed_sqlite(&a, &["create table t (id integer primary key)"]);
+    seed_sqlite(&b, &["create table u (id integer primary key)"]);
+    let (win, ws) = open_workspace(cx);
+    connect_sqlite(cx, &ws, "a", &a);
+    open_tab(win, &ws, info("kept"), cx);
+
+    connect_sqlite_and_open(cx, &ws, "b", &b);
+    wait_until(cx, |cx| {
+        cx.update_window(win, |_, window, _| window.refresh()).ok();
+        has_query_tab_for(&ws, "b", cx)
+    });
+
+    assert!(
+        specs(&ws, cx).contains(&info("kept")),
+        "tabs open before the connection must survive it"
+    );
+}
+
+#[gpui_kit::test]
+fn first_connection_replaces_a_lone_home_tab(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let a = dir.path().join("a.db");
+    seed_sqlite(&a, &["create table t (id integer primary key)"]);
+    let (win, ws) = open_workspace(cx);
+    assert!(has_home_only(&ws, cx));
+
+    connect_sqlite_and_open(cx, &ws, "a", &a);
+    wait_until(cx, |cx| {
+        cx.update_window(win, |_, window, _| window.refresh()).ok();
+        has_query_tab_for(&ws, "a", cx)
+    });
+
+    assert!(!specs(&ws, cx).contains(&TabSpec::Home));
+    assert_eq!(tab_count(&ws, cx), 1);
 }

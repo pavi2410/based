@@ -26,8 +26,8 @@ impl ConnectionTree {
         match conn_ent.read(cx).state {
             ConnectionState::Connecting => return,
             ConnectionState::Connected(_) => {
+                // Already open: just show its catalog. Tabs stay as they are.
                 self.set_connection_expanded(idx, true, cx);
-                self.pending_open_connection = Some(idx);
                 cx.notify();
                 return;
             }

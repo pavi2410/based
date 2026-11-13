@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::mem;
 
 use gpui_kit::component::{
-    dock::DockArea,
     h_flex,
     input::{InputEvent, InputState},
     list::ListState,
@@ -47,7 +46,6 @@ use types::ConnState;
 
 pub struct ConnectionTree {
     pub registry: Entity<ConnectionRegistry>,
-    dock_area: Entity<DockArea>,
     conn_states: HashMap<ConnectionId, ConnState>,
     pub(crate) selected_connection: Option<usize>,
     pub(crate) selected_object: Option<String>,
@@ -80,11 +78,7 @@ impl ConnectionTree {
         cx.notify();
     }
 
-    pub fn new(
-        registry: Entity<ConnectionRegistry>,
-        dock_area: Entity<DockArea>,
-        cx: &mut Context<Self>,
-    ) -> Self {
+    pub fn new(registry: Entity<ConnectionRegistry>, cx: &mut Context<Self>) -> Self {
         cx.subscribe(&registry, |this, _, event, cx| match event {
             RegistryEvent::Added(id) => {
                 this.conn_states.entry(id.clone()).or_default();
@@ -111,7 +105,6 @@ impl ConnectionTree {
 
         Self {
             registry,
-            dock_area,
             conn_states,
             selected_connection: None,
             selected_object: None,

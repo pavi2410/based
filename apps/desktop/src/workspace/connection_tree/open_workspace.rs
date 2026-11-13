@@ -1,114 +1,40 @@
-use std::sync::Arc;
-
-use ::mongodb::bson::Document;
-use gpui_kit::component::dock::PanelView;
-use gpui_kit::{Context, Window, prelude::*};
+use gpui_kit::{Context, Window};
 
 use crate::connection::AnyConnection;
-use crate::postgres;
-use crate::redis::console::ConsolePanel as RedisConsolePanel;
-use crate::sqlite;
 use crate::workspace::WorkspaceRef;
-use crate::workspace::panels::query_editor::QueryEditorPanel;
+use crate::workspace::tabs::inbox;
 
-use super::super::dock_utils::tabs_layout;
 use super::ConnectionTree;
-use crate::mongodb::DEFAULT_COLLECTION;
-use crate::mongodb::change_stream::ChangeStreamPanel;
-use crate::mongodb::pipeline_builder::PipelineBuilderPanel;
-use crate::workspace::panels::object_info::ConnectionDashboardPanel;
 
 impl ConnectionTree {
+    /// A connection just opened: show its catalog and ask the workspace for a first
+    /// tab to work in. Open tabs are never replaced; restored tabs waiting on this
+    /// connection come back on their own instead.
     pub(crate) fn open_connected_workspace(
         &mut self,
         idx: usize,
         ac: &AnyConnection,
-        window: &mut Window,
+        _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         let Some(conn_ent) = self.registry.read(cx).connections().get(idx).cloned() else {
             return;
         };
-        let (_label, _engine, conn_id) = {
-            let entry = conn_ent.read(cx);
-            (
-                entry.label.as_str().to_string(),
-                entry.config.engine(),
-                entry.id.clone(),
-            )
-        };
+        let conn_id = conn_ent.read(cx).id.clone();
 
         self.selected_connection = Some(idx);
         self.selected_object = None;
         self.set_connection_expanded(idx, true, cx);
         self.load_objects_for_connection(idx, ac.clone(), cx);
 
-        let preserve = cx
-            .try_global::<WorkspaceRef>()
-            .is_some_and(|ws| ws.0.read(cx).should_preserve_restored_tabs(&conn_id));
-        if preserve {
-            if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
-                ws.update(cx, |_, cx| cx.notify());
-            }
+        let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) else {
+            return;
+        };
+        if ws.read(cx).should_preserve_restored_tabs(&conn_id) {
+            ws.update(cx, |_, cx| cx.notify());
             return;
         }
-
-        let dashboard = cx.new(|cx| ConnectionDashboardPanel::new(conn_ent.clone(), window, cx));
-
-        let panel_arcs: Vec<Arc<dyn PanelView>> = match ac {
-            AnyConnection::SQLite(ent) => {
-                let pool = ent.read(cx).pool.clone();
-                let query = cx.new(|cx| {
-                    QueryEditorPanel::new(
-                        Arc::new(sqlite::query::SqliteQuery { pool }),
-                        conn_id.clone(),
-                        window,
-                        cx,
-                    )
-                });
-                vec![Arc::new(dashboard) as Arc<dyn PanelView>, Arc::new(query)]
-            }
-            AnyConnection::Postgres(ent) => {
-                let pool = ent.read(cx).pool.clone();
-                let query = cx.new(|cx| {
-                    QueryEditorPanel::new(
-                        Arc::new(postgres::query::PgQuery { pool: pool.clone() }),
-                        conn_id.clone(),
-                        window,
-                        cx,
-                    )
-                });
-                vec![Arc::new(dashboard) as Arc<dyn PanelView>, Arc::new(query)]
-            }
-            AnyConnection::MongoDB(ent) => {
-                let db = ent.read(cx).database().clone();
-                let coll: ::mongodb::Collection<Document> = db.collection(DEFAULT_COLLECTION);
-                let builder = cx
-                    .new(|cx| PipelineBuilderPanel::new(coll.clone(), conn_id.clone(), window, cx));
-                let stream = cx.new(|cx| ChangeStreamPanel::new(coll, window, cx));
-                vec![
-                    Arc::new(dashboard) as Arc<dyn PanelView>,
-                    Arc::new(builder),
-                    Arc::new(stream),
-                ]
-            }
-            AnyConnection::Redis(ent) => {
-                let conn = ent.read(cx).conn();
-                let console =
-                    cx.new(|cx| RedisConsolePanel::new(conn, conn_id.clone(), None, window, cx));
-                vec![Arc::new(dashboard) as Arc<dyn PanelView>, Arc::new(console)]
-            }
-        };
-
-        // Replaces the Home tab with connection dashboards; Home returns when all DB tabs close.
-        self.dock_area.update(cx, |dock, cx| {
-            dock.set_center(tabs_layout(&panel_arcs, cx), window, cx);
-        });
-
-        if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
-            ws.update(cx, |ws, cx| {
-                ws.replace_center_panels(panel_arcs, cx);
-            });
-        }
+        inbox::connection_opened(conn_id, cx);
+        inbox::request_workspace_flush(cx);
     }
 }

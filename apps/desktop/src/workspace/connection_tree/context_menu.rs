@@ -267,6 +267,23 @@ pub(crate) fn connection_actions_menu(
             }),
     );
 
+    if is_connected {
+        let overview_id = conn_id.clone();
+        menu = menu.item(
+            PopupMenuItem::new("Overview")
+                .icon(IconName::Info)
+                .on_click(move |_, _, cx| {
+                    crate::workspace::tabs::inbox::open_tab(
+                        crate::workspace::TabSpec::Dashboard {
+                            conn_id: overview_id.clone(),
+                        },
+                        cx,
+                    );
+                    crate::workspace::tabs::request_workspace_flush(cx);
+                }),
+        );
+    }
+
     if can_edit_saved_connection(&conn_id) {
         let edit_id = conn_id.clone();
         menu = menu.item(PopupMenuItem::new("Edit…").icon(svg(ICON_PENCIL)).on_click(

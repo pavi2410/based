@@ -6,11 +6,13 @@ use gpui_kit::{BorrowAppContext, Context};
 
 use super::Workspace;
 use super::panels::query_editor::QueryEditorPanel;
-use super::tabs::{Inbox, OpenOutcome, QueryEditorInit, Request, TabId, TabSpec, inbox};
+use super::tabs::{
+    CloseScope, Inbox, OpenOutcome, QueryEditorInit, Request, TabId, TabSpec, inbox,
+};
 use crate::app::logging::open_logs;
 use crate::app::updater::check_now;
 use crate::command_palette::WorkspacePaletteAction;
-use crate::connection::ConnectionId;
+use crate::connection::{ConnectionId, EngineKind};
 use crate::project::prompt_open_project_in_new_window;
 use crate::project::prompt_open_project_in_window;
 use crate::project::request_close_project_in_window;
@@ -58,9 +60,43 @@ impl Workspace {
                 Request::OpenReleaseNotes { version } => {
                     self.dispatch_open_tab(TabSpec::ReleaseNotes { version }, window, cx);
                 }
+                Request::ConnectionOpened(conn_id) => {
+                    self.open_first_tab_for_connection(conn_id, window, cx);
+                }
             }
         }
         self.flush_pending_session_tabs(window, cx);
+    }
+
+    /// After a connection opens, add one tab to work in: a query editor (SQL) or
+    /// the console (Redis). Mongo collections are already listed in the catalog.
+    /// Existing tabs are never touched; an untouched lone Home tab gives way.
+    pub(crate) fn open_first_tab_for_connection(
+        &mut self,
+        conn_id: ConnectionId,
+        window: &mut gpui_kit::Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(engine) = self
+            .registry
+            .read(cx)
+            .get(&conn_id, cx)
+            .map(|e| e.read(cx).engine())
+        else {
+            return;
+        };
+        if engine == EngineKind::MongoDB {
+            return;
+        }
+        let home_id = self.home_panel.entity_id();
+        let only_home = {
+            let tm = self.tab_manager.read(cx);
+            tm.tabs.len() == 1 && tm.tabs[0].view().entity_id() == home_id
+        };
+        let outcome = self.dispatch_open_tab(TabSpec::blank_query_editor(conn_id), window, cx);
+        if only_home && matches!(outcome, OpenOutcome::Opened(_)) {
+            self.close_tabs(CloseScope::Tab(home_id), window, cx);
+        }
     }
 
     /// Replace the SQL in the active editor for `conn_id`, or open a tab holding it.

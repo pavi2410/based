@@ -17,7 +17,7 @@ pub struct WorkspaceModel {
     pub environments: Vec<Environment>,
     pub connection_templates: Vec<ConnectionTemplate>,
     pub collections: Vec<Collection>,
-    pub loose_queries: Vec<LooseQuery>,
+    pub loose_queries: Vec<WorkspaceQuery>,
 }
 
 impl WorkspaceModel {
@@ -60,8 +60,9 @@ pub struct ConnectionTemplate {
     pub ssl_mode: String,
 }
 
+/// A query saved in the workspace, loose or in a collection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LooseQuery {
+pub struct WorkspaceQuery {
     pub id: QueryId,
     pub name: String,
     pub sql: String,
@@ -72,15 +73,7 @@ pub struct LooseQuery {
 pub struct Collection {
     pub id: CollectionId,
     pub name: String,
-    pub queries: Vec<SavedQueryRef>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SavedQueryRef {
-    pub id: QueryId,
-    pub name: String,
-    pub sql: String,
-    pub connection_template_id: Option<TemplateId>,
+    pub queries: Vec<WorkspaceQuery>,
 }
 
 fn legacy_template_engine() -> EngineKind {

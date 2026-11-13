@@ -1,7 +1,7 @@
 //! Collections and saved queries.
 
 use anyhow::{Context, Result, bail};
-use based_workspace::{Collection, LooseQuery, SavedQueryRef};
+use based_workspace::{Collection, WorkspaceQuery};
 use based_workspace::{CollectionId, QueryId, TemplateId, WorkspaceId};
 
 use super::{MetadataStore, parse_uuid};
@@ -46,7 +46,7 @@ impl MetadataStore {
         name: &str,
         sql: &str,
         connection_template_id: Option<TemplateId>,
-    ) -> Result<LooseQuery> {
+    ) -> Result<WorkspaceQuery> {
         let count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM queries WHERE workspace_id = ? AND collection_id IS NULL",
         )
@@ -54,7 +54,7 @@ impl MetadataStore {
         .fetch_one(&self.pool)
         .await
         .context("count loose queries")?;
-        let query = LooseQuery {
+        let query = WorkspaceQuery {
             id: QueryId::new(),
             name: name.to_string(),
             sql: sql.to_string(),
@@ -162,7 +162,7 @@ impl MetadataStore {
     pub(super) async fn load_collection_queries(
         &self,
         collection_id: &str,
-    ) -> Result<Vec<SavedQueryRef>> {
+    ) -> Result<Vec<WorkspaceQuery>> {
         let rows: Vec<(String, String, String, Option<String>)> = sqlx::query_as(
             "SELECT id, name, sql_text, connection_template_id
              FROM queries WHERE collection_id = ? ORDER BY sort_order, name",
@@ -172,19 +172,13 @@ impl MetadataStore {
         .await
         .context("load collection queries")?;
 
-        rows.into_iter()
-            .map(|(id, name, sql, template_id)| {
-                Ok(SavedQueryRef {
-                    id: parse_uuid(&id)?,
-                    name,
-                    sql,
-                    connection_template_id: template_id.map(|s| parse_uuid(&s)).transpose()?,
-                })
-            })
-            .collect()
+        rows.into_iter().map(query_from_row).collect()
     }
 
-    pub(super) async fn load_loose_queries(&self, workspace_id: &str) -> Result<Vec<LooseQuery>> {
+    pub(super) async fn load_loose_queries(
+        &self,
+        workspace_id: &str,
+    ) -> Result<Vec<WorkspaceQuery>> {
         let rows: Vec<(String, String, String, Option<String>)> = sqlx::query_as(
             "SELECT id, name, sql_text, connection_template_id
              FROM queries
@@ -196,15 +190,18 @@ impl MetadataStore {
         .await
         .context("load loose queries")?;
 
-        rows.into_iter()
-            .map(|(id, name, sql, template_id)| {
-                Ok(LooseQuery {
-                    id: parse_uuid(&id)?,
-                    name,
-                    sql,
-                    connection_template_id: template_id.map(|s| parse_uuid(&s)).transpose()?,
-                })
-            })
-            .collect()
+        rows.into_iter().map(query_from_row).collect()
     }
+}
+
+type QueryRow = (String, String, String, Option<String>);
+
+/// `(id, name, sql_text, connection_template_id)` from the `queries` table.
+fn query_from_row((id, name, sql, template_id): QueryRow) -> Result<WorkspaceQuery> {
+    Ok(WorkspaceQuery {
+        id: parse_uuid(&id)?,
+        name,
+        sql,
+        connection_template_id: template_id.map(|s| parse_uuid(&s)).transpose()?,
+    })
 }

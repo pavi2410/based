@@ -161,7 +161,7 @@ impl QueryEditorPanel {
 
     /// Opens the bar and asks the model to repair the query from the last error.
     pub(super) fn fix_with_ai(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let QueryStatus::Error(error) = &self.status else {
+        let QueryStatus::Error { message: error, .. } = &self.status else {
             return;
         };
         let error: String = error.chars().take(MAX_ERROR_CHARS).collect();
@@ -174,8 +174,8 @@ impl QueryEditorPanel {
         // With several statements, fix only the one the error points into.
         let all = text_from_input(&self.sql_input, cx);
         if let Some(range) = self
-            .error_span
-            .as_ref()
+            .status
+            .error_span()
             .filter(|_| split_statements(&all).len() > 1)
             .and_then(|span| statement_at(&all, span.start))
         {

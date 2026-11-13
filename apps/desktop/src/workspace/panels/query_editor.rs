@@ -121,18 +121,64 @@ pub trait QuerySource: Send + Sync + 'static {
 
 pub enum QueryStatus {
     Idle,
-    Running,
+    /// A run in flight; replacing the status drops (stops) it.
+    Running(ActiveRun),
     Done {
         rows: usize,
         affected: Option<u64>,
         elapsed_ms: u64,
         finished_at: OffsetDateTime,
     },
-    Error(String),
+    Error {
+        message: String,
+        /// Where the error points in the editor text, when the message names a token.
+        span: Option<Range<usize>>,
+    },
     /// Stopped by the user; the server may still finish the statement.
     Cancelled {
         after_ms: u64,
     },
+}
+
+impl QueryStatus {
+    pub fn is_running(&self) -> bool {
+        matches!(self, Self::Running(_))
+    }
+
+    /// Time since the run started, while one is running.
+    fn running_ms(&self) -> Option<u64> {
+        match self {
+            Self::Running(run) => Some(run.started.elapsed().as_millis() as u64),
+            _ => None,
+        }
+    }
+
+    pub(super) fn error_span(&self) -> Option<Range<usize>> {
+        match self {
+            Self::Error { span, .. } => span.clone(),
+            _ => None,
+        }
+    }
+}
+
+/// The tasks of a run in flight. Dropping it stops waiting for the result and
+/// stops the elapsed-time ticker.
+pub struct ActiveRun {
+    started: Instant,
+    _task: Task<()>,
+    _ticker: Task<()>,
+}
+
+/// What the last run produced, kept after it finishes.
+#[derive(Default)]
+struct LastRun {
+    /// One entry per statement that returned rows (or the single statement run).
+    results: Vec<StatementResult>,
+    /// The result the grid shows.
+    active: usize,
+    /// One line per statement, for the Messages tab.
+    log: Vec<String>,
+    affected: Option<u64>,
 }
 
 enum ExplainView {
@@ -166,22 +212,11 @@ pub struct QueryEditorPanel {
     pub(super) ai: AiHost,
     /// Byte range the pending AI edit replaces; `None` means the whole query.
     pub(super) ai_scope: Option<Range<usize>>,
-    /// The in-flight run; dropping it stops waiting for the result.
-    run_task: Option<Task<()>>,
-    ticker: Option<Task<()>>,
-    run_started: Option<Instant>,
     /// The run waiting behind a confirmation banner; at most one banner shows.
     pub(super) held: Option<HeldRun>,
-    /// One entry per statement that returned rows (or the single statement run).
-    pub(super) results: Vec<StatementResult>,
-    pub(super) active_result: usize,
-    /// One line per statement of the last run, for the Messages tab.
-    run_log: Vec<String>,
-    total_affected: Option<u64>,
-    /// Project-relative path once saved, so Save overwrites instead of asking again.
-    saved_path: Option<String>,
-    /// Where the last error points in the editor text, when the message names a token.
-    pub(super) error_span: Option<Range<usize>>,
+    last_run: LastRun,
+    /// The project query this tab edits, so Save overwrites instead of asking again.
+    saved: Option<SavedQueryRef>,
     pub(crate) tab_label: SharedString,
 }
 
@@ -223,16 +258,9 @@ impl QueryEditorPanel {
             dirty: false,
             ai: AiHost::new(window, cx, Self::on_ai_event),
             ai_scope: None,
-            run_task: None,
-            ticker: None,
-            run_started: None,
             held: None,
-            results: Vec::new(),
-            active_result: 0,
-            run_log: Vec::new(),
-            total_affected: None,
-            saved_path: None,
-            error_span: None,
+            last_run: LastRun::default(),
+            saved: None,
             tab_label: "Query".into(),
         };
         cx.subscribe_in(&sql_input, window, |panel, _, event, _, cx| match event {
@@ -367,7 +395,7 @@ impl QueryEditorPanel {
     /// Re-link a restored or reopened tab to its saved query and unsaved state.
     pub fn restore_saved_state(&mut self, saved: Option<&SavedQueryRef>, dirty: bool) {
         if let Some(saved) = saved {
-            self.saved_path = Some(saved.path.clone());
+            self.saved = Some(saved.clone());
             self.tab_label = saved.name.clone().into();
         }
         self.dirty = dirty;
@@ -375,10 +403,7 @@ impl QueryEditorPanel {
 
     /// The project query this tab was opened from or last saved to.
     pub fn saved_query(&self) -> Option<SavedQueryRef> {
-        self.saved_path.as_ref().map(|path| SavedQueryRef {
-            path: path.clone(),
-            name: self.tab_label.to_string(),
-        })
+        self.saved.clone()
     }
 
     pub fn is_dirty(&self) -> bool {
@@ -535,22 +560,19 @@ impl QueryEditorPanel {
             match based_query::resolve_query(&substitute(text, &project_vars), &var_ctx) {
                 Ok(sql) => resolved.push(sql),
                 Err(e) => {
-                    self.status = QueryStatus::Error(e.to_string());
+                    self.status = QueryStatus::Error {
+                        message: e.to_string(),
+                        span: None,
+                    };
                     self.bottom_tab = BottomTab::Messages;
                     cx.notify();
                     return;
                 }
             }
         }
-        self.status = QueryStatus::Running;
         self.bottom_tab = BottomTab::Results;
-        self.run_started = Some(Instant::now());
-        self.error_span = None;
-        self.results.clear();
-        self.active_result = 0;
-        self.run_log.clear();
-        self.total_affected = None;
-        self.ticker = Some(cx.spawn(async move |this, cx| {
+        self.last_run = LastRun::default();
+        let ticker = cx.spawn(async move |this, cx| {
             loop {
                 cx.background_executor()
                     .timer(Duration::from_millis(100))
@@ -559,11 +581,11 @@ impl QueryEditorPanel {
                     break;
                 }
             }
-        }));
+        });
         let source = self.source.clone();
         let timeout = prefs::query_timeout_secs(cx);
         let total = resolved.len();
-        self.run_task = Some(cx.spawn(async move |this, cx| {
+        let task = cx.spawn(async move |this, cx| {
             for (index, sql) in resolved.into_iter().enumerate() {
                 let fut = source.run(sql.clone(), timeout);
                 let start = Instant::now();
@@ -578,7 +600,12 @@ impl QueryEditorPanel {
                     break;
                 }
             }
-        }));
+        });
+        self.status = QueryStatus::Running(ActiveRun {
+            started: Instant::now(),
+            _task: task,
+            _ticker: ticker,
+        });
     }
 
     /// Record one statement's outcome. Returns whether the batch should continue.
@@ -620,30 +647,29 @@ impl QueryEditorPanel {
                     (false, Some(a)) => format!("{a} rows affected"),
                     (false, None) => "done".to_string(),
                 };
-                self.run_log
+                let run = &mut self.last_run;
+                run.log
                     .push(format!("{}  {first_line} — {what} · {ms} ms", index + 1));
                 if let Some(a) = out.affected {
-                    self.total_affected = Some(self.total_affected.unwrap_or(0) + a);
+                    run.affected = Some(run.affected.unwrap_or(0) + a);
                 }
                 if tabular || !batch {
-                    self.results.push(StatementResult {
+                    run.results.push(StatementResult {
                         columns,
                         meta,
                         rows,
                     });
-                    self.show_result(self.results.len() - 1, cx);
+                    self.show_result(self.last_run.results.len() - 1, cx);
                 }
                 if last {
-                    let shown_rows = self.results.last().map_or(0, |r| r.rows.len());
+                    let shown_rows = self.last_run.results.last().map_or(0, |r| r.rows.len());
                     self.status = QueryStatus::Done {
                         rows: shown_rows,
-                        affected: self.total_affected,
-                        elapsed_ms: self
-                            .run_started
-                            .map_or(ms, |t| t.elapsed().as_millis() as u64),
+                        affected: self.last_run.affected,
+                        elapsed_ms: self.status.running_ms().unwrap_or(ms),
                         finished_at: OffsetDateTime::now_utc(),
                     };
-                    if self.results.is_empty() {
+                    if self.last_run.results.is_empty() {
                         self.bottom_tab = BottomTab::Messages;
                     }
                 }
@@ -652,19 +678,16 @@ impl QueryEditorPanel {
             Err(e) => {
                 self.bottom_tab = BottomTab::Messages;
                 let message = e.to_string();
-                self.run_log
+                self.last_run
+                    .log
                     .push(format!("{}  {first_line} — failed", index + 1));
                 let editor_sql = self.current_sql(cx);
-                self.error_span = locate_error(&editor_sql, &message);
+                let span = locate_error(&editor_sql, &message);
+                self.status = QueryStatus::Error { message, span };
                 self.mark_error(cx);
-                self.status = QueryStatus::Error(message);
                 (None, false)
             }
         };
-        if last || !proceed {
-            self.ticker = None;
-            self.run_started = None;
-        }
         let run_status = if history_rows.is_some() {
             based_query::RunStatus::Ok
         } else {
@@ -683,12 +706,22 @@ impl QueryEditorPanel {
         proceed
     }
 
+    /// How many result sets the last run produced.
+    pub(super) fn result_count(&self) -> usize {
+        self.last_run.results.len()
+    }
+
+    /// Which of them the grid shows.
+    pub(super) fn active_result(&self) -> usize {
+        self.last_run.active
+    }
+
     /// Show result `index` in the grid.
     pub fn show_result(&mut self, index: usize, cx: &mut Context<Self>) {
-        let Some(r) = self.results.get(index).cloned() else {
+        let Some(r) = self.last_run.results.get(index).cloned() else {
             return;
         };
-        self.active_result = index;
+        self.last_run.active = index;
         self.result.update(cx, |state, cx| {
             replace_table_data(state, r.columns, r.rows, r.meta, cx);
         });
@@ -900,9 +933,8 @@ impl QueryEditorPanel {
         if sql.trim().is_empty() {
             return;
         }
-        if let Some(path) = self.saved_path.clone() {
-            let name = self.tab_label.to_string();
-            self.write_saved(&root, &name, &sql, Some(&path), cx);
+        if let Some(saved) = self.saved.clone() {
+            self.write_saved(&root, &saved.name, &sql, Some(&saved.path), cx);
             return;
         }
         let first_comment = sql
@@ -961,7 +993,10 @@ impl QueryEditorPanel {
         let target = self.save_target(cx);
         match save_sql_query(root, name, sql, &target, overwrite) {
             Ok(path) => {
-                self.saved_path = Some(path);
+                self.saved = Some(SavedQueryRef {
+                    path,
+                    name: name.to_string(),
+                });
                 self.tab_label = name.to_string().into();
                 self.dirty = false;
                 clear_tab_dirty(cx.entity_id(), cx);
@@ -1039,7 +1074,7 @@ impl QueryEditorPanel {
     /// A run mark beside the first line of every statement, placed from the editor's
     /// last layout (scroll offset, line height, wrapped rows).
     fn render_run_marks(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
-        if matches!(self.status, QueryStatus::Running) {
+        if self.status.is_running() {
             return Vec::new();
         }
         let st = self.sql_input.read(cx);
@@ -1098,7 +1133,7 @@ impl QueryEditorPanel {
 
     /// Squiggle the editor text the last error points at.
     fn mark_error(&mut self, cx: &mut Context<Self>) {
-        let Some(span) = self.error_span.clone() else {
+        let Some(span) = self.status.error_span() else {
             return;
         };
         self.sql_input.update(cx, |state, cx| {
@@ -1122,7 +1157,7 @@ impl QueryEditorPanel {
 
     /// Select the text the last error points at and focus the editor.
     fn jump_to_error(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(span) = self.error_span.clone() else {
+        let Some(span) = self.status.error_span() else {
             return;
         };
         self.sql_input.update(cx, |state, cx| {
@@ -1133,12 +1168,8 @@ impl QueryEditorPanel {
 
     /// Stop waiting for the running query. The server may still finish it.
     fn stop(&mut self, cx: &mut Context<Self>) {
-        let after_ms = self
-            .run_started
-            .take()
-            .map_or(0, |t| t.elapsed().as_millis() as u64);
-        self.run_task = None;
-        self.ticker = None;
+        let after_ms = self.status.running_ms().unwrap_or(0);
+        // Replacing `Running` drops the run and its ticker.
         self.status = QueryStatus::Cancelled { after_ms };
         self.bottom_tab = BottomTab::Messages;
         cx.notify();
@@ -1189,7 +1220,7 @@ impl PopOutWindowTitle for QueryEditorPanel {
 fn status_display(status: &QueryStatus) -> QueryStatusDisplay {
     match status {
         QueryStatus::Idle => QueryStatusDisplay::Idle,
-        QueryStatus::Running => QueryStatusDisplay::Running,
+        QueryStatus::Running(_) => QueryStatusDisplay::Running,
         QueryStatus::Done {
             rows,
             affected,
@@ -1201,7 +1232,7 @@ fn status_display(status: &QueryStatus) -> QueryStatusDisplay {
             elapsed_ms: *elapsed_ms,
             finished_at: *finished_at,
         },
-        QueryStatus::Error(e) => QueryStatusDisplay::Error(e.clone().into()),
+        QueryStatus::Error { message, .. } => QueryStatusDisplay::Error(message.clone().into()),
         QueryStatus::Cancelled { after_ms } => QueryStatusDisplay::Cancelled {
             after_ms: *after_ms,
         },
@@ -1224,7 +1255,7 @@ impl QueryEditorPanel {
         match self.bottom_tab {
             BottomTab::Results if self.shows_start_screen(cx) => self.render_start_screen(cx),
             BottomTab::Results => {
-                let running = matches!(self.status, QueryStatus::Running);
+                let running = self.status.is_running();
                 let empty = self.result.read(cx).delegate().rows.is_empty();
                 div()
                     .relative()
@@ -1250,7 +1281,7 @@ impl QueryEditorPanel {
     fn render_messages(&self, cx: &mut Context<Self>) -> AnyElement {
         let muted = cx.theme().muted_foreground;
         match &self.status {
-            QueryStatus::Error(full) => div()
+            QueryStatus::Error { message: full, .. } => div()
                 .flex_1()
                 .min_h(px(0.0))
                 .p_3()
@@ -1267,7 +1298,7 @@ impl QueryEditorPanel {
                 elapsed_ms,
                 ..
             } => {
-                if self.run_log.len() > 1 {
+                if self.last_run.log.len() > 1 {
                     return v_flex()
                         .flex_1()
                         .min_h(px(0.0))
@@ -1276,7 +1307,7 @@ impl QueryEditorPanel {
                         .font_family(cx.theme().mono_font_family.clone())
                         .text_xs()
                         .text_color(muted)
-                        .children(self.run_log.iter().map(|l| div().child(l.clone())))
+                        .children(self.last_run.log.iter().map(|l| div().child(l.clone())))
                         .into_any_element();
                 }
                 let affected = affected.map_or(String::new(), |a| format!(" · {a} affected"));
@@ -1285,7 +1316,7 @@ impl QueryEditorPanel {
                     muted,
                 )
             }
-            QueryStatus::Running => hint("Running…", muted),
+            QueryStatus::Running(_) => hint("Running…", muted),
             QueryStatus::Cancelled { after_ms } => hint(
                 format!(
                     "Stopped after {:.1} s. The server may still finish the statement; nothing is rolled back.",
@@ -1301,7 +1332,8 @@ impl QueryEditorPanel {
     fn error_actions(&self, full: &str, cx: &mut Context<Self>) -> AnyElement {
         let id = self.source.id();
         let muted = cx.theme().muted_foreground;
-        let place = self.error_span.as_ref().map(|span| {
+        let error_span = self.status.error_span();
+        let place = error_span.as_ref().map(|span| {
             let (line, col) = line_col(&self.current_sql(cx), span.start);
             format!("Line {line}, column {col}")
         });
@@ -1310,7 +1342,7 @@ impl QueryEditorPanel {
             .gap(px(8.0))
             .items_center()
             .children(place.map(|p| div().text_xs().text_color(muted).child(p)))
-            .when(self.error_span.is_some(), |h| {
+            .when(error_span.is_some(), |h| {
                 h.child(
                     Button::new(format!("{id}-jump-error"))
                         .ghost()
@@ -1434,7 +1466,7 @@ impl QueryEditorPanel {
                     .mx(px(2.0))
                     .bg(cx.theme().border),
             )
-            .child(if matches!(self.status, QueryStatus::Running) {
+            .child(if self.status.is_running() {
                 Button::new(format!("{id}-stop"))
                     .danger()
                     .small()
@@ -1450,7 +1482,7 @@ impl QueryEditorPanel {
                     .child(shortcut_run_kbd_in_primary_button(cx))
                     .on_click(cx.listener(|panel, _, _, cx| panel.run(cx)))
             })
-            .when(!matches!(self.status, QueryStatus::Running), |h| {
+            .when(!self.status.is_running(), |h| {
                 let panel = cx.weak_entity();
                 h.child(
                     Button::new(format!("{id}-run-more"))
@@ -1523,7 +1555,7 @@ impl QueryEditorPanel {
 impl Render for QueryEditorPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let id = self.source.id();
-        let has_error = matches!(self.status, QueryStatus::Error(_));
+        let has_error = matches!(self.status, QueryStatus::Error { .. });
         let toolbar = self.render_toolbar(cx);
         let ai_confirm = self.render_ai_confirm(cx);
         let write_confirm = self.render_write_confirm(cx);
@@ -1558,16 +1590,16 @@ impl Render for QueryEditorPanel {
                 d.rows.clone(),
             )
         };
-        let result_counts: Vec<usize> = match (self.results.len(), &self.status) {
+        let result_counts: Vec<usize> = match (self.last_run.results.len(), &self.status) {
             (0, QueryStatus::Done { rows, .. }) if *rows > 0 => vec![*rows],
-            _ => self.results.iter().map(|r| r.rows.len()).collect(),
+            _ => self.last_run.results.iter().map(|r| r.rows.len()).collect(),
         };
         let trailing = h_flex()
             .gap(px(10.0))
             .items_center()
             .child(query_result_meta(
                 &status_display(&self.status),
-                self.run_started.map(|t| t.elapsed().as_millis() as u64),
+                self.status.running_ms(),
                 cx,
             ))
             .children(self.can_ask_about_results(cx).then(|| {
@@ -1586,7 +1618,7 @@ impl Render for QueryEditorPanel {
             self.bottom_tab,
             has_error,
             result_counts,
-            self.active_result,
+            self.last_run.active,
             Some(trailing),
             on_select,
             cx,
@@ -1609,7 +1641,7 @@ impl Render for QueryEditorPanel {
                 .child(toolbar)
                 .child(motion::glimmer_bar(
                     format!("{id}-run-glimmer"),
-                    matches!(self.status, QueryStatus::Running),
+                    self.status.is_running(),
                     cx,
                 ))
                 .when_some(self.ai.bar(), |v, bar| v.child(bar))

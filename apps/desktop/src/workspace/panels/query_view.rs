@@ -24,11 +24,11 @@ impl QueryEditorPanel {
         ResultSnapshot {
             columns: grid.columns.iter().map(|c| c.key.to_string()).collect(),
             rows: display_rows(&grid.rows),
-            running: matches!(self.status, QueryStatus::Running),
-            result_count: self.results.len(),
-            active_result: self.active_result,
+            running: self.status.is_running(),
+            result_count: self.result_count(),
+            active_result: self.active_result(),
             error: match &self.status {
-                QueryStatus::Error(e) => Some(e.clone()),
+                QueryStatus::Error { message, .. } => Some(message.clone()),
                 _ => None,
             },
         }

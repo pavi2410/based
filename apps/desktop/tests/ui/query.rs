@@ -140,6 +140,23 @@ fn open_query_tab(
 }
 
 #[gpui_kit::test]
+fn stopping_a_run_leaves_nothing_running(cx: &mut TestAppContext) {
+    // Slow enough to still be running when Stop is clicked.
+    let slow = "with recursive c(x) as (select 1 union all select x + 1 from c limit 50000000) \
+                select count(*) from c";
+    let (ed, _ws, _dir) = open_editor(cx, slow, false);
+    ed.click("sqlite-run", cx);
+    assert!(ed.snapshot(cx).running, "run started");
+    ed.click("sqlite-stop", cx);
+    let s = ed.snapshot(cx);
+    assert!(!s.running, "stopped");
+    assert!(
+        s.rows.is_empty() && s.error.is_none(),
+        "no result, no error"
+    );
+}
+
+#[gpui_kit::test]
 fn auto_run_shows_rows(cx: &mut TestAppContext) {
     let (ed, _ws, _dir) = open_editor(cx, "select id, name from t order by id", true);
     let result = ed.finished(cx);

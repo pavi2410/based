@@ -99,7 +99,7 @@ pub(super) fn muted_line(text: &'static str, cx: &App) -> AnyElement {
 
 /// The user's message as a full-width filled block; `lines` clips it (pinned copy).
 pub(super) fn user_row(turn: &Message, lines: Option<usize>, cx: &App) -> AnyElement {
-    let mut text = div().child(turn.content.clone());
+    let mut text = div().child(turn.content().to_string());
     if let Some(lines) = lines {
         text = text.line_clamp(lines);
     }

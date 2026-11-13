@@ -28,7 +28,7 @@ mod tests {
         }
 
         fn stream(&self, request: ChatRequest) -> ChunkStream {
-            let text = request.messages[0].content.clone();
+            let text = request.messages[0].content().to_string();
             stream::iter([Ok(Chunk::Text(text)), Ok(Chunk::Done(Usage::default()))]).boxed()
         }
     }

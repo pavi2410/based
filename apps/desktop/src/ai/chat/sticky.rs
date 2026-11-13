@@ -21,7 +21,7 @@ impl ChatPane {
         }
         let user = groups[..=last]
             .iter()
-            .rposition(|g| self.turns[g.start].role == Role::User)?;
+            .rposition(|g| self.turns[g.start].role() == Role::User)?;
         if user == top.item_ix && top.offset_in_item <= px(0.0) {
             return None;
         }

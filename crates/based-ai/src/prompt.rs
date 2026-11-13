@@ -170,7 +170,7 @@ mod tests {
     fn completion_request_clips_context_around_the_cursor() {
         let prefix = "x".repeat(5000);
         let req = complete_request("m", EngineKind::SQLite, "", &prefix, &"y".repeat(900));
-        let text = &req.messages[0].content;
+        let text = req.messages[0].content();
         assert_eq!(text.matches('x').count(), PREFIX_CHARS);
         assert_eq!(text.matches('y').count(), SUFFIX_CHARS);
         assert!(text.contains("<cursor>"));
@@ -237,14 +237,14 @@ mod tests {
         );
         let system = req.system.unwrap();
         assert!(system.contains("PostgreSQL") && system.contains("users(id)"));
-        assert!(req.messages[0].content.contains("SELECT 1"));
-        assert!(req.messages[0].content.contains("add limit"));
+        assert!(req.messages[0].content().contains("SELECT 1"));
+        assert!(req.messages[0].content().contains("add limit"));
     }
 
     #[test]
     fn empty_editor_asks_for_new_text_and_omits_empty_schema() {
         let req = edit_request("m", EngineKind::SQLite, "", "  ", "count users");
         assert!(!req.system.unwrap().contains("Schema:"));
-        assert!(req.messages[0].content.starts_with("The editor is empty"));
+        assert!(req.messages[0].content().starts_with("The editor is empty"));
     }
 }

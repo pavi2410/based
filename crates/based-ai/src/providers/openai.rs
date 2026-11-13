@@ -7,7 +7,7 @@ use crate::http::{lazy_stream, sse_events};
 use crate::provider::{ChunkStream, Provider};
 use crate::sse::SseEvent;
 use crate::tools::{ToolCall, ToolSpec};
-use crate::types::{ChatRequest, Chunk, Message, Role, Usage};
+use crate::types::{ChatRequest, Chunk, Message, MessageBody, Usage};
 
 const DEFAULT_URL: &str = "https://api.openai.com/v1";
 
@@ -87,16 +87,20 @@ fn wire_tool(t: &ToolSpec) -> Value {
 
 /// One message becomes one or more input items.
 fn wire_items(m: &Message) -> Vec<Value> {
-    match (&m.role, &m.outcome) {
-        (Role::Tool, Some(o)) => {
-            vec![json!({ "type": "function_call_output", "call_id": o.id, "output": m.content })]
+    match &m.body {
+        MessageBody::Tool {
+            call_id, result, ..
+        } => {
+            vec![
+                json!({ "type": "function_call_output", "call_id": call_id, "output": result.content }),
+            ]
         }
-        (Role::Assistant, _) => {
+        MessageBody::Assistant { content, calls } => {
             let mut items = Vec::new();
-            if !m.content.is_empty() {
-                items.push(json!({ "role": "assistant", "content": m.content }));
+            if !content.is_empty() {
+                items.push(json!({ "role": "assistant", "content": content }));
             }
-            items.extend(m.calls.iter().map(|c| {
+            items.extend(calls.iter().map(|c| {
                 json!({
                     "type": "function_call",
                     "call_id": c.id,
@@ -106,7 +110,7 @@ fn wire_items(m: &Message) -> Vec<Value> {
             }));
             items
         }
-        _ => vec![json!({ "role": "user", "content": m.content })],
+        MessageBody::User { content } => vec![json!({ "role": "user", "content": content })],
     }
 }
 

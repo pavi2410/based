@@ -42,8 +42,8 @@ pub fn new_id() -> String {
 pub fn title_of(messages: &[Message]) -> String {
     let first = messages
         .iter()
-        .find(|m| m.role == Role::User)
-        .and_then(|m| m.content.lines().find(|l| !l.trim().is_empty()))
+        .find(|m| m.role() == Role::User)
+        .and_then(|m| m.content().lines().find(|l| !l.trim().is_empty()))
         .unwrap_or("New chat")
         .trim();
     if first.chars().count() > TITLE_CHARS {

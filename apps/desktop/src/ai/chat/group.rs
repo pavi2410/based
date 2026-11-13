@@ -19,7 +19,7 @@ pub(super) fn turn_groups(turns: &[Message]) -> Vec<Range<usize>> {
     let mut groups: Vec<Range<usize>> = Vec::new();
     for (ix, turn) in turns.iter().enumerate() {
         match groups.last_mut() {
-            Some(last) if turn.role != Role::User && turns[last.start].role != Role::User => {
+            Some(last) if turn.role() != Role::User && turns[last.start].role() != Role::User => {
                 last.end = ix + 1;
             }
             _ => groups.push(ix..ix + 1),
@@ -36,7 +36,7 @@ impl ChatPane {
 
     /// The live content continues the last assistant group instead of getting its own row.
     fn live_joins_last(&self) -> bool {
-        self.has_live() && self.turns.last().is_some_and(|t| t.role != Role::User)
+        self.has_live() && self.turns.last().is_some_and(|t| t.role() != Role::User)
     }
 
     pub(super) fn rows(&self) -> usize {
@@ -50,7 +50,7 @@ impl ChatPane {
             return div().px_3().child(self.live(this, cx)).into_any_element();
         };
         let first = &self.turns[range.start];
-        if first.role == Role::User {
+        if first.role() == Role::User {
             return super::view::user_row(first, None, cx);
         }
         let live = ix + 1 == groups.len() && self.live_joins_last();
@@ -69,13 +69,13 @@ impl ChatPane {
         let (start, end) = (range.start, range.end);
         for ix in range {
             let turn = &self.turns[ix];
-            if turn.role == Role::Tool {
+            if turn.role() == Role::Tool {
                 calls.push(self.call_row(ix, this, cx));
                 continue;
             }
             group = flush(group, &mut calls);
-            if !turn.content.is_empty() {
-                group = group.child(self.reply_body(ix, &turn.content, live, cx));
+            if !turn.content().is_empty() {
+                group = group.child(self.reply_body(ix, turn.content(), live, cx));
             }
         }
         group = flush(group, &mut calls);

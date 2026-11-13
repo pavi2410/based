@@ -1,7 +1,7 @@
 //! Tool calls in the transcript: one status line each, expanding to arguments and output.
 
 use based_ai::tools::{CONNECT, LIST_CONNECTIONS, RUN_QUERY, ToolCall};
-use based_ai::{Message, Role};
+use based_ai::{Message, MessageBody};
 use gpui_kit::component::{ActiveTheme, Icon, IconName, Sizable as _, h_flex, v_flex};
 use gpui_kit::{
     AnyElement, App, Context, Entity, InteractiveElement as _, IntoElement, ParentElement,
@@ -19,13 +19,14 @@ const OUTPUT_LINES: usize = 20;
 impl ChatPane {
     /// The call a tool-result row at `ix` answers.
     fn call_for(&self, ix: usize) -> Option<&ToolCall> {
-        let id = &self.turns.get(ix)?.outcome.as_ref()?.id;
+        let MessageBody::Tool { call_id, .. } = &self.turns.get(ix)?.body else {
+            return None;
+        };
         self.turns[..ix]
             .iter()
             .rev()
-            .filter(|m| m.role == Role::Assistant)
-            .flat_map(|m| &m.calls)
-            .find(|c| &c.id == id)
+            .flat_map(Message::calls)
+            .find(|c| &c.id == call_id)
     }
 
     fn call_line(
@@ -47,11 +48,12 @@ impl ChatPane {
         let Some(turn) = self.turns.get(ix) else {
             return div().into_any_element();
         };
-        let outcome = turn.outcome.as_ref();
-        let failed = outcome.is_some_and(|o| o.is_error);
+        let (name, failed) = match &turn.body {
+            MessageBody::Tool { name, result, .. } => (name.as_str(), result.is_error),
+            _ => ("tool", false),
+        };
         let call = self.call_for(ix);
         let target = call.and_then(|c| self.targets.get(&c.id));
-        let name = outcome.map_or("tool", |o| o.name.as_str());
         let open = self.expanded.contains(&ix);
         let theme = cx.theme();
         let (status, color) = if failed {
@@ -130,7 +132,7 @@ impl ChatPane {
             div()
                 .text_color(output)
                 .line_clamp(OUTPUT_LINES)
-                .child(turn.content.clone()),
+                .child(turn.content().to_string()),
         )
         .into_any_element()
     }
@@ -138,7 +140,7 @@ impl ChatPane {
     /// Calls the model just requested that have not finished.
     pub(super) fn running_calls(&self, cx: &App) -> AnyElement {
         let muted = cx.theme().muted_foreground;
-        let calls = self.turns.last().map_or(&[][..], |m| m.calls.as_slice());
+        let calls = self.turns.last().map_or(&[][..], Message::calls);
         v_flex()
             .children(calls.iter().map(|call| {
                 let row = h_flex()

@@ -383,7 +383,11 @@ impl ChatPane {
             }
             // The tool request has no results; drop it so the history stays valid.
             Phase::Tools => {
-                if self.turns.last().is_some_and(|m| m.role == Role::Assistant) {
+                if self
+                    .turns
+                    .last()
+                    .is_some_and(|m| m.role() == Role::Assistant)
+                {
                     self.turns.pop();
                 }
             }

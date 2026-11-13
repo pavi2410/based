@@ -16,4 +16,4 @@ pub mod types;
 pub use error::{AiError, AiErrorKind};
 pub use provider::{ChunkStream, Provider};
 pub use providers::{Anthropic, Ollama, OpenAi, ProviderKind};
-pub use types::{ChatRequest, Chunk, Message, Role, ToolOutcome, Usage};
+pub use types::{ChatRequest, Chunk, Message, MessageBody, Role, Usage};

@@ -24,8 +24,8 @@ impl ChatPane {
     fn reply_text(&self, range: &Range<usize>) -> String {
         self.turns[range.clone()]
             .iter()
-            .filter(|t| t.role == Role::Assistant && !t.content.is_empty())
-            .map(|t| t.content.as_str())
+            .filter(|t| t.role() == Role::Assistant && !t.content().is_empty())
+            .map(|t| t.content())
             .collect::<Vec<_>>()
             .join("\n\n")
     }
@@ -48,7 +48,7 @@ impl ChatPane {
             .start
             .checked_sub(1)
             .and_then(|i| self.turns.get(i))
-            .filter(|t| t.role == Role::User)
+            .filter(|t| t.role() == Role::User)
             .and_then(|t| t.at);
 
         let fork = this.clone();

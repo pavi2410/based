@@ -7,7 +7,7 @@ use crate::http::{lazy_stream, sse_events};
 use crate::provider::{ChunkStream, Provider};
 use crate::sse::SseEvent;
 use crate::tools::{ToolCall, ToolSpec};
-use crate::types::{ChatRequest, Chunk, Message, Role, Usage};
+use crate::types::{ChatRequest, Chunk, Message, MessageBody, Usage};
 
 const DEFAULT_URL: &str = "https://api.anthropic.com";
 const VERSION: &str = "2023-06-01";
@@ -85,34 +85,32 @@ fn wire_tool(t: &ToolSpec) -> Value {
 fn wire_messages(messages: &[Message]) -> Vec<Value> {
     messages
         .iter()
-        .map(|m| match (&m.role, &m.outcome) {
-            (Role::Tool, Some(o)) => json!({
+        .map(|m| match &m.body {
+            MessageBody::Tool {
+                call_id, result, ..
+            } => json!({
                 "role": "user",
                 "content": [{
                     "type": "tool_result",
-                    "tool_use_id": o.id,
-                    "content": m.content,
-                    "is_error": o.is_error,
+                    "tool_use_id": call_id,
+                    "content": result.content,
+                    "is_error": result.is_error,
                 }],
             }),
-            (Role::Assistant, _) if !m.calls.is_empty() => {
+            MessageBody::Assistant { content, calls } if !calls.is_empty() => {
                 let mut blocks = Vec::new();
-                if !m.content.is_empty() {
-                    blocks.push(json!({ "type": "text", "text": m.content }));
+                if !content.is_empty() {
+                    blocks.push(json!({ "type": "text", "text": content }));
                 }
-                blocks.extend(m.calls.iter().map(
+                blocks.extend(calls.iter().map(
                     |c| json!({ "type": "tool_use", "id": c.id, "name": c.name, "input": c.args }),
                 ));
                 json!({ "role": "assistant", "content": blocks })
             }
-            (role, _) => {
-                let role = if *role == Role::Assistant {
-                    "assistant"
-                } else {
-                    "user"
-                };
-                json!({ "role": role, "content": m.content })
+            MessageBody::Assistant { content, .. } => {
+                json!({ "role": "assistant", "content": content })
             }
+            MessageBody::User { content } => json!({ "role": "user", "content": content }),
         })
         .collect()
 }

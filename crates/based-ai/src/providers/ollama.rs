@@ -6,7 +6,7 @@ use crate::error::{AiError, AiErrorKind};
 use crate::http::{lazy_stream, ndjson_lines};
 use crate::provider::{ChunkStream, Provider};
 use crate::tools::{ToolCall, ToolSpec};
-use crate::types::{ChatRequest, Chunk, Message, Role, Usage};
+use crate::types::{ChatRequest, Chunk, Message, MessageBody, Usage};
 
 const DEFAULT_URL: &str = "http://localhost:11434";
 
@@ -85,25 +85,21 @@ fn wire_tool(t: &ToolSpec) -> Value {
 }
 
 fn wire_message(m: &Message) -> Value {
-    match (&m.role, &m.outcome) {
-        (Role::Tool, Some(o)) => {
-            json!({ "role": "tool", "tool_name": o.name, "content": m.content })
+    match &m.body {
+        MessageBody::Tool { name, result, .. } => {
+            json!({ "role": "tool", "tool_name": name, "content": result.content })
         }
-        (Role::Assistant, _) if !m.calls.is_empty() => json!({
+        MessageBody::Assistant { content, calls } if !calls.is_empty() => json!({
             "role": "assistant",
-            "content": m.content,
-            "tool_calls": m.calls.iter().map(|c| json!({
+            "content": content,
+            "tool_calls": calls.iter().map(|c| json!({
                 "function": { "name": c.name, "arguments": c.args },
             })).collect::<Vec<_>>(),
         }),
-        (role, _) => {
-            let role = if *role == Role::Assistant {
-                "assistant"
-            } else {
-                "user"
-            };
-            json!({ "role": role, "content": m.content })
+        MessageBody::Assistant { content, .. } => {
+            json!({ "role": "assistant", "content": content })
         }
+        MessageBody::User { content } => json!({ "role": "user", "content": content }),
     }
 }
 

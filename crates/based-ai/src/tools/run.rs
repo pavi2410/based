@@ -1,19 +1,13 @@
 use std::fmt::Write;
 use std::sync::Arc;
 
-use based_core::{EngineKind, Value};
+use based_core::{EngineKind, ResultSet, Value};
 use futures::future::BoxFuture;
 
 use super::guard::check;
 use super::spec::{RUN_QUERY as ROWS_TOOL, ToolCall, ToolResult, ToolSpec, specs};
 use crate::context::{ContextLevel, Entity, RenderOptions, SchemaSnapshot, render};
 use crate::error::AiError;
-
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct QueryOutput {
-    pub columns: Vec<String>,
-    pub rows: Vec<Vec<Value>>,
-}
 
 /// Engine access for tools. `query` and `explain` must run in a read-only
 /// transaction/connection and respect `limit`.
@@ -28,7 +22,7 @@ pub trait ToolBackend: Send + Sync {
         &'a self,
         query: &'a str,
         limit: usize,
-    ) -> BoxFuture<'a, Result<QueryOutput, AiError>>;
+    ) -> BoxFuture<'a, Result<ResultSet, AiError>>;
     fn explain<'a>(&'a self, query: &'a str) -> BoxFuture<'a, Result<String, AiError>>;
 }
 
@@ -52,7 +46,7 @@ impl<T: ToolBackend + ?Sized> ToolBackend for Arc<T> {
         &'a self,
         query: &'a str,
         limit: usize,
-    ) -> BoxFuture<'a, Result<QueryOutput, AiError>> {
+    ) -> BoxFuture<'a, Result<ResultSet, AiError>> {
         (**self).query(query, limit)
     }
 
@@ -160,8 +154,8 @@ impl<B: ToolBackend> ReadOnlyTools<B> {
     }
 }
 
-fn format_output(out: &QueryOutput, limits: &ToolLimits) -> String {
-    let mut s = out.columns.join(" | ");
+fn format_output(out: &ResultSet, limits: &ToolLimits) -> String {
+    let mut s = out.column_names().collect::<Vec<_>>().join(" | ");
     s.push('\n');
     for row in out.rows.iter().take(limits.max_rows) {
         let cells: Vec<String> = row
@@ -199,6 +193,7 @@ fn clip(cell: &str, max: usize) -> String {
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
+    use based_core::ResultColumn;
     use futures::FutureExt;
     use serde_json::json;
 
@@ -237,11 +232,11 @@ mod tests {
             &'a self,
             _q: &'a str,
             _l: usize,
-        ) -> BoxFuture<'a, Result<QueryOutput, AiError>> {
+        ) -> BoxFuture<'a, Result<ResultSet, AiError>> {
             self.queries.fetch_add(1, Ordering::SeqCst);
             async {
-                Ok(QueryOutput {
-                    columns: vec!["n".into()],
+                Ok(ResultSet {
+                    columns: vec![ResultColumn::new("n", None)],
                     rows: (0..150).map(|i| vec![Value::Int(i)]).collect(),
                 })
             }
@@ -330,8 +325,11 @@ mod tests {
 
     #[test]
     fn null_and_text_null_read_differently() {
-        let out = QueryOutput {
-            columns: vec!["a".into(), "b".into(), "c".into()],
+        let out = ResultSet {
+            columns: ["a", "b", "c"]
+                .into_iter()
+                .map(|n| ResultColumn::new(n, None))
+                .collect(),
             rows: vec![vec![Value::Null, Value::text("NULL"), Value::text("")]],
         };
         let s = format_output(&out, &ToolLimits::default());

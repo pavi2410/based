@@ -2,8 +2,8 @@
 
 use based_ai::AiError;
 use based_ai::context::Entity;
-use based_ai::tools::{QueryOutput, ToolBackend};
-use based_core::{EngineKind, Value};
+use based_ai::tools::ToolBackend;
+use based_core::{EngineKind, ResultSet, Value};
 use futures::future::BoxFuture;
 use sqlx::{PgPool, SqlitePool};
 
@@ -29,13 +29,12 @@ impl SqlTools {
         .map_err(fail)
     }
 
-    async fn rows(&self, sql: &str, limit: usize) -> Result<QueryOutput, AiError> {
-        let (columns, rows) = match &self.0 {
+    async fn rows(&self, sql: &str, limit: usize) -> Result<ResultSet, AiError> {
+        match &self.0 {
             SqlPool::Postgres(p) => based_postgres::query_readonly(p, sql, limit).await,
             SqlPool::Sqlite(p) => based_sqlite::query_readonly(p, sql, limit).await,
         }
-        .map_err(fail)?;
-        Ok(QueryOutput { columns, rows })
+        .map_err(fail)
     }
 }
 
@@ -68,7 +67,7 @@ impl ToolBackend for SqlTools {
         &'a self,
         query: &'a str,
         limit: usize,
-    ) -> BoxFuture<'a, Result<QueryOutput, AiError>> {
+    ) -> BoxFuture<'a, Result<ResultSet, AiError>> {
         Box::pin(self.rows(query, limit))
     }
 

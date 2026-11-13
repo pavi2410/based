@@ -4,11 +4,12 @@ use std::time::Duration;
 
 use anyhow::{Result, anyhow};
 use futures::TryStreamExt;
-use sqlx::{AssertSqlSafe, Column, Row, SqliteConnection, SqlitePool};
+use sqlx::{AssertSqlSafe, Row, SqliteConnection, SqlitePool};
 use tokio::time::timeout;
 
-use based_core::Value;
+use based_core::ResultSet;
 
+use crate::mutations::result_columns;
 use crate::page::sqlite_cell;
 
 const TIMEOUT: Duration = Duration::from_secs(15);
@@ -18,16 +19,12 @@ const TIMEOUT: Duration = Duration::from_secs(15);
 ///
 /// Runs on a spawned task so cancelling the caller cannot return a connection to the
 /// pool with `query_only` still on.
-pub async fn query_readonly(
-    pool: &SqlitePool,
-    sql: &str,
-    limit: usize,
-) -> Result<(Vec<String>, Vec<Vec<Value>>)> {
+pub async fn query_readonly(pool: &SqlitePool, sql: &str, limit: usize) -> Result<ResultSet> {
     let (pool, sql) = (pool.clone(), sql.to_owned());
     tokio::spawn(async move { run(&pool, &sql, limit).await }).await?
 }
 
-async fn run(pool: &SqlitePool, sql: &str, limit: usize) -> Result<(Vec<String>, Vec<Vec<Value>>)> {
+async fn run(pool: &SqlitePool, sql: &str, limit: usize) -> Result<ResultSet> {
     let mut conn = pool.acquire().await?;
     sqlx::query("PRAGMA query_only = ON")
         .execute(&mut *conn)
@@ -46,24 +43,20 @@ async fn run(pool: &SqlitePool, sql: &str, limit: usize) -> Result<(Vec<String>,
     result
 }
 
-async fn collect(
-    conn: &mut SqliteConnection,
-    sql: &str,
-    limit: usize,
-) -> Result<(Vec<String>, Vec<Vec<Value>>)> {
-    let mut columns = Vec::new();
-    let mut rows = Vec::new();
+async fn collect(conn: &mut SqliteConnection, sql: &str, limit: usize) -> Result<ResultSet> {
+    let mut set = ResultSet::default();
     let mut stream = sqlx::query(AssertSqlSafe(sql)).fetch(conn);
     while let Some(row) = stream.try_next().await? {
-        if columns.is_empty() {
-            columns = row.columns().iter().map(|c| c.name().to_owned()).collect();
+        if set.columns.is_empty() {
+            set.columns = result_columns(row.columns());
         }
-        rows.push((0..row.len()).map(|i| sqlite_cell(&row, i)).collect());
-        if rows.len() > limit {
+        set.rows
+            .push((0..row.len()).map(|i| sqlite_cell(&row, i)).collect());
+        if set.rows.len() > limit {
             break;
         }
     }
-    Ok((columns, rows))
+    Ok(set)
 }
 
 #[cfg(test)]
@@ -86,17 +79,17 @@ mod tests {
     #[tokio::test]
     async fn reads_and_caps_rows() {
         let pool = pool().await;
-        let (cols, rows) = query_readonly(&pool, "SELECT a FROM t", 2).await.unwrap();
-        assert_eq!(cols, vec!["a"]);
-        assert_eq!(rows.len(), 3); // limit + 1 marks truncation
+        let set = query_readonly(&pool, "SELECT a FROM t", 2).await.unwrap();
+        assert_eq!(set.column_names().collect::<Vec<_>>(), ["a"]);
+        assert_eq!(set.rows.len(), 3); // limit + 1 marks truncation
     }
 
     #[tokio::test]
     async fn refuses_writes_and_restores_the_connection() {
         let pool = pool().await;
         assert!(query_readonly(&pool, "DELETE FROM t", 10).await.is_err());
-        let (_, rows) = query_readonly(&pool, "SELECT a FROM t", 10).await.unwrap();
-        assert_eq!(rows.len(), 3);
+        let set = query_readonly(&pool, "SELECT a FROM t", 10).await.unwrap();
+        assert_eq!(set.rows.len(), 3);
         // The pool is usable for writes again.
         sqlx::query("INSERT INTO t VALUES (4)")
             .execute(&pool)

@@ -2,8 +2,8 @@
 
 use based_ai::AiError;
 use based_ai::context::{Entity, EntityKind, Field};
-use based_ai::tools::{QueryOutput, ToolBackend};
-use based_core::EngineKind;
+use based_ai::tools::ToolBackend;
+use based_core::{EngineKind, ResultColumn, ResultSet};
 use based_redis::{Conn, exec, key_meta, scan_keys};
 use futures::future::BoxFuture;
 
@@ -53,12 +53,12 @@ impl ToolBackend for RedisTools {
         &'a self,
         query: &'a str,
         _limit: usize,
-    ) -> BoxFuture<'a, Result<QueryOutput, AiError>> {
+    ) -> BoxFuture<'a, Result<ResultSet, AiError>> {
         Box::pin(async move {
             let mut conn = self.0.clone();
             let reply = exec(&mut conn, query).await.map_err(fail)?;
-            Ok(QueryOutput {
-                columns: vec!["reply".into()],
+            Ok(ResultSet {
+                columns: vec![ResultColumn::new("reply", None)],
                 rows: reply
                     .lines()
                     .map(|l| vec![based_core::Value::text(l)])

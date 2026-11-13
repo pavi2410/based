@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 
 use based_ai::AiError;
 use based_ai::context::{Entity, EntityKind, Field};
-use based_ai::tools::{QueryOutput, ToolBackend};
-use based_core::EngineKind;
+use based_ai::tools::ToolBackend;
+use based_core::{EngineKind, ResultColumn, ResultSet};
 use futures::TryStreamExt;
 use futures::future::BoxFuture;
 use mongodb::Database;
@@ -75,7 +75,7 @@ impl ToolBackend for MongoTools {
         &'a self,
         query: &'a str,
         limit: usize,
-    ) -> BoxFuture<'a, Result<QueryOutput, AiError>> {
+    ) -> BoxFuture<'a, Result<ResultSet, AiError>> {
         Box::pin(async move {
             let (collection, mut pipeline) = parse(query)?;
             pipeline.push(doc! { "$limit": limit as i64 + 1 });
@@ -91,8 +91,8 @@ impl ToolBackend for MongoTools {
                     serde_json::to_string(&d).map_err(fail)?.into(),
                 )]);
             }
-            Ok(QueryOutput {
-                columns: vec!["document".into()],
+            Ok(ResultSet {
+                columns: vec![ResultColumn::new("document", None)],
                 rows,
             })
         })

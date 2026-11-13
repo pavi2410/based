@@ -15,7 +15,7 @@ use based_query::{
 };
 use gpui_kit::component::{
     ActiveTheme, Disableable as _, Icon, IconName, Selectable as _, Sizable as _, WindowExt,
-    button::{Button, ButtonVariants},
+    button::{Button, ButtonVariants, DropdownButton},
     dialog::{DialogAction, DialogClose, DialogFooter},
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,

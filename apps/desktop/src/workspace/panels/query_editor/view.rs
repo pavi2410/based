@@ -396,42 +396,38 @@ impl QueryEditorPanel {
                     .icon(IconName::Close)
                     .label("Stop")
                     .on_click(cx.listener(|panel, _, _, cx| panel.stop(cx)))
+                    .into_any_element()
             } else {
-                Button::new(format!("{id}-run"))
+                let panel = cx.weak_entity();
+                DropdownButton::new(format!("{id}-run-split"))
                     .primary()
                     .small()
-                    .icon(IconName::Play)
-                    .label("Run")
-                    .child(shortcut_run_kbd_in_primary_button(cx))
-                    .on_click(cx.listener(|panel, _, _, cx| panel.run(cx)))
-            })
-            .when(!self.status.is_running(), |h| {
-                let panel = cx.weak_entity();
-                h.child(
-                    Button::new(format!("{id}-run-more"))
-                        .primary()
-                        .small()
-                        .ml(px(-5.0))
-                        .icon(IconName::ChevronDown)
-                        .tooltip("Run options")
-                        .dropdown_menu(move |menu, _, _| {
-                            let (a, b) = (panel.clone(), panel.clone());
-                            menu.item(
-                                PopupMenuItem::new("Run Selection or Current Statement")
-                                    .icon(IconName::Play)
-                                    .on_click(move |_, _, cx| {
-                                        let _ = a.update(cx, |p, cx| p.run(cx));
-                                    }),
-                            )
-                            .item(
-                                PopupMenuItem::new("Run All Statements")
-                                    .icon(IconName::Play)
-                                    .on_click(move |_, _, cx| {
-                                        let _ = b.update(cx, |p, cx| p.run_all(cx));
-                                    }),
-                            )
-                        }),
-                )
+                    .button(
+                        Button::new(format!("{id}-run"))
+                            .icon(IconName::Play)
+                            .label("Run")
+                            .child(shortcut_run_kbd_in_primary_button(cx))
+                            .on_click(cx.listener(|panel, _, _, cx| panel.run(cx))),
+                    )
+                    .menu_accessibility_label("Run options")
+                    .dropdown_menu(move |menu, _, _| {
+                        let (a, b) = (panel.clone(), panel.clone());
+                        menu.item(
+                            PopupMenuItem::new("Run Selection or Current Statement")
+                                .icon(IconName::Play)
+                                .on_click(move |_, _, cx| {
+                                    let _ = a.update(cx, |p, cx| p.run(cx));
+                                }),
+                        )
+                        .item(
+                            PopupMenuItem::new("Run All Statements")
+                                .icon(IconName::Play)
+                                .on_click(move |_, _, cx| {
+                                    let _ = b.update(cx, |p, cx| p.run_all(cx));
+                                }),
+                        )
+                    })
+                    .into_any_element()
             })
             .child(
                 Button::new(format!("{id}-format"))

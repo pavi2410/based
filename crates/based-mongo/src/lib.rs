@@ -10,4 +10,4 @@ pub use client::{
 };
 pub use config::{MongoConfig, mongo_uri, mongosh_command};
 pub use mutations::{delete_by_id, document_from_json, replace_by_id, update_fields_by_id};
-pub use value::bson_to_value;
+pub use value::{bson_to_value, documents_to_result_set};

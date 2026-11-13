@@ -1,8 +1,8 @@
 //! BSON → grid cell values.
 
-use based_core::Value;
-use mongodb::bson::Bson;
+use based_core::{ResultColumn, ResultSet, Value};
 use mongodb::bson::spec::BinarySubtype;
+use mongodb::bson::{Bson, Document};
 use time::OffsetDateTime;
 
 /// Map one document field to a cell. `None` (the document has no such key) is
@@ -91,5 +91,38 @@ mod tests {
             bson_to_value(d.get("arr")),
             Value::Json(r#"[1,"a"]"#.into())
         );
+    }
+}
+
+/// Documents as a grid: one column per key, in first-seen order. A document
+/// without a key gets [`Value::Missing`] in that column.
+pub fn documents_to_result_set(docs: &[Document]) -> ResultSet {
+    let mut keys: Vec<&str> = Vec::new();
+    for d in docs {
+        for k in d.keys() {
+            if !keys.contains(&k.as_str()) {
+                keys.push(k);
+            }
+        }
+    }
+    ResultSet {
+        columns: keys.iter().map(|k| ResultColumn::new(*k, None)).collect(),
+        rows: docs
+            .iter()
+            .map(|d| keys.iter().map(|k| bson_to_value(d.get(k))).collect())
+            .collect(),
+    }
+}
+
+#[cfg(test)]
+mod result_set_tests {
+    use super::*;
+    use mongodb::bson::doc;
+
+    #[test]
+    fn keys_in_first_seen_order_and_absent_keys_are_missing() {
+        let set = documents_to_result_set(&[doc! { "_id": 1, "a": 2 }, doc! { "_id": 2, "b": 3 }]);
+        assert_eq!(set.column_names().collect::<Vec<_>>(), ["_id", "a", "b"]);
+        assert_eq!(set.rows[1], [Value::Int(2), Value::Missing, Value::Int(3)]);
     }
 }

@@ -1,7 +1,7 @@
 // mongodb::pipeline_builder — run aggregation from a JSON pipeline array.
 
 use based_core::ColumnCatalog;
-use based_mongo::bson_to_value;
+use based_mongo::documents_to_result_set;
 
 use based_ai::context::{
     ContextLevel, Entity as AiEntity, EntityKind, RenderOptions, SchemaSnapshot, render,
@@ -31,7 +31,7 @@ use crate::widgets::export;
 use crate::widgets::panel_status::PanelStatus;
 use crate::widgets::sql_editor::{self, new_json_input, set_input_text, text_from_input};
 use crate::widgets::virtual_table::{
-    Cell, RowDelegate, align_meta_to_columns, data_column, replace_table_data,
+    RowDelegate, align_meta_to_columns, cells, data_column, replace_table_data,
 };
 use crate::workspace::notify::push_export_success;
 use crate::workspace::tabs::kind::names;
@@ -175,27 +175,13 @@ impl PipelineBuilderPanel {
 
             let row_count = docs.len() as u64;
 
-            let mut keys: Vec<String> = Vec::new();
-            for d in &docs {
-                for k in d.keys() {
-                    if !keys.contains(k) {
-                        keys.push(k.clone());
-                    }
-                }
-            }
-
+            let set = documents_to_result_set(&docs);
+            let keys: Vec<String> = set.column_names().map(str::to_string).collect();
             let columns: Vec<Column> = keys
                 .iter()
                 .map(|k| data_column(k.clone(), k.clone()))
                 .collect();
-            let rows: Vec<Vec<Cell>> = docs
-                .iter()
-                .map(|d| {
-                    keys.iter()
-                        .map(|k| Cell::new(bson_to_value(d.get(k))))
-                        .collect()
-                })
-                .collect();
+            let rows = cells(set.rows);
 
             let _ = cx.update(|cx| {
                 this.update(cx, |panel, cx| {

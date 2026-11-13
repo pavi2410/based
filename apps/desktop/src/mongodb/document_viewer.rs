@@ -1,8 +1,8 @@
 // mongodb::document_viewer — paginated find() as a virtual table.
 
-use based_core::ColumnCatalog;
 use based_core::Value;
-use based_mongo::bson_to_value;
+use based_core::{ColumnCatalog, ResultColumn};
+use based_mongo::documents_to_result_set;
 use gpui_kit::assets::IconName as AssetIcon;
 
 use gpui_kit::component::{
@@ -26,7 +26,7 @@ use crate::widgets::export;
 use crate::widgets::filter_bar::{FilterBar, FilterEvent, FilterSet};
 use crate::widgets::panel::data_viewer_toolbar;
 use crate::widgets::virtual_table::{
-    Cell, RowDelegate, align_meta_to_columns, data_column, replace_table_data,
+    RowDelegate, align_meta_to_columns, cells, data_column, replace_table_data,
 };
 use crate::workspace::notify::push_export_success;
 use crate::workspace::tabs::kind::names;
@@ -137,31 +137,20 @@ impl DocumentViewerPanel {
                 }
             };
 
-            let mut keys: Vec<String> = Vec::new();
-            for d in &docs {
-                for k in d.keys() {
-                    if !keys.contains(k) {
-                        keys.push(k.clone());
-                    }
+            let mut set = documents_to_result_set(&docs);
+            // The `_id` column is always there, even for no documents or a projection.
+            if !set.column_names().any(|k| k == "_id") {
+                set.columns.insert(0, ResultColumn::new("_id", None));
+                for row in &mut set.rows {
+                    row.insert(0, Value::Missing);
                 }
             }
-            if !keys.iter().any(|k| k == "_id") {
-                keys.insert(0, "_id".into());
-            }
-
+            let keys: Vec<String> = set.column_names().map(str::to_string).collect();
             let columns: Vec<Column> = keys
                 .iter()
                 .map(|k| data_column(k.clone(), k.clone()))
                 .collect();
-
-            let rows: Vec<Vec<Cell>> = docs
-                .iter()
-                .map(|d| {
-                    keys.iter()
-                        .map(|k| Cell::new(bson_to_value(d.get(k))))
-                        .collect()
-                })
-                .collect();
+            let rows = cells(set.rows);
 
             let _ = cx.update(|cx| {
                 this.update(cx, |panel, cx| {

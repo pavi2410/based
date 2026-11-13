@@ -39,6 +39,12 @@ impl Editor {
         self.snapshot(cx)
     }
 
+    /// Wait until no run is in flight (writes return no rows).
+    fn finished_or_idle(&self, cx: &mut TestAppContext) -> ResultSnapshot {
+        wait_until(cx, |cx| !self.snapshot(cx).running);
+        self.snapshot(cx)
+    }
+
     fn hold(&self, cx: &mut TestAppContext) -> Option<HoldReason> {
         self.panel.read_with(cx, |p, _| p.hold_reason())
     }
@@ -533,4 +539,24 @@ fn a_new_query_tab_runs_nothing(cx: &mut TestAppContext) {
         !s.running && s.rows.is_empty(),
         "a blank tab must not run its starter SQL"
     );
+}
+
+#[gpui_kit::test]
+fn cancelling_a_card_run_leaves_later_runs_writable(cx: &mut TestAppContext) {
+    let (editor, ws, _dir) = open_editor(cx, "select 1", false);
+    send_card_sql(cx, "delete from t", true);
+    let run = editors(&ws, cx).pop().expect("a tab for the card's run");
+    let card = Editor {
+        win: editor.win,
+        panel: run,
+    };
+    assert_eq!(card.hold(cx), Some(HoldReason::AiWrite));
+    card.click("sqlite-ai-cancel", cx);
+    assert_eq!(card.hold(cx), None);
+
+    // The user's own write in the same tab runs normally, not read-only.
+    card.set_sql("update t set name = 'ada l.' where id = 1", cx);
+    card.click("sqlite-run", cx);
+    let s = card.finished_or_idle(cx);
+    assert!(s.error.is_none(), "unexpected error: {:?}", s.error);
 }

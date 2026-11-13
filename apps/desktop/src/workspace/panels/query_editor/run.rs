@@ -2,7 +2,6 @@
 
 use super::*;
 use crate::workspace::connection_health::mark_connection_lost;
-use std::mem;
 
 /// Row cap for an assistant card's read-only run.
 const READ_ONLY_ROWS: usize = 1000;
@@ -38,7 +37,7 @@ impl QueryEditorPanel {
     /// Run the whole editor text as one batch.
     pub fn run_all(&mut self, cx: &mut Context<Self>) {
         let text = self.current_sql(cx);
-        self.run_statements(text, Some(0), true, false, cx);
+        self.run_statements(text, Some(0), true, false, false, cx);
     }
 
     /// Run the held text after its banner was confirmed. Confirming the production banner
@@ -49,7 +48,14 @@ impl QueryEditorPanel {
         cx: &mut Context<Self>,
     ) {
         if let Some(held) = self.held.take() {
-            self.run_statements(held.sql, held.base, held.batch, skip_production_gate, cx);
+            self.run_statements(
+                held.sql,
+                held.base,
+                held.batch,
+                skip_production_gate,
+                held.read_only,
+                cx,
+            );
         }
     }
 
@@ -67,7 +73,7 @@ impl QueryEditorPanel {
 
     /// Run text taken from `base` in the editor (`None` when it isn't editor text).
     pub(super) fn run_sql(&mut self, sql_raw: String, base: Option<usize>, cx: &mut Context<Self>) {
-        self.run_statements(sql_raw, base, false, false, cx);
+        self.run_statements(sql_raw, base, false, false, false, cx);
     }
 
     /// Why `sql` must wait for confirmation before it runs, if it must.
@@ -99,6 +105,7 @@ impl QueryEditorPanel {
         base: Option<usize>,
         batch: bool,
         skip_production_gate: bool,
+        read_only: bool,
         cx: &mut Context<Self>,
     ) {
         // One run at a time: a second would abandon the first, which keeps running.
@@ -110,6 +117,7 @@ impl QueryEditorPanel {
                 sql: sql_raw,
                 base,
                 batch,
+                read_only,
                 reason,
             });
             cx.notify();
@@ -167,7 +175,6 @@ impl QueryEditorPanel {
         let source = self.source.clone();
         let timeout = prefs::query_timeout_secs(cx);
         let total = resolved.len();
-        let read_only = mem::take(&mut self.read_only_next);
         let task = cx.spawn(async move |this, cx| {
             for (index, sent) in resolved.into_iter().enumerate() {
                 let fut = if read_only {

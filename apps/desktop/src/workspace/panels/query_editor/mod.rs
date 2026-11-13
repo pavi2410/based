@@ -88,6 +88,8 @@ pub(super) struct HeldRun {
     /// Where `sql` starts in the editor text, when it was taken from there.
     pub(super) base: Option<usize>,
     pub(super) batch: bool,
+    /// Runs where the database refuses writes (an assistant card's Run).
+    pub(super) read_only: bool,
     pub(super) reason: HoldReason,
 }
 
@@ -213,8 +215,6 @@ pub struct QueryEditorPanel {
     last_run: LastRun,
     /// The project query this tab edits, so Save overwrites instead of asking again.
     saved: Option<SavedQueryRef>,
-    /// The next run goes through [`QuerySource::run_read_only`] (assistant cards).
-    read_only_next: bool,
     pub(crate) tab_label: SharedString,
 }
 
@@ -257,7 +257,6 @@ impl QueryEditorPanel {
             ai: AiHost::new(window, cx, Self::on_ai_event),
             ai_scope: None,
             held: None,
-            read_only_next: false,
             last_run: LastRun::default(),
             saved: None,
             tab_label: "Query".into(),
@@ -391,8 +390,8 @@ impl QueryEditorPanel {
 
     /// Run the editor's SQL once where the database refuses writes.
     pub fn run_read_only(&mut self, cx: &mut Context<Self>) {
-        self.read_only_next = true;
-        self.run_all(cx);
+        let text = self.current_sql(cx);
+        self.run_statements(text, Some(0), true, false, true, cx);
     }
 
     pub fn set_sql(&mut self, sql: &str, window: &mut Window, cx: &mut Context<Self>) {

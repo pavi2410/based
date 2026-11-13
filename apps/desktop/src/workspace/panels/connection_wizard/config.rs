@@ -115,8 +115,12 @@ impl ConnectionWizardPanel {
         })
     }
 
-    pub(super) fn current_ai(&self, cx: &App) -> Option<AiSettings> {
-        ai_settings_for(self.ai_select.read(cx).selected_value().copied()?)
+    pub(super) fn current_ai(&self, cx: &App) -> ContextLevel {
+        self.ai_select
+            .read(cx)
+            .selected_value()
+            .copied()
+            .unwrap_or_default()
     }
 
     pub(super) fn current_ssl_mode(&self, cx: &App) -> SslMode {

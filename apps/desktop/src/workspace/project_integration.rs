@@ -3,7 +3,8 @@
 use std::mem;
 use std::path::PathBuf;
 
-use based_project::{AiSettings, ProjectQuery, load_env_file};
+use based_core::ContextLevel;
+use based_project::{ProjectQuery, load_env_file};
 use gpui_kit::Context;
 
 use crate::app::paths::AppPaths;
@@ -122,7 +123,7 @@ impl Workspace {
     pub fn set_connection_ai(
         &mut self,
         id: &ConnectionId,
-        ai: Option<AiSettings>,
+        ai: ContextLevel,
         cx: &mut Context<Self>,
     ) -> Result<(), String> {
         let Some((config, origin, tags)) = self.registry.read(cx).get(id, cx).map(|e| {
@@ -148,7 +149,7 @@ impl Workspace {
         destination: ConnectionDestination,
         session_id: Option<ConnectionId>,
         tags: Vec<String>,
-        ai: Option<AiSettings>,
+        ai: ContextLevel,
         cx: &mut Context<Self>,
     ) -> Result<(ConnectionId, bool), String> {
         let based_dir = destination
@@ -288,7 +289,7 @@ fn entry_from_config(
     relative_id: &str,
     origin: ConnectionOrigin,
     tags: Vec<String>,
-    ai: Option<AiSettings>,
+    ai: ContextLevel,
 ) -> ConnectionEntry {
     let id = super::wizard_logic::saved_id_for_destination(origin, relative_id);
     let mut entry = ConnectionEntry::new(id, config.clone(), tags);

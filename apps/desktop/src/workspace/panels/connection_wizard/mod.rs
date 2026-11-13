@@ -22,8 +22,8 @@ use gpui_kit::{prelude::*, *};
 use tokio::task::spawn_blocking;
 use uuid::Uuid;
 
+use based_core::ContextLevel;
 use based_core::{SshEndpoint, SshTunnelConfig};
-use based_project::{AiContext, AiSettings};
 
 use crate::app::prefs;
 use crate::connection::Environment;
@@ -48,9 +48,9 @@ use crate::workspace::connection_destination::{
 };
 use crate::workspace::tabs::kind::names;
 use crate::workspace::wizard_logic::{
-    AI_CHOICES, add_wizard_tag, ai_context_of, ai_settings_for, can_edit_saved_connection,
-    remove_wizard_tag, save_label_from_config, ssl_mode_from_toggle, ssl_on_choice,
-    ssl_toggle_enabled, wizard_session_id,
+    AI_CHOICES, add_wizard_tag, can_edit_saved_connection, remove_wizard_tag,
+    save_label_from_config, ssl_mode_from_toggle, ssl_on_choice, ssl_toggle_enabled,
+    wizard_session_id,
 };
 
 mod actions;
@@ -120,7 +120,7 @@ pub struct ConnectionWizardPanel {
     name: Entity<InputState>,
     tag_input: Entity<InputState>,
     tags: Vec<String>,
-    ai_select: Entity<SelectState<Vec<Choice<AiContext>>>>,
+    ai_select: Entity<SelectState<Vec<Choice<ContextLevel>>>>,
     destination: Option<ConnectionDestination>,
     session_id: Option<ConnectionId>,
     status: WizardStatus,
@@ -258,7 +258,7 @@ impl ConnectionWizardPanel {
         panel.destination = Some(ConnectionDestination::from_origin(origin));
         panel.tags = tags;
         panel.ai_select.update(cx, |select, cx| {
-            select.set_selected_value(&ai_context_of(ai), window, cx);
+            select.set_selected_value(&ai, window, cx);
         });
         panel.tab_label = config.label().to_string().into();
         panel.apply_config(&config, window, cx);

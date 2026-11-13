@@ -42,7 +42,7 @@ impl Assist {
 
 impl QueryEditorPanel {
     fn ai_level(&self, cx: &gpui_kit::App) -> ContextLevel {
-        schema::level(connection_ai(&self.conn_id, cx))
+        connection_ai(&self.conn_id, cx)
     }
 
     pub(super) fn toggle_ai(&mut self, window: &mut Window, cx: &mut Context<Self>) {

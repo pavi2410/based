@@ -2,7 +2,6 @@
 //! shows the level and changes it, and the starter questions built from the schema.
 
 use based_ai::context::ContextLevel;
-use based_project::{AiContext, AiSettings};
 use gpui_kit::component::{
     ActiveTheme, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants as _},
@@ -36,18 +35,6 @@ fn level_detail(level: ContextLevel) -> &'static str {
         ContextLevel::Schema => "Table and column names, types and keys. No row values.",
         ContextLevel::SchemaRows => "Also lets the assistant read rows with read-only queries.",
     }
-}
-
-fn settings_for(level: ContextLevel) -> Option<AiSettings> {
-    let context = match level {
-        ContextLevel::Off => return None,
-        ContextLevel::Schema => AiContext::Schema,
-        ContextLevel::SchemaRows => AiContext::SchemaRows,
-    };
-    Some(AiSettings {
-        enabled: true,
-        context,
-    })
 }
 
 /// Starter questions for a connection, most useful first. `tables` are real names.
@@ -122,10 +109,9 @@ impl ChatPane {
             return;
         };
         let id = id.clone();
-        let ai = settings_for(level);
         // The workspace owns the project files; defer so this click can finish first.
         cx.defer(move |cx| {
-            let result = ws.update(cx, |w, cx| w.set_connection_ai(&id, ai, cx));
+            let result = ws.update(cx, |w, cx| w.set_connection_ai(&id, level, cx));
             if let Err(message) = result {
                 log::warn!("could not change AI access: {message}");
             }
@@ -236,14 +222,5 @@ mod tests {
         let rows = starters(&tables, ContextLevel::SchemaRows);
         assert!(rows.iter().any(|s| s.contains("recent rows from orders")));
         assert_eq!(starters(&[], ContextLevel::Schema).len(), 1);
-    }
-
-    #[test]
-    fn off_has_no_settings() {
-        assert_eq!(settings_for(ContextLevel::Off), None);
-        assert_eq!(
-            settings_for(ContextLevel::SchemaRows).map(|a| a.context),
-            Some(AiContext::SchemaRows)
-        );
     }
 }

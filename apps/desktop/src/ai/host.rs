@@ -3,8 +3,8 @@
 //! (reading and replacing editor text, schema context, how they confirm a run).
 
 use based_ai::tools::check;
+use based_core::ContextLevel;
 use based_core::EngineKind;
-use based_project::AiSettings;
 use gpui_kit::{App, AppContext as _, Context, Entity, Window};
 
 use super::prompt::{AiPrompt, AiPromptEvent};
@@ -13,11 +13,15 @@ use crate::workspace::WorkspaceRef;
 
 pub const OFF_NOTICE: &str = "AI is off for this connection. Enable it in the connection settings.";
 
-/// The connection's `[ai]` settings, if it is in the registry.
-pub fn connection_ai(conn: &ConnectionId, cx: &App) -> Option<AiSettings> {
-    let ws = cx.try_global::<WorkspaceRef>()?;
+/// The connection's AI access level; `Off` when it isn't in the registry.
+pub fn connection_ai(conn: &ConnectionId, cx: &App) -> ContextLevel {
+    let Some(ws) = cx.try_global::<WorkspaceRef>() else {
+        return ContextLevel::Off;
+    };
     let registry = ws.0.read(cx).registry().read(cx);
-    registry.get(conn, cx)?.read(cx).ai
+    registry
+        .get(conn, cx)
+        .map_or(ContextLevel::Off, |e| e.read(cx).ai)
 }
 
 pub struct AiHost {

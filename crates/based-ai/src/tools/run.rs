@@ -79,23 +79,17 @@ impl Default for ToolLimits {
 pub struct ReadOnlyTools<B> {
     backend: B,
     limits: ToolLimits,
-    /// Whether tools may return row data (`ContextLevel::SchemaRows`).
-    rows: bool,
+    /// What the connection shares; `run_readonly_query` needs rows.
+    level: ContextLevel,
 }
 
 impl<B: ToolBackend> ReadOnlyTools<B> {
-    pub fn new(backend: B) -> Self {
+    pub fn new(backend: B, level: ContextLevel) -> Self {
         Self {
             backend,
             limits: ToolLimits::default(),
-            rows: true,
+            level,
         }
-    }
-
-    /// Withholds `run_readonly_query` when the connection only shares its schema.
-    pub fn with_rows(mut self, rows: bool) -> Self {
-        self.rows = rows;
-        self
     }
 
     pub fn with_limits(mut self, limits: ToolLimits) -> Self {
@@ -106,7 +100,7 @@ impl<B: ToolBackend> ReadOnlyTools<B> {
     pub fn specs(&self) -> Vec<ToolSpec> {
         specs()
             .into_iter()
-            .filter(|s| self.rows || s.name != ROWS_TOOL)
+            .filter(|s| self.level.shares_rows() || s.name != ROWS_TOOL)
             .collect()
     }
 
@@ -148,7 +142,7 @@ impl<B: ToolBackend> ReadOnlyTools<B> {
                 check(self.backend.engine(), &q)?;
                 self.backend.explain(&q).await.map_err(|e| e.message)
             }
-            ROWS_TOOL if !self.rows => {
+            ROWS_TOOL if !self.level.shares_rows() => {
                 Err("this connection does not share row data with the assistant".into())
             }
             ROWS_TOOL => {
@@ -268,7 +262,7 @@ mod tests {
 
     #[tokio::test]
     async fn writes_never_reach_the_backend() {
-        let tools = ReadOnlyTools::new(Fake::default());
+        let tools = ReadOnlyTools::new(Fake::default(), ContextLevel::SchemaRows);
         let r = tools
             .call(&call(
                 "run_readonly_query",
@@ -288,7 +282,7 @@ mod tests {
 
     #[tokio::test]
     async fn schema_only_connections_withhold_row_data() {
-        let tools = ReadOnlyTools::new(Fake::default()).with_rows(false);
+        let tools = ReadOnlyTools::new(Fake::default(), ContextLevel::Schema);
         assert!(tools.specs().iter().all(|s| s.name != "run_readonly_query"));
         let r = tools
             .call(&call("run_readonly_query", json!({ "query": "SELECT 1" })))
@@ -300,7 +294,7 @@ mod tests {
 
     #[tokio::test]
     async fn query_output_is_truncated() {
-        let tools = ReadOnlyTools::new(Fake::default());
+        let tools = ReadOnlyTools::new(Fake::default(), ContextLevel::SchemaRows);
         let r = tools
             .call(&call(
                 "run_readonly_query",
@@ -314,7 +308,7 @@ mod tests {
 
     #[tokio::test]
     async fn describe_and_errors() {
-        let tools = ReadOnlyTools::new(Fake::default());
+        let tools = ReadOnlyTools::new(Fake::default(), ContextLevel::SchemaRows);
         let r = tools
             .call(&call("describe_table", json!({ "table": "users" })))
             .await;

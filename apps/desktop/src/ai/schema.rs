@@ -4,18 +4,9 @@ use based_ai::context::{
     ContextLevel, Entity, EntityKind, Field, RenderOptions, SchemaSnapshot, render,
 };
 use based_core::EngineKind;
-use based_project::{AiContext, AiSettings};
 
 use crate::editor::SchemaCache;
 use crate::editor::schema_cache::{ObjectKind, SchemaObject};
-
-pub fn level(ai: Option<AiSettings>) -> ContextLevel {
-    match ai.map(|a| a.effective_context()) {
-        None | Some(AiContext::Off) => ContextLevel::Off,
-        Some(AiContext::Schema) => ContextLevel::Schema,
-        Some(AiContext::SchemaRows) => ContextLevel::SchemaRows,
-    }
-}
 
 /// One table or view as a prompt entity.
 pub fn entity(o: &SchemaObject) -> Entity {
@@ -85,21 +76,6 @@ mod tests {
     fn off_sends_nothing() {
         let c = cache();
         assert!(context(EngineKind::Postgres, &c, ContextLevel::Off, "users").is_empty());
-    }
-
-    #[test]
-    fn disabled_connection_is_off() {
-        assert_eq!(level(None), ContextLevel::Off);
-        let on = AiSettings {
-            enabled: true,
-            context: AiContext::Schema,
-        };
-        assert_eq!(level(Some(on)), ContextLevel::Schema);
-        let off = AiSettings {
-            enabled: false,
-            context: AiContext::SchemaRows,
-        };
-        assert_eq!(level(Some(off)), ContextLevel::Off);
     }
 
     #[test]

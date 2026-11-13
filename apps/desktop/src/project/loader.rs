@@ -180,7 +180,7 @@ mod tests {
                 pragma: None,
             },
             ssh: None,
-            ai: None,
+            ai: based_core::ContextLevel::Off,
         };
         write_connection_file(based, &conn).unwrap();
         let entries = load_entries_from_based_dir(based, ConnectionOrigin::Personal).entries;
@@ -241,7 +241,7 @@ password = { env = "BASED_TEST_LOADER_MISSING_SECRET" }
                 ssl_mode: based_core::SslMode::Disable,
             },
             ssh: None,
-            ai: None,
+            ai: based_core::ContextLevel::Off,
         };
         let mut vars = HashMap::new();
         vars.insert("BASED_PG_PASSWORD".into(), "from-file".into());
@@ -278,7 +278,7 @@ password = { env = "BASED_TEST_LOADER_MISSING_SECRET" }
                     var: "BASED_PG_SSH_KEY_PASSPHRASE".into(),
                 }),
             }),
-            ai: None,
+            ai: based_core::ContextLevel::Off,
         };
         let mut vars = HashMap::new();
         vars.insert("BASED_PG_SSH_KEY_PASSPHRASE".into(), "from-file".into());

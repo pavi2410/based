@@ -1,33 +1,36 @@
+//! The `[ai]` table of a connection file, read into a single [`ContextLevel`].
+
+use based_core::ContextLevel;
 use serde::{Deserialize, Serialize};
 
-/// How much of a connection an AI assistant may see.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub enum AiContext {
-    Off,
-    #[default]
-    #[serde(rename = "schema")]
-    Schema,
-    #[serde(rename = "schema+rows")]
-    SchemaRows,
+/// `[ai] enabled = true, context = "schema"`. AI is off unless `enabled = true`;
+/// `context` defaults to `schema`.
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+pub(crate) struct AiTable {
+    #[serde(default)]
+    enabled: bool,
+    #[serde(default = "default_context")]
+    context: ContextLevel,
 }
 
-/// Per-connection `[ai]` table. AI is off unless `enabled = true`.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
-pub struct AiSettings {
-    #[serde(default)]
-    pub enabled: bool,
-    #[serde(default)]
-    pub context: AiContext,
+fn default_context() -> ContextLevel {
+    ContextLevel::Schema
 }
 
-impl AiSettings {
-    /// Context level actually allowed: `Off` when disabled.
-    pub fn effective_context(&self) -> AiContext {
-        if self.enabled {
-            self.context
-        } else {
-            AiContext::Off
+impl AiTable {
+    pub(crate) fn level(table: Option<Self>) -> ContextLevel {
+        match table {
+            Some(t) if t.enabled && t.context != ContextLevel::Off => t.context,
+            _ => ContextLevel::Off,
         }
+    }
+
+    /// The table to write: none for `Off`.
+    pub(crate) fn for_level(level: ContextLevel) -> Option<Self> {
+        (level != ContextLevel::Off).then_some(Self {
+            enabled: true,
+            context: level,
+        })
     }
 }
 
@@ -35,13 +38,24 @@ impl AiSettings {
 mod tests {
     use super::*;
 
+    fn level(toml: &str) -> ContextLevel {
+        AiTable::level(Some(toml::from_str(toml).unwrap()))
+    }
+
     #[test]
-    fn parses_and_defaults() {
-        let s: AiSettings = toml::from_str("enabled = true\ncontext = \"schema+rows\"").unwrap();
-        assert_eq!(s.effective_context(), AiContext::SchemaRows);
-        let s: AiSettings = toml::from_str("enabled = true").unwrap();
-        assert_eq!(s.context, AiContext::Schema);
-        assert_eq!(AiSettings::default().effective_context(), AiContext::Off);
-        assert!(toml::from_str::<AiSettings>("context = \"everything\"").is_err());
+    fn every_enabled_context_combination() {
+        assert_eq!(
+            level("enabled = true\ncontext = \"schema+rows\""),
+            ContextLevel::SchemaRows
+        );
+        assert_eq!(level("enabled = true"), ContextLevel::Schema);
+        assert_eq!(
+            level("enabled = false\ncontext = \"schema+rows\""),
+            ContextLevel::Off
+        );
+        assert_eq!(level("context = \"schema\""), ContextLevel::Off);
+        assert_eq!(AiTable::level(None), ContextLevel::Off);
+        assert!(toml::from_str::<AiTable>("context = \"everything\"").is_err());
+        assert!(AiTable::for_level(ContextLevel::Off).is_none());
     }
 }

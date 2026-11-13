@@ -13,7 +13,7 @@ pub mod tunnel;
 pub use environment::Environment;
 pub use open::{OpenedConnection, open_connection, opened_into_any};
 
-use based_project::AiSettings;
+use based_core::ContextLevel;
 use serde::{Deserialize, Serialize};
 
 use crate::db::{close_pg_pool, close_sqlite_pool};
@@ -134,7 +134,7 @@ pub struct ConnectionEntry {
     pub state: ConnectionState,
     pub last_error: Option<String>,
     /// `[ai]` table from the connection file; `None` means never configured (AI off).
-    pub ai: Option<AiSettings>,
+    pub ai: ContextLevel,
 }
 
 impl ConnectionEntry {
@@ -145,7 +145,7 @@ impl ConnectionEntry {
             tags,
             state: ConnectionState::Disconnected,
             last_error: None,
-            ai: None,
+            ai: ContextLevel::Off,
         }
     }
 

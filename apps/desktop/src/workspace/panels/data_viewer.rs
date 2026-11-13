@@ -20,7 +20,7 @@ use gpui_kit::component::{
 use gpui_kit::{prelude::*, *};
 
 use crate::ai::explain::{column_prompt, distinct_samples};
-use crate::ai::{ask_assistant, connection_ai, schema};
+use crate::ai::{ask_assistant, connection_ai};
 use crate::app::prefs;
 use crate::connection::ConnectionId;
 use crate::connection::is_connection_read_only;
@@ -246,7 +246,7 @@ impl DataViewerPanel {
     /// The "explain this column" question, or `None` when AI is off for the connection.
     /// Sample values are included only when the connection shares rows.
     fn explain_prompt(&self, col: usize, cx: &App) -> Option<String> {
-        let level = schema::level(connection_ai(&self.conn_id, cx));
+        let level = connection_ai(&self.conn_id, cx);
         if level == ContextLevel::Off {
             return None;
         }

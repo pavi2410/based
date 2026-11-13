@@ -2,14 +2,7 @@ use futures::future::BoxFuture;
 
 use crate::error::AiError;
 
-/// How much of a connection the model may see.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ContextLevel {
-    Off,
-    #[default]
-    Schema,
-    SchemaRows,
-}
+pub use based_core::ContextLevel;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EntityKind {

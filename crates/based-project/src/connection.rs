@@ -4,9 +4,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 
-use based_core::{ConnectionKey, EngineKind, SshEndpoint, SslMode};
+use based_core::{ConnectionKey, ContextLevel, EngineKind, SshEndpoint, SslMode};
 
-use crate::ai::AiSettings;
+use crate::ai::AiTable;
 use crate::env_value::EnvOrString;
 use crate::walk::{rel_id, walk_toml_files};
 
@@ -20,7 +20,8 @@ pub struct ProjectConnection {
     pub read_only: bool,
     pub spec: ConnectionSpec,
     pub ssh: Option<SshSettings>,
-    pub ai: Option<AiSettings>,
+    /// `[ai]`: what an AI assistant may see (`Off` when there is no table).
+    pub ai: ContextLevel,
 }
 
 /// `ssl = true|false` from files written before `ssl_mode` existed.
@@ -116,7 +117,7 @@ struct RawConnectionFile {
     #[serde(default)]
     ssh: Option<RawSsh>,
     #[serde(default)]
-    ai: Option<AiSettings>,
+    ai: Option<AiTable>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -219,7 +220,7 @@ struct WriteConnectionFile {
     #[serde(skip_serializing_if = "Option::is_none")]
     ssh: Option<RawSsh>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    ai: Option<AiSettings>,
+    ai: Option<AiTable>,
 }
 
 impl From<&ProjectConnection> for WriteConnectionFile {
@@ -247,7 +248,7 @@ impl From<&ProjectConnection> for WriteConnectionFile {
                 key_path: s.endpoint.key_path.clone(),
                 key_passphrase: s.key_passphrase.clone(),
             }),
-            ai: conn.ai,
+            ai: AiTable::for_level(conn.ai),
         };
         match &conn.spec {
             ConnectionSpec::Sqlite { file, pragma } => {
@@ -364,7 +365,7 @@ fn parse_connection_file(connections_dir: &Path, path: &Path) -> Result<ProjectC
         read_only,
         spec,
         ssh,
-        ai: file.ai,
+        ai: AiTable::level(file.ai),
     })
 }
 
@@ -466,7 +467,7 @@ file = "data/index.db"
                 },
             },
             ssh: None,
-            ai: None,
+            ai: ContextLevel::Off,
         };
         write_connection_file(based, &conn).unwrap();
         let loaded = load_connections_from_based_dir(based).unwrap();
@@ -647,7 +648,7 @@ ssl = false
                     var: "BASED_PROD_SSH_KEY_PASSPHRASE".into(),
                 }),
             }),
-            ai: None,
+            ai: ContextLevel::Off,
         };
         write_connection_file(based, &conn).unwrap();
         let raw = fs::read_to_string(based.join("connections/prod.toml")).unwrap();
@@ -686,7 +687,7 @@ ssl = false
                 ssl_mode: SslMode::VerifyFull,
             },
             ssh: None,
-            ai: None,
+            ai: ContextLevel::Off,
         };
         let sqlite = ProjectConnection {
             id: "northwind".into(),
@@ -698,7 +699,7 @@ ssl = false
                 pragma: None,
             },
             ssh: None,
-            ai: None,
+            ai: ContextLevel::Off,
         };
         let pg_path = write_connection_file(based, &postgres).unwrap();
         let sqlite_path = write_connection_file(based, &sqlite).unwrap();
@@ -752,7 +753,6 @@ ssl = false
 
     #[test]
     fn ai_table_round_trips_and_is_omitted_when_absent() {
-        use crate::ai::{AiContext, AiSettings};
         let dir = tempfile::tempdir().unwrap();
         let based = dir.path();
         let mut conn = ProjectConnection {
@@ -764,20 +764,13 @@ ssl = false
                 url: EnvOrString::Literal("redis://localhost".into()),
             },
             ssh: None,
-            ai: None,
+            ai: ContextLevel::Off,
         };
         let path = write_connection_file(based, &conn).unwrap();
         assert!(!fs::read_to_string(&path).unwrap().contains("[ai]"));
-        assert!(
-            load_connections_from_based_dir(based).unwrap()[0]
-                .ai
-                .is_none()
-        );
+        assert!(load_connections_from_based_dir(based).unwrap()[0].ai == ContextLevel::Off);
 
-        conn.ai = Some(AiSettings {
-            enabled: true,
-            context: AiContext::SchemaRows,
-        });
+        conn.ai = ContextLevel::SchemaRows;
         let path = write_connection_file(based, &conn).unwrap();
         let raw = fs::read_to_string(&path).unwrap();
         assert!(raw.contains("[ai]") && raw.contains("schema+rows"));

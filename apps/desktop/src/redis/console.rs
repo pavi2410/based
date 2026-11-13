@@ -15,7 +15,7 @@ use gpui_kit::component::{
 };
 use gpui_kit::{prelude::*, *};
 
-use crate::ai::{AiHost, AiPromptEvent, connection_ai, schema};
+use crate::ai::{AiHost, AiPromptEvent, connection_ai};
 use crate::app::prefs;
 use crate::bindings::AskAi;
 use crate::connection::ConnectionId;
@@ -144,7 +144,7 @@ impl ConsolePanel {
 
 impl ConsolePanel {
     fn toggle_ai(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let off = schema::level(connection_ai(&self.conn_id, cx)) == ContextLevel::Off;
+        let off = connection_ai(&self.conn_id, cx) == ContextLevel::Off;
         let was_open = self.ai.is_open();
         self.ai.toggle(off, window, cx);
         if was_open {

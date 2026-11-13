@@ -2,6 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
+use based_core::ContextLevel;
 use based_desktop::connection::{ConnectionConfig, ConnectionOrigin};
 use based_desktop::workspace::Workspace;
 use based_desktop::workspace::boot::WorkspaceEnv;
@@ -28,7 +29,7 @@ fn save(
 ) -> Result<(), String> {
     let config = sqlite(label);
     let result = ws.update(cx, |ws, cx| {
-        ws.save_wizard_connection(config, dest, None, vec![], None, cx)
+        ws.save_wizard_connection(config, dest, None, vec![], ContextLevel::Off, cx)
     });
     settle(cx);
     result.map(|_| ())

@@ -21,7 +21,7 @@ use gpui_kit::{prelude::*, *};
 use mongodb::Collection;
 use mongodb::bson::{Document, to_document};
 
-use crate::ai::{AiHost, AiPromptEvent, connection_ai, schema};
+use crate::ai::{AiHost, AiPromptEvent, connection_ai};
 use crate::bindings::AskAi;
 use crate::connection::ConnectionId;
 use crate::db;
@@ -227,7 +227,7 @@ impl PipelineBuilderPanel {
 
 impl PipelineBuilderPanel {
     fn toggle_ai(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let off = schema::level(connection_ai(&self.conn_id, cx)) == ContextLevel::Off;
+        let off = connection_ai(&self.conn_id, cx) == ContextLevel::Off;
         let was_open = self.ai.is_open();
         self.ai.toggle(off, window, cx);
         if was_open {
@@ -236,7 +236,7 @@ impl PipelineBuilderPanel {
     }
 
     fn ai_schema(&self, cx: &App) -> String {
-        let level = schema::level(connection_ai(&self.conn_id, cx));
+        let level = connection_ai(&self.conn_id, cx);
         let name = self.collection.name();
         let snapshot = SchemaSnapshot {
             entities: vec![AiEntity::new(name, EntityKind::Collection, Vec::new())],

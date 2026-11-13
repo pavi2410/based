@@ -37,7 +37,7 @@ use gpui_kit::{App, AppContext as _, Context, Entity, SharedString, Task, Window
 use self::approve::{Approval, Trusted, Verdict};
 use super::launch::launch;
 use super::stream::{AiStream, StreamEvent};
-use super::{schema, tools};
+use super::tools;
 use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{ConnectionEntry, ConnectionId};
 
@@ -62,7 +62,7 @@ impl ChatContext {
             entry: entity.clone(),
             engine: entry.engine(),
             label: entry.config.label().to_owned(),
-            level: schema::level(entry.ai),
+            level: entry.ai,
         }
     }
 }
@@ -237,8 +237,7 @@ impl ChatPane {
     fn connection_tools(&self, cx: &App) -> Option<Tools> {
         let ctx = self.active().filter(|c| c.level != ContextLevel::Off)?;
         let backend = tools::backend(ctx.entry.read(cx), cx)?;
-        let rows = ctx.level == ContextLevel::SchemaRows;
-        Some(Arc::new(ReadOnlyTools::new(backend).with_rows(rows)))
+        Some(Arc::new(ReadOnlyTools::new(backend, ctx.level)))
     }
 
     /// Sends `text` as if typed; `false` when the assistant is busy or unavailable.

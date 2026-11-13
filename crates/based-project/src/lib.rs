@@ -12,7 +12,6 @@ mod query;
 mod target;
 mod walk;
 
-pub use ai::{AiContext, AiSettings};
 pub use connection::{
     ConnectionSpec, PragmaSettings, ProjectConnection, SshSettings, load_connections,
     load_connections_from_based_dir, slug_from_label, write_connection_file,

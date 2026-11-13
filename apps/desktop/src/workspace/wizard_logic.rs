@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use based_project::{AiContext, AiSettings};
+use based_core::ContextLevel;
 
 use crate::connection::{ConnectionConfig, ConnectionId, ConnectionOrigin};
 use crate::postgres::SslMode;
@@ -98,24 +98,11 @@ pub fn ssl_toggle_enabled(mode: SslMode) -> bool {
     !matches!(mode, SslMode::Disable)
 }
 
-pub const AI_CHOICES: &[(AiContext, &str)] = &[
-    (AiContext::Off, "Off"),
-    (AiContext::Schema, "Schema only"),
-    (AiContext::SchemaRows, "Schema and sample rows"),
+pub const AI_CHOICES: &[(ContextLevel, &str)] = &[
+    (ContextLevel::Off, "Off"),
+    (ContextLevel::Schema, "Schema only"),
+    (ContextLevel::SchemaRows, "Schema and sample rows"),
 ];
-
-/// What the form's AI select shows for a connection's `[ai]` settings.
-pub fn ai_context_of(ai: Option<AiSettings>) -> AiContext {
-    ai.map_or(AiContext::Off, |a| a.effective_context())
-}
-
-/// `[ai]` settings for a selected level; `None` (no `[ai]` table) for Off.
-pub fn ai_settings_for(context: AiContext) -> Option<AiSettings> {
-    (context != AiContext::Off).then_some(AiSettings {
-        enabled: true,
-        context,
-    })
-}
 
 /// Reuse a saved id; otherwise mint an ephemeral live session id.
 pub fn wizard_session_id(saved_id: Option<&ConnectionId>, unsaved_key: &str) -> ConnectionId {
@@ -232,20 +219,6 @@ fn sqlite_stem(path: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn ai_levels_round_trip() {
-        assert_eq!(ai_settings_for(AiContext::Off), None);
-        for &(level, _) in AI_CHOICES {
-            assert_eq!(ai_context_of(ai_settings_for(level)), level);
-        }
-        let disabled = AiSettings {
-            enabled: false,
-            context: AiContext::SchemaRows,
-        };
-        assert_eq!(ai_context_of(Some(disabled)), AiContext::Off);
-        assert_eq!(ai_context_of(None), AiContext::Off);
-    }
-
     use super::*;
     use crate::postgres::PostgresConfig;
     use crate::sqlite::SqliteConfig;

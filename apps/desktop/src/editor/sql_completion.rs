@@ -270,7 +270,7 @@ impl CompletionProvider for SqlCompletionProvider {
         let Some(ai) = &self.ai else {
             return none();
         };
-        let level = schema::level(connection_ai(&ai.conn, cx));
+        let level = connection_ai(&ai.conn, cx);
         if !prefs::ai_prefs(cx).inline() || level == ContextLevel::Off {
             return none();
         }

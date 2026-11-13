@@ -2,10 +2,10 @@
 
 use std::path::Path;
 
-use based_core::ConnectionKey;
+use based_core::{ConnectionKey, ContextLevel};
 use based_project::{
-    AiSettings, ConnectionSpec, EnvOrString, PragmaSettings, ProjectConnection, SshSettings,
-    secret_env_key, slug_from_label, upsert_env_file, write_connection_file,
+    ConnectionSpec, EnvOrString, PragmaSettings, ProjectConnection, SshSettings, secret_env_key,
+    slug_from_label, upsert_env_file, write_connection_file,
 };
 
 use crate::connection::ConnectionConfig;
@@ -16,7 +16,7 @@ pub fn persist_config_to_based_dir(
     config: &ConnectionConfig,
     tags: &[String],
     relative_id: Option<&str>,
-    ai: Option<AiSettings>,
+    ai: ContextLevel,
 ) -> anyhow::Result<ProjectConnection> {
     let relative_id = relative_id
         .filter(|id| !id.is_empty())
@@ -109,7 +109,7 @@ fn project_connection_from_config(
                     ssl_mode: c.ssl_mode,
                 },
                 ssh,
-                ai: None,
+                ai: ContextLevel::Off,
             }
         }
         ConnectionConfig::MongoDB(c) => {
@@ -130,7 +130,7 @@ fn project_connection_from_config(
                     database: c.database.clone(),
                 },
                 ssh: None,
-                ai: None,
+                ai: ContextLevel::Off,
             }
         }
         ConnectionConfig::Redis(c) => ProjectConnection {
@@ -148,7 +148,7 @@ fn project_connection_from_config(
                 },
             },
             ssh: None,
-            ai: None,
+            ai: ContextLevel::Off,
         },
         ConnectionConfig::SQLite(c) => ProjectConnection {
             id: ConnectionKey::new(relative_id),
@@ -160,7 +160,7 @@ fn project_connection_from_config(
                 pragma: c.pragma.as_ref().map(pragma_from_sqlite),
             },
             ssh: None,
-            ai: None,
+            ai: ContextLevel::Off,
         },
     }
 }
@@ -198,7 +198,8 @@ mod tests {
             ssl_mode: SslMode::Require,
             ssh: None,
         });
-        let conn = persist_config_to_based_dir(based, &config, &[], None, None).unwrap();
+        let conn =
+            persist_config_to_based_dir(based, &config, &[], None, ContextLevel::Off).unwrap();
         assert_eq!(conn.id, "analytics");
         let loaded = load_connections_from_based_dir(based).unwrap();
         assert_eq!(loaded.len(), 1);
@@ -222,17 +223,13 @@ mod tests {
             read_only: false,
             pragma: None,
         });
-        let ai = AiSettings {
-            enabled: true,
-            ..AiSettings::default()
-        };
-        persist_config_to_based_dir(based, &config, &[], None, Some(ai)).unwrap();
+        persist_config_to_based_dir(based, &config, &[], None, ContextLevel::Schema).unwrap();
         let loaded = load_connections_from_based_dir(based).unwrap();
-        assert_eq!(loaded[0].ai, Some(ai));
+        assert_eq!(loaded[0].ai, ContextLevel::Schema);
 
-        persist_config_to_based_dir(based, &config, &[], Some("notes"), None).unwrap();
+        persist_config_to_based_dir(based, &config, &[], Some("notes"), ContextLevel::Off).unwrap();
         let loaded = load_connections_from_based_dir(based).unwrap();
-        assert_eq!(loaded[0].ai, None);
+        assert_eq!(loaded[0].ai, ContextLevel::Off);
     }
 
     #[test]
@@ -245,7 +242,7 @@ mod tests {
             read_only: false,
             pragma: None,
         });
-        persist_config_to_based_dir(based, &config, &[], None, None).unwrap();
+        persist_config_to_based_dir(based, &config, &[], None, ContextLevel::Off).unwrap();
         assert!(!based.join(".env").exists());
         let loaded = load_connections_from_based_dir(based).unwrap();
         assert_eq!(loaded[0].id, "northwind");
@@ -265,8 +262,14 @@ mod tests {
             ssl_mode: SslMode::Disable,
             ssh: None,
         });
-        persist_config_to_based_dir(based, &config, &["local".into(), "dev".into()], None, None)
-            .unwrap();
+        persist_config_to_based_dir(
+            based,
+            &config,
+            &["local".into(), "dev".into()],
+            None,
+            ContextLevel::Off,
+        )
+        .unwrap();
         let loaded = load_connections_from_based_dir(based).unwrap();
         assert_eq!(loaded[0].tags, vec!["local", "dev"]);
         let raw = fs::read_to_string(based.join("connections/analytics.toml")).unwrap();
@@ -288,7 +291,7 @@ mod tests {
             ssl_mode: SslMode::Disable,
             ssh: None,
         });
-        persist_config_to_based_dir(based, &original, &[], None, None).unwrap();
+        persist_config_to_based_dir(based, &original, &[], None, ContextLevel::Off).unwrap();
         let renamed = ConnectionConfig::Postgres(PostgresConfig {
             label: "Reporting".into(),
             host: "db.example".into(),
@@ -300,7 +303,8 @@ mod tests {
             ssh: None,
         });
         let conn =
-            persist_config_to_based_dir(based, &renamed, &[], Some("analytics"), None).unwrap();
+            persist_config_to_based_dir(based, &renamed, &[], Some("analytics"), ContextLevel::Off)
+                .unwrap();
         assert_eq!(conn.id, "analytics");
         assert_eq!(conn.label, "Reporting");
         assert!(based.join("connections/analytics.toml").exists());
@@ -333,7 +337,7 @@ mod tests {
                 key_passphrase: Some("keypass".into()),
             }),
         });
-        persist_config_to_based_dir(based, &config, &[], None, None).unwrap();
+        persist_config_to_based_dir(based, &config, &[], None, ContextLevel::Off).unwrap();
         let raw = fs::read_to_string(based.join("connections/prod.toml")).unwrap();
         assert!(raw.contains("[ssh]"));
         assert!(raw.contains("bastion.example.com"));

@@ -2,6 +2,7 @@
 // and save them to a user-chosen path via an rfd save-file dialog.
 
 use anyhow::Context as _;
+use based_core::Value;
 use gpui_kit::AsyncApp;
 use rust_xlsxwriter::{Format, Workbook};
 
@@ -15,27 +16,64 @@ use tokio::task::spawn_blocking;
 
 // ── Serialisers ──────────────────────────────────────────────────────────────
 
-/// Serialise tabular data to CSV bytes.
-///
-/// NULL cells are written as empty fields so spreadsheet tools don't receive
-/// the literal string "NULL". Text that reads "NULL" is written as-is.
-pub fn to_csv(headers: &[String], rows: &[Vec<Cell>]) -> anyhow::Result<Vec<u8>> {
-    let mut wtr = csv::Writer::from_writer(vec![]);
-    wtr.write_record(headers)?;
-    for row in rows {
-        let cells: Vec<&str> = row
-            .iter()
-            .map(|c| if c.is_null() { "" } else { c.display.as_ref() })
-            .collect();
-        wtr.write_record(&cells)?;
+/// Text for a non-null value in a text format. Bytes are `\x…` hex rather than
+/// the grid's `<n bytes>`, so the data survives the round trip.
+fn export_text(value: &Value) -> String {
+    match value {
+        Value::Bytes(_) => match value.to_json() {
+            serde_json::Value::String(hex) => hex,
+            other => other.to_string(),
+        },
+        Value::Text(s) => s.to_string(),
+        other => other.display(),
     }
-    wtr.into_inner().context("csv flush")
 }
+
+fn push_csv_field(out: &mut String, field: &str, force_quote: bool) {
+    let quote = force_quote || field.contains([',', '"', '\n', '\r']);
+    if !quote {
+        out.push_str(field);
+        return;
+    }
+    out.push('"');
+    out.push_str(&field.replace('"', "\"\""));
+    out.push('"');
+}
+
+/// Serialise tabular data to CSV bytes (RFC 4180, CRLF).
+///
+/// NULL is an empty field; an empty string is `""`, so the two stay apart.
+pub fn to_csv(headers: &[String], rows: &[Vec<Cell>]) -> anyhow::Result<Vec<u8>> {
+    let mut out = String::new();
+    for (i, h) in headers.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        push_csv_field(&mut out, h, false);
+    }
+    out.push_str("\r\n");
+    for row in rows {
+        for (i, cell) in row.iter().enumerate() {
+            if i > 0 {
+                out.push(',');
+            }
+            if !cell.is_null() {
+                let text = export_text(&cell.value);
+                push_csv_field(&mut out, &text, text.is_empty());
+            }
+        }
+        out.push_str("\r\n");
+    }
+    Ok(out.into_bytes())
+}
+
+/// Largest integer an Excel (f64) cell holds exactly.
+const XLSX_MAX_EXACT_INT: i64 = 1 << 53;
 
 /// Serialise tabular data to an `.xlsx` workbook buffer.
 ///
-/// Row 0 is a bold header row; data starts at row 1. NULL cells are written
-/// as empty strings.
+/// Row 0 is a bold header row; data starts at row 1. Numbers and booleans are
+/// written as such (unless Excel would round them); NULL cells stay blank.
 pub fn to_xlsx(headers: &[String], rows: &[Vec<Cell>]) -> anyhow::Result<Vec<u8>> {
     let mut workbook = Workbook::new();
     let sheet = workbook.add_worksheet();
@@ -48,34 +86,40 @@ pub fn to_xlsx(headers: &[String], rows: &[Vec<Cell>]) -> anyhow::Result<Vec<u8>
     }
 
     for (row_ix, row) in rows.iter().enumerate() {
+        let r = row_ix as u32 + 1;
         for (col_ix, cell) in row.iter().enumerate() {
-            let val = if cell.is_null() {
-                ""
-            } else {
-                cell.display.as_ref()
-            };
-            sheet
-                .write(row_ix as u32 + 1, col_ix as u16, val)
-                .context("write cell")?;
+            let c = col_ix as u16;
+            match &cell.value {
+                v if v.is_null() => continue,
+                Value::Bool(b) => sheet.write_boolean(r, c, *b).map(|_| ()),
+                Value::Int(n) if n.unsigned_abs() <= XLSX_MAX_EXACT_INT as u64 => {
+                    sheet.write_number(r, c, *n as f64).map(|_| ())
+                }
+                Value::Float(f) if f.is_finite() => sheet.write_number(r, c, *f).map(|_| ()),
+                Value::Numeric(s) if Value::numeric_fits_f64(s) => {
+                    let n: f64 = s.parse().unwrap_or_default();
+                    sheet.write_number(r, c, n).map(|_| ())
+                }
+                v => sheet.write_string(r, c, export_text(v)).map(|_| ()),
+            }
+            .context("write cell")?;
         }
     }
 
     workbook.save_to_buffer().context("save xlsx buffer")
 }
 
-/// Serialise tabular data to a pretty-printed JSON array of objects.
-///
-/// NULL cells are written as `null`; everything else as its display text.
+/// Serialise tabular data to a pretty-printed JSON array of objects, keeping
+/// NULL, numbers, booleans and nested JSON typed.
 pub fn to_json(headers: &[String], rows: &[Vec<Cell>]) -> String {
     let arr: Vec<serde_json::Value> = rows
         .iter()
         .map(|row| {
             let mut obj = serde_json::Map::new();
             for (col_ix, header) in headers.iter().enumerate() {
-                let val = match row.get(col_ix) {
-                    Some(c) if !c.is_null() => serde_json::Value::String(c.display.to_string()),
-                    _ => serde_json::Value::Null,
-                };
+                let val = row
+                    .get(col_ix)
+                    .map_or(serde_json::Value::Null, |c| c.value.to_json());
                 obj.insert(header.clone(), val);
             }
             serde_json::Value::Object(obj)
@@ -139,4 +183,49 @@ pub async fn save_bytes(
     .await
     .ok()
     .flatten()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn row() -> Vec<Cell> {
+        vec![
+            Cell::new(Value::Null),
+            Cell::text(""),
+            Cell::text("NULL"),
+            Cell::text("a,\"b\""),
+            Cell::new(Value::Int(42)),
+            Cell::new(Value::Bytes(vec![0xde, 0xad].into())),
+        ]
+    }
+
+    fn headers() -> Vec<String> {
+        ["n", "e", "t", "q", "i", "b"].map(String::from).to_vec()
+    }
+
+    #[test]
+    fn csv_keeps_null_and_empty_apart() {
+        let csv = String::from_utf8(to_csv(&headers(), &[row()]).unwrap()).unwrap();
+        assert_eq!(
+            csv,
+            "n,e,t,q,i,b\r\n,\"\",NULL,\"a,\"\"b\"\"\",42,\\xdead\r\n"
+        );
+    }
+
+    #[test]
+    fn json_keeps_types() {
+        let json: serde_json::Value = serde_json::from_str(&to_json(&headers(), &[row()])).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!([{
+                "n": null, "e": "", "t": "NULL", "q": "a,\"b\"", "i": 42, "b": "\\xdead"
+            }])
+        );
+    }
+
+    #[test]
+    fn xlsx_writes() {
+        assert!(!to_xlsx(&headers(), &[row()]).unwrap().is_empty());
+    }
 }

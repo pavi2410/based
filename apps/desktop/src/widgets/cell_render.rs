@@ -1,9 +1,9 @@
-//! Schema-driven grid cell styling (numeric color, boolean icons) and sorting.
-
-use std::cmp::Ordering;
+//! Schema-driven grid cell styling (numeric color, boolean icons).
 
 use gpui_kit::component::{ActiveTheme, StyleSized, h_flex, tooltip::Tooltip};
 use gpui_kit::{App, Div, IntoElement, SharedString, Window, div, prelude::*, px};
+
+use based_core::Value;
 
 use crate::app::prefs;
 use crate::widgets::cell_hover::{self, HoverContent};
@@ -61,6 +61,28 @@ pub fn column_value_kind(data_type: Option<&str>) -> ColumnValueKind {
         return ColumnValueKind::Text;
     }
     ColumnValueKind::Unknown
+}
+
+/// Kind for one grid cell: the column's schema type when known, else the
+/// value's own type (Mongo fields have no schema).
+pub fn grid_cell_kind(value: &Value, data_type: Option<&str>, cell: &str) -> ColumnValueKind {
+    match cell_value_kind(data_type, cell) {
+        ColumnValueKind::Unknown => value_kind(value),
+        kind => kind,
+    }
+}
+
+fn value_kind(value: &Value) -> ColumnValueKind {
+    match value {
+        Value::Int(_) | Value::Float(_) | Value::Numeric(_) => ColumnValueKind::Numeric,
+        Value::Bool(_) => ColumnValueKind::Boolean,
+        Value::Date(_) | Value::Time(_) | Value::Timestamp(_) | Value::TimestampTz(_) => {
+            ColumnValueKind::DateTime
+        }
+        Value::Json(_) => ColumnValueKind::Json,
+        Value::Text(_) | Value::Uuid(_) => ColumnValueKind::Text,
+        _ => ColumnValueKind::Unknown,
+    }
 }
 
 /// Kind for one grid cell. Recovers `DateTime` when sqlx remapped `timestamptz`
@@ -140,28 +162,9 @@ fn is_text_type(base: &str) -> bool {
     )
 }
 
-pub fn is_null_cell(s: &str) -> bool {
-    let t = s.trim();
-    t.is_empty() || t.eq_ignore_ascii_case("null")
-}
-
-fn compare_nulls(a: &str, b: &str) -> Option<Ordering> {
-    let a_null = is_null_cell(a);
-    let b_null = is_null_cell(b);
-    match (a_null, b_null) {
-        (true, true) => Some(Ordering::Equal),
-        (true, false) => Some(Ordering::Greater),
-        (false, true) => Some(Ordering::Less),
-        (false, false) => None,
-    }
-}
-
 /// Format a numeric cell for display with thousands separators (display-only).
 pub fn format_numeric_display(s: &str) -> String {
     let t = s.trim();
-    if is_null_cell(t) {
-        return t.to_string();
-    }
     if let Ok(n) = t.parse::<i64>() {
         return format_signed_integer(n);
     }
@@ -242,39 +245,6 @@ fn add_thousand_separators(digits: &str) -> String {
         out.push(ch);
     }
     out
-}
-
-fn parse_numeric_sort_key(s: &str) -> Option<f64> {
-    let t = s.trim();
-    if is_null_cell(t) {
-        return None;
-    }
-    if let Ok(n) = t.parse::<i64>() {
-        return Some(n as f64);
-    }
-    t.parse::<f64>().ok()
-}
-
-/// Compare two cell strings using column schema type (page-local sort).
-pub fn compare_cells(kind: ColumnValueKind, a: &str, b: &str) -> Ordering {
-    if let Some(ord) = compare_nulls(a, b) {
-        return ord;
-    }
-
-    match kind {
-        ColumnValueKind::Numeric => match (parse_numeric_sort_key(a), parse_numeric_sort_key(b)) {
-            (Some(av), Some(bv)) => av.partial_cmp(&bv).unwrap_or(Ordering::Equal),
-            _ => a.cmp(b),
-        },
-        ColumnValueKind::Boolean => match (parse_bool_display(a), parse_bool_display(b)) {
-            (Some(av), Some(bv)) => av.cmp(&bv),
-            _ => a.cmp(b),
-        },
-        ColumnValueKind::DateTime
-        | ColumnValueKind::Json
-        | ColumnValueKind::Text
-        | ColumnValueKind::Unknown => a.cmp(b),
-    }
 }
 
 /// Parse display strings for boolean columns (`true`/`false`/`t`/`f`).
@@ -584,59 +554,11 @@ mod tests {
     }
 
     #[test]
-    fn numeric_sort_is_numerical_not_lexical() {
-        assert_eq!(
-            compare_cells(ColumnValueKind::Numeric, "2", "10"),
-            Ordering::Less
-        );
-        assert_eq!(
-            compare_cells(ColumnValueKind::Numeric, "10", "2"),
-            Ordering::Greater
-        );
-        let expected: f64 = "3.14".parse().unwrap();
-        let pi = parse_numeric_sort_key("3.14").unwrap();
-        assert!((pi - expected).abs() < 1e-6);
-        assert_eq!(
-            compare_cells(ColumnValueKind::Numeric, "3.14", "10"),
-            Ordering::Less
-        );
-    }
-
-    #[test]
-    fn text_sort_stays_lexical() {
-        assert_eq!(
-            compare_cells(ColumnValueKind::Text, "10", "2"),
-            Ordering::Less
-        );
-    }
-
-    #[test]
-    fn boolean_sort_false_before_true() {
-        assert_eq!(
-            compare_cells(ColumnValueKind::Boolean, "false", "true"),
-            Ordering::Less
-        );
-    }
-
-    #[test]
     fn format_numeric_display_adds_separators() {
         assert_eq!(format_numeric_display("1234567"), "1,234,567");
         assert_eq!(format_numeric_display("-1234"), "-1,234");
         assert_eq!(format_numeric_display("1234.56"), "1,234.56");
         assert_eq!(format_numeric_display("3.14"), "3.14");
-        assert_eq!(format_numeric_display("NULL"), "NULL");
         assert_eq!(format_numeric_display("not-a-number"), "not-a-number");
-    }
-
-    #[test]
-    fn nulls_sort_last_ascending() {
-        assert_eq!(
-            compare_cells(ColumnValueKind::Numeric, "NULL", "1"),
-            Ordering::Greater
-        );
-        assert_eq!(
-            compare_cells(ColumnValueKind::Numeric, "", "1"),
-            Ordering::Greater
-        );
     }
 }

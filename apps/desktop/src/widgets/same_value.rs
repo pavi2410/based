@@ -1,6 +1,7 @@
 //! Focus-driven same-value highlight, scoped to one column.
 
-use gpui_kit::{Hsla, SharedString, rgb};
+use based_core::Value;
+use gpui_kit::{Hsla, rgb};
 
 use crate::widgets::virtual_table::Cell;
 
@@ -9,11 +10,11 @@ pub fn wash_color() -> Hsla {
     Hsla::from(rgb(0x57524f)).opacity(1.0 / 3.0)
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct SameValueMatch {
     pub row_ix: usize,
     pub col_ix: usize,
-    pub value: SharedString,
+    pub value: Value,
 }
 
 pub fn match_from_cell(row_ix: usize, col_ix: usize, cell: &Cell) -> Option<SameValueMatch> {
@@ -23,7 +24,7 @@ pub fn match_from_cell(row_ix: usize, col_ix: usize, cell: &Cell) -> Option<Same
     Some(SameValueMatch {
         row_ix,
         col_ix,
-        value: cell.display.clone(),
+        value: cell.value.clone(),
     })
 }
 
@@ -34,7 +35,7 @@ pub fn cell_is_match(col_ix: usize, cell: &Cell, needle: Option<&SameValueMatch>
     if col_ix != needle.col_ix || cell.is_null() {
         return false;
     }
-    cell.display == needle.value
+    cell.value == needle.value
 }
 
 pub fn remap_column(col_ix: usize, from: usize, to: usize) -> usize {

@@ -1,7 +1,7 @@
 use std::fmt::Write;
 use std::sync::Arc;
 
-use based_core::EngineKind;
+use based_core::{EngineKind, Value};
 use futures::future::BoxFuture;
 
 use super::guard::check;
@@ -9,10 +9,10 @@ use super::spec::{RUN_QUERY as ROWS_TOOL, ToolCall, ToolResult, ToolSpec, specs}
 use crate::context::{ContextLevel, Entity, RenderOptions, SchemaSnapshot, render};
 use crate::error::AiError;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct QueryOutput {
     pub columns: Vec<String>,
-    pub rows: Vec<Vec<String>>,
+    pub rows: Vec<Vec<Value>>,
 }
 
 /// Engine access for tools. `query` and `explain` must run in a read-only
@@ -170,13 +170,27 @@ fn format_output(out: &QueryOutput, limits: &ToolLimits) -> String {
     let mut s = out.columns.join(" | ");
     s.push('\n');
     for row in out.rows.iter().take(limits.max_rows) {
-        let cells: Vec<String> = row.iter().map(|c| clip(c, limits.max_cell_chars)).collect();
+        let cells: Vec<String> = row
+            .iter()
+            .map(|c| clip(&cell_text(c), limits.max_cell_chars))
+            .collect();
         let _ = writeln!(s, "{}", cells.join(" | "));
     }
     if out.rows.len() > limits.max_rows {
         let _ = writeln!(s, "... truncated at {} rows", limits.max_rows);
     }
     s
+}
+
+/// A cell as the model sees it: NULL bare, text that could be mistaken for NULL
+/// (or is empty, or contains the column separator) JSON-quoted.
+fn cell_text(value: &Value) -> String {
+    match value {
+        Value::Text(s) if s.is_empty() || s.eq_ignore_ascii_case("null") || s.contains(" | ") => {
+            serde_json::Value::String(s.to_string()).to_string()
+        }
+        other => other.display(),
+    }
 }
 
 fn clip(cell: &str, max: usize) -> String {
@@ -234,7 +248,7 @@ mod tests {
             async {
                 Ok(QueryOutput {
                     columns: vec!["n".into()],
-                    rows: (0..150).map(|i| vec![i.to_string()]).collect(),
+                    rows: (0..150).map(|i| vec![Value::Int(i)]).collect(),
                 })
             }
             .boxed()
@@ -318,5 +332,15 @@ mod tests {
                 .is_error
         );
         assert!(tools.call(&call("drop_all", json!({}))).await.is_error);
+    }
+
+    #[test]
+    fn null_and_text_null_read_differently() {
+        let out = QueryOutput {
+            columns: vec!["a".into(), "b".into(), "c".into()],
+            rows: vec![vec![Value::Null, Value::text("NULL"), Value::text("")]],
+        };
+        let s = format_output(&out, &ToolLimits::default());
+        assert_eq!(s, "a | b | c\nNULL | \"NULL\" | \"\"\n");
     }
 }

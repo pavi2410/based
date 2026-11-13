@@ -2,7 +2,6 @@
 // The DataTable widget in gpui-kit already virtualizes rows internally,
 // so this is a thin wrapper / type alias for the RowDelegate-based table.
 
-use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::rc::Rc;
 
@@ -15,9 +14,7 @@ use gpui_kit::component::{
 use gpui_kit::{prelude::*, *};
 
 use crate::app::prefs;
-use crate::widgets::cell_render::{
-    cell_value_kind, column_value_kind, compare_cells, render_grid_cell,
-};
+use crate::widgets::cell_render::{grid_cell_kind, render_grid_cell};
 use crate::widgets::column_header::{ColumnMeta, render_column_header, reorder_column_meta};
 use crate::widgets::same_value::{self, SameValueMatch};
 
@@ -162,7 +159,7 @@ impl TableDelegate for RowDelegate {
         let is_null = cell.is_null();
         let display = cell.display;
         let meta = self.column_meta.get(col_ix).cloned().unwrap_or_default();
-        let kind = cell_value_kind(meta.data_type.as_deref(), display.as_ref());
+        let kind = grid_cell_kind(&cell.value, meta.data_type.as_deref(), display.as_ref());
         let cell_size = prefs::table_cell_size(cx);
         let cell = render_grid_cell(kind, display, is_null, row_ix, col_ix, window, cx);
         // Fill the kit cell (`relative` + `w(col_width)`). In-flow `bg` chips
@@ -238,18 +235,8 @@ impl TableDelegate for RowDelegate {
         self.sort_col = Some(col_ix);
         self.sort_asc = matches!(sort, ColumnSort::Ascending);
         let asc = self.sort_asc;
-        let meta = self.column_meta.get(col_ix).cloned().unwrap_or_default();
-        let kind = column_value_kind(meta.data_type.as_deref());
         self.rows.sort_by(|a, b| {
-            // NULL and missing fields sort last, whatever their display text.
-            let ord = match (a[col_ix].is_null(), b[col_ix].is_null()) {
-                (true, true) => Ordering::Equal,
-                (true, false) => Ordering::Greater,
-                (false, true) => Ordering::Less,
-                (false, false) => {
-                    compare_cells(kind, a[col_ix].display.as_ref(), b[col_ix].display.as_ref())
-                }
-            };
+            let ord = a[col_ix].value.cmp_for_sort(&b[col_ix].value);
             if asc { ord } else { ord.reverse() }
         });
         if let Some(needle) = self.same_value_match.take()

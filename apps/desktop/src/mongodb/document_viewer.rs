@@ -1,5 +1,6 @@
 // mongodb::document_viewer — paginated find() as a virtual table.
 
+use based_core::Value;
 use based_mongo::bson_to_value;
 use gpui_kit::assets::IconName as AssetIcon;
 use std::collections::HashMap;
@@ -19,7 +20,7 @@ use mongodb::bson::{Document, doc, to_document};
 use gpui_kit::component::table::TableEvent;
 
 use crate::db;
-use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_with_meta};
+use crate::widgets::cell_detail::CellDetail;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export;
 use crate::widgets::filter_bar::{FilterBar, FilterEvent, FilterSet};
@@ -92,13 +93,12 @@ impl DocumentViewerPanel {
         p
     }
 
-    fn cell_snapshot(&self, row: usize, col: usize, cx: &App) -> Option<(String, CellValue)> {
+    fn cell_snapshot(&self, row: usize, col: usize, cx: &App) -> Option<(String, Value)> {
         let st = self.table.read(cx);
         let del = st.delegate();
         let col_name = del.columns.get(col)?.key.to_string();
         let cell = del.rows.get(row)?.get(col)?;
-        let meta = del.column_meta.get(col).cloned().unwrap_or_default();
-        Some((col_name, interpret_cell_with_meta(cell, &meta)))
+        Some((col_name, cell.value.clone()))
     }
 
     fn reload(&mut self, cx: &mut Context<Self>) {

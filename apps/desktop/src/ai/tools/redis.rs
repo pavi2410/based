@@ -59,7 +59,10 @@ impl ToolBackend for RedisTools {
             let reply = exec(&mut conn, query).await.map_err(fail)?;
             Ok(QueryOutput {
                 columns: vec!["reply".into()],
-                rows: reply.lines().map(|l| vec![l.to_owned()]).collect(),
+                rows: reply
+                    .lines()
+                    .map(|l| vec![based_core::Value::text(l)])
+                    .collect(),
             })
         })
     }

@@ -25,7 +25,7 @@ use crate::app::prefs;
 use crate::connection::ConnectionId;
 use crate::connection::is_connection_read_only;
 use crate::db;
-use crate::widgets::cell_detail::{CellDetail, CellValue, interpret_cell_with_meta};
+use crate::widgets::cell_detail::CellDetail;
 use crate::widgets::column_header::ColumnMeta;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::datetime::format_relative;
@@ -46,6 +46,7 @@ use crate::workspace::WorkspaceRef;
 use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::tabs::{DrillFilter, TabSpec, inbox, request_workspace_flush};
 use based_ai::context::ContextLevel;
+use based_core::Value;
 
 fn is_array_type(ty: Option<&str>) -> bool {
     ty.is_some_and(|t| t.trim().ends_with("[]") || t.trim().eq_ignore_ascii_case("array"))
@@ -222,13 +223,12 @@ impl DataViewerPanel {
         panel
     }
 
-    fn cell_snapshot(&self, row: usize, col: usize, cx: &App) -> Option<(String, CellValue)> {
+    fn cell_snapshot(&self, row: usize, col: usize, cx: &App) -> Option<(String, Value)> {
         let st = self.table.read(cx);
         let del = st.delegate();
         let col_name = del.columns.get(col)?.key.to_string();
         let cell = del.rows.get(row)?.get(col)?;
-        let meta = del.column_meta.get(col).cloned().unwrap_or_default();
-        Some((col_name, interpret_cell_with_meta(cell, &meta)))
+        Some((col_name, cell.value.clone()))
     }
 
     /// Resolve the FK target (`[schema.]table(col)`) of a cell into a drill-down.

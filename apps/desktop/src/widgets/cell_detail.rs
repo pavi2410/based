@@ -3,101 +3,39 @@
 use gpui_kit::component::{ActiveTheme, h_flex, scroll::ScrollableElement, v_flex};
 use gpui_kit::{Context, IntoElement, MouseButton, Render, Window, div, prelude::*, px};
 
-use crate::app::prefs;
-use crate::widgets::cell_render::{ColumnValueKind, column_value_kind, parse_bool_display};
-use crate::widgets::column_header::ColumnMeta;
-use crate::widgets::virtual_table::Cell;
 use based_core::Value;
 
-#[derive(Default)]
-pub enum CellValue {
-    Text(String),
-    Integer(i64),
-    Float(f64),
-    Boolean(bool),
-    Json(String), // raw JSON string — will be pretty-printed
-    #[default]
-    Null,
-    Blob(usize), // byte count only
-}
+use crate::app::prefs;
 
-impl CellValue {
-    pub fn type_label(&self) -> &'static str {
-        match self {
-            Self::Text(_) => "TEXT",
-            Self::Integer(_) => "INTEGER",
-            Self::Float(_) => "FLOAT",
-            Self::Boolean(_) => "BOOLEAN",
-            Self::Json(_) => "JSON",
-            Self::Null => "NULL",
-            Self::Blob(_) => "BLOB",
-        }
-    }
-
-    pub fn display(&self) -> String {
-        match self {
-            Self::Text(s) => s.clone(),
-            Self::Integer(n) => n.to_string(),
-            Self::Float(f) => format!("{f:.6}"),
-            Self::Boolean(b) => b.to_string(),
-            Self::Json(s) => pretty_json(s),
-            Self::Null => "NULL".to_string(),
-            Self::Blob(n) => format!("<{n} bytes>"),
-        }
+/// Inspector body for a value: JSON pretty-printed, everything else as the grid shows it.
+pub fn inspector_text(value: &Value) -> String {
+    match value {
+        Value::Json(s) => serde_json::from_str::<serde_json::Value>(s)
+            .ok()
+            .and_then(|v| serde_json::to_string_pretty(&v).ok())
+            .unwrap_or_else(|| s.to_string()),
+        other => other.display(),
     }
 }
 
-fn pretty_json(s: &str) -> String {
-    serde_json::from_str::<serde_json::Value>(s)
-        .ok()
-        .and_then(|v| serde_json::to_string_pretty(&v).ok())
-        .unwrap_or_else(|| s.to_string())
-}
-
-fn parse_numeric_display(s: &str) -> CellValue {
-    if let Ok(n) = s.parse::<i64>() {
-        return CellValue::Integer(n);
-    }
-    if let Ok(n) = s.parse::<f64>() {
-        return CellValue::Float(n);
-    }
-    CellValue::Text(s.to_string())
-}
-
-/// Inspector value for a grid cell: typed values map directly; text falls back
-/// to the column's schema type.
-pub fn interpret_cell_with_meta(cell: &Cell, meta: &ColumnMeta) -> CellValue {
-    match &cell.value {
-        Value::Null | Value::Missing => return CellValue::Null,
-        Value::Int(n) => return CellValue::Integer(*n),
-        Value::Float(f) => return CellValue::Float(*f),
-        Value::Bool(b) => return CellValue::Boolean(*b),
-        Value::Bytes(b) => return CellValue::Blob(b.len()),
-        Value::Json(s) => return CellValue::Json(s.to_string()),
-        _ => {}
-    }
-    let t = cell.display.as_ref();
-    match column_value_kind(meta.data_type.as_deref()) {
-        ColumnValueKind::Numeric => parse_numeric_display(t),
-        ColumnValueKind::Boolean => parse_bool_display(t)
-            .map(CellValue::Boolean)
-            .unwrap_or_else(|| CellValue::Text(t.to_string())),
-        ColumnValueKind::DateTime
-        | ColumnValueKind::Json
-        | ColumnValueKind::Text
-        | ColumnValueKind::Unknown => CellValue::Text(t.to_string()),
-    }
-}
-
-#[derive(Default)]
 pub struct CellDetail {
     pub column: String,
-    pub value: CellValue,
+    pub value: Value,
     pub visible: bool,
 }
 
+impl Default for CellDetail {
+    fn default() -> Self {
+        Self {
+            column: String::new(),
+            value: Value::Null,
+            visible: false,
+        }
+    }
+}
+
 impl CellDetail {
-    pub fn show(&mut self, column: String, value: CellValue) {
+    pub fn show(&mut self, column: String, value: Value) {
         self.column = column;
         self.value = value;
         self.visible = true;
@@ -114,7 +52,7 @@ impl Render for CellDetail {
             return div().into_any_element();
         }
 
-        let display = self.value.display();
+        let display = inspector_text(&self.value);
         let type_label = self.value.type_label();
         let theme = cx.theme();
         let mono = prefs::code_font_family(cx);
@@ -196,70 +134,15 @@ mod tests {
 
     #[test]
     fn pretty_prints_json() {
-        let v = CellValue::Json("{\"a\":1,\"b\":2}".into());
-        let d = v.display();
+        let d = inspector_text(&Value::Json("{\"a\":1,\"b\":2}".into()));
         assert!(d.contains('\n'));
     }
 
     #[test]
-    fn null_displays() {
-        assert_eq!(CellValue::Null.display(), "NULL");
-        assert_eq!(CellValue::Null.type_label(), "NULL");
-    }
-
-    #[test]
-    fn blob_shows_byte_count() {
-        let d = CellValue::Blob(1024).display();
-        assert_eq!(d, "<1024 bytes>");
-    }
-
-    #[test]
-    fn text_null_is_not_null() {
-        let meta = ColumnMeta::default();
-        assert!(matches!(
-            interpret_cell_with_meta(&Cell::text("null"), &meta),
-            CellValue::Text(s) if s == "null"
-        ));
-        assert!(matches!(
-            interpret_cell_with_meta(&Cell::new(Value::Null), &meta),
-            CellValue::Null
-        ));
-    }
-
-    #[test]
-    fn meta_text_column_keeps_string_numbers() {
-        let meta = ColumnMeta {
-            data_type: Some("text".into()),
-            ..Default::default()
-        };
-        assert!(matches!(
-            interpret_cell_with_meta(&Cell::text("3.14"), &meta),
-            CellValue::Text(s) if s == "3.14"
-        ));
-    }
-
-    #[test]
-    fn meta_numeric_column_parses_float() {
-        let meta = ColumnMeta {
-            data_type: Some("numeric".into()),
-            ..Default::default()
-        };
-        let expected: f64 = "3.14".parse().unwrap();
-        assert!(matches!(
-            interpret_cell_with_meta(&Cell::text("3.14"), &meta),
-            CellValue::Float(f) if (f - expected).abs() < 1e-6
-        ));
-    }
-
-    #[test]
-    fn meta_bool_column_parses_boolean() {
-        let meta = ColumnMeta {
-            data_type: Some("bool".into()),
-            ..Default::default()
-        };
-        assert!(matches!(
-            interpret_cell_with_meta(&Cell::text("true"), &meta),
-            CellValue::Boolean(true)
-        ));
+    fn labels_follow_the_value() {
+        assert_eq!(Value::Null.type_label(), "NULL");
+        assert_eq!(Value::text("null").type_label(), "TEXT");
+        assert_eq!(Value::Float(2.5).type_label(), "FLOAT");
+        assert_eq!(inspector_text(&Value::text("null")), "null");
     }
 }

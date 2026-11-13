@@ -87,7 +87,9 @@ impl ToolBackend for MongoTools {
                 .map_err(fail)?;
             let mut rows = Vec::new();
             while let Some(d) = cursor.try_next().await.map_err(fail)? {
-                rows.push(vec![serde_json::to_string(&d).map_err(fail)?]);
+                rows.push(vec![based_core::Value::Json(
+                    serde_json::to_string(&d).map_err(fail)?.into(),
+                )]);
             }
             Ok(QueryOutput {
                 columns: vec!["document".into()],

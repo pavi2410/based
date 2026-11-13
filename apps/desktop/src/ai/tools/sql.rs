@@ -35,10 +35,6 @@ impl SqlTools {
             SqlPool::Sqlite(p) => based_sqlite::query_readonly(p, sql, limit).await,
         }
         .map_err(fail)?;
-        let rows = rows
-            .iter()
-            .map(|r| r.iter().map(Value::display).collect())
-            .collect();
         Ok(QueryOutput { columns, rows })
     }
 }
@@ -84,7 +80,7 @@ impl ToolBackend for SqlTools {
             };
             let out = self.rows(&format!("{prefix} {query}"), 200).await?;
             // Plans are one text column (Postgres) or the last column (SQLite `detail`).
-            let lines = out.rows.iter().filter_map(|r| r.last().map(String::as_str));
+            let lines = out.rows.iter().filter_map(|r| r.last().map(Value::display));
             Ok(lines.collect::<Vec<_>>().join("\n"))
         })
     }

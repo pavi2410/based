@@ -28,7 +28,7 @@ use based_core::{SshEndpoint, SshTunnelConfig};
 use crate::app::prefs;
 use crate::connection::Environment;
 use crate::connection::{
-    ConnectionConfig, ConnectionEntry, ConnectionId, EngineKind, OpenedConnection,
+    ConnectionConfig, ConnectionDraft, ConnectionEntry, ConnectionId, EngineKind, OpenedConnection,
     categorize_connect_error,
     lifecycle::{Connectable, TestReport},
     open_connection,
@@ -242,10 +242,11 @@ impl ConnectionWizardPanel {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let (id, config, tags, origin, ai) = {
+        let (id, label, config, tags, origin, ai) = {
             let e = entry.read(cx);
             (
                 e.id.clone(),
+                e.label.clone(),
                 e.config.clone(),
                 e.tags.clone(),
                 e.origin(),
@@ -260,8 +261,8 @@ impl ConnectionWizardPanel {
         panel.ai_select.update(cx, |select, cx| {
             select.set_selected_value(&ai, window, cx);
         });
-        panel.tab_label = config.label().to_string().into();
-        panel.apply_config(&config, window, cx);
+        panel.tab_label = label.clone().into();
+        panel.apply_config(&label, &config, window, cx);
         panel
     }
 }

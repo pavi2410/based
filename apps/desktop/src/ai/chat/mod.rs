@@ -61,7 +61,7 @@ impl ChatContext {
         Self {
             entry: entity.clone(),
             engine: entry.engine(),
-            label: entry.config.label().to_owned(),
+            label: entry.label.as_str().to_owned(),
             level: entry.ai,
         }
     }

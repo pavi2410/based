@@ -23,7 +23,7 @@ pub(crate) fn render_inspector_body(
     if let Some(ent) = selected {
         let entry = ent.read(cx);
         let engine = entry.config.engine();
-        let label = entry.config.label().to_string();
+        let label = entry.label.as_str().to_string();
         let state = entry.state.label().to_string();
         let summary = match &entry.state {
             ConnectionState::Failed { reason, .. } => notify::error_one_liner(reason).to_string(),

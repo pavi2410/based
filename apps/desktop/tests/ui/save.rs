@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 use based_core::ContextLevel;
-use based_desktop::connection::{ConnectionConfig, ConnectionOrigin};
+use based_desktop::connection::{ConnectionConfig, ConnectionDraft, ConnectionOrigin};
 use based_desktop::workspace::Workspace;
 use based_desktop::workspace::boot::WorkspaceEnv;
 use based_desktop::workspace::connection_destination::ConnectionDestination;
@@ -12,9 +12,8 @@ use gpui_kit::{Entity, TestAppContext};
 
 use crate::common::{no_project_env, open_project, open_with, open_workspace, settle};
 
-fn sqlite(label: &str) -> ConnectionConfig {
+fn sqlite() -> ConnectionConfig {
     ConnectionConfig::SQLite(SqliteConfig {
-        label: label.into(),
         path: PathBuf::from("demo.db"),
         read_only: false,
         pragma: None,
@@ -27,9 +26,13 @@ fn save(
     dest: ConnectionDestination,
     cx: &mut TestAppContext,
 ) -> Result<(), String> {
-    let config = sqlite(label);
+    let draft = ConnectionDraft {
+        label: label.to_string(),
+        config: sqlite(),
+        tags: vec![],
+    };
     let result = ws.update(cx, |ws, cx| {
-        ws.save_wizard_connection(config, dest, None, vec![], ContextLevel::Off, cx)
+        ws.save_wizard_connection(draft, dest, None, ContextLevel::Off, cx)
     });
     settle(cx);
     result.map(|_| ())
@@ -88,4 +91,42 @@ fn duplicate_label_is_rejected(cx: &mut TestAppContext) {
     let err = save(&ws, "demo", ConnectionDestination::Project, cx).unwrap_err();
     assert!(err.contains("already exists"), "{err}");
     assert_eq!(origins(&ws, cx).len(), 1);
+}
+
+#[gpui_kit::test]
+fn renaming_a_saved_connection_renames_the_entry(cx: &mut TestAppContext) {
+    let project = tempfile::tempdir().unwrap();
+    let (_win, ws) = open_project(cx, project.path());
+    let draft = |label: &str| ConnectionDraft {
+        label: label.to_string(),
+        config: sqlite(),
+        tags: vec![],
+    };
+    let dest = ConnectionDestination::Project;
+    let (id, _) = ws
+        .update(cx, |ws, cx| {
+            ws.save_wizard_connection(draft("Demo"), dest, None, ContextLevel::Off, cx)
+        })
+        .unwrap();
+    settle(cx);
+    ws.update(cx, |ws, cx| {
+        ws.save_wizard_connection(
+            draft("Renamed"),
+            dest,
+            Some(id.clone()),
+            ContextLevel::Off,
+            cx,
+        )
+    })
+    .unwrap();
+    settle(cx);
+    let labels: Vec<String> = ws.read_with(cx, |ws, cx| {
+        ws.registry()
+            .read(cx)
+            .connections()
+            .iter()
+            .map(|c| c.read(cx).label.clone())
+            .collect()
+    });
+    assert_eq!(labels, vec!["Renamed"]);
 }

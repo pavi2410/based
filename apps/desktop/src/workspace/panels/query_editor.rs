@@ -743,7 +743,7 @@ impl QueryEditorPanel {
                 .clone();
         let e = entry.read(cx);
         (Environment::from_tags(&e.tags) == Some(Environment::Production))
-            .then(|| SharedString::from(e.config.label().to_string()))
+            .then(|| SharedString::from(e.label.as_str().to_string()))
     }
 
     /// What the held text does, e.g. "DELETE with no WHERE clause".
@@ -1415,7 +1415,7 @@ impl QueryEditorPanel {
         let (label, env) = {
             let e = entry.read(cx);
             (
-                SharedString::from(e.config.label().to_string()),
+                SharedString::from(e.label.as_str().to_string()),
                 Environment::from_tags(&e.tags),
             )
         };

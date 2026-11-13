@@ -48,7 +48,6 @@ pub(crate) fn parse_postgres_uri(input: &str) -> Option<PostgresConfig> {
         .unwrap_or(("postgres".to_string(), SslMode::Prefer));
 
     Some(PostgresConfig {
-        label: database.clone(),
         host,
         port,
         database,
@@ -126,7 +125,6 @@ mod tests {
         assert_eq!(cfg.host, "db.example");
         assert_eq!(cfg.port, 6543);
         assert_eq!(cfg.database, "analytics");
-        assert_eq!(cfg.label, "analytics");
         assert!(matches!(cfg.ssl_mode, SslMode::Require));
     }
 

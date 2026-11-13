@@ -81,7 +81,7 @@ pub fn render_target_picker(
                         let label = registry
                             .read(cx)
                             .get(id, cx)
-                            .map(|e| e.read(cx).config.label().to_string())
+                            .map(|e| e.read(cx).label.as_str().to_string())
                             .unwrap_or_else(|| id.to_string());
                         let conn_id = id.clone();
                         let ws = workspace.clone();

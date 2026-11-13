@@ -114,7 +114,7 @@ pub(crate) fn build_connection_rows(tree: &ConnectionTree, cx: &App) -> Vec<Conn
             let entry = ent.read(cx);
             ConnectionRow {
                 idx,
-                conn_label: entry.config.label().to_string().into(),
+                conn_label: entry.label.as_str().to_string().into(),
                 engine: entry.config.engine(),
                 state_color: connection_state_dot(&entry.state, cx.theme()),
                 link: Link::of(&entry.state),

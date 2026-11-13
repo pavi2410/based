@@ -32,7 +32,7 @@ impl ConnectionTree {
         let (_label, _engine, conn_id) = {
             let entry = conn_ent.read(cx);
             (
-                entry.config.label().to_string(),
+                entry.label.as_str().to_string(),
                 entry.config.engine(),
                 entry.id.clone(),
             )

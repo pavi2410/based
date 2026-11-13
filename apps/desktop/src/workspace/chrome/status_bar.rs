@@ -35,7 +35,7 @@ impl StatusBarConnection {
     pub fn from_entry(entry: &ConnectionEntry, muted: bool, cx: &App) -> Self {
         Self {
             id: entry.id.clone(),
-            label: entry.config.label().to_string().into(),
+            label: entry.label.as_str().to_string().into(),
             engine: entry.config.engine(),
             is_connected: matches!(entry.state, ConnectionState::Connected(_)),
             state_color: match &entry.state {

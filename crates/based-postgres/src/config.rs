@@ -3,7 +3,6 @@ use sqlx::postgres::{PgConnectOptions, PgSslMode};
 
 #[derive(Debug, Clone)]
 pub struct PostgresConfig {
-    pub label: String,
     pub host: String,
     pub port: u16,
     pub database: String,
@@ -94,7 +93,6 @@ mod tests {
 
     fn sample() -> PostgresConfig {
         PostgresConfig {
-            label: "analytics".into(),
             host: "db.example".into(),
             port: 6543,
             database: "analytics".into(),
@@ -135,7 +133,6 @@ mod tests {
     #[test]
     fn uri_percent_encodes_userinfo_and_database() {
         let cfg = PostgresConfig {
-            label: "odd".into(),
             host: "localhost".into(),
             port: 5432,
             database: "sales q".into(),

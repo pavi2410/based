@@ -45,7 +45,7 @@ impl ConnectionTree {
 
         let tree = cx.entity().clone();
         let idx_for_pending = idx;
-        let conn_label = config.label().to_string();
+        let conn_label = conn_ent.read(cx).label.clone();
         let conn_engine = config.engine();
         let task = open_connection(config, cx);
 

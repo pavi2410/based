@@ -19,20 +19,18 @@ impl ConnectionWizardPanel {
 
     pub(super) fn connect(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.status = WizardStatus::Connecting;
-        let config = self.labeled_config(cx);
-        let tags = self.tags.clone();
+        let draft = self.draft(cx);
         let key = Uuid::new_v4().to_string();
         let session_id = wizard_session_id(self.session_id.as_ref(), &key);
         self.session_id = Some(session_id.clone());
-        let task = open_connection(config.clone(), cx);
+        let task = open_connection(draft.config.clone(), cx);
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
             let _ = cx.update(|_window, cx| match result {
                 Ok(opened) => {
                     if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
                         ws.update(cx, |workspace, cx| {
-                            workspace
-                                .attach_wizard_session(config, opened, session_id, tags, true, cx);
+                            workspace.attach_wizard_session(draft, opened, session_id, true, cx);
                         });
                         let _ = this.update(cx, |panel, cx| {
                             panel.status = WizardStatus::ConnectOk;
@@ -75,14 +73,14 @@ impl ConnectionWizardPanel {
             return;
         };
         self.status = WizardStatus::Saving;
-        let config = self.labeled_config(cx);
+        let draft = self.draft(cx);
+        let label = draft.label.clone();
         let session_id = self.session_id.clone();
         let result = ws.update(cx, |workspace, cx| {
             workspace.save_wizard_connection(
-                config,
+                draft,
                 destination,
                 session_id,
-                self.tags.clone(),
                 self.current_ai(cx),
                 cx,
             )
@@ -90,7 +88,7 @@ impl ConnectionWizardPanel {
         match result {
             Ok((id, reconnect)) => {
                 self.session_id = Some(id);
-                self.tab_label = self.labeled_config(cx).label().to_string().into();
+                self.tab_label = label.into();
                 if reconnect {
                     self.reconnect_saved(window, cx);
                 } else {
@@ -108,17 +106,15 @@ impl ConnectionWizardPanel {
             return;
         };
         self.status = WizardStatus::Connecting;
-        let config = self.labeled_config(cx);
-        let tags = self.tags.clone();
-        let task = open_connection(config.clone(), cx);
+        let draft = self.draft(cx);
+        let task = open_connection(draft.config.clone(), cx);
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
             let _ = cx.update(|_window, cx| match result {
                 Ok(opened) => {
                     if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
                         ws.update(cx, |workspace, cx| {
-                            workspace
-                                .attach_wizard_session(config, opened, session_id, tags, false, cx);
+                            workspace.attach_wizard_session(draft, opened, session_id, false, cx);
                         });
                         let _ = this.update(cx, |panel, cx| {
                             panel.status = WizardStatus::Saved;

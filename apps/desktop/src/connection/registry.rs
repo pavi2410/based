@@ -78,6 +78,7 @@ impl ConnectionRegistry {
         for entry in entries {
             if let Some(existing) = self.get(&entry.id, cx).cloned() {
                 existing.update(cx, |e, _| {
+                    e.label = entry.label;
                     e.config = entry.config;
                     e.tags = entry.tags;
                 });

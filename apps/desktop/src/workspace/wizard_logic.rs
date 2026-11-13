@@ -300,7 +300,6 @@ mod tests {
     #[test]
     fn save_label_from_config_uses_sqlite_path() {
         let config = ConnectionConfig::SQLite(SqliteConfig {
-            label: String::new(),
             path: PathBuf::from("/data/shop.sqlite"),
             read_only: false,
             pragma: None,
@@ -368,22 +367,6 @@ mod tests {
     }
 
     #[test]
-    fn with_label_overrides_engine_default() {
-        let config = ConnectionConfig::Postgres(PostgresConfig {
-            label: String::new(),
-            host: "db.example".into(),
-            port: 5432,
-            database: "postgres".into(),
-            username: "postgres".into(),
-            password: Default::default(),
-            ssl_mode: SslMode::Disable,
-            ssh: None,
-        })
-        .with_label("Analytics".into());
-        assert_eq!(config.label(), "Analytics");
-    }
-
-    #[test]
     fn add_wizard_tag_trims_and_skips_empty_or_duplicate() {
         let mut tags = Vec::new();
         assert!(add_wizard_tag(&mut tags, "  local  "));
@@ -403,9 +386,8 @@ mod tests {
         assert_eq!(tags, vec!["dev"]);
     }
 
-    fn pg(label: &str, host: &str) -> ConnectionConfig {
+    fn pg(host: &str) -> ConnectionConfig {
         ConnectionConfig::Postgres(PostgresConfig {
-            label: label.into(),
             host: host.into(),
             port: 5432,
             database: "postgres".into(),
@@ -435,17 +417,9 @@ mod tests {
     }
 
     #[test]
-    fn open_params_ignore_label() {
-        let old = pg("Northwind", "localhost");
-        let new = pg("Analytics", "localhost");
-        assert!(!open_params_changed(&old, &new));
-        assert!(!should_reconnect_after_save(true, &old, &new));
-    }
-
-    #[test]
     fn open_params_detect_host_change() {
-        let old = pg("Northwind", "localhost");
-        let new = pg("Northwind", "db.example");
+        let old = pg("localhost");
+        let new = pg("db.example");
         assert!(open_params_changed(&old, &new));
         assert!(should_reconnect_after_save(true, &old, &new));
         assert!(!should_reconnect_after_save(false, &old, &new));
@@ -453,8 +427,8 @@ mod tests {
 
     #[test]
     fn open_params_detect_ssh_change() {
-        let old = pg("Prod", "mydb.internal");
-        let mut new = pg("Prod", "mydb.internal");
+        let old = pg("mydb.internal");
+        let mut new = pg("mydb.internal");
         if let ConnectionConfig::Postgres(c) = &mut new {
             c.ssh = Some(based_core::SshTunnelConfig {
                 endpoint: SshEndpoint {

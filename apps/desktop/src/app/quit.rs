@@ -50,7 +50,7 @@ fn trace_connections(registry: &Entity<ConnectionRegistry>, cx: &App, context: &
         trace(&format!(
             "  connection id={} label={} state={}",
             entry.id,
-            entry.config.label(),
+            entry.label.as_str(),
             entry.state.label()
         ));
     }

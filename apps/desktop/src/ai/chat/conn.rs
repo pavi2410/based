@@ -55,7 +55,7 @@ impl ChatPane {
             let _ = writeln!(
                 out,
                 "{} | {} | {} | {}{}",
-                entry.config.label(),
+                entry.label.as_str(),
                 entry.engine().short_label(),
                 entry.state.label(),
                 level_text(level),
@@ -76,7 +76,7 @@ impl ChatPane {
         let conns = self.registry.read(cx).connections();
         let by = |exact: bool| {
             conns.iter().find(|e| {
-                let label = e.read(cx).config.label();
+                let label = e.read(cx).label.as_str();
                 if exact {
                     label == name
                 } else {

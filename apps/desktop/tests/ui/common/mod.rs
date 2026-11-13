@@ -9,7 +9,7 @@ use std::time::Duration;
 use std::{fs, thread};
 
 use based_desktop::app::paths::AppPaths;
-use based_desktop::connection::{ConnectionConfig, ConnectionId, open_connection};
+use based_desktop::connection::{ConnectionConfig, ConnectionDraft, ConnectionId, open_connection};
 use based_desktop::db::Tokio;
 use based_desktop::workspace::boot::WorkspaceEnv;
 use based_desktop::workspace::connection_tree::ObjectKind;
@@ -175,7 +175,6 @@ pub fn connect_sqlite_tagged(
     tags: Vec<String>,
 ) -> ConnectionId {
     let config = ConnectionConfig::SQLite(SqliteConfig {
-        label: id.into(),
         path: path.to_path_buf(),
         read_only: false,
         pragma: None,
@@ -188,7 +187,17 @@ pub fn connect_sqlite_tagged(
     let conn_id = ConnectionId::parse(id);
     let session = conn_id.clone();
     ws.update(cx, |ws, cx| {
-        ws.attach_wizard_session(config, opened, session, tags, false, cx)
+        ws.attach_wizard_session(
+            ConnectionDraft {
+                label: id.to_string(),
+                config,
+                tags,
+            },
+            opened,
+            session,
+            false,
+            cx,
+        )
     });
     settle(cx);
     conn_id

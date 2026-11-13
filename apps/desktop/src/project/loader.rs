@@ -21,7 +21,6 @@ pub fn entry_from_tree(
 ) -> anyhow::Result<ConnectionEntry> {
     let config = match &conn.spec {
         ConnectionSpec::Sqlite { file, pragma } => ConnectionConfig::SQLite(SqliteConfig {
-            label: conn.label.clone(),
             path: file.clone(),
             read_only: conn.read_only,
             pragma: pragma.as_ref().map(map_pragma).transpose()?,
@@ -34,7 +33,6 @@ pub fn entry_from_tree(
             password,
             ssl_mode,
         } => ConnectionConfig::Postgres(PostgresConfig {
-            label: conn.label.clone(),
             host: host.clone(),
             port: *port,
             database: database.clone(),
@@ -53,7 +51,6 @@ pub fn entry_from_tree(
                 anyhow::bail!("mongodb connection {} has empty url", conn.id);
             }
             ConnectionConfig::MongoDB(MongoConfig {
-                label: conn.label.clone(),
                 uri,
                 database: database.clone(),
                 auth_source: None,
@@ -64,17 +61,14 @@ pub fn entry_from_tree(
             if url.trim().is_empty() {
                 anyhow::bail!("redis connection {} has empty url", conn.id);
             }
-            ConnectionConfig::Redis(RedisConfig {
-                label: conn.label.clone(),
-                url,
-            })
+            ConnectionConfig::Redis(RedisConfig { url })
         }
     };
     let id = match origin {
         ConnectionOrigin::Project => ConnectionId::project(&conn.id),
         ConnectionOrigin::Personal => ConnectionId::personal(conn.id.as_str()),
     };
-    let mut entry = ConnectionEntry::new(id, config, conn.tags.clone());
+    let mut entry = ConnectionEntry::new(id, conn.label.clone(), config, conn.tags.clone());
     entry.ai = conn.ai;
     Ok(entry)
 }

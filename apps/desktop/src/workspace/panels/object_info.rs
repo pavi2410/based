@@ -131,7 +131,7 @@ impl Panel for ConnectionDashboardPanel {
     }
 
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let label: SharedString = self.conn.read(cx).config.label().to_string().into();
+        let label: SharedString = self.conn.read(cx).label.as_str().to_string().into();
         render_strip_tab(label, false, cx.entity().entity_id(), cx)
     }
 

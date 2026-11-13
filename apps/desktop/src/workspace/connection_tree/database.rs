@@ -119,7 +119,7 @@ impl ConnectionTree {
         self.selected_object = None;
         self.bump_object_list_epoch(cx);
 
-        let label = config.label().to_string();
+        let label = ent.read(cx).label.clone();
         let engine = config.engine();
         let task = open_connection(config, cx);
         let tree = cx.entity().clone();

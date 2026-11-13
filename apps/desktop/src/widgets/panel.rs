@@ -117,7 +117,7 @@ pub fn tab_breadcrumb_for_connection(
         .and_then(|r| r.0.read(cx).get(conn_id, cx))
         .map(|entry| {
             let entry = entry.read(cx);
-            (entry.config.engine(), entry.config.label().to_string())
+            (entry.config.engine(), entry.label.as_str().to_string())
         })
         .unwrap_or_else(|| (EngineKind::Postgres, conn_id.to_string()));
 

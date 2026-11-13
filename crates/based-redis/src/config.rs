@@ -3,14 +3,12 @@ use std::fmt;
 /// A single-node Redis connection. The URL carries host, credentials, TLS (`rediss://`) and DB index.
 #[derive(Clone)]
 pub struct RedisConfig {
-    pub label: String,
     pub url: String,
 }
 
 impl fmt::Debug for RedisConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RedisConfig")
-            .field("label", &self.label)
             .field("url", &redact_password(&self.url))
             .finish()
     }
@@ -76,10 +74,7 @@ mod tests {
     use super::*;
 
     fn cfg(url: &str) -> RedisConfig {
-        RedisConfig {
-            label: "local".into(),
-            url: url.into(),
-        }
+        RedisConfig { url: url.into() }
     }
 
     #[test]

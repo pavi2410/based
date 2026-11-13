@@ -15,6 +15,7 @@ impl ConnectionWizardPanel {
 
     pub(super) fn apply_config(
         &mut self,
+        label: &str,
         config: &ConnectionConfig,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -23,7 +24,7 @@ impl ConnectionWizardPanel {
         self.engine.update(cx, |select, cx| {
             select.set_selected_value(&engine, window, cx);
         });
-        set_field(&self.name, config.label(), window, cx);
+        set_field(&self.name, label, window, cx);
         match config {
             ConnectionConfig::Postgres(c) => {
                 set_field(&self.host, &c.host, window, cx);
@@ -133,7 +134,6 @@ impl ConnectionWizardPanel {
     pub(super) fn config(&self, cx: &App) -> ConnectionConfig {
         match self.current_engine(cx) {
             EngineKind::Postgres => ConnectionConfig::Postgres(PostgresConfig {
-                label: self.name.read(cx).value().to_string(),
                 host: self.host.read(cx).value().to_string(),
                 port: self.port.read(cx).value().parse().unwrap_or(5432u16),
                 database: self.database.read(cx).value().to_string(),
@@ -145,18 +145,15 @@ impl ConnectionWizardPanel {
             EngineKind::MongoDB => {
                 let database = self.mongo_database.read(cx).value().to_string();
                 ConnectionConfig::MongoDB(MongoConfig {
-                    label: self.name.read(cx).value().to_string(),
                     uri: self.mongo_uri.read(cx).value().to_string(),
                     database: nonempty_opt(&database),
                     auth_source: None,
                 })
             }
             EngineKind::Redis => ConnectionConfig::Redis(RedisConfig {
-                label: self.name.read(cx).value().to_string(),
                 url: self.redis_url.read(cx).value().to_string(),
             }),
             EngineKind::SQLite => ConnectionConfig::SQLite(SqliteConfig {
-                label: self.name.read(cx).value().to_string(),
                 path: PathBuf::from(self.sqlite_path.read(cx).value().as_ref()),
                 read_only: self.sqlite_read_only,
                 pragma: self.sqlite_pragma,
@@ -164,10 +161,15 @@ impl ConnectionWizardPanel {
         }
     }
 
-    pub(super) fn labeled_config(&self, cx: &App) -> ConnectionConfig {
+    /// The form as a connection: the Name field (or a name derived from the
+    /// engine fields when it is blank), the config and the tags.
+    pub(super) fn draft(&self, cx: &App) -> ConnectionDraft {
         let config = self.config(cx);
-        let label = save_label_from_config(self.name.read(cx).value().as_ref(), &config);
-        config.with_label(label)
+        ConnectionDraft {
+            label: save_label_from_config(self.name.read(cx).value().as_ref(), &config),
+            config,
+            tags: self.tags.clone(),
+        }
     }
 
     pub(super) fn apply_uri(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {

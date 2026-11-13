@@ -156,7 +156,6 @@ impl FromStr for Synchronous {
 
 #[derive(Debug, Clone)]
 pub struct SqliteConfig {
-    pub label: String,
     pub path: PathBuf,
     pub read_only: bool,
     pub pragma: Option<SqlitePragma>,

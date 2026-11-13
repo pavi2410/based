@@ -2,7 +2,6 @@ use std::fmt;
 
 #[derive(Clone)]
 pub struct MongoConfig {
-    pub label: String,
     pub uri: String,
     pub database: Option<String>,
     pub auth_source: Option<String>,
@@ -11,7 +10,6 @@ pub struct MongoConfig {
 impl fmt::Debug for MongoConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MongoConfig")
-            .field("label", &self.label)
             .field("uri", &redact_mongo_password(&self.uri))
             .field("database", &self.database)
             .field("auth_source", &self.auth_source)
@@ -51,7 +49,6 @@ mod tests {
 
     fn sample(uri: &str) -> MongoConfig {
         MongoConfig {
-            label: "local".into(),
             uri: uri.into(),
             database: None,
             auth_source: None,

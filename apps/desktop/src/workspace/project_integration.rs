@@ -10,8 +10,8 @@ use gpui_kit::Context;
 use crate::app::paths::AppPaths;
 use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{
-    ConnectionConfig, ConnectionEntry, ConnectionId, ConnectionOrigin, ConnectionState,
-    OpenedConnection, close_any_connection, opened_into_any,
+    ConnectionConfig, ConnectionDraft, ConnectionEntry, ConnectionId, ConnectionOrigin,
+    ConnectionState, OpenedConnection, close_any_connection, opened_into_any,
 };
 use crate::project::ProjectContext;
 use crate::project::loader::entry_from_tree;
@@ -81,14 +81,18 @@ impl Workspace {
     /// not when replacing a live session after Edit → Save.
     pub fn attach_wizard_session(
         &mut self,
-        config: ConnectionConfig,
+        draft: ConnectionDraft,
         opened: OpenedConnection,
         session_id: ConnectionId,
-        tags: Vec<String>,
         open_catalog: bool,
         cx: &mut Context<Self>,
     ) {
-        let mut entry = ConnectionEntry::new(session_id.clone(), config, tags);
+        let ConnectionDraft {
+            label,
+            config,
+            tags,
+        } = draft;
+        let mut entry = ConnectionEntry::new(session_id.clone(), label, config, tags);
         entry.state = ConnectionState::Connected(opened_into_any(opened, cx));
         self.upsert_registry_entry(entry, true, cx);
         if open_catalog {
@@ -126,9 +130,14 @@ impl Workspace {
         ai: ContextLevel,
         cx: &mut Context<Self>,
     ) -> Result<(), String> {
-        let Some((config, origin, tags)) = self.registry.read(cx).get(id, cx).map(|e| {
+        let Some((label, config, origin, tags)) = self.registry.read(cx).get(id, cx).map(|e| {
             let e = e.read(cx);
-            (e.config.clone(), e.origin(), e.tags.clone())
+            (
+                e.label.clone(),
+                e.config.clone(),
+                e.origin(),
+                e.tags.clone(),
+            )
         }) else {
             return Err("This connection is no longer open.".into());
         };
@@ -136,8 +145,18 @@ impl Workspace {
             return Err("Save the connection first to change its AI access.".into());
         }
         let destination = ConnectionDestination::from_origin(origin);
-        self.save_wizard_connection(config, destination, Some(id.clone()), tags, ai, cx)
-            .map(|_| ())
+        self.save_wizard_connection(
+            ConnectionDraft {
+                label,
+                config,
+                tags,
+            },
+            destination,
+            Some(id.clone()),
+            ai,
+            cx,
+        )
+        .map(|_| ())
     }
 
     /// Persist the wizard config to the chosen based-dir. Migrates a live unsaved session.
@@ -145,13 +164,17 @@ impl Workspace {
     /// while it was connected.
     pub fn save_wizard_connection(
         &mut self,
-        config: ConnectionConfig,
+        draft: ConnectionDraft,
         destination: ConnectionDestination,
         session_id: Option<ConnectionId>,
-        tags: Vec<String>,
         ai: ContextLevel,
         cx: &mut Context<Self>,
     ) -> Result<(ConnectionId, bool), String> {
+        let ConnectionDraft {
+            label,
+            config,
+            tags,
+        } = draft;
         let based_dir = destination
             .based_dir(
                 self.project_dir.as_deref(),
@@ -188,33 +211,40 @@ impl Workspace {
             origin,
             &keep_id
                 .map(str::to_string)
-                .unwrap_or_else(|| based_project::slug_from_label(config.label())),
+                .unwrap_or_else(|| based_project::slug_from_label(&label)),
         );
-        let label = config.label().trim().to_lowercase();
+        let folded = label.trim().to_lowercase();
         let name_taken = self.registry.read(cx).connections().iter().any(|e| {
             let e = e.read(cx);
             Some(&e.id) != session_id.as_ref()
-                && (e.id == target_id || e.config.label().trim().to_lowercase() == label)
+                && (e.id == target_id || e.label.trim().to_lowercase() == folded)
         });
         if name_taken {
             return Err(format!(
-                "A connection named “{}” already exists. Choose a different name.",
-                config.label()
+                "A connection named “{label}” already exists. Choose a different name."
             ));
         }
-        let mut entry = match persist_config_to_based_dir(&based_dir, &config, &tags, keep_id, ai) {
-            Ok(conn) => {
-                let vars = load_env_file(&based_dir.join(".env")).unwrap_or_default();
-                entry_from_tree(&conn, origin, &vars).unwrap_or_else(|err| {
-                    log::warn!("resolve persisted connection failed: {err:#}");
-                    entry_from_config(&config, conn.id.as_str(), origin, tags.clone(), ai)
-                })
-            }
-            Err(err) => {
-                log::warn!("persist connection file failed: {err:#}");
-                return Err(format!("Could not save connection: {err:#}"));
-            }
-        };
+        let mut entry =
+            match persist_config_to_based_dir(&based_dir, &label, &config, &tags, keep_id, ai) {
+                Ok(conn) => {
+                    let vars = load_env_file(&based_dir.join(".env")).unwrap_or_default();
+                    entry_from_tree(&conn, origin, &vars).unwrap_or_else(|err| {
+                        log::warn!("resolve persisted connection failed: {err:#}");
+                        entry_from_config(
+                            &label,
+                            &config,
+                            conn.id.as_str(),
+                            origin,
+                            tags.clone(),
+                            ai,
+                        )
+                    })
+                }
+                Err(err) => {
+                    log::warn!("persist connection file failed: {err:#}");
+                    return Err(format!("Could not save connection: {err:#}"));
+                }
+            };
         let saved_id = entry.id.clone();
         if let Some(from) = session_id.as_ref().filter(|from| *from != &saved_id)
             && let Some(live) = take_registry_state(&self.registry, from, cx)
@@ -240,6 +270,7 @@ impl Workspace {
         self.registry.update(cx, |reg, cx| {
             if let Some(existing) = reg.get(&entry.id, cx).cloned() {
                 existing.update(cx, |e, cx| {
+                    e.label = entry.label.clone();
                     e.config = entry.config.clone();
                     e.tags = entry.tags.clone();
                     if !replace_live {
@@ -285,6 +316,7 @@ fn take_registry_state(
 }
 
 fn entry_from_config(
+    label: &str,
     config: &ConnectionConfig,
     relative_id: &str,
     origin: ConnectionOrigin,
@@ -292,7 +324,7 @@ fn entry_from_config(
     ai: ContextLevel,
 ) -> ConnectionEntry {
     let id = super::wizard_logic::saved_id_for_destination(origin, relative_id);
-    let mut entry = ConnectionEntry::new(id, config.clone(), tags);
+    let mut entry = ConnectionEntry::new(id, label.to_string(), config.clone(), tags);
     entry.ai = ai;
     entry
 }

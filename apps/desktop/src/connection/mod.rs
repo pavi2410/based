@@ -63,31 +63,20 @@ impl ConnectionConfig {
         }
     }
 
-    pub fn label(&self) -> &str {
-        match self {
-            Self::Postgres(c) => &c.label,
-            Self::MongoDB(c) => &c.label,
-            Self::SQLite(c) => &c.label,
-            Self::Redis(c) => &c.label,
-        }
-    }
-
     pub fn is_read_only(&self) -> bool {
         match self {
             Self::SQLite(c) => c.read_only,
             _ => false,
         }
     }
+}
 
-    pub fn with_label(mut self, label: String) -> Self {
-        match &mut self {
-            Self::Postgres(c) => c.label = label,
-            Self::MongoDB(c) => c.label = label,
-            Self::SQLite(c) => c.label = label,
-            Self::Redis(c) => c.label = label,
-        }
-        self
-    }
+/// What the connection wizard produces: a config plus how to show it.
+#[derive(Debug, Clone)]
+pub struct ConnectionDraft {
+    pub label: String,
+    pub config: ConnectionConfig,
+    pub tags: Vec<String>,
 }
 
 // ── Open connection (engine-tagged, no shared query interface) ────────────────
@@ -127,6 +116,8 @@ impl ConnectionState {
 
 pub struct ConnectionEntry {
     pub id: ConnectionId,
+    /// Display name, from the connection file or the wizard's Name field.
+    pub label: String,
     pub config: ConnectionConfig,
     pub tags: Vec<String>,
     pub state: ConnectionState,
@@ -136,9 +127,15 @@ pub struct ConnectionEntry {
 }
 
 impl ConnectionEntry {
-    pub fn new(id: ConnectionId, config: ConnectionConfig, tags: Vec<String>) -> Self {
+    pub fn new(
+        id: ConnectionId,
+        label: String,
+        config: ConnectionConfig,
+        tags: Vec<String>,
+    ) -> Self {
         Self {
             id,
+            label,
             config,
             tags,
             state: ConnectionState::Disconnected,
@@ -181,7 +178,7 @@ pub fn live_connections(
         .filter_map(|ent| {
             let entry = ent.read(cx);
             matches!(entry.state, ConnectionState::Connected(_)).then(|| LiveConnection {
-                label: entry.config.label().into(),
+                label: entry.label.as_str().into(),
                 engine: entry.config.engine(),
             })
         })

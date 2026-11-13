@@ -48,10 +48,9 @@ pub fn query_error(err: sqlx::Error, sql: &str) -> QueryError {
 /// connection_exception; 57P01–57P03 admin/crash shutdown, cannot connect now).
 pub fn is_connection_lost(err: &sqlx::Error) -> bool {
     match err {
-        sqlx::Error::Io(_)
-        | sqlx::Error::PoolTimedOut
-        | sqlx::Error::PoolClosed
-        | sqlx::Error::WorkerCrashed => true,
+        // Not PoolTimedOut: it also means every pooled connection is busy, while the
+        // server is fine.
+        sqlx::Error::Io(_) | sqlx::Error::PoolClosed | sqlx::Error::WorkerCrashed => true,
         sqlx::Error::Database(db) => db
             .code()
             .is_some_and(|c| c.starts_with("08") || matches!(&*c, "57P01" | "57P02" | "57P03")),
@@ -83,7 +82,10 @@ mod tests {
     fn broken_sockets_and_pools_mean_the_connection_is_lost() {
         let io = io::Error::new(io::ErrorKind::ConnectionReset, "reset");
         assert!(is_connection_lost(&sqlx::Error::Io(io)));
-        assert!(is_connection_lost(&sqlx::Error::PoolTimedOut));
+        assert!(
+            !is_connection_lost(&sqlx::Error::PoolTimedOut),
+            "a busy pool is not a lost server"
+        );
         assert!(!is_connection_lost(&sqlx::Error::RowNotFound));
         assert!(lost_connection(&anyhow::Error::new(
             sqlx::Error::PoolClosed

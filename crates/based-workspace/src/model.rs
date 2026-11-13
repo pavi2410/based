@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 
 use based_core::EngineKind;
 use serde::{Deserialize, Serialize};
@@ -45,7 +46,8 @@ pub struct Environment {
     pub variables: HashMap<String, String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// `password` is `{{var}}` text or a literal; storage moves literals to the keychain.
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ConnectionTemplate {
     pub id: TemplateId,
     pub label: String,
@@ -58,6 +60,27 @@ pub struct ConnectionTemplate {
     pub username: String,
     pub password: String,
     pub ssl_mode: String,
+}
+
+impl fmt::Debug for ConnectionTemplate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let password = if self.password.is_empty() {
+            "<empty>"
+        } else {
+            "***"
+        };
+        f.debug_struct("ConnectionTemplate")
+            .field("id", &self.id)
+            .field("label", &self.label)
+            .field("engine", &self.engine)
+            .field("host", &self.host)
+            .field("port", &self.port)
+            .field("database", &self.database)
+            .field("username", &self.username)
+            .field("password", &format_args!("{password}"))
+            .field("ssl_mode", &self.ssl_mode)
+            .finish()
+    }
 }
 
 /// A query saved in the workspace, loose or in a collection.

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::{Context, Result, bail};
-use based_core::SslMode;
+use based_core::{Secret, SslMode};
 
 use crate::model::{ConnectionTemplate, WorkspaceModel};
 
@@ -11,7 +11,7 @@ pub struct ResolvedConnectionTemplate {
     pub port: u16,
     pub database: String,
     pub username: String,
-    pub password: String,
+    pub password: Secret,
     pub ssl_mode: SslMode,
 }
 
@@ -59,6 +59,7 @@ pub fn resolve_connection_template(
     let username = based_query::resolve_query(&template.username, &ctx)
         .map_err(|e| anyhow::anyhow!("username: {e}"))?;
     let password = based_query::resolve_query(&template.password, &ctx)
+        .map(Secret::new)
         .map_err(|e| anyhow::anyhow!("password: {e}"))?;
     let ssl_mode: SslMode = based_query::resolve_query(&template.ssl_mode, &ctx)
         .map_err(|e| anyhow::anyhow!("ssl_mode: {e}"))?
@@ -117,6 +118,9 @@ mod tests {
         .unwrap();
         assert_eq!(resolved.host, "localhost");
         assert_eq!(resolved.port, 5432);
+        assert_eq!(resolved.password.expose(), "secret");
+        let shown = format!("{resolved:?} {template:?}");
+        assert!(!shown.contains("secret"), "{shown}");
     }
 
     #[test]

@@ -3,18 +3,16 @@ use std::collections::HashSet;
 use gpui_kit::{App, Entity};
 
 use crate::app::prefs::manual_update_checks_enabled;
-use crate::connection::registry::ConnectionRegistry;
-use crate::connection::{ConnectionId, EngineKind};
+use crate::connection::ConnectionId;
 use crate::project::ProjectRoot;
 use crate::query_store::QueryStore;
+use crate::workspace::TabSpec;
 use crate::workspace::connection_tree::ConnectionTree;
 use crate::workspace::project_query::target_hint;
-use crate::workspace::{QueryEditorInit, TabSpec};
 
-use super::types::{PaletteResult, PaletteSection, ResultKind, WorkspacePaletteAction};
+use super::types::{PaletteEvent, PaletteResult, PaletteSection, WorkspacePaletteAction};
 
 pub struct SearchContext<'a> {
-    pub registry: &'a Entity<ConnectionRegistry>,
     pub connection_tree: &'a Entity<ConnectionTree>,
 }
 
@@ -27,7 +25,7 @@ pub fn collect_sections(ctx: SearchContext<'_>, query: &str, cx: &App) -> Vec<Pa
     push_workspace_commands(&mut commands, &q, cx);
     push_schema_objects(&mut schema, ctx.connection_tree, &q, cx);
     push_saved_queries(&mut queries, &q, cx);
-    push_history(&mut history, ctx.registry, &q, cx);
+    push_history(&mut history, &q, cx);
     sections_from_parts(commands, schema, queries, history)
 }
 
@@ -55,13 +53,10 @@ pub fn item_at(sections: &[PaletteSection], section: usize, row: usize) -> Optio
 
 fn blank_command(action: WorkspacePaletteAction, label: &str, sublabel: &str) -> PaletteResult {
     PaletteResult {
-        kind: ResultKind::Command,
         label: label.into(),
         sublabel: sublabel.into(),
         conn_label: String::new(),
-        spec: TabSpec::blank_query_editor(ConnectionId::parse("")),
-        command_action: Some(action),
-        project_query_path: None,
+        action: PaletteEvent::WorkspaceAction(action),
     }
 }
 
@@ -153,17 +148,14 @@ fn push_schema_objects(
     for (conn_id, obj, _engine) in tree.schema_palette_matches(q, cx) {
         let display = obj.display_name();
         results.push(PaletteResult {
-            kind: ResultKind::SchemaObject,
-            label: display.clone(),
+            label: display,
             sublabel: format!("{} · {}", obj.kind.group(), conn_id),
             conn_label: String::new(),
-            spec: TabSpec::DataViewer {
+            action: PaletteEvent::OpenTab(TabSpec::DataViewer {
                 conn_id: conn_id.clone(),
                 object: obj.object_ref(),
                 filter: None,
-            },
-            command_action: None,
-            project_query_path: None,
+            }),
         });
     }
 }
@@ -181,24 +173,16 @@ fn push_saved_queries(results: &mut Vec<PaletteResult>, q: &str, cx: &App) {
         if q.is_empty() || hay.contains(q) {
             let target = target_hint(&query.target);
             results.push(PaletteResult {
-                kind: ResultKind::SavedQuery,
                 label: query.name.clone(),
                 sublabel: format!("query · {target}"),
                 conn_label: String::new(),
-                spec: TabSpec::Home,
-                project_query_path: Some(query.path.clone()),
-                command_action: None,
+                action: PaletteEvent::OpenProjectQuery(query.path.clone()),
             });
         }
     }
 }
 
-fn push_history(
-    results: &mut Vec<PaletteResult>,
-    registry: &Entity<ConnectionRegistry>,
-    q: &str,
-    cx: &App,
-) {
+fn push_history(results: &mut Vec<PaletteResult>, q: &str, cx: &App) {
     let store = cx.global::<QueryStore>();
     let mut seen_history: HashSet<(ConnectionId, String)> = HashSet::new();
     for entry in store.history.recent(100) {
@@ -207,34 +191,14 @@ fn push_history(
             if !seen_history.insert(key) {
                 continue;
             }
-            let engine = registry
-                .read(cx)
-                .get(&entry.conn_id, cx)
-                .map(|e| e.read(cx).config.engine());
-            let spec = match engine {
-                Some(EngineKind::MongoDB) => TabSpec::Pipeline {
-                    conn_id: entry.conn_id.clone(),
-                    collection: None,
-                    pipeline: Some(entry.query.clone()),
-                },
-                _ => TabSpec::QueryEditor {
-                    conn_id: entry.conn_id.clone(),
-                    init: QueryEditorInit {
-                        sql: Some(entry.query.clone()),
-                        auto_run: false,
-                        saved: None,
-                        dirty: false,
-                    },
-                },
-            };
             results.push(PaletteResult {
-                kind: ResultKind::History,
                 label: super::format::palette_single_line(&entry.query, 120),
                 sublabel: format!("history · {}", entry.conn_id),
                 conn_label: String::new(),
-                spec,
-                command_action: None,
-                project_query_path: None,
+                action: PaletteEvent::InjectSql {
+                    conn_id: entry.conn_id.clone(),
+                    sql: entry.query.clone(),
+                },
             });
         }
     }
@@ -268,24 +232,21 @@ mod tests {
         assert!(!wants_open_logs_command("onboarding"));
     }
 
-    fn stub_result(kind: ResultKind, label: &str) -> PaletteResult {
+    fn stub_result(label: &str) -> PaletteResult {
         PaletteResult {
-            kind,
             label: label.into(),
             sublabel: String::new(),
             conn_label: String::new(),
-            spec: TabSpec::Home,
-            project_query_path: None,
-            command_action: None,
+            action: PaletteEvent::OpenTab(TabSpec::Home),
         }
     }
 
     #[test]
     fn sections_omit_empty_groups_and_keep_index_paths_stable() {
         let sections = sections_from_parts(
-            vec![stub_result(ResultKind::Command, "Show Home")],
+            vec![stub_result("Show Home")],
             vec![],
-            vec![stub_result(ResultKind::SavedQuery, "active")],
+            vec![stub_result("active")],
             vec![],
         );
         assert_eq!(

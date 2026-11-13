@@ -27,24 +27,13 @@ pub enum WorkspacePaletteAction {
     CloseProject,
 }
 
-/// A search result the palette can return.
+/// A search result the palette can return: what it shows and what picking it does.
 #[derive(Clone)]
 pub struct PaletteResult {
-    pub kind: ResultKind,
     pub label: String,
     pub sublabel: String,
     pub conn_label: String,
-    pub spec: TabSpec,
-    pub project_query_path: Option<String>,
-    pub command_action: Option<WorkspacePaletteAction>,
-}
-
-#[derive(Clone, PartialEq, Eq)]
-pub enum ResultKind {
-    SchemaObject,
-    SavedQuery,
-    History,
-    Command,
+    pub action: PaletteEvent,
 }
 
 /// One heading plus its rows, used as a `Command` group / `IndexPath` section.

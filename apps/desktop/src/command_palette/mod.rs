@@ -18,13 +18,11 @@ use gpui_kit::{
     App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, Window,
 };
 
-use crate::connection::registry::ConnectionRegistry;
 use crate::workspace::connection_tree::ConnectionTree;
 
 use types::PaletteSection;
 
 pub struct CommandPalette {
-    registry: Entity<ConnectionRegistry>,
     connection_tree: Entity<ConnectionTree>,
     command_state: Entity<CommandState>,
     sections: Vec<PaletteSection>,
@@ -34,14 +32,12 @@ pub struct CommandPalette {
 
 impl CommandPalette {
     pub fn new(
-        registry: Entity<ConnectionRegistry>,
         connection_tree: Entity<ConnectionTree>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         let command_state = cx.new(|cx| CommandState::new(window, cx));
         Self {
-            registry,
             connection_tree,
             command_state,
             sections: vec![],
@@ -92,7 +88,6 @@ impl CommandPalette {
     fn replace_sections(&mut self, query: &str, cx: &mut Context<Self>) {
         self.sections = search::collect_sections(
             search::SearchContext {
-                registry: &self.registry,
                 connection_tree: &self.connection_tree,
             },
             query,

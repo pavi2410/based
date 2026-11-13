@@ -209,8 +209,7 @@ impl Workspace {
             cx.set_global(RegistryRef(registry.clone()));
             cx.set_global(ProjectRoot(root));
         }
-        let command_palette =
-            cx.new(|cx| CommandPalette::new(registry.clone(), connection_tree.clone(), window, cx));
+        let command_palette = cx.new(|cx| CommandPalette::new(connection_tree.clone(), window, cx));
         let palette_observe = command_palette.clone();
 
         let workspace_options: Vec<SharedString> = workspace_ctx

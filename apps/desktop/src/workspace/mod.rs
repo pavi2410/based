@@ -144,7 +144,8 @@ impl Workspace {
         self.queued_dialog = Some(merge_queued(self.queued_dialog.take(), dialog));
     }
 
-    /// Show the queued dialog, if any. It stays queued while another dialog is open.
+    /// Show the queued dialog, if any. A project switch or close stays queued
+    /// while another dialog is open; a quit request is dropped then (see `app::quit`).
     pub(crate) fn show_queued_dialog(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(dialog) = self.queued_dialog.take() else {
             return;

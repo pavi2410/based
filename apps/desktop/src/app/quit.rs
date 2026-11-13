@@ -103,7 +103,9 @@ pub fn confirm_before_close_window(
 }
 
 /// Open a queued quit dialog during a normal render frame (reliable vs. platform
-/// close callback). Returns `false` to stay queued (another dialog is open).
+/// close callback). Always handled: while another dialog is open (most likely the
+/// quit dialog itself, from a second close click) the request is dropped, so
+/// Cancel doesn't bring the dialog straight back.
 pub fn show_queued_quit(
     workspace: &mut Workspace,
     window: &mut Window,
@@ -121,8 +123,8 @@ pub fn show_queued_quit(
         return true;
     }
     if window.has_active_dialog(cx) {
-        trace("show_queued_quit: dialog already active; keeping it queued");
-        return false;
+        trace("show_queued_quit: dialog already active; dropping the request");
+        return true;
     }
     show_quit_dialog(registry, window, cx, QuitMode::CloseWindow);
     true

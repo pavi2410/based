@@ -20,8 +20,8 @@ use crate::app::prefs::{
     DensityPreset, FontWeightToken, NativePreferences, SizeToken, UiFontFamilyId,
     UpdateCheckInterval,
 };
-use crate::app::restart::restart_app;
 use crate::app::shell;
+use crate::app::updater::restart_app;
 use crate::theme::{DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME, ThemeNameItem};
 
 #[cfg(target_os = "macos")]

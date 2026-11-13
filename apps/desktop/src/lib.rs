@@ -33,8 +33,8 @@ pub mod workspace;
 use app::paths::AppPaths;
 use gpui_kit::App;
 use project::{
-    ProjectContext, ProjectVars, find_project_root, install_reload_watcher,
-    settings::apply_project_settings, variables::load_variables,
+    ProjectContext, ProjectVars, find_project_root, install_reload_watcher, load_variables,
+    settings::apply_project_settings,
 };
 use workspace::{Inbox, PopOutManager};
 

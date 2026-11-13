@@ -13,7 +13,7 @@ mod persist;
 mod release_notes;
 mod state;
 
-pub use install::{open_releases_page, relaunch_app};
+pub use install::{open_releases_page, relaunch_app, restart_app};
 pub use release_notes::fetch_release_body;
 pub use state::UpdateStatus;
 

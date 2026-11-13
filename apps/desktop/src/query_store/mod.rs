@@ -2,12 +2,10 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub mod history;
-
 use based_project::{ProjectQuery, ProjectSnapshot, persist_favorites};
 use gpui_kit::{App, Global};
 
-pub use history::{HistoryEntry, QueryHistory};
+pub use based_query::{HistoryEntry, QueryHistory};
 
 /// In-memory catalog of committed project queries + user favorites + run history.
 pub struct QueryStore {

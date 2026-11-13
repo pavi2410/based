@@ -40,6 +40,15 @@ pub fn relaunch_app() -> Result<()> {
     Ok(())
 }
 
+/// Spawn a new process with the same argv, then exit the current one.
+pub fn restart_app() {
+    if let Err(err) = relaunch_app() {
+        log::warn!("restart app: {err:#}");
+        return;
+    }
+    process::exit(0);
+}
+
 pub fn open_releases_page(cx: &mut App) {
     uinfo("open releases page (manual update fallback)");
     cx.open_url(super::config::RELEASES_PAGE);

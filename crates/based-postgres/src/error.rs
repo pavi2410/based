@@ -39,7 +39,31 @@ pub fn query_error(err: sqlx::Error, sql: &str) -> QueryError {
     QueryError {
         message: err.to_string(),
         position,
+        connection_lost: is_connection_lost(&err),
     }
+}
+
+/// Whether `err` means the connection is gone rather than the statement failing:
+/// the socket or pool broke, or the server ended the session (SQLSTATE class 08
+/// connection_exception; 57P01–57P03 admin/crash shutdown, cannot connect now).
+pub fn is_connection_lost(err: &sqlx::Error) -> bool {
+    match err {
+        sqlx::Error::Io(_)
+        | sqlx::Error::PoolTimedOut
+        | sqlx::Error::PoolClosed
+        | sqlx::Error::WorkerCrashed => true,
+        sqlx::Error::Database(db) => db
+            .code()
+            .is_some_and(|c| c.starts_with("08") || matches!(&*c, "57P01" | "57P02" | "57P03")),
+        _ => false,
+    }
+}
+
+/// [`is_connection_lost`] for an error that may wrap a sqlx error.
+pub fn lost_connection(err: &anyhow::Error) -> bool {
+    err.chain()
+        .filter_map(|e| e.downcast_ref::<sqlx::Error>())
+        .any(is_connection_lost)
 }
 
 /// 1-based character index → byte offset.
@@ -51,7 +75,20 @@ fn char_to_byte(sql: &str, chars: usize) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
+    use std::io;
+
     use super::*;
+
+    #[test]
+    fn broken_sockets_and_pools_mean_the_connection_is_lost() {
+        let io = io::Error::new(io::ErrorKind::ConnectionReset, "reset");
+        assert!(is_connection_lost(&sqlx::Error::Io(io)));
+        assert!(is_connection_lost(&sqlx::Error::PoolTimedOut));
+        assert!(!is_connection_lost(&sqlx::Error::RowNotFound));
+        assert!(lost_connection(&anyhow::Error::new(
+            sqlx::Error::PoolClosed
+        )));
+    }
 
     #[test]
     fn character_positions_become_byte_offsets() {

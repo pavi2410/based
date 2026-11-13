@@ -1,5 +1,6 @@
 // Paginated table viewer shared by SQL engines; engines plug in via [`DataSource`].
 
+use crate::workspace::connection_health::mark_connection_lost;
 use gpui_kit::assets::IconName as AssetIcon;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
@@ -111,6 +112,10 @@ pub trait DataSource: Send + Sync + 'static {
         limit: u64,
         catalog: ColumnCatalog,
     ) -> Fut<PageData>;
+    /// Whether a failed load means the connection itself is gone.
+    fn lost_connection(&self, _err: &anyhow::Error) -> bool {
+        false
+    }
 }
 
 pub struct DataViewerPanel {
@@ -261,6 +266,9 @@ impl DataViewerPanel {
             let _ = this.update(cx, |panel, cx| {
                 panel.loading = false;
                 if let Err(e) = &res {
+                    if panel.source.lost_connection(e) {
+                        mark_connection_lost(&panel.conn_id, &e.to_string(), cx);
+                    }
                     let msg = e.to_string();
                     panel.load_error = Some(
                         msg.lines()

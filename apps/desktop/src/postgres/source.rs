@@ -53,4 +53,8 @@ impl DataSource for PgSource {
             Ok(PageData::new(page, &catalog))
         })
     }
+
+    fn lost_connection(&self, err: &anyhow::Error) -> bool {
+        based_postgres::lost_connection(err)
+    }
 }

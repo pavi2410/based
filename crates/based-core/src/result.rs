@@ -50,6 +50,8 @@ pub struct QueryError {
     pub message: String,
     /// Byte offset into the statement text, when the server reports one.
     pub position: Option<usize>,
+    /// The connection itself failed (network, server shutdown), not the statement.
+    pub connection_lost: bool,
 }
 
 impl QueryError {
@@ -58,6 +60,7 @@ impl QueryError {
         Self {
             message: message.into(),
             position: None,
+            connection_lost: false,
         }
     }
 }

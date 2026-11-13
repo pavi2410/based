@@ -86,6 +86,7 @@ impl QuerySource for SqliteQuery {
                         return Err(QueryError {
                             message: format!("Statement {} failed: {message}", i + 1),
                             position,
+                            connection_lost: false,
                         });
                     }
                     Ok(Ok(SqlOutcome::Rows(set))) => rows = Some(set),

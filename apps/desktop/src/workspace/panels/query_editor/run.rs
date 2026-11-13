@@ -1,6 +1,7 @@
 //! Running SQL: holds and confirmations, statement batches, results, errors.
 
 use super::*;
+use crate::workspace::connection_health::mark_connection_lost;
 use std::mem;
 
 /// Row cap for an assistant card's read-only run.
@@ -257,6 +258,9 @@ impl QueryEditorPanel {
                 )
             }
             Err(e) => {
+                if e.connection_lost {
+                    mark_connection_lost(&conn_id, &e.message, cx);
+                }
                 self.bottom_tab = BottomTab::Messages;
                 let message = e.to_string();
                 self.last_run

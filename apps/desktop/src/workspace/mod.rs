@@ -15,6 +15,7 @@ pub use connection_tree::ConnectionTree;
 
 pub mod boot;
 pub mod connection_destination;
+pub mod connection_health;
 pub mod connection_persist;
 pub mod context;
 pub mod notify;

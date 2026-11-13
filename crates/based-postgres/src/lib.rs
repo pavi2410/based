@@ -16,7 +16,7 @@ pub use config::{
     PostgresConfig, SslMode, pg_connect_options, pg_ssl_mode, postgres_uri, psql_command,
 };
 pub use decode::{decode_pg_cell, pg_cell};
-pub use error::{connect_error, query_error};
+pub use error::{connect_error, is_connection_lost, lost_connection, query_error};
 pub use explain::{PlanNode, parse_pg_explain_json};
 pub use inspect::inspect_table;
 pub use mutations::{delete_row, execute_sql, insert_row};

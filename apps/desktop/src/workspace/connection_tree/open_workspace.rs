@@ -13,6 +13,7 @@ use crate::workspace::panels::query_editor::QueryEditorPanel;
 
 use super::super::dock_utils::tabs_layout;
 use super::ConnectionTree;
+use crate::mongodb::DEFAULT_COLLECTION;
 use crate::mongodb::change_stream::ChangeStreamPanel;
 use crate::mongodb::pipeline_builder::PipelineBuilderPanel;
 use crate::workspace::panels::object_info::ConnectionDashboardPanel;
@@ -81,7 +82,7 @@ impl ConnectionTree {
             }
             AnyConnection::MongoDB(ent) => {
                 let db = ent.read(cx).database().clone();
-                let coll: ::mongodb::Collection<Document> = db.collection("based_explorer");
+                let coll: ::mongodb::Collection<Document> = db.collection(DEFAULT_COLLECTION);
                 let builder = cx
                     .new(|cx| PipelineBuilderPanel::new(coll.clone(), conn_id.clone(), window, cx));
                 let stream = cx.new(|cx| ChangeStreamPanel::new(coll, window, cx));

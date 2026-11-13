@@ -50,7 +50,7 @@ pub fn build_panel(
         }
         TabSpec::QueryEditor {
             init:
-                QueryEditorInit::Sql {
+                QueryEditorInit {
                     sql,
                     auto_run,
                     saved,
@@ -75,10 +75,6 @@ pub fn build_panel(
             });
             Some(Arc::new(panel))
         }
-        TabSpec::QueryEditor {
-            init: QueryEditorInit::MongoPipeline { .. },
-            ..
-        } => None,
         TabSpec::Inspector { object, .. } => {
             let label = tab_label_for_spec(spec, false);
             let panel = cx.new(|cx| {

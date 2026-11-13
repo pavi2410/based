@@ -83,7 +83,7 @@ pub(super) fn supports_cards(engine: EngineKind) -> bool {
 
 fn open_in_editor(conn: &ConnectionId, sql: String, run: bool, cx: &mut App) {
     if run {
-        let init = QueryEditorInit::Sql {
+        let init = QueryEditorInit {
             sql: Some(sql),
             auto_run: true,
             saved: None,

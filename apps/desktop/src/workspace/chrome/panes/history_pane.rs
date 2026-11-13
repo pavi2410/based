@@ -81,7 +81,7 @@ pub fn render_history_pane(
                 inbox::open_tab(
                     TabSpec::QueryEditor {
                         conn_id: conn_for_open.clone(),
-                        init: QueryEditorInit::Sql {
+                        init: QueryEditorInit {
                             sql: Some(full_query.clone()),
                             auto_run: false,
                             saved: None,

@@ -200,7 +200,7 @@ fn open_loose_query(sql: &str, cx: &mut App) {
     inbox::open_tab(
         TabSpec::QueryEditor {
             conn_id,
-            init: QueryEditorInit::Sql {
+            init: QueryEditorInit {
                 sql: Some(sql.to_string()),
                 auto_run: false,
                 saved: None,

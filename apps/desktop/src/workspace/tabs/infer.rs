@@ -46,7 +46,8 @@ pub(crate) fn infer_tab_spec(panel: &Arc<dyn PanelView>, cx: &App) -> Option<Tab
                 let panel = ent.read(cx);
                 TabSpec::Pipeline {
                     conn_id: panel.connection_id().clone(),
-                    collection: panel.pipeline_collection().to_string(),
+                    collection: Some(panel.pipeline_collection().to_string()),
+                    pipeline: Some(panel.current_pipeline(cx)),
                 }
             }),
         PanelKind::ReleaseNotes => panel
@@ -75,7 +76,7 @@ fn query_editor_spec(
 ) -> TabSpec {
     TabSpec::QueryEditor {
         conn_id,
-        init: QueryEditorInit::Sql {
+        init: QueryEditorInit {
             sql: (!sql.is_empty()).then_some(sql),
             auto_run: false,
             saved,

@@ -14,7 +14,7 @@ use mongodb::{Collection, Database};
 use crate::connection::ConnectionId;
 use crate::workspace::Workspace;
 use crate::workspace::tabs::label::tab_label_for_spec;
-use crate::workspace::tabs::spec::{QueryEditorInit, TabSpec};
+use crate::workspace::tabs::spec::TabSpec;
 
 /// Try to build a MongoDB panel for `spec`.
 ///
@@ -35,12 +35,9 @@ pub fn build_panel(
             panel.update(cx, |p, _| p.tab_label = label);
             Some(Arc::new(panel))
         }
-        TabSpec::QueryEditor {
-            init:
-                QueryEditorInit::MongoPipeline {
-                    pipeline,
-                    collection,
-                },
+        TabSpec::Pipeline {
+            collection,
+            pipeline,
             ..
         } => {
             let label = tab_label_for_spec(spec, false);
@@ -48,31 +45,13 @@ pub fn build_panel(
                 .as_deref()
                 .map(str::trim)
                 .filter(|s| !s.is_empty())
-                .unwrap_or("based_explorer");
+                .unwrap_or(super::DEFAULT_COLLECTION);
             let coll: Collection<Document> = db.collection(coll_name);
             let panel = cx.new(|cx| {
                 super::pipeline_builder::PipelineBuilderPanel::new_with_pipeline(
                     coll,
                     conn_id.clone(),
                     pipeline.clone(),
-                    window,
-                    cx,
-                )
-            });
-            panel.update(cx, |p, _| p.tab_label = label);
-            Some(Arc::new(panel))
-        }
-        TabSpec::QueryEditor {
-            init: QueryEditorInit::Sql { .. },
-            ..
-        } => None,
-        TabSpec::Pipeline { collection, .. } => {
-            let label = tab_label_for_spec(spec, false);
-            let coll: Collection<Document> = db.collection(collection);
-            let panel = cx.new(|cx| {
-                super::pipeline_builder::PipelineBuilderPanel::new(
-                    coll,
-                    conn_id.clone(),
                     window,
                     cx,
                 )

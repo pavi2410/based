@@ -9,7 +9,7 @@ use gpui_kit::{Context, Window, prelude::*};
 use crate::connection::ConnectionId;
 use crate::workspace::Workspace;
 use crate::workspace::tabs::label::tab_label_for_spec;
-use crate::workspace::tabs::spec::{QueryEditorInit, TabSpec};
+use crate::workspace::tabs::spec::TabSpec;
 
 use super::console::ConsolePanel;
 use super::key_view::KeyViewPanel;
@@ -30,10 +30,7 @@ pub fn build_panel(
             Some(Arc::new(panel))
         }
         TabSpec::QueryEditor { init, .. } => {
-            let initial = match init {
-                QueryEditorInit::Sql { sql, .. } => sql.clone(),
-                QueryEditorInit::MongoPipeline { .. } => None,
-            };
+            let initial = init.sql.clone();
             let panel = cx.new(|cx| ConsolePanel::new(conn, conn_id.clone(), initial, window, cx));
             Some(Arc::new(panel))
         }

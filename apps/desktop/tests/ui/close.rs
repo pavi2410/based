@@ -274,7 +274,7 @@ fn saved_query_tab(cx: &mut TestAppContext) -> Option<(Option<String>, bool)> {
         .into_iter()
         .find_map(|t| match t.spec {
             TabSpec::QueryEditor {
-                init: QueryEditorInit::Sql { sql, dirty, .. },
+                init: QueryEditorInit { sql, dirty, .. },
                 ..
             } => Some((sql, dirty)),
             _ => None,

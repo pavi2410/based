@@ -53,7 +53,7 @@ pub fn tab_spec_for_query(query: &ProjectQuery, conn_id: ConnectionId) -> TabSpe
     match &query.body {
         QueryBody::Sql { query } => TabSpec::QueryEditor {
             conn_id,
-            init: QueryEditorInit::Sql {
+            init: QueryEditorInit {
                 sql: Some(query.clone()),
                 auto_run: false,
                 saved: Some(SavedQueryRef {
@@ -66,12 +66,10 @@ pub fn tab_spec_for_query(query: &ProjectQuery, conn_id: ConnectionId) -> TabSpe
         QueryBody::Aggregate {
             pipeline,
             collection,
-        } => TabSpec::QueryEditor {
+        } => TabSpec::Pipeline {
             conn_id,
-            init: QueryEditorInit::MongoPipeline {
-                pipeline: Some(pipeline.clone()),
-                collection: collection.clone(),
-            },
+            collection: collection.clone(),
+            pipeline: Some(pipeline.clone()),
         },
     }
 }

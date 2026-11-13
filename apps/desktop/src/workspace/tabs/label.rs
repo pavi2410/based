@@ -16,6 +16,7 @@ use super::kind::PanelKind;
 use super::menu::tab_context_menu;
 use super::open::TabManagerRef;
 use super::spec::TabSpec;
+use crate::mongodb::DEFAULT_COLLECTION;
 
 /// Longest a tab may grow before its label is truncated.
 pub const TAB_MAX_WIDTH: f32 = 120.0;
@@ -133,7 +134,10 @@ fn tab_info(label: &SharedString, spec: Option<&TabSpec>) -> SharedString {
         TabSpec::DataViewer { object, .. } => format!("Table data · {object}"),
         TabSpec::Inspector { object, .. } => format!("Schema · {object}"),
         TabSpec::QueryEditor { .. } => "Query editor".into(),
-        TabSpec::Pipeline { collection, .. } => format!("Aggregation pipeline · {collection}"),
+        TabSpec::Pipeline { collection, .. } => format!(
+            "Aggregation pipeline · {}",
+            collection.as_deref().unwrap_or(DEFAULT_COLLECTION)
+        ),
         TabSpec::ObjectInfo { object, kind, .. } => format!("{} · {object}", kind.label()),
         TabSpec::DocumentInsert { collection, .. } => format!("Insert document · {collection}"),
         TabSpec::Dashboard { .. } => "Connection dashboard".into(),
@@ -178,7 +182,9 @@ pub fn tab_label_for_spec(spec: &TabSpec, dirty: bool) -> SharedString {
             None => object.name.clone(),
         },
         TabSpec::QueryEditor { .. } => "Query".to_string(),
-        TabSpec::Pipeline { collection, .. } => collection.clone(),
+        TabSpec::Pipeline { collection, .. } => collection
+            .clone()
+            .unwrap_or_else(|| DEFAULT_COLLECTION.to_string()),
         TabSpec::Inspector { object, .. } => format!("{} (schema)", object.name),
         TabSpec::ObjectInfo { object, kind, .. } => format!("{} ({})", object.name, kind.label()),
         TabSpec::DocumentInsert { collection, .. } => format!("Insert · {collection}"),

@@ -59,7 +59,7 @@ pub fn build_panel(
         }
         TabSpec::QueryEditor {
             init:
-                QueryEditorInit::Sql {
+                QueryEditorInit {
                     sql,
                     auto_run,
                     saved,
@@ -84,10 +84,6 @@ pub fn build_panel(
             });
             Some(Arc::new(panel))
         }
-        TabSpec::QueryEditor {
-            init: QueryEditorInit::MongoPipeline { .. },
-            ..
-        } => None,
         TabSpec::Inspector { object, .. } => {
             // The tree always sets the schema. A spec without one is a legacy
             // "schema.name" string that restore could not migrate.

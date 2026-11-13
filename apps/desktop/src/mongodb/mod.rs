@@ -10,6 +10,9 @@ pub mod inspector;
 pub mod pipeline_builder;
 pub mod tab_dispatch;
 
+/// Collection a pipeline or change stream uses when none is named.
+pub const DEFAULT_COLLECTION: &str = "based_explorer";
+
 pub use based_mongo::{MongoConfig, document_from_json, mongo_uri, mongosh_command};
 
 use mongodb::bson::doc;

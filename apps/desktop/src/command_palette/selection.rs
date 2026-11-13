@@ -36,15 +36,11 @@ pub fn emit_selection(entry: &PaletteResult, cx: &mut Context<CommandPalette>) {
 fn history_sql(entry: &PaletteResult) -> String {
     match &entry.spec {
         TabSpec::QueryEditor {
-            init: QueryEditorInit::Sql { sql: Some(s), .. },
+            init: QueryEditorInit { sql: Some(s), .. },
             ..
         } => s.clone(),
-        TabSpec::QueryEditor {
-            init:
-                QueryEditorInit::MongoPipeline {
-                    pipeline: Some(p), ..
-                },
-            ..
+        TabSpec::Pipeline {
+            pipeline: Some(p), ..
         } => p.clone(),
         _ => entry.label.clone(),
     }
@@ -100,7 +96,7 @@ mod tests {
             conn_label: String::new(),
             spec: TabSpec::QueryEditor {
                 conn_id: conn("local"),
-                init: QueryEditorInit::Sql {
+                init: QueryEditorInit {
                     sql: Some("SELECT 1".into()),
                     auto_run: false,
                     saved: None,

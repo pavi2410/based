@@ -86,7 +86,7 @@ fn injecting_without_an_editor_opens_one(cx: &mut TestAppContext) {
     cx.update(|cx| inbox::inject_sql(s.conn.clone(), "select 7".into(), cx));
     s.render(cx);
     let opened = s.specs(cx).into_iter().any(|t| {
-        matches!(t, TabSpec::QueryEditor { init: QueryEditorInit::Sql { sql: Some(ref q), .. }, .. } if q == "select 7")
+        matches!(t, TabSpec::QueryEditor { init: QueryEditorInit { sql: Some(ref q), .. }, .. } if q == "select 7")
     });
     assert!(opened, "{:?}", s.specs(cx));
 }

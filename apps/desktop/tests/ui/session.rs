@@ -127,7 +127,7 @@ fn restored_query(cx: &mut TestAppContext) -> Restored {
     seed_sqlite(&db, &["create table t (id integer)"]);
     let spec = TabSpec::QueryEditor {
         conn_id: ConnectionId::parse("demo"),
-        init: QueryEditorInit::Sql {
+        init: QueryEditorInit {
             sql: Some("select 1".into()),
             auto_run: false,
             saved: None,

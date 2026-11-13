@@ -10,30 +10,23 @@ use crate::workspace::tabs::kind::PanelKind;
 ///
 /// This replaces the old flat fields on `TabSpec::QueryEditor`
 /// so engine-specific init data doesn't pollute the shared type.
+/// What a SQL query editor opens with (Postgres, SQLite, Redis console).
+///
+/// Written with a `"kind": "sql"` tag, so older builds can still read it;
+/// Mongo pipelines are [`TabSpec::Pipeline`].
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum QueryEditorInit {
-    /// SQL editor — Postgres or SQLite.
-    Sql {
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        sql: Option<String>,
-        #[serde(default = "default_auto_run")]
-        auto_run: bool,
-        /// The project query this tab edits, so Save overwrites it after a restart.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        saved: Option<SavedQueryRef>,
-        /// Unsaved edits at session save time; restored so close still asks first.
-        #[serde(default, skip_serializing_if = "is_false")]
-        dirty: bool,
-    },
-    /// MongoDB aggregation pipeline editor.
-    MongoPipeline {
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        pipeline: Option<String>,
-        /// Target collection name. `None` means use a default collection name.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        collection: Option<String>,
-    },
+#[serde(tag = "kind", rename = "sql")]
+pub struct QueryEditorInit {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sql: Option<String>,
+    #[serde(default = "default_auto_run")]
+    pub auto_run: bool,
+    /// The project query this tab edits, so Save overwrites it after a restart.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub saved: Option<SavedQueryRef>,
+    /// Unsaved edits at session save time; restored so close still asks first.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub dirty: bool,
 }
 
 fn default_auto_run() -> bool {
@@ -54,13 +47,13 @@ pub struct SavedQueryRef {
 impl QueryEditorInit {
     /// Whether the tab had unsaved edits when the session was saved.
     pub fn restored_dirty(&self) -> bool {
-        matches!(self, Self::Sql { dirty: true, .. })
+        self.dirty
     }
 }
 
 impl Default for QueryEditorInit {
     fn default() -> Self {
-        Self::Sql {
+        Self {
             sql: None,
             auto_run: true,
             saved: None,
@@ -98,9 +91,14 @@ pub enum TabSpec {
         conn_id: ConnectionId,
         init: QueryEditorInit,
     },
+    /// MongoDB aggregation pipeline editor.
     Pipeline {
         conn_id: ConnectionId,
-        collection: String,
+        /// `None`: the default collection ([`crate::mongodb::DEFAULT_COLLECTION`]).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        collection: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pipeline: Option<String>,
     },
     Inspector {
         conn_id: ConnectionId,
@@ -241,7 +239,7 @@ mod tests {
         let init: QueryEditorInit = serde_json::from_str(old).unwrap();
         assert_eq!(
             init,
-            QueryEditorInit::Sql {
+            QueryEditorInit {
                 sql: Some("select 1".into()),
                 auto_run: false,
                 saved: None,

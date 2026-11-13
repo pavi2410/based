@@ -212,16 +212,14 @@ fn push_history(
                 .get(&entry.conn_id, cx)
                 .map(|e| e.read(cx).config.engine());
             let spec = match engine {
-                Some(EngineKind::MongoDB) => TabSpec::QueryEditor {
+                Some(EngineKind::MongoDB) => TabSpec::Pipeline {
                     conn_id: entry.conn_id.clone(),
-                    init: QueryEditorInit::MongoPipeline {
-                        pipeline: Some(entry.query.clone()),
-                        collection: None,
-                    },
+                    collection: None,
+                    pipeline: Some(entry.query.clone()),
                 },
                 _ => TabSpec::QueryEditor {
                     conn_id: entry.conn_id.clone(),
-                    init: QueryEditorInit::Sql {
+                    init: QueryEditorInit {
                         sql: Some(entry.query.clone()),
                         auto_run: false,
                         saved: None,

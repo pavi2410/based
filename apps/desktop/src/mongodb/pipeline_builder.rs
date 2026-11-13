@@ -94,6 +94,11 @@ impl PipelineBuilderPanel {
         self.collection.name()
     }
 
+    /// The pipeline JSON as currently typed.
+    pub(crate) fn current_pipeline(&self, cx: &App) -> String {
+        text_from_input(&self.pipeline_input, cx)
+    }
+
     fn run(&mut self, cx: &mut Context<Self>) {
         let coll = self.collection.clone();
         let raw = text_from_input(&self.pipeline_input, cx);

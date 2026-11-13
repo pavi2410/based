@@ -123,7 +123,7 @@ fn open_query_tab(
 ) {
     let spec = TabSpec::QueryEditor {
         conn_id,
-        init: QueryEditorInit::Sql {
+        init: QueryEditorInit {
             sql: Some(sql.into()),
             auto_run,
             saved: None,
@@ -276,7 +276,7 @@ fn restored_tab_keeps_its_saved_query_and_unsaved_state(cx: &mut TestAppContext)
     };
     let spec = TabSpec::QueryEditor {
         conn_id,
-        init: QueryEditorInit::Sql {
+        init: QueryEditorInit {
             sql: Some("select 1".into()),
             auto_run: false,
             saved: Some(saved.clone()),

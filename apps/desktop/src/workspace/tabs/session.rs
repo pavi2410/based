@@ -45,23 +45,39 @@ pub struct SessionSnapshot {
     pub active_connection_id: Option<ConnectionId>,
 }
 
-/// Load tabs from the session, skipping any that fail to deserialize.
-/// This gracefully handles the migration from pre-QueryEditorInit sessions
-/// (P3 refactor), where QueryEditor had flat serde fields.
+/// Load tabs from the session, migrating old entry shapes and skipping any
+/// that still fail to deserialize (e.g. pre-`QueryEditorInit` flat fields).
 async fn load_tabs_with_migration(store: &MetadataStore) -> Vec<SessionTab> {
-    if let Ok(Some(tabs)) = store.get_session_json::<Vec<SessionTab>>(OPEN_TABS).await {
-        return tabs;
-    }
-    if let Ok(Some(raw)) = store
+    let Ok(Some(raw)) = store
         .get_session_json::<Vec<serde_json::Value>>(OPEN_TABS)
         .await
-    {
-        return raw
-            .into_iter()
-            .filter_map(|v| serde_json::from_value(v).ok())
-            .collect();
+    else {
+        return vec![];
+    };
+    raw.into_iter()
+        .map(migrate_entry)
+        .filter_map(|v| serde_json::from_value(v).ok())
+        .collect()
+}
+
+/// Mongo pipelines used to be saved as a query editor with
+/// `init.kind = "mongo_pipeline"`; they are `type = "pipeline"` now.
+fn migrate_entry(mut v: serde_json::Value) -> serde_json::Value {
+    let is_legacy_pipeline = v["type"] == "query_editor" && v["init"]["kind"] == "mongo_pipeline";
+    if !is_legacy_pipeline {
+        return v;
     }
-    vec![]
+    let init = v["init"].take();
+    let mut out = serde_json::json!({ "type": "pipeline", "conn_id": v["conn_id"].take() });
+    for key in ["collection", "pipeline"] {
+        if !init[key].is_null() {
+            out[key] = init[key].clone();
+        }
+    }
+    if v["pinned"] == true {
+        out["pinned"] = true.into();
+    }
+    out
 }
 
 /// Mark the first unpinned tab equal to each legacy pinned spec as pinned.
@@ -296,6 +312,36 @@ mod tests {
         );
         let json = serde_json::to_string(&tabs[0]).unwrap();
         assert!(json.contains(r#""pinned":true"#) && json.contains(r#""type":"object_info""#));
+    }
+
+    #[test]
+    fn legacy_mongo_pipeline_entries_become_pipeline_tabs() {
+        let legacy = serde_json::json!({
+            "type": "query_editor",
+            "conn_id": "m",
+            "init": {"kind": "mongo_pipeline", "pipeline": "[]", "collection": "orders"}
+        });
+        let tab: SessionTab = serde_json::from_value(migrate_entry(legacy)).unwrap();
+        assert_eq!(
+            tab.spec,
+            TabSpec::Pipeline {
+                conn_id: ConnectionId::parse("m"),
+                collection: Some("orders".into()),
+                pipeline: Some("[]".into()),
+            }
+        );
+        let sql = serde_json::json!({
+            "type": "query_editor",
+            "conn_id": "p",
+            "init": {"kind": "sql", "sql": "select 1"}
+        });
+        let tab: SessionTab = serde_json::from_value(migrate_entry(sql)).unwrap();
+        let TabSpec::QueryEditor { init, .. } = tab.spec else {
+            panic!("query editor");
+        };
+        assert_eq!(init.sql.as_deref(), Some("select 1"));
+        let json = serde_json::to_value(&init).unwrap();
+        assert_eq!(json["kind"], "sql", "older builds still read it");
     }
 
     #[test]

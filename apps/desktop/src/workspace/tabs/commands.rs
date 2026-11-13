@@ -10,6 +10,7 @@ use crate::connection::{
     ConnectionEntry, ConnectionId,
     ConnectionState::Connected,
 };
+use crate::mongodb::DEFAULT_COLLECTION;
 use crate::mongodb::pipeline_builder::PipelineBuilderPanel;
 use crate::postgres::query::PgQuery;
 use crate::redis::console::ConsolePanel as RedisConsolePanel;
@@ -207,7 +208,7 @@ impl Workspace {
             }
             MongoDB(conn) => {
                 let db = conn.read(cx).database().clone();
-                let coll = db.collection("based_explorer");
+                let coll = db.collection(DEFAULT_COLLECTION);
                 let panel = cx.new(|cx| {
                     PipelineBuilderPanel::new_with_pipeline(coll, conn_id.clone(), None, window, cx)
                 });

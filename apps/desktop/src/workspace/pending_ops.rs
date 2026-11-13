@@ -80,7 +80,7 @@ impl Workspace {
         match editor {
             Some(editor) => editor.update(cx, |e, cx| e.set_sql(&sql, window, cx)),
             None => {
-                let init = QueryEditorInit::Sql {
+                let init = QueryEditorInit {
                     sql: Some(sql),
                     auto_run: false,
                     saved: None,

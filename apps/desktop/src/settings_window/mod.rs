@@ -3,8 +3,7 @@
 mod ai;
 
 use gpui_kit::component::{
-    ActiveTheme, Icon, IconName, Sizable as _, ThemeMode,
-    button::Button,
+    ActiveTheme, Icon, IconName, ThemeMode,
     group_box::GroupBoxVariant,
     searchable_list::SearchableListItem,
     setting::{NumberFieldOptions, SettingField, SettingGroup, SettingItem, SettingPage, Settings},
@@ -21,7 +20,6 @@ use crate::app::prefs::{
     UpdateCheckInterval,
 };
 use crate::app::shell;
-use crate::app::updater::restart_app;
 use crate::theme::{DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME, ThemeNameItem};
 
 #[cfg(target_os = "macos")]
@@ -492,8 +490,8 @@ impl SettingsWindow {
                     ]),
                 ]),
         ];
-        #[cfg(debug_assertions)]
         pages.push(ai::page());
+        #[cfg(debug_assertions)]
         pages.push(dev_settings_page());
         pages
     }
@@ -501,6 +499,9 @@ impl SettingsWindow {
 
 #[cfg(debug_assertions)]
 fn dev_settings_page() -> SettingPage {
+    use crate::app::updater::restart_app;
+    use gpui_kit::component::{Sizable as _, button::Button};
+
     SettingPage::new("Developer")
         .icon(Icon::new(IconName::Settings))
         .groups(vec![SettingGroup::new().items(

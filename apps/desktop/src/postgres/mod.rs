@@ -4,7 +4,6 @@ use gpui_kit::{App, Task};
 // postgres/ — GPUI panels + connection lifecycle; driver logic in `based-postgres`.
 
 pub mod explain_plan;
-pub mod grammar;
 pub mod inspect;
 pub mod query;
 pub mod source;

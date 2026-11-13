@@ -4,7 +4,6 @@ use std::time::Instant;
 use gpui_kit::{App, Task};
 // sqlite/ — GPUI panels + connection lifecycle; driver logic in `based-sqlite`.
 
-pub mod attach_workspace;
 mod eqp_parse;
 pub mod eqp_viewer;
 pub mod inspect;

@@ -32,9 +32,7 @@ pub mod result_tabs;
 pub mod same_value;
 pub mod section_eyebrow;
 pub mod sql_editor;
-pub mod status_glyph;
 pub mod status_item;
-pub mod tab_chip;
 pub mod virtual_table;
 pub mod wizard_fields;
 

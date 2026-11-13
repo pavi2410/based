@@ -16,7 +16,6 @@ use gpui_kit::{
 };
 
 use super::style;
-use crate::app::prefs;
 use crate::connection::ConnectionId;
 use crate::project::ProjectRoot;
 use crate::workspace::notify;
@@ -197,9 +196,12 @@ pub(super) fn sql_card(
                 .bg(panel)
                 .max_h(px(260.0))
                 .overflow_scroll()
-                .font_family(prefs::code_font_family(cx))
-                .text_size(style::code(cx))
-                .child(sql.to_owned()),
+                // The same highlighter as code in the reply's markdown.
+                .child(style::markdown(
+                    key("sql"),
+                    format!("```sql\n{sql}\n```"),
+                    cx,
+                )),
         )
         .child(footer)
         .into_any_element()

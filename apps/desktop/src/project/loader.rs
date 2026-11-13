@@ -1,9 +1,11 @@
 use std::collections::HashMap;
+use std::fmt;
 use std::path::Path;
 
+use anyhow::anyhow;
 use based_core::{Secret, SshTunnelConfig};
 use based_project::{
-    ConnectionSpec, MissingEnvVar, PragmaSettings, ProjectConnection, SshSettings,
+    ConnectionSpec, EnvVarError, PragmaSettings, ProjectConnection, SshSettings,
     load_connections_from_based_dir, load_env_file,
 };
 use based_sqlite::SqlitePragma;
@@ -14,11 +16,41 @@ use crate::postgres::PostgresConfig;
 use crate::redis::RedisConfig;
 use crate::sqlite::SqliteConfig;
 
+/// Why a connection file did not become a connection.
+#[derive(Debug)]
+pub enum EntryError {
+    /// A `{ env = "…" }` value could not be read.
+    Env(EnvVarError),
+    /// The file's settings are unusable (empty URL, unknown pragma, …).
+    Invalid(anyhow::Error),
+}
+
+impl From<EnvVarError> for EntryError {
+    fn from(err: EnvVarError) -> Self {
+        Self::Env(err)
+    }
+}
+
+impl From<anyhow::Error> for EntryError {
+    fn from(err: anyhow::Error) -> Self {
+        Self::Invalid(err)
+    }
+}
+
+impl fmt::Display for EntryError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Env(e) => e.fmt(f),
+            Self::Invalid(e) => write!(f, "{e:#}"),
+        }
+    }
+}
+
 pub fn entry_from_tree(
     conn: &ProjectConnection,
     origin: ConnectionOrigin,
     file_vars: &HashMap<String, String>,
-) -> anyhow::Result<ConnectionEntry> {
+) -> Result<ConnectionEntry, EntryError> {
     let config = match &conn.spec {
         ConnectionSpec::Sqlite { file, pragma } => ConnectionConfig::SQLite(SqliteConfig {
             path: file.clone(),
@@ -48,7 +80,7 @@ pub fn entry_from_tree(
         ConnectionSpec::MongoDB { url, database } => {
             let uri = url.resolve_with(file_vars)?;
             if uri.trim().is_empty() {
-                anyhow::bail!("mongodb connection {} has empty url", conn.id);
+                return Err(anyhow!("mongodb connection {} has empty url", conn.id).into());
             }
             ConnectionConfig::MongoDB(MongoConfig {
                 uri,
@@ -59,7 +91,7 @@ pub fn entry_from_tree(
         ConnectionSpec::Redis { url } => {
             let url = url.resolve_with(file_vars)?;
             if url.trim().is_empty() {
-                anyhow::bail!("redis connection {} has empty url", conn.id);
+                return Err(anyhow!("redis connection {} has empty url", conn.id).into());
             }
             ConnectionConfig::Redis(RedisConfig { url })
         }
@@ -114,15 +146,15 @@ pub fn load_entries_from_based_dir(based_dir: &Path, origin: ConnectionOrigin) -
         match entry_from_tree(conn, origin, &file_vars) {
             Ok(entry) => loaded.entries.push(entry),
             Err(err) => {
-                log::warn!("connection {} skipped: {err:#}", conn.id);
-                let missing_var = err
-                    .chain()
-                    .find_map(|e| e.downcast_ref::<MissingEnvVar>())
-                    .map(|m| m.var.clone());
+                log::warn!("connection {} skipped: {err}", conn.id);
+                let missing_var = match &err {
+                    EntryError::Env(e) => e.missing_var().map(str::to_string),
+                    EntryError::Invalid(_) => None,
+                };
                 loaded.skipped.push(SkippedConnection {
                     id: conn.id.to_string(),
                     missing_var,
-                    reason: format!("{err:#}"),
+                    reason: err.to_string(),
                 });
             }
         }
@@ -133,7 +165,7 @@ pub fn load_entries_from_based_dir(based_dir: &Path, origin: ConnectionOrigin) -
 fn resolve_ssh(
     ssh: &SshSettings,
     file_vars: &HashMap<String, String>,
-) -> anyhow::Result<SshTunnelConfig> {
+) -> Result<SshTunnelConfig, EnvVarError> {
     Ok(SshTunnelConfig {
         endpoint: ssh.endpoint.clone(),
         key_passphrase: ssh

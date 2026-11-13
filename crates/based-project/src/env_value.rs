@@ -3,23 +3,39 @@ use std::env;
 use std::error::Error;
 use std::fmt;
 
-use anyhow::{Result, bail};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-/// A `{ env = "VAR" }` value whose variable is set neither in the process
-/// environment nor in the based-dir `.env`.
+/// Why a `{ env = "VAR" }` value could not be read.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MissingEnvVar {
-    pub var: String,
+pub enum EnvVarError {
+    /// Set neither in the process environment nor in the based-dir `.env`.
+    Missing { var: String },
+    /// Set in the process environment, but not valid Unicode.
+    NotUnicode { var: String },
 }
 
-impl fmt::Display for MissingEnvVar {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "environment variable `{}` is not set", self.var)
+impl EnvVarError {
+    /// The variable a connection needs, when it is simply not set.
+    pub fn missing_var(&self) -> Option<&str> {
+        match self {
+            Self::Missing { var } => Some(var),
+            Self::NotUnicode { .. } => None,
+        }
     }
 }
 
-impl Error for MissingEnvVar {}
+impl fmt::Display for EnvVarError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Missing { var } => write!(f, "environment variable `{var}` is not set"),
+            Self::NotUnicode { var } => {
+                write!(f, "environment variable `{var}` is not valid Unicode")
+            }
+        }
+    }
+}
+
+impl Error for EnvVarError {}
 
 /// Every use holds a secret (password, URL with credentials, passphrase), so
 /// `Debug` hides a literal and shows only an env var's name.
@@ -40,22 +56,22 @@ impl fmt::Debug for EnvOrString {
 }
 
 impl EnvOrString {
-    pub fn resolve(&self) -> Result<String> {
+    pub fn resolve(&self) -> Result<String, EnvVarError> {
         self.resolve_with(&HashMap::new())
     }
 
     /// Resolve a literal, then `std::env`, then values from a based-dir `.env` map.
-    pub fn resolve_with(&self, file_vars: &HashMap<String, String>) -> Result<String> {
+    pub fn resolve_with(&self, file_vars: &HashMap<String, String>) -> Result<String, EnvVarError> {
         match self {
             Self::Literal(s) => Ok(s.clone()),
             Self::FromEnv { var } => match env::var(var) {
                 Ok(value) => Ok(value),
                 Err(env::VarError::NotPresent) => match file_vars.get(var) {
                     Some(value) => Ok(value.clone()),
-                    None => Err(MissingEnvVar { var: var.clone() }.into()),
+                    None => Err(EnvVarError::Missing { var: var.clone() }),
                 },
                 Err(env::VarError::NotUnicode(_)) => {
-                    bail!("environment variable `{var}` is not valid Unicode")
+                    Err(EnvVarError::NotUnicode { var: var.clone() })
                 }
             },
         }

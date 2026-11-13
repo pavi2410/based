@@ -167,6 +167,30 @@ pub(super) struct StatementResult {
     rows: Vec<Vec<Cell>>,
 }
 
+impl StatementResult {
+    /// Grid columns, per-column type metadata, and cells for a returned row set.
+    fn from_set(set: ResultSet) -> Self {
+        Self {
+            columns: set
+                .columns
+                .iter()
+                .map(|c| data_column(c.name.clone(), c.name.clone()))
+                .collect(),
+            meta: set
+                .columns
+                .iter()
+                .map(|c| {
+                    c.type_name
+                        .clone()
+                        .map(meta_from_query_type)
+                        .unwrap_or_default()
+                })
+                .collect(),
+            rows: cells(set.rows),
+        }
+    }
+}
+
 pub struct QueryEditorPanel {
     focus_handle: FocusHandle,
     pub(super) source: Arc<dyn QuerySource>,

@@ -208,23 +208,8 @@ impl QueryEditorPanel {
                     SqlOutcome::Rows(set) => (set, None),
                     SqlOutcome::Affected(a) => (ResultSet::default(), Some(a)),
                 };
-                let columns: Vec<Column> = set
-                    .columns
-                    .iter()
-                    .map(|c| data_column(c.name.clone(), c.name.clone()))
-                    .collect();
-                let meta: Vec<ColumnMeta> = set
-                    .columns
-                    .iter()
-                    .map(|c| {
-                        c.type_name
-                            .clone()
-                            .map(meta_from_query_type)
-                            .unwrap_or_default()
-                    })
-                    .collect();
-                let rows = cells(set.rows);
-                let n = rows.len();
+                let result = StatementResult::from_set(set);
+                let n = result.rows.len();
                 let tabular = affected.is_none();
                 let what = match affected {
                     None => format!("{n} rows"),
@@ -237,11 +222,7 @@ impl QueryEditorPanel {
                     run.affected = Some(run.affected.unwrap_or(0) + a);
                 }
                 if tabular || !batch {
-                    run.results.push(StatementResult {
-                        columns,
-                        meta,
-                        rows,
-                    });
+                    run.results.push(result);
                     self.show_result(self.last_run.results.len() - 1, cx);
                 }
                 if last {

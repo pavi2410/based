@@ -34,6 +34,18 @@ fn cmd_k_toggles_and_escape_dismisses(cx: &mut TestAppContext) {
     assert!(!visible(&ws, cx), "escape should dismiss it");
 }
 
+/// On macOS Ctrl keys belong to text editing (ctrl-k kills to end of line).
+#[cfg(target_os = "macos")]
+#[gpui_kit::test]
+fn ctrl_k_is_left_to_text_editing_on_macos(cx: &mut TestAppContext) {
+    let (win, ws) = open_workspace(cx);
+    press(win, "ctrl-k", cx);
+    assert!(
+        !visible(&ws, cx),
+        "ctrl-k must not open the palette on macOS"
+    );
+}
+
 #[gpui_kit::test]
 fn show_home_command_activates_home(cx: &mut TestAppContext) {
     let (win, ws) = open_workspace(cx);

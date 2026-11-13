@@ -25,7 +25,7 @@ use crate::bindings::{
     CloseAllTabs, CloseCleanTabs, CloseOtherTabs, CloseTab, CycleAppearance, GoBackTab,
     GoForwardTab, NewQuery, OpenHome, SplitPaneBottom, SplitPaneLeft, SplitPaneRight, SplitPaneTop,
     ToggleChatPane, ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane,
-    ToggleSidebarRail,
+    ToggleSidebarRail, primary,
 };
 use crate::project::{
     prompt_open_project_in_new_window, prompt_open_project_in_window,
@@ -206,11 +206,14 @@ pub fn init(cx: &mut App) {
     cx.on_action(|_: &ShowAll, cx| cx.unhide_other_apps());
 
     cx.bind_keys([
-        KeyBinding::new("cmd-q", QuitApp, None),
-        KeyBinding::new("ctrl-q", QuitApp, None),
-        KeyBinding::new("cmd-,", OpenSettingsMenu, None),
-        KeyBinding::new("cmd-o", OpenProject, None),
-        KeyBinding::new("ctrl-o", OpenProject, None),
+        KeyBinding::new(primary!("q"), QuitApp, None),
+        KeyBinding::new(primary!(","), OpenSettingsMenu, None),
+        KeyBinding::new(primary!("o"), OpenProject, None),
+    ]);
+    #[cfg(target_os = "macos")]
+    cx.bind_keys([
+        KeyBinding::new("cmd-h", HideApp, None),
+        KeyBinding::new("cmd-alt-h", HideOthers, None),
     ]);
 
     cx.set_menus([

@@ -2,6 +2,7 @@ use gpui_kit::component::v_flex;
 use gpui_kit::{Context, IntoElement, MouseButton, Render, Window, div, prelude::*, px};
 
 use super::CommandPalette;
+use crate::bindings::PALETTE_CONTEXT;
 
 impl Render for CommandPalette {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -15,6 +16,7 @@ impl Render for CommandPalette {
         let cancel_owner = palette.clone();
 
         div()
+            .key_context(PALETTE_CONTEXT)
             .absolute()
             .inset_0()
             .bg(gpui_kit::rgba(0x00000088))

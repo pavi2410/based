@@ -30,38 +30,44 @@ gpui_kit::actions!([
     AskAi,
 ]);
 
+/// `keys` behind the platform's primary modifier: ⌘ on macOS, Ctrl elsewhere.
+/// Binding only one keeps Ctrl free for macOS text editing (ctrl-k kills a line,
+/// ctrl-o opens one) and makes shortcut hints show ⌘.
+#[cfg(target_os = "macos")]
+macro_rules! primary {
+    ($keys:literal) => {
+        concat!("cmd-", $keys)
+    };
+}
+#[cfg(not(target_os = "macos"))]
+macro_rules! primary {
+    ($keys:literal) => {
+        concat!("ctrl-", $keys)
+    };
+}
+pub(crate) use primary;
+
+/// Key context set by the open command palette.
+pub const PALETTE_CONTEXT: &str = "CommandPalette";
+
 pub fn init(cx: &mut App) {
     cx.bind_keys([
-        KeyBinding::new("cmd-\\", ToggleSidebarRail, None),
-        KeyBinding::new("ctrl-\\", ToggleSidebarRail, None),
-        KeyBinding::new("cmd-alt-shift-t", CycleAppearance, None),
-        KeyBinding::new("ctrl-alt-shift-t", CycleAppearance, None),
-        KeyBinding::new("cmd-k", ToggleCommandPalette, None),
-        KeyBinding::new("ctrl-k", ToggleCommandPalette, None),
-        KeyBinding::new("escape", DismissCommandPalette, None),
-        KeyBinding::new("cmd-w", CloseTab, None),
-        KeyBinding::new("ctrl-w", CloseTab, None),
-        KeyBinding::new("cmd-alt-w", CloseOtherTabs, None),
-        KeyBinding::new("ctrl-alt-w", CloseOtherTabs, None),
-        KeyBinding::new("cmd-alt-shift-w", CloseAllTabs, None),
-        KeyBinding::new("ctrl-alt-shift-w", CloseAllTabs, None),
-        KeyBinding::new("cmd-alt-backspace", CloseCleanTabs, None),
-        KeyBinding::new("ctrl-alt-backspace", CloseCleanTabs, None),
-        KeyBinding::new("alt-cmd-left", GoBackTab, None),
-        KeyBinding::new("alt-ctrl-left", GoBackTab, None),
-        KeyBinding::new("alt-cmd-right", GoForwardTab, None),
-        KeyBinding::new("alt-ctrl-right", GoForwardTab, None),
-        KeyBinding::new("cmd-alt-n", NewQuery, None),
-        KeyBinding::new("ctrl-alt-n", NewQuery, None),
-        KeyBinding::new("cmd-alt-i", ToggleInspectorPane, None),
-        KeyBinding::new("ctrl-alt-i", ToggleInspectorPane, None),
-        KeyBinding::new("cmd-l", ToggleChatPane, None),
-        KeyBinding::new("ctrl-l", ToggleChatPane, None),
-        KeyBinding::new("cmd-alt-h", ToggleHistoryPane, None),
-        KeyBinding::new("ctrl-alt-h", ToggleHistoryPane, None),
-        KeyBinding::new("cmd-alt-s", ToggleSavedPane, None),
-        KeyBinding::new("ctrl-alt-s", ToggleSavedPane, None),
-        KeyBinding::new("cmd-i", AskAi, None),
-        KeyBinding::new("ctrl-i", AskAi, None),
+        KeyBinding::new(primary!("\\"), ToggleSidebarRail, None),
+        KeyBinding::new(primary!("alt-shift-t"), CycleAppearance, None),
+        KeyBinding::new(primary!("k"), ToggleCommandPalette, None),
+        KeyBinding::new("escape", DismissCommandPalette, Some(PALETTE_CONTEXT)),
+        KeyBinding::new(primary!("w"), CloseTab, None),
+        KeyBinding::new(primary!("alt-w"), CloseOtherTabs, None),
+        KeyBinding::new(primary!("alt-shift-w"), CloseAllTabs, None),
+        KeyBinding::new(primary!("alt-backspace"), CloseCleanTabs, None),
+        KeyBinding::new(primary!("alt-left"), GoBackTab, None),
+        KeyBinding::new(primary!("alt-right"), GoForwardTab, None),
+        KeyBinding::new(primary!("alt-n"), NewQuery, None),
+        KeyBinding::new(primary!("alt-i"), ToggleInspectorPane, None),
+        KeyBinding::new(primary!("l"), ToggleChatPane, None),
+        // ⌘⌥H is macOS "Hide Others".
+        KeyBinding::new(primary!("y"), ToggleHistoryPane, None),
+        KeyBinding::new(primary!("alt-s"), ToggleSavedPane, None),
+        KeyBinding::new(primary!("i"), AskAi, None),
     ]);
 }

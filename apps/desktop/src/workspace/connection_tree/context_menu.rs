@@ -9,7 +9,9 @@ use crate::mongodb::{mongo_uri, mongosh_command};
 use crate::postgres::{postgres_uri, psql_command};
 use crate::redis::{redis_cli, redis_uri};
 use crate::sqlite::{resolve_sqlite_path, sqlite_uri, sqlite3_command};
+use crate::workspace::TabSpec;
 use crate::workspace::tabs::WorkspaceRef;
+use crate::workspace::tabs::{inbox, request_workspace_flush};
 use crate::workspace::wizard_logic::can_edit_saved_connection;
 
 use crate::ai::ask_assistant;
@@ -273,13 +275,13 @@ pub(crate) fn connection_actions_menu(
             PopupMenuItem::new("Overview")
                 .icon(IconName::Info)
                 .on_click(move |_, _, cx| {
-                    crate::workspace::tabs::inbox::open_tab(
-                        crate::workspace::TabSpec::Dashboard {
+                    inbox::open_tab(
+                        TabSpec::Dashboard {
                             conn_id: overview_id.clone(),
                         },
                         cx,
                     );
-                    crate::workspace::tabs::request_workspace_flush(cx);
+                    request_workspace_flush(cx);
                 }),
         );
     }

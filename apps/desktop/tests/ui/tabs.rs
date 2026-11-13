@@ -3,6 +3,7 @@
 //! Assertions use tab counts on the settled state; specs are re-inferred from
 //! panels on dock sync, so they are not a stable identity for every tab kind.
 
+use based_desktop::connection::ConnectionId;
 use based_desktop::workspace::tabs::CloseScope;
 use based_desktop::workspace::{TabSpec, Workspace};
 use gpui_kit::test::TestWindowExt;
@@ -166,7 +167,7 @@ fn tab_manager_active_follows_dock(cx: &mut TestAppContext) {
 fn has_query_tab_for(ws: &Entity<Workspace>, id: &str, cx: &mut TestAppContext) -> bool {
     specs(ws, cx)
         .iter()
-        .any(|s| matches!(s, TabSpec::QueryEditor { conn_id, .. } if *conn_id == based_desktop::connection::ConnectionId::parse(id)))
+        .any(|s| matches!(s, TabSpec::QueryEditor { conn_id, .. } if *conn_id == ConnectionId::parse(id)))
 }
 
 #[gpui_kit::test]

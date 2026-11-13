@@ -17,6 +17,7 @@ use gpui_kit::{
 use super::{ChatPane, style};
 use crate::connection::ConnectionId;
 use crate::workspace::WorkspaceRef;
+use crate::workspace::notify::push_error;
 
 /// Starters shown on an empty chat.
 const STARTERS: usize = 4;
@@ -114,7 +115,7 @@ impl ChatPane {
             let result = ws.update(cx, |w, cx| w.set_connection_ai(&id, level, cx));
             if let Err(message) = result {
                 log::warn!("could not change AI access: {message}");
-                crate::workspace::notify::push_error(cx, "Couldn't change AI access", message);
+                push_error(cx, "Couldn't change AI access", message);
             }
         });
     }

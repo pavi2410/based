@@ -76,11 +76,11 @@ fn model_group() -> SettingGroup {
 fn editor_group() -> SettingGroup {
     SettingGroup::new().title("Editor").items(vec![
         SettingItem::new(
-            "Inline suggestions",
+            "Tab completions",
             SettingField::switch(|cx| prefs::ai_prefs(cx).inline(), prefs::set_ai_inline),
         )
         .description(
-            "Suggest the rest of a SQL query as ghost text; accept with Tab. Sends the text \
+            "Suggest the rest of a SQL query as you type; accept with Tab. Sends the text \
              around the cursor to the provider on every pause.",
         ),
     ])

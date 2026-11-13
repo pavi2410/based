@@ -236,11 +236,11 @@ fn ghost_item(cx: &App) -> impl IntoElement {
     };
     let tooltip = if on {
         format!(
-            "Ghost text is on: the text around the cursor goes to {} on each pause. Click to turn off.",
+            "Tab completions are on: the text around the cursor goes to {} on each pause. Click to turn off.",
             ai.provider().label()
         )
     } else {
-        "Ghost text is off. Click to suggest completions as you type; the text around the cursor goes to the AI provider on each pause.".to_owned()
+        "Tab completions are off. Click to suggest completions as you type; the text around the cursor goes to the AI provider on each pause.".to_owned()
     };
     Button::new("status-ghost")
         .ghost()
@@ -260,9 +260,9 @@ fn ghost_item(cx: &App) -> impl IntoElement {
                         .bg(color.opacity(if on { 1.0 } else { 0.5 })),
                 )
                 .child(div().text_xs().text_color(color).child(if on {
-                    "Ghost text"
+                    "Tab completions"
                 } else {
-                    "Ghost off"
+                    "Tab completions off"
                 })),
         )
 }

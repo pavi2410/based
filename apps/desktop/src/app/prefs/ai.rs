@@ -14,7 +14,7 @@ pub struct AiPreferences {
     /// Empty means the provider's default endpoint.
     #[serde(default)]
     base_url: String,
-    /// Suggest completions as ghost text while typing. Off by default: it sends the text
+    /// Tab completions: suggest the rest of the query while typing. Off by default: it sends the text
     /// around the cursor to the provider on every pause.
     #[serde(default)]
     inline: bool,

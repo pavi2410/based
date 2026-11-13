@@ -20,6 +20,8 @@ pub use kind::PanelKind;
 pub use label::render_strip_tab;
 pub use manager::{TabEvent, TabManager};
 pub use navigation::TabNavigationHistory;
-pub use open::{DockAreaRef, TabManagerRef, WorkspaceRef, clear_tab_dirty, mark_tab_dirty};
+pub use open::{
+    DockAreaRef, TabManagerRef, WorkspaceRef, clear_tab_dirty, mark_tab_dirty, note_tab_edited,
+};
 pub use session::{SessionSnapshot, SessionState, merge_live_and_pending};
 pub use spec::{DrillFilter, QueryEditorInit, TabSpec};

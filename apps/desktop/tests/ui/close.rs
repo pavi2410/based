@@ -2,12 +2,16 @@
 
 use based_desktop::workspace::panels::query_editor::QueryEditorPanel;
 use based_desktop::workspace::tabs::{CloseOutcome, CloseScope};
-use based_desktop::workspace::{TabSpec, Workspace};
+use std::time::Duration;
+
+use based_desktop::workspace::{QueryEditorInit, TabSpec, Workspace};
 use gpui_kit::test::TestWindowExt;
 use gpui_kit::{AnyWindowHandle, AppContext, Entity, EntityId, TestAppContext};
 
 use crate::common::strip::{open_tab, specs};
-use crate::common::{connect_sqlite, info, open_workspace, seed_sqlite, settle};
+use crate::common::{
+    connect_sqlite, info, open_workspace, saved_session, seed_sqlite, settle, wait_until,
+};
 
 struct Strip {
     win: AnyWindowHandle,
@@ -261,4 +265,37 @@ fn the_prompt_renders_a_dialog(cx: &mut TestAppContext) {
             .expect("confirm button");
     })
     .unwrap();
+}
+
+/// The saved query editor spec: its SQL and whether it was unsaved.
+fn saved_query_tab(cx: &mut TestAppContext) -> Option<(Option<String>, bool)> {
+    saved_session(cx).tabs.into_iter().find_map(|t| match t {
+        TabSpec::QueryEditor {
+            init: QueryEditorInit::Sql { sql, dirty, .. },
+            ..
+        } => Some((sql, dirty)),
+        _ => None,
+    })
+}
+
+#[gpui_kit::test]
+fn flushing_the_session_keeps_typed_sql_and_unsaved_state(cx: &mut TestAppContext) {
+    let q = with_query(cx);
+    q.type_sql("select 42", cx);
+    q.s.ws.update(cx, |ws, cx| ws.flush_session(cx));
+    let (sql, dirty) = saved_query_tab(cx).expect("query tab saved");
+    assert!(sql.unwrap_or_default().contains("select 42"));
+    assert!(dirty, "restored tab must still ask before closing");
+}
+
+#[gpui_kit::test]
+fn typing_saves_the_session_once_it_pauses(cx: &mut TestAppContext) {
+    let q = with_query(cx);
+    q.type_sql("select 7", cx);
+    cx.executor().advance_clock(Duration::from_secs(3));
+    wait_until(cx, |cx| {
+        saved_query_tab(cx)
+            .and_then(|(sql, _)| sql)
+            .is_some_and(|sql| sql.contains("select 7"))
+    });
 }

@@ -65,7 +65,7 @@ use crate::workspace::project_query::include_in_project_target;
 use crate::workspace::tabs::spec::SavedQueryRef;
 use crate::workspace::{
     WorkspaceRef,
-    tabs::{clear_tab_dirty, mark_tab_dirty},
+    tabs::{clear_tab_dirty, mark_tab_dirty, note_tab_edited},
 };
 
 pub type Fut<T> = BoxFuture<'static, anyhow::Result<T>>;
@@ -241,6 +241,7 @@ impl QueryEditorPanel {
                 panel.write_confirm = false;
                 mark_tab_dirty(cx.entity_id(), cx);
                 panel.schedule_lint(cx);
+                note_tab_edited(cx);
             }
             _ => {}
         })

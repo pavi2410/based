@@ -2,7 +2,7 @@
 
 use gpui_kit::{App, Entity, EntityId, Global};
 
-use super::TabManager;
+use super::{TabEvent, TabManager};
 use crate::workspace::Workspace;
 use gpui_kit::component::dock::DockArea;
 
@@ -36,6 +36,13 @@ pub fn clear_tab_dirty(panel_id: EntityId, cx: &mut App) {
             cx.notify();
         }
     });
+}
+
+/// Tell the workspace a tab's content changed, so it saves the session once edits pause.
+pub fn note_tab_edited(cx: &mut App) {
+    if let Some(handle) = cx.try_global::<TabManagerRef>().map(|h| h.0.clone()) {
+        handle.update(cx, |_, cx| cx.emit(TabEvent::Edited));
+    }
 }
 
 /// Mark the tab showing this panel as having unsaved edits.

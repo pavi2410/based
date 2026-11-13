@@ -37,6 +37,8 @@ pub enum TabEvent {
     TabOpened(usize), // index of new tab
     TabClosed(usize),
     ActiveChanged(usize),
+    /// A tab's content changed (editor typing); the session is saved once edits pause.
+    Edited,
 }
 
 pub struct TabManager {

@@ -1,4 +1,7 @@
 //! Quit / window-close confirmation when live database connections are open.
+//!
+//! Every path that lets the window or app go away first flushes the session, so
+//! unsaved query text and its dirty state come back on the next launch.
 
 use gpui_kit::component::{
     ActiveTheme, WindowExt,
@@ -28,6 +31,13 @@ enum QuitMode {
     QuitApp,
 }
 
+/// Write the session synchronously before the window or app goes away.
+fn flush_session(cx: &mut App) {
+    if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|ws| ws.0.clone()) {
+        ws.update(cx, |ws, cx| ws.flush_session(cx));
+    }
+}
+
 fn trace(msg: &str) {
     log::debug!(target: LOG_TARGET, "{msg}");
 }
@@ -55,6 +65,7 @@ pub fn request_window_close(
     trace_connections(registry, cx, "request_window_close");
     if live_connection_count(registry, cx) == 0 {
         trace("request_window_close: no live connections, removing window");
+        flush_session(cx);
         window.remove_window();
         return;
     }
@@ -78,6 +89,7 @@ pub fn confirm_before_close_window(
 
     if live_connection_count(registry, cx) == 0 {
         trace("confirm_before_close_window: allow close (no live connections)");
+        workspace.update(cx, |ws, cx| ws.flush_session(cx));
         return true;
     }
     if window.has_active_dialog(cx) {
@@ -107,6 +119,7 @@ pub fn maybe_show_pending_close_dialog(
 
     if live_connection_count(&registry, cx) == 0 {
         trace("maybe_show_pending_close_dialog: no live connections, removing window");
+        workspace.flush_session(cx);
         window.remove_window();
         return;
     }
@@ -138,12 +151,14 @@ pub fn request_app_quit(cx: &mut App) {
     trace_connections(&registry, cx, "request_app_quit");
     if live_connection_count(&registry, cx) == 0 {
         trace("request_app_quit: no live connections, quitting");
+        ws.update(cx, |ws, cx| ws.flush_session(cx));
         cx.quit();
         return;
     }
 
     let Some(handle) = cx.active_window() else {
         trace("request_app_quit: no active window, disconnect_all + quit");
+        ws.update(cx, |ws, cx| ws.flush_session(cx));
         disconnect_all(&registry, cx);
         cx.quit();
         return;
@@ -198,6 +213,7 @@ fn show_quit_dialog(
             )
             .on_ok(move |_, window, cx| {
                 trace("show_quit_dialog: user confirmed quit");
+                flush_session(cx);
                 disconnect_all(&registry, cx);
                 match mode {
                     QuitMode::CloseWindow => window.remove_window(),

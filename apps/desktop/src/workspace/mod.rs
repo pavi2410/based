@@ -31,6 +31,7 @@ mod render;
 use std::path::PathBuf;
 use std::slice;
 use std::sync::Arc;
+use std::time::Duration;
 
 use dock_utils::tabs_layout;
 
@@ -38,7 +39,9 @@ use crate::ai::OFF_NOTICE;
 use crate::ai::chat::{ChatContext, ChatPane};
 use based_ai::context::ContextLevel;
 use gpui_kit::component::dock::{DockArea, DockEvent, DockSkin, PanelStyle, PanelView};
-use gpui_kit::{App, Context, Entity, FocusHandle, Focusable, SharedString, Window, prelude::*};
+use gpui_kit::{
+    App, Context, Entity, FocusHandle, Focusable, SharedString, Task, Window, prelude::*,
+};
 
 use crate::app::paths::AppPaths;
 use crate::app::prefs::{collapsed_from, set_sidebar};
@@ -77,6 +80,8 @@ struct ChatScope {
     focused: Option<ConnectionId>,
 }
 
+const SESSION_EDIT_DEBOUNCE: Duration = Duration::from_secs(2);
+
 pub struct Workspace {
     registry: Entity<ConnectionRegistry>,
     home_panel: Entity<HomePanel>,
@@ -104,6 +109,8 @@ pub struct Workspace {
     pending_target_pick: Option<(ProjectQuery, Vec<ConnectionId>)>,
     /// Set by platform close; dialog is shown on the next [`Render`] (see `app::quit`).
     pub(crate) pending_close_confirm: bool,
+    /// Debounced session save after editor typing (see [`Self::note_editor_edit`]).
+    session_edit_save: Option<Task<()>>,
     /// Queued in-place project switch; confirm dialog on next [`Render`].
     pub(crate) pending_project_switch: Option<PathBuf>,
     pub(crate) pending_project_switch_confirm: bool,
@@ -211,6 +218,7 @@ impl Workspace {
             session: tabs::SessionState::default(),
             pending_target_pick: None,
             pending_close_confirm: false,
+            session_edit_save: None,
             pending_project_switch: None,
             pending_project_switch_confirm: false,
             pending_project_close_confirm: false,
@@ -261,8 +269,12 @@ impl Workspace {
         .detach();
 
         let tab_mgr_observe = workspace.tab_manager.clone();
-        cx.subscribe(&tab_mgr_observe, |ws, _, _: &tabs::TabEvent, ecx| {
-            ws.save_session(ecx);
+        cx.subscribe(&tab_mgr_observe, |ws, _, event: &tabs::TabEvent, ecx| {
+            if matches!(event, tabs::TabEvent::Edited) {
+                ws.note_editor_edit(ecx);
+            } else {
+                ws.save_session(ecx);
+            }
         })
         .detach();
 
@@ -322,6 +334,39 @@ impl Workspace {
             let _ = this.update(cx, |ws, _| ws.session.finish_writing());
         })
         .detach();
+    }
+
+    /// Write the session now, blocking, with every tab's current SQL and unsaved
+    /// state. Call right before the window or app goes away: the async writer in
+    /// [`Self::save_session`] would not get to run.
+    pub fn flush_session(&mut self, cx: &mut Context<Self>) {
+        self.session_edit_save = None;
+        self.sync_tab_manager_from_dock(cx);
+        let active_conn = self.focused_conn_id(cx).map(|id| id.0.clone());
+        let Some(snapshot) = tabs::SessionSnapshot::capture(
+            self.tab_manager.read(cx),
+            self.session.pending(),
+            active_conn,
+        ) else {
+            return;
+        };
+        let store = storage::store(cx);
+        if let Err(err) = Tokio::handle(cx).block_on(snapshot.save(&store)) {
+            log::warn!("session flush failed: {err:#}");
+        }
+    }
+
+    /// A query editor's text changed: save the session once typing pauses, so a
+    /// crash or force-quit loses at most the last couple of seconds.
+    pub fn note_editor_edit(&mut self, cx: &mut Context<Self>) {
+        self.session_edit_save = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(SESSION_EDIT_DEBOUNCE).await;
+            let _ = this.update(cx, |ws, cx| {
+                ws.session_edit_save = None;
+                ws.sync_tab_manager_from_dock(cx);
+                ws.save_session(cx);
+            });
+        }));
     }
 
     fn restore_session(&mut self, window: &mut Window, cx: &mut Context<Self>) {

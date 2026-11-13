@@ -3,7 +3,7 @@ use std::path::Path;
 
 use based_core::SshTunnelConfig;
 use based_project::{
-    ConnectionSpec, PragmaSettings, ProjectConnection, SshSettings,
+    ConnectionSpec, PostgresSslMode, PragmaSettings, ProjectConnection, SshSettings,
     load_connections_from_based_dir, load_env_file,
 };
 use based_sqlite::SqlitePragma;
@@ -13,6 +13,26 @@ use crate::mongodb::MongoConfig;
 use crate::postgres::{PostgresConfig, SslMode};
 use crate::redis::RedisConfig;
 use crate::sqlite::SqliteConfig;
+
+pub(crate) fn ssl_mode_from_project(mode: PostgresSslMode) -> SslMode {
+    match mode {
+        PostgresSslMode::Disable => SslMode::Disable,
+        PostgresSslMode::Prefer => SslMode::Prefer,
+        PostgresSslMode::Require => SslMode::Require,
+        PostgresSslMode::VerifyCa => SslMode::VerifyCa,
+        PostgresSslMode::VerifyFull => SslMode::VerifyFull,
+    }
+}
+
+pub(crate) fn ssl_mode_to_project(mode: SslMode) -> PostgresSslMode {
+    match mode {
+        SslMode::Disable => PostgresSslMode::Disable,
+        SslMode::Prefer => PostgresSslMode::Prefer,
+        SslMode::Require => PostgresSslMode::Require,
+        SslMode::VerifyCa => PostgresSslMode::VerifyCa,
+        SslMode::VerifyFull => PostgresSslMode::VerifyFull,
+    }
+}
 
 pub fn entry_from_tree(
     conn: &ProjectConnection,
@@ -32,7 +52,7 @@ pub fn entry_from_tree(
             database,
             username,
             password,
-            ssl,
+            ssl_mode,
         } => ConnectionConfig::Postgres(PostgresConfig {
             label: conn.label.clone(),
             host: host.clone(),
@@ -40,11 +60,7 @@ pub fn entry_from_tree(
             database: database.clone(),
             username: username.clone(),
             password: password.resolve_with(file_vars)?,
-            ssl_mode: if *ssl {
-                SslMode::Require
-            } else {
-                SslMode::Disable
-            },
+            ssl_mode: ssl_mode_from_project(*ssl_mode),
             ssh: conn
                 .ssh
                 .as_ref()
@@ -181,7 +197,7 @@ mod tests {
                 password: EnvOrString::FromEnv {
                     var: "BASED_PG_PASSWORD".into(),
                 },
-                ssl: false,
+                ssl_mode: PostgresSslMode::Disable,
             },
             ssh: None,
             ai: None,
@@ -209,7 +225,7 @@ mod tests {
                 database: "db".into(),
                 username: "u".into(),
                 password: EnvOrString::Literal(String::new()),
-                ssl: true,
+                ssl_mode: PostgresSslMode::Require,
             },
             ssh: Some(SshSettings {
                 host: "bastion.example.com".into(),

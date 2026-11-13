@@ -178,7 +178,8 @@ port = 5432
 database = "based"
 username = "based"
 password = { env = "LOCAL_PG_PASSWORD" }
-ssl = false                    # false | true (maps to driver SSL mode)
+ssl_mode = "prefer"            # disable | prefer | require | verify-ca | verify-full
+                               # (older files: ssl = true|false → require|disable)
 ```
 
 Inline passwords are allowed for local demos but **prefer `{ env = "VAR" }`** and document the var in `.env.example`.

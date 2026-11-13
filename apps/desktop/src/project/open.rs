@@ -23,10 +23,10 @@ use crate::project::reload::{
     ProjectRoot, RegistryRef, install_reload_watcher, reload_from_disk, stop_reload_watcher,
 };
 use crate::query_store::QueryStore;
-use crate::workspace::Workspace;
 use crate::workspace::WorkspaceRef;
 use crate::workspace::notify;
 use crate::workspace::tabs::CloseScope;
+use crate::workspace::{QueuedDialog, Workspace};
 
 use super::pick;
 use super::settings::apply_project_settings;
@@ -53,7 +53,7 @@ pub fn request_close_project_in_window(cx: &mut App) {
     // no `active_window()`, so completing here would silently no-op when there
     // are no live connections (the path that skips the confirm dialog).
     ws.update(cx, |workspace, cx| {
-        workspace.pending_project_close_confirm = true;
+        workspace.queue_dialog(QueuedDialog::CloseProject);
         cx.notify();
     });
 }
@@ -102,8 +102,7 @@ pub fn request_open_project_in_window(root: PathBuf, cx: &mut App) {
     }
     if switch_needs_confirm(&ws, cx) {
         ws.update(cx, |workspace, cx| {
-            workspace.pending_project_switch = Some(root);
-            workspace.pending_project_switch_confirm = true;
+            workspace.queue_dialog(QueuedDialog::SwitchProject(root));
             cx.notify();
         });
         return;
@@ -145,40 +144,30 @@ pub fn open_project_in_new_process(root: PathBuf, cx: &mut App) {
 }
 
 /// Show a queued project-switch dialog during render (mirrors quit flow).
-pub fn maybe_show_pending_project_switch_dialog(
+/// Returns `false` to stay queued (another dialog is open).
+pub fn show_queued_switch(
     workspace: &mut Workspace,
+    root: PathBuf,
     window: &mut Window,
     cx: &mut gpui_kit::Context<Workspace>,
-) {
-    if !workspace.pending_project_switch_confirm {
-        return;
-    }
-    workspace.pending_project_switch_confirm = false;
-    let Some(root) = workspace.pending_project_switch.take() else {
-        return;
-    };
+) -> bool {
     if window.has_active_dialog(cx) {
-        workspace.pending_project_switch = Some(root);
-        workspace.pending_project_switch_confirm = true;
-        return;
+        return false;
     }
     let dirty = workspace.has_dirty_tabs(cx);
     show_switch_project_dialog(root, workspace.registry().clone(), dirty, window, cx);
+    true
 }
 
 /// Show a queued Close Project dialog during render (mirrors switch flow).
-pub fn maybe_show_pending_project_close_dialog(
+/// Returns `false` to stay queued (another dialog is open).
+pub fn show_queued_close(
     workspace: &mut Workspace,
     window: &mut Window,
     cx: &mut gpui_kit::Context<Workspace>,
-) {
-    if !workspace.pending_project_close_confirm {
-        return;
-    }
-    workspace.pending_project_close_confirm = false;
+) -> bool {
     if window.has_active_dialog(cx) {
-        workspace.pending_project_close_confirm = true;
-        return;
+        return false;
     }
     let dirty = workspace.has_dirty_project_tabs(cx);
     let live = live_project_connection_count(workspace.registry(), cx);
@@ -190,6 +179,7 @@ pub fn maybe_show_pending_project_close_dialog(
             show_close_project_dialog(workspace.registry().clone(), dirty, window, cx);
         }
     }
+    true
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

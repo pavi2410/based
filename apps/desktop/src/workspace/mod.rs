@@ -47,6 +47,7 @@ use gpui_kit::{
 use crate::app::paths::AppPaths;
 use crate::app::prefs::{collapsed_from, set_sidebar};
 use crate::app::quit::confirm_before_close_window;
+use crate::app::quit::show_queued_quit;
 use crate::app::shell::open_settings;
 use crate::command_palette::{
     CommandPalette,
@@ -56,6 +57,7 @@ use crate::connection::ConnectionId;
 use crate::connection::ConnectionOrigin;
 use crate::connection::registry::ConnectionRegistry;
 use crate::db::{self, Tokio};
+use crate::project::open::{show_queued_close, show_queued_switch};
 use based_project::ProjectQuery;
 
 use crate::project::{
@@ -108,21 +110,55 @@ pub struct Workspace {
     project_dir: Option<PathBuf>,
     session: tabs::SessionState,
     pending_target_pick: Option<(ProjectQuery, Vec<ConnectionId>)>,
-    /// Set by platform close; dialog is shown on the next [`Render`] (see `app::quit`).
-    pub(crate) pending_close_confirm: bool,
     /// Debounced session save after editor typing (see [`Self::note_editor_edit`]).
     session_edit_save: Option<Task<()>>,
-    /// Queued in-place project switch; confirm dialog on next [`Render`].
-    pub(crate) pending_project_switch: Option<PathBuf>,
-    pub(crate) pending_project_switch_confirm: bool,
-    /// Queued Close Project; confirm dialog on next [`Render`].
-    pub(crate) pending_project_close_confirm: bool,
+    /// A confirm dialog to show on the next [`Render`] (see [`QueuedDialog`]).
+    queued_dialog: Option<QueuedDialog>,
     tab_navigation: TabNavigationHistory,
     /// Close request waiting on a discard-edits confirmation.
     close_prompt: Option<tabs::ClosePrompt>,
 }
 
+/// A confirm dialog requested outside render (platform close, menus, the
+/// palette) and shown on the next frame, where a window is at hand.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum QueuedDialog {
+    /// Close the window (quit flow, see `app::quit`).
+    Quit,
+    /// Switch this window to the project at the path.
+    SwitchProject(PathBuf),
+    CloseProject,
+}
+
+/// Which request to keep when another arrives: quitting wins; otherwise the
+/// newest request replaces the older one.
+fn merge_queued(current: Option<QueuedDialog>, new: QueuedDialog) -> QueuedDialog {
+    match current {
+        Some(QueuedDialog::Quit) => QueuedDialog::Quit,
+        _ => new,
+    }
+}
+
 impl Workspace {
+    pub(crate) fn queue_dialog(&mut self, dialog: QueuedDialog) {
+        self.queued_dialog = Some(merge_queued(self.queued_dialog.take(), dialog));
+    }
+
+    /// Show the queued dialog, if any. It stays queued while another dialog is open.
+    pub(crate) fn show_queued_dialog(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(dialog) = self.queued_dialog.take() else {
+            return;
+        };
+        let shown = match &dialog {
+            QueuedDialog::Quit => show_queued_quit(self, window, cx),
+            QueuedDialog::SwitchProject(root) => show_queued_switch(self, root.clone(), window, cx),
+            QueuedDialog::CloseProject => show_queued_close(self, window, cx),
+        };
+        if !shown {
+            self.queue_dialog(dialog);
+        }
+    }
+
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         Self::with_env(WorkspaceEnv::from_paths(AppPaths::get(cx)), window, cx)
     }
@@ -241,11 +277,8 @@ impl Workspace {
             project_dir,
             session: tabs::SessionState::default(),
             pending_target_pick: None,
-            pending_close_confirm: false,
             session_edit_save: None,
-            pending_project_switch: None,
-            pending_project_switch_confirm: false,
-            pending_project_close_confirm: false,
+            queued_dialog: None,
             tab_navigation: TabNavigationHistory::default(),
             close_prompt: None,
         };
@@ -550,5 +583,34 @@ impl Workspace {
 impl Focusable for Workspace {
     fn focus_handle(&self, _: &gpui_kit::App) -> FocusHandle {
         self.focus_handle.clone()
+    }
+}
+
+#[cfg(test)]
+mod queued_dialog_tests {
+    use std::path::PathBuf;
+
+    use super::{QueuedDialog, merge_queued};
+
+    #[test]
+    fn quit_wins_and_newer_requests_replace_older() {
+        let switch = |p: &str| QueuedDialog::SwitchProject(PathBuf::from(p));
+        assert_eq!(
+            merge_queued(None, QueuedDialog::CloseProject),
+            QueuedDialog::CloseProject
+        );
+        assert_eq!(
+            merge_queued(Some(QueuedDialog::CloseProject), switch("/b")),
+            switch("/b")
+        );
+        assert_eq!(merge_queued(Some(switch("/a")), switch("/b")), switch("/b"));
+        assert_eq!(
+            merge_queued(Some(QueuedDialog::Quit), QueuedDialog::CloseProject),
+            QueuedDialog::Quit
+        );
+        assert_eq!(
+            merge_queued(Some(switch("/a")), QueuedDialog::Quit),
+            QueuedDialog::Quit
+        );
     }
 }

@@ -19,8 +19,8 @@ use crate::connection::{
     live_connections,
 };
 use crate::widgets::{engine_icon, engine_label_inline};
-use crate::workspace::Workspace;
 use crate::workspace::WorkspaceRef;
+use crate::workspace::{QueuedDialog, Workspace};
 use std::mem;
 
 const LOG_TARGET: &str = "based_quit";
@@ -102,39 +102,37 @@ pub fn confirm_before_close_window(
     false
 }
 
-/// Open a queued quit dialog during a normal render frame (reliable vs. platform close callback).
-pub fn maybe_show_pending_close_dialog(
+/// Open a queued quit dialog during a normal render frame (reliable vs. platform
+/// close callback). Returns `false` to stay queued (another dialog is open).
+pub fn show_queued_quit(
     workspace: &mut Workspace,
     window: &mut Window,
     cx: &mut Context<Workspace>,
-) {
-    if !workspace.pending_close_confirm {
-        return;
-    }
-    workspace.pending_close_confirm = false;
+) -> bool {
     let registry = workspace.registry().clone();
 
-    trace("maybe_show_pending_close_dialog: showing queued dialog");
-    trace_connections(&registry, cx, "maybe_show_pending_close_dialog");
+    trace("show_queued_quit: showing queued dialog");
+    trace_connections(&registry, cx, "show_queued_quit");
 
     if live_connection_count(&registry, cx) == 0 {
-        trace("maybe_show_pending_close_dialog: no live connections, removing window");
+        trace("show_queued_quit: no live connections, removing window");
         workspace.flush_session(cx);
         window.remove_window();
-        return;
+        return true;
     }
     if window.has_active_dialog(cx) {
-        trace("maybe_show_pending_close_dialog: dialog already active");
-        return;
+        trace("show_queued_quit: dialog already active; keeping it queued");
+        return false;
     }
     show_quit_dialog(registry, window, cx, QuitMode::CloseWindow);
+    true
 }
 
 fn queue_close_confirm(workspace: &Entity<Workspace>, cx: &mut App) {
     workspace.update(cx, |ws, cx| {
-        ws.pending_close_confirm = true;
+        ws.queue_dialog(QueuedDialog::Quit);
         cx.notify();
-        trace("queue_close_confirm: pending_close_confirm=true, notified");
+        trace("queue_close_confirm: queued quit dialog, notified");
     });
 }
 

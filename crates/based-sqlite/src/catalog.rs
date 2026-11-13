@@ -3,7 +3,7 @@
 use std::collections::{HashMap, HashSet};
 
 use anyhow::Result;
-use based_core::{ColumnMeta, quote_ident};
+use based_core::{ColumnMeta, FkTarget, ObjectRef, quote_ident};
 use sqlx::{AssertSqlSafe, Row, SqlitePool};
 
 pub async fn column_catalog(pool: &SqlitePool, table: &str) -> Result<HashMap<String, ColumnMeta>> {
@@ -41,10 +41,25 @@ pub async fn column_catalog(pool: &SqlitePool, table: &str) -> Result<HashMap<St
     for row in fk_rows {
         let from_col: String = row.try_get("from")?;
         let to_table: String = row.try_get("table")?;
-        let to_col: String = row.try_get("to")?;
-        if let Some(meta) = out.get_mut(&from_col) {
-            meta.is_foreign_key = true;
-            meta.fk_target = Some(format!("{to_table}({to_col})"));
+        // NULL for `REFERENCES parent` without a column list: the parent's
+        // primary key, matched by position (`seq`) for composite keys.
+        let to_col = match row.try_get::<Option<String>, _>("to")? {
+            Some(col) => Some(col),
+            None => {
+                let seq: i64 = row.try_get("seq")?;
+                primary_key_columns(pool, &to_table)
+                    .await?
+                    .into_iter()
+                    .nth(usize::try_from(seq).unwrap_or(usize::MAX))
+            }
+        };
+        if let (Some(meta), Some(column)) = (out.get_mut(&from_col), to_col)
+            && meta.fk.is_none()
+        {
+            meta.fk = Some(FkTarget {
+                table: ObjectRef::bare(to_table),
+                column,
+            });
         }
     }
 
@@ -75,6 +90,20 @@ pub async fn column_catalog(pool: &SqlitePool, table: &str) -> Result<HashMap<St
     Ok(out)
 }
 
+/// A table's primary-key columns in key order (empty for rowid-only tables).
+async fn primary_key_columns(pool: &SqlitePool, table: &str) -> Result<Vec<String>> {
+    let sql = format!("PRAGMA table_info({})", quote_ident(table));
+    let mut cols: Vec<(i64, String)> = Vec::new();
+    for row in sqlx::query(AssertSqlSafe(sql)).fetch_all(pool).await? {
+        let pk: i64 = row.try_get("pk")?;
+        if pk > 0 {
+            cols.push((pk, row.try_get("name")?));
+        }
+    }
+    cols.sort();
+    Ok(cols.into_iter().map(|(_, name)| name).collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -91,7 +120,35 @@ mod tests {
         }
         let m = column_catalog(&pool, "c t").await.unwrap();
         assert!(m["id"].is_primary_key);
-        assert_eq!(m["pid"].fk_target.as_deref(), Some("p(id)"));
+        assert_eq!(
+            m["pid"].fk,
+            Some(FkTarget {
+                table: ObjectRef::bare("p"),
+                column: "id".into()
+            })
+        );
         assert!(m["email"].is_unique && m["email"].nullable == Some(false));
+    }
+
+    #[tokio::test]
+    async fn implied_fk_resolves_the_parent_primary_key() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        for sql in [
+            "CREATE TABLE users (id INTEGER PRIMARY KEY)",
+            "CREATE TABLE orders (id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users)",
+            "CREATE TABLE pair (a INT, b INT, PRIMARY KEY (a, b))",
+            "CREATE TABLE child (x INT, y INT, FOREIGN KEY (x, y) REFERENCES pair)",
+        ] {
+            sqlx::query(sql).execute(&pool).await.unwrap();
+        }
+        let m = column_catalog(&pool, "orders").await.unwrap();
+        let fk = m["user_id"].fk.clone().unwrap();
+        assert_eq!(
+            (fk.table.name.as_str(), fk.column.as_str()),
+            ("users", "id")
+        );
+        let m = column_catalog(&pool, "child").await.unwrap();
+        assert_eq!(m["x"].fk.as_ref().unwrap().column, "a");
+        assert_eq!(m["y"].fk.as_ref().unwrap().column, "b");
     }
 }

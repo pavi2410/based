@@ -39,7 +39,7 @@ pub fn column_prompt(table: &str, column: &str, meta: &ColumnMeta, samples: &[St
     if meta.is_primary_key {
         facts.push("primary key".to_owned());
     }
-    if let Some(target) = &meta.fk_target {
+    if let Some(target) = &meta.fk {
         facts.push(format!("references {target}"));
     }
     if meta.nullable == Some(false) {
@@ -81,8 +81,10 @@ mod tests {
     fn prompt_carries_constraints_and_samples() {
         let meta = ColumnMeta {
             data_type: Some("int4".into()),
-            is_foreign_key: true,
-            fk_target: Some("public.users(id)".into()),
+            fk: Some(based_core::FkTarget {
+                table: based_core::ObjectRef::qualified("public", "users"),
+                column: "id".into(),
+            }),
             nullable: Some(false),
             ..Default::default()
         };

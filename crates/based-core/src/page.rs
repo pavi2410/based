@@ -1,6 +1,8 @@
 //! Engine-agnostic table page, as returned by headless engine crates.
 
-use crate::Value;
+use std::fmt;
+
+use crate::{ObjectRef, Value};
 
 /// One page of a table browse. `columns` is `None` when the page is empty.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -16,9 +18,29 @@ pub struct ColumnMeta {
     pub data_type: Option<String>,
     pub nullable: Option<bool>,
     pub is_primary_key: bool,
-    pub is_foreign_key: bool,
     pub is_unique: bool,
-    pub fk_target: Option<String>,
+    /// The column this one references, when it is (part of) a foreign key.
+    pub fk: Option<FkTarget>,
+}
+
+impl ColumnMeta {
+    pub fn is_foreign_key(&self) -> bool {
+        self.fk.is_some()
+    }
+}
+
+/// A foreign key's referenced table and the column this one maps to. For a
+/// composite key, each local column carries its own counterpart.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct FkTarget {
+    pub table: ObjectRef,
+    pub column: String,
+}
+
+impl fmt::Display for FkTarget {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}({})", self.table, self.column)
+    }
 }
 
 /// Headed string table (inspector sections).

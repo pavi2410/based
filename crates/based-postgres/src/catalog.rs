@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use based_core::ColumnMeta;
+use based_core::{ColumnMeta, FkTarget, ObjectRef};
 use sqlx::{PgPool, Row};
 
 pub async fn column_catalog(
@@ -27,7 +27,6 @@ pub async fn column_catalog(
             END AS display_type,
             c.is_nullable = 'YES' AS nullable,
             COALESCE(bool_or(tc.constraint_type = 'PRIMARY KEY'), false) AS is_pk,
-            COALESCE(bool_or(tc.constraint_type = 'FOREIGN KEY'), false) AS is_fk,
             COALESCE(bool_or(tc.constraint_type = 'UNIQUE'), false) AS is_unique
         FROM information_schema.columns c
         LEFT JOIN information_schema.key_column_usage kcu
@@ -50,37 +49,43 @@ pub async fn column_catalog(
     .fetch_all(pool)
     .await?;
 
+    // From pg_constraint, not information_schema.constraint_column_usage: that
+    // view only lists referenced tables owned by an enabled role, and joining it
+    // pairs every local column of a composite key with every referenced one.
+    // `unnest(conkey, confkey)` pairs them by position.
     let fk_rows = sqlx::query(
         r"SELECT
-            kcu.column_name,
-            ccu.table_schema AS ref_schema,
-            ccu.table_name AS ref_table,
-            ccu.column_name AS ref_column
-        FROM information_schema.table_constraints tc
-        JOIN information_schema.key_column_usage kcu
-            ON tc.constraint_schema = kcu.constraint_schema
-            AND tc.constraint_name = kcu.constraint_name
-            AND tc.table_schema = kcu.table_schema
-            AND tc.table_name = kcu.table_name
-        JOIN information_schema.constraint_column_usage ccu
-            ON ccu.constraint_schema = tc.constraint_schema
-            AND ccu.constraint_name = tc.constraint_name
-        WHERE tc.constraint_type = 'FOREIGN KEY'
-            AND tc.table_schema = $1
-            AND tc.table_name = $2",
+            a.attname AS column_name,
+            rn.nspname AS ref_schema,
+            rc.relname AS ref_table,
+            ra.attname AS ref_column
+        FROM pg_constraint con
+        JOIN pg_class c ON c.oid = con.conrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        CROSS JOIN LATERAL unnest(con.conkey, con.confkey) AS k(attnum, ref_attnum)
+        JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k.attnum
+        JOIN pg_class rc ON rc.oid = con.confrelid
+        JOIN pg_namespace rn ON rn.oid = rc.relnamespace
+        JOIN pg_attribute ra ON ra.attrelid = con.confrelid AND ra.attnum = k.ref_attnum
+        WHERE con.contype = 'f' AND n.nspname = $1 AND c.relname = $2
+        ORDER BY con.conname, k.attnum",
     )
     .bind(schema)
     .bind(table)
     .fetch_all(pool)
     .await?;
 
-    let mut fk_targets: HashMap<String, String> = HashMap::new();
+    let mut fk_targets: HashMap<String, FkTarget> = HashMap::new();
     for row in fk_rows {
         let col: String = row.try_get("column_name")?;
         let ref_schema: String = row.try_get("ref_schema")?;
         let ref_table: String = row.try_get("ref_table")?;
         let ref_column: String = row.try_get("ref_column")?;
-        fk_targets.insert(col, format!("{ref_schema}.{ref_table}({ref_column})"));
+        // A column in two foreign keys: keep the first (by constraint name).
+        fk_targets.entry(col).or_insert(FkTarget {
+            table: ObjectRef::qualified(ref_schema, ref_table),
+            column: ref_column,
+        });
     }
 
     let mut out = HashMap::new();
@@ -89,7 +94,6 @@ pub async fn column_catalog(
         let display_type: String = row.try_get("display_type")?;
         let nullable: bool = row.try_get("nullable")?;
         let is_pk: bool = row.try_get("is_pk")?;
-        let is_fk: bool = row.try_get("is_fk")?;
         let is_unique: bool = row.try_get("is_unique")?;
         out.insert(
             name.clone(),
@@ -97,9 +101,8 @@ pub async fn column_catalog(
                 data_type: Some(display_type),
                 nullable: Some(nullable),
                 is_primary_key: is_pk,
-                is_foreign_key: is_fk,
                 is_unique,
-                fk_target: fk_targets.get(&name).cloned(),
+                fk: fk_targets.remove(&name),
             },
         );
     }

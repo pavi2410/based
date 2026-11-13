@@ -46,7 +46,7 @@ use crate::workspace::WorkspaceRef;
 use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::tabs::{DrillFilter, TabSpec, inbox, request_workspace_flush};
 use based_ai::context::ContextLevel;
-use based_core::Value;
+use based_core::{ObjectRef, Value};
 
 fn is_array_type(ty: Option<&str>) -> bool {
     ty.is_some_and(|t| t.trim().ends_with("[]") || t.trim().eq_ignore_ascii_case("array"))
@@ -132,7 +132,7 @@ pub struct DataViewerPanel {
     load_error: Option<SharedString>,
     column_catalog: HashMap<String, ColumnMeta>,
     /// Foreign-key jump for the selected cell.
-    fk_jump: Option<(String, DrillFilter)>,
+    fk_jump: Option<(ObjectRef, DrillFilter)>,
     self_handle: WeakEntity<Self>,
     pub(crate) tab_label: SharedString,
 }
@@ -231,21 +231,19 @@ impl DataViewerPanel {
         Some((col_name, cell.value.clone()))
     }
 
-    /// Resolve the FK target (`[schema.]table(col)`) of a cell into a drill-down.
-    fn fk_target_for(&self, row: usize, col: usize, cx: &App) -> Option<(String, DrillFilter)> {
+    /// The referenced table and `column = value` filter for a foreign-key cell.
+    fn fk_target_for(&self, row: usize, col: usize, cx: &App) -> Option<(ObjectRef, DrillFilter)> {
         let del = self.table.read(cx).delegate();
-        let target = del.column_meta.get(col)?.fk_target.as_ref()?;
+        let target = del.column_meta.get(col)?.fk.as_ref()?;
         let cell = del.rows.get(row)?.get(col)?;
         if cell.is_null() {
             return None;
         }
-        let value = cell.display.to_string();
-        let (table, column) = target.strip_suffix(')')?.rsplit_once('(')?;
         let filter = DrillFilter {
-            column: column.to_string(),
-            value,
+            column: target.column.clone(),
+            value: cell.display.to_string(),
         };
-        Some((table.to_string(), filter))
+        Some((target.table.clone(), filter))
     }
 
     /// The "explain this column" question, or `None` when AI is off for the connection.
@@ -454,12 +452,7 @@ impl DataViewerPanel {
         inbox::open_tab(
             TabSpec::DataViewer {
                 conn_id: self.conn_id.clone(),
-                // Postgres FK targets are "schema.table"; SQLite's are bare.
-                object: if object.contains('.') {
-                    based_core::ObjectRef::from_legacy_qualified(&object, "public")
-                } else {
-                    based_core::ObjectRef::bare(object)
-                },
+                object,
                 filter: Some(filter),
             },
             cx,

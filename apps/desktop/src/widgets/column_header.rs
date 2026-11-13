@@ -24,7 +24,7 @@ pub enum ColumnRole {
 pub fn dominant_role(meta: &ColumnMeta) -> Option<ColumnRole> {
     if meta.is_primary_key {
         Some(ColumnRole::PrimaryKey)
-    } else if meta.is_foreign_key {
+    } else if meta.is_foreign_key() {
         Some(ColumnRole::ForeignKey)
     } else if meta.is_unique {
         Some(ColumnRole::Unique)
@@ -52,9 +52,8 @@ pub fn role_icon_color(role: ColumnRole, cx: &App) -> Hsla {
 
 pub fn has_tooltip_content(meta: &ColumnMeta) -> bool {
     meta.data_type.is_some()
-        || meta.fk_target.is_some()
+        || meta.fk.is_some()
         || meta.is_primary_key
-        || meta.is_foreign_key
         || meta.is_unique
         || meta.nullable == Some(false)
 }
@@ -75,12 +74,8 @@ pub fn tooltip_lines(meta: &ColumnMeta) -> Vec<String> {
     if meta.is_primary_key {
         roles.push("Primary key".to_string());
     }
-    if meta.is_foreign_key {
-        if let Some(target) = &meta.fk_target {
-            roles.push(format!("Foreign key → {target}"));
-        } else {
-            roles.push("Foreign key".to_string());
-        }
+    if let Some(target) = &meta.fk {
+        roles.push(format!("Foreign key → {target}"));
     }
     if meta.is_unique {
         roles.push("Unique".to_string());
@@ -204,19 +199,24 @@ pub fn render_column_header(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use based_core::{FkTarget, ObjectRef};
 
     #[test]
     fn dominant_role_priority() {
+        let fk = Some(FkTarget {
+            table: ObjectRef::qualified("public", "accounts"),
+            column: "id".into(),
+        });
         let pk_fk = ColumnMeta {
             is_primary_key: true,
-            is_foreign_key: true,
+            fk: fk.clone(),
             is_unique: true,
             ..Default::default()
         };
         assert_eq!(dominant_role(&pk_fk), Some(ColumnRole::PrimaryKey));
 
         let fk_uq = ColumnMeta {
-            is_foreign_key: true,
+            fk,
             is_unique: true,
             ..Default::default()
         };
@@ -236,8 +236,10 @@ mod tests {
         let meta = ColumnMeta {
             data_type: Some("integer".into()),
             is_primary_key: true,
-            is_foreign_key: true,
-            fk_target: Some("public.accounts(id)".into()),
+            fk: Some(FkTarget {
+                table: ObjectRef::qualified("public", "accounts"),
+                column: "id".into(),
+            }),
             is_unique: true,
             ..Default::default()
         };

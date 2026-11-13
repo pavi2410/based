@@ -491,3 +491,46 @@ fn card_run_shows_rows(cx: &mut TestAppContext) {
     let s = card.finished(cx);
     assert_eq!(s.rows, [["ada"], ["grace"]]);
 }
+
+#[gpui_kit::test]
+fn delete_without_where_asks_on_any_connection(cx: &mut TestAppContext) {
+    let (editor, _ws, _dir) = open_editor(cx, "delete from t", false);
+    editor.click("sqlite-run", cx);
+    assert_eq!(editor.hold(cx), Some(HoldReason::Destructive));
+    editor.click("sqlite-write-run", cx);
+    wait_until(cx, |cx| {
+        !editor.snapshot(cx).running && editor.hold(cx).is_none()
+    });
+    assert_eq!(editor.row_count(cx), "0", "confirmed, so it ran once");
+}
+
+#[gpui_kit::test]
+fn a_bounded_delete_runs_without_asking(cx: &mut TestAppContext) {
+    let (editor, _ws, _dir) = open_editor(cx, "delete from t where id = 1", false);
+    editor.click("sqlite-run", cx);
+    assert_eq!(editor.hold(cx), None);
+    wait_until(cx, |cx| !editor.snapshot(cx).running);
+    assert_eq!(editor.row_count(cx), "1");
+}
+
+#[gpui_kit::test]
+fn a_new_query_tab_runs_nothing(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("demo.db");
+    seed_sqlite(&db, SEED);
+    let (win, ws) = open_workspace(cx);
+    let conn = connect_sqlite(cx, &ws, "demo", &db);
+    cx.update_window(win, |_, window, cx| {
+        ws.update(cx, |ws, cx| {
+            ws.dispatch_open_tab(TabSpec::blank_query_editor(conn), window, cx)
+        });
+    })
+    .unwrap();
+    settle(cx);
+    let panel = editors(&ws, cx).pop().expect("query tab");
+    let s = panel.read_with(cx, |p, cx| p.result_snapshot(cx));
+    assert!(
+        !s.running && s.rows.is_empty(),
+        "a blank tab must not run its starter SQL"
+    );
+}

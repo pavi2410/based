@@ -14,12 +14,13 @@ use crate::workspace::tabs::kind::PanelKind;
 ///
 /// Written with a `"kind": "sql"` tag, so older builds can still read it;
 /// Mongo pipelines are [`TabSpec::Pipeline`].
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(tag = "kind", rename = "sql")]
 pub struct QueryEditorInit {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sql: Option<String>,
-    #[serde(default = "default_auto_run")]
+    /// Run once on open. Opening or restoring a tab never runs SQL by itself.
+    #[serde(default)]
     pub auto_run: bool,
     /// The project query this tab edits, so Save overwrites it after a restart.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -27,10 +28,6 @@ pub struct QueryEditorInit {
     /// Unsaved edits at session save time; restored so close still asks first.
     #[serde(default, skip_serializing_if = "is_false")]
     pub dirty: bool,
-}
-
-fn default_auto_run() -> bool {
-    true
 }
 
 fn is_false(v: &bool) -> bool {
@@ -48,17 +45,6 @@ impl QueryEditorInit {
     /// Whether the tab had unsaved edits when the session was saved.
     pub fn restored_dirty(&self) -> bool {
         self.dirty
-    }
-}
-
-impl Default for QueryEditorInit {
-    fn default() -> Self {
-        Self {
-            sql: None,
-            auto_run: true,
-            saved: None,
-            dirty: false,
-        }
     }
 }
 

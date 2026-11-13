@@ -4,11 +4,25 @@ use super::*;
 
 impl QueryEditorPanel {
     pub(super) fn render_write_confirm(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        if self.hold_reason() != Some(HoldReason::ProductionWrite) {
-            return None;
-        }
+        let (message, confirm) = match self.hold_reason()? {
+            HoldReason::ProductionWrite => (
+                format!(
+                    "This runs {} on {} (production). Run it?",
+                    self.held_summary(),
+                    self.production_name(cx)?
+                ),
+                "Run on production",
+            ),
+            HoldReason::Destructive => (
+                format!(
+                    "This runs {}, which can't be undone. Run it?",
+                    self.held_summary()
+                ),
+                "Run anyway",
+            ),
+            HoldReason::AiWrite => return None,
+        };
         let id = self.source.id();
-        let name = self.production_name(cx)?;
         let danger = cx.theme().danger;
         Some(
             h_flex()
@@ -24,15 +38,12 @@ impl QueryEditorPanel {
                         .small()
                         .text_color(danger),
                 )
-                .child(div().flex_1().text_sm().child(format!(
-                    "This runs {} on {name} (production). Run it?",
-                    self.held_summary()
-                )))
+                .child(div().flex_1().text_sm().child(message))
                 .child(
                     Button::new(format!("{id}-write-run"))
                         .danger()
                         .small()
-                        .label("Run on production")
+                        .label(confirm)
                         .on_click(cx.listener(|this, _, _, cx| this.confirm_write_run(cx))),
                 )
                 .child(

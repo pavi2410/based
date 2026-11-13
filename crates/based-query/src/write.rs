@@ -4,7 +4,7 @@
 
 use based_core::EngineKind;
 
-use crate::sql::command_words;
+use crate::sql::{command_words, split_statements};
 
 const WRITE_KEYWORDS: &[&str] = &[
     "insert", "update", "delete", "merge", "drop", "alter", "truncate", "create", "grant",
@@ -42,6 +42,17 @@ pub fn write_summary(script: &str, engine: EngineKind) -> String {
     out
 }
 
+/// Whether any statement in the script destroys data wholesale: DROP, TRUNCATE, or an
+/// UPDATE or DELETE without a WHERE clause. Checked per statement, so a WHERE in one
+/// statement does not vouch for another.
+pub fn is_destructive(script: &str, engine: EngineKind) -> bool {
+    split_statements(script, engine).into_iter().any(|range| {
+        let words = command_words(&script[range], engine);
+        let has = |w: &str| words.iter().any(|x| x == w);
+        has("drop") || has("truncate") || ((has("update") || has("delete")) && !has("where"))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -56,6 +67,22 @@ mod tests {
             write_summary("update t set a = 1; drop table x", PG),
             "UPDATE, DROP with no WHERE clause"
         );
+    }
+
+    #[test]
+    fn destructive_statements_are_flagged_one_by_one() {
+        assert!(is_destructive("delete from users", PG));
+        assert!(is_destructive("UPDATE t SET a = 1", PG));
+        assert!(is_destructive("drop table t", PG));
+        assert!(is_destructive("truncate t", PG));
+        assert!(is_destructive(
+            "delete from a where id = 1; delete from b",
+            PG
+        ));
+        assert!(!is_destructive("delete from a where id = 1", PG));
+        assert!(!is_destructive("insert into t values (1)", PG));
+        assert!(!is_destructive("select 'drop table t'", PG));
+        assert!(!is_destructive("-- delete from t\nselect 1", PG));
     }
 
     #[test]

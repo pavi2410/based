@@ -10,7 +10,8 @@ use time::OffsetDateTime;
 use based_core::{EngineKind, QueryError, ResultSet, SqlOutcome};
 use based_project::{SaveTarget, save_sql_query};
 use based_query::{
-    Lint, RunOutcome, Severity, changes_data, split_statements, statement_at, write_summary,
+    Lint, RunOutcome, Severity, changes_data, is_destructive, split_statements, statement_at,
+    write_summary,
 };
 use gpui_kit::component::{
     ActiveTheme, Disableable as _, Icon, IconName, Selectable as _, Sizable as _, WindowExt,
@@ -224,7 +225,7 @@ impl QueryEditorPanel {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        Self::new_with_initial(source, conn_id, None, true, window, cx)
+        Self::new_with_initial(source, conn_id, None, false, window, cx)
     }
 
     pub fn new_with_initial(

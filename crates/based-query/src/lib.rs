@@ -15,4 +15,4 @@ pub use resolve::{ResolveError, VariableContext, resolve_query};
 pub use saved::{SavedQueries, SavedQuery};
 pub use sql::{format_sql, has_ambiguous_quoting, keywords, split_statements, statement_at};
 pub use variables::{Variables, load_variables, save_variables, substitute_dollar_vars};
-pub use write::{changes_data, write_summary};
+pub use write::{changes_data, is_destructive, write_summary};

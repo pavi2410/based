@@ -83,6 +83,8 @@ impl QueryEditorPanel {
             && self.production_name(cx).is_some()
         {
             Some(HoldReason::ProductionWrite)
+        } else if !skip_production_gate && is_destructive(sql, self.source.engine()) {
+            Some(HoldReason::Destructive)
         } else {
             None
         }
@@ -98,7 +100,8 @@ impl QueryEditorPanel {
         skip_production_gate: bool,
         cx: &mut Context<Self>,
     ) {
-        if sql_raw.trim().is_empty() {
+        // One run at a time: a second would abandon the first, which keeps running.
+        if sql_raw.trim().is_empty() || self.status.is_running() {
             return;
         }
         if let Some(reason) = self.hold_for(&sql_raw, skip_production_gate, cx) {

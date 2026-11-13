@@ -16,6 +16,8 @@ pub enum HoldReason {
     AiWrite,
     /// A data-changing statement on a connection tagged production.
     ProductionWrite,
+    /// DROP, TRUNCATE, or UPDATE/DELETE without WHERE, on any connection.
+    Destructive,
 }
 
 /// Engine-specific query plan, rendered inline.

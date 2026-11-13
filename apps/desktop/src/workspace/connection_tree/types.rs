@@ -47,8 +47,10 @@ pub(crate) enum ConnCache {
 }
 
 impl ConnCache {
+    /// Whether a load is in flight or settled. A failed load stays failed until
+    /// the user retries (Retry / refresh); otherwise every frame would reload.
     pub(crate) fn should_skip_load(&self) -> bool {
-        matches!(self, Self::Loading | Self::Ready(_))
+        matches!(self, Self::Loading | Self::Ready(_) | Self::Error(_))
     }
 
     pub(crate) fn objects(&self) -> Option<&[DbObject]> {
@@ -108,4 +110,26 @@ impl ConnState {
 #[derive(Clone)]
 pub enum TreeEvent {
     OpenTab(TabSpec),
+}
+
+#[cfg(test)]
+mod cache_tests {
+    use super::ConnCache;
+
+    #[test]
+    fn failed_load_is_not_retried_until_invalidated() {
+        let mut cache = ConnCache::default();
+        assert!(!cache.should_skip_load());
+        cache.start_loading();
+        cache.set_error("permission denied for schema pg_catalog".into());
+        assert!(
+            cache.should_skip_load(),
+            "a render must not restart a failed load"
+        );
+        cache.invalidate();
+        assert!(
+            !cache.should_skip_load(),
+            "Retry invalidates, so the next render reloads"
+        );
+    }
 }

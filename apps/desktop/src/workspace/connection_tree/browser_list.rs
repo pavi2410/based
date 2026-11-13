@@ -9,6 +9,7 @@ use gpui_kit::component::{
     h_flex,
     list::{ListDelegate, ListState},
     menu::ContextMenuExt,
+    v_flex,
 };
 use gpui_kit::{
     AnyElement, App, Context, Entity, IntoElement, MouseButton, ParentElement, RenderOnce,
@@ -41,6 +42,8 @@ pub(crate) enum BrowserRow {
         depth: u32,
         /// Work in flight: render the text pulsing and follow it with skeleton rows.
         busy: bool,
+        /// Connection whose failed object load the row offers to retry.
+        retry: Option<usize>,
     },
     /// Placeholder row shown under a busy status while objects load.
     Skeleton { depth: u32, index: usize },
@@ -137,7 +140,16 @@ impl BrowserListDelegate {
                     push_status(&mut rows, "Loading objects…".into(), true);
                 }
                 ConnCache::Error(err) => {
-                    push_status(&mut rows, super::notify::error_one_liner(err), false);
+                    rows.push(BrowserRow::Status {
+                        message: format!(
+                            "Couldn't load objects: {}",
+                            super::notify::error_one_liner(err)
+                        )
+                        .into(),
+                        depth: DEPTH_SCHEMA,
+                        busy: false,
+                        retry: Some(conn.idx),
+                    });
                 }
                 ConnCache::Ready(objects) => match conn.engine {
                     EngineKind::Postgres => {
@@ -281,7 +293,14 @@ impl RenderOnce for BrowserRowItem {
                 message,
                 depth,
                 busy,
-            } => status_row(message, depth, busy, &indent, cx).into_any_element(),
+                retry,
+            } => {
+                let row = status_row(message, depth, busy, &indent, cx);
+                match retry {
+                    Some(idx) => retry_status_row(row, idx, self.tree, cx),
+                    None => row,
+                }
+            }
             BrowserRow::Skeleton { depth, index } => {
                 skeleton_row(index, depth, &indent, cx).into_any_element()
             }
@@ -338,6 +357,7 @@ fn push_status(rows: &mut Vec<BrowserRow>, message: SharedString, busy: bool) {
         message,
         depth: DEPTH_SCHEMA,
         busy,
+        retry: None,
     });
     if busy {
         rows.extend((0..SKELETON_ROWS).map(|index| BrowserRow::Skeleton {
@@ -366,6 +386,31 @@ fn status_row(
     } else {
         row.into_any_element()
     }
+}
+
+/// A failed-load status row with a Retry button that refetches the catalog.
+fn retry_status_row(
+    row: AnyElement,
+    conn_idx: usize,
+    tree: WeakEntity<ConnectionTree>,
+    _cx: &App,
+) -> AnyElement {
+    v_flex()
+        .child(row)
+        .child(
+            div().pl(px(SIDEBAR_INSET)).pb(px(4.0)).child(
+                Button::new(SharedString::from(format!("catalog-retry-{conn_idx}")))
+                    .small()
+                    .outline()
+                    .label("Retry")
+                    .on_click(move |_, _, cx| {
+                        if let Some(tree) = tree.upgrade() {
+                            tree.update(cx, |tree, cx| tree.refresh_connection(conn_idx, cx));
+                        }
+                    }),
+            ),
+        )
+        .into_any_element()
 }
 
 fn skeleton_row(

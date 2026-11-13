@@ -13,6 +13,7 @@ use tokio::time::timeout;
 use super::explain_plan::{PlanNode, parse_pg_explain_json, render_plan};
 use crate::editor::{SchemaCache, pg_schema};
 use crate::workspace::panels::query_editor::{Explained, Fut, PlanView, QuerySource, RunOutput};
+use crate::workspace::tabs::kind::names;
 
 pub struct PgQuery {
     pub pool: PgPool,
@@ -34,7 +35,7 @@ impl PlanView for PgPlan {
 
 impl QuerySource for PgQuery {
     fn panel_name(&self) -> &'static str {
-        "PgQueryEditor"
+        names::PG_QUERY_EDITOR
     }
 
     fn id(&self) -> &'static str {

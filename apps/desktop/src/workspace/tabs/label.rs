@@ -97,15 +97,15 @@ fn tab_icon(spec: &TabSpec, theme: &Theme) -> (IconName, Hsla) {
         TabSpec::DocumentInsert { .. } => (IconName::Plus, theme.green_light),
         TabSpec::ObjectInfo { .. } => (IconName::Info, muted),
         TabSpec::ReleaseNotes { .. } => (IconName::FileText, muted),
-        // Panels the dock infers as `Builtin` are identified by panel name.
-        TabSpec::Builtin { panel, .. } => builtin_icon(panel, theme),
+        TabSpec::ConnectionWizard { .. } => kind_icon(PanelKind::Wizard, theme),
+        TabSpec::Transient { kind, .. } => kind_icon(*kind, theme),
     }
 }
 
-fn builtin_icon(panel: &str, theme: &Theme) -> (IconName, Hsla) {
+fn kind_icon(kind: PanelKind, theme: &Theme) -> (IconName, Hsla) {
     let (blue, green, red) = (theme.blue_light, theme.green_light, theme.red_light);
     let muted = theme.muted_foreground;
-    match PanelKind::from_name(panel) {
+    match kind {
         PanelKind::DataViewer => (IconName::LayoutDashboard, blue),
         PanelKind::Inspector => (IconName::Inspector, blue),
         PanelKind::DocumentViewer => (IconName::Inbox, green),
@@ -137,7 +137,10 @@ fn tab_info(label: &SharedString, spec: Option<&TabSpec>) -> SharedString {
         TabSpec::ObjectInfo { object, kind, .. } => format!("{} · {object}", kind.label()),
         TabSpec::DocumentInsert { collection, .. } => format!("Insert document · {collection}"),
         TabSpec::Dashboard { .. } => "Connection dashboard".into(),
-        TabSpec::Home | TabSpec::ReleaseNotes { .. } | TabSpec::Builtin { .. } => String::new(),
+        TabSpec::Home
+        | TabSpec::ReleaseNotes { .. }
+        | TabSpec::ConnectionWizard { .. }
+        | TabSpec::Transient { .. } => String::new(),
     };
     let mut lines = vec![label.to_string()];
     if !detail.is_empty() {
@@ -180,7 +183,8 @@ pub fn tab_label_for_spec(spec: &TabSpec, dirty: bool) -> SharedString {
         TabSpec::ObjectInfo { object, kind, .. } => format!("{} ({})", object.name, kind.label()),
         TabSpec::DocumentInsert { collection, .. } => format!("Insert · {collection}"),
         TabSpec::ReleaseNotes { version } => format!("What's New in v{version}"),
-        TabSpec::Builtin { panel, .. } => panel.clone(),
+        TabSpec::ConnectionWizard { .. } => PanelKind::Wizard.label().to_string(),
+        TabSpec::Transient { kind, .. } => kind.label().to_string(),
     };
     with_dirty_suffix(base, dirty)
 }

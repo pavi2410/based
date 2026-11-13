@@ -14,6 +14,7 @@ use mongodb::bson::Document;
 
 use crate::app::prefs;
 use crate::db;
+use crate::workspace::tabs::kind::names;
 
 pub struct ChangeStreamPanel {
     focus_handle: FocusHandle,
@@ -109,7 +110,7 @@ impl Focusable for ChangeStreamPanel {
 }
 
 impl BasePanel for ChangeStreamPanel {
-    crate::based_panel_behavior!("MongoChangeStream");
+    crate::based_panel_behavior!(names::MONGO_CHANGE_STREAM);
 }
 
 impl Panel for ChangeStreamPanel {

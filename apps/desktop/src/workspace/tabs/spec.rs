@@ -4,6 +4,7 @@ use based_core::ObjectRef;
 
 use crate::connection::{ConnectionId, EngineKind};
 use crate::workspace::connection_tree::ObjectKind;
+use crate::workspace::tabs::kind::PanelKind;
 
 /// Typed initialization payload for a query editor tab.
 ///
@@ -121,10 +122,18 @@ pub enum TabSpec {
     ReleaseNotes {
         version: String,
     },
-    /// Connection-scoped or global panel without a dedicated tab kind (wizards, etc.).
-    Builtin {
+    /// The connection form, new or editing `editing`. Not saved: an empty form
+    /// isn't worth restoring. Opened by `open_connection_wizard`, not dispatch.
+    #[serde(skip)]
+    ConnectionWizard {
+        editing: Option<ConnectionId>,
+    },
+    /// A live panel with no restorable spec (a connection's default change
+    /// stream or console, recreated whenever the connection opens). Not saved.
+    #[serde(skip)]
+    Transient {
         conn_id: Option<ConnectionId>,
-        panel: String,
+        kind: PanelKind,
     },
 }
 
@@ -166,15 +175,20 @@ impl TabSpec {
             Self::Inspector { conn_id, .. } => Some(conn_id),
             Self::ObjectInfo { conn_id, .. } => Some(conn_id),
             Self::DocumentInsert { conn_id, .. } => Some(conn_id),
-            Self::Builtin { conn_id, .. } => conn_id.as_ref(),
+            Self::ConnectionWizard { editing } => editing.as_ref(),
+            Self::Transient { conn_id, .. } => conn_id.as_ref(),
         }
     }
 
     /// Whether this tab should be written to / restored from the session snapshot.
     ///
-    /// What's New is a one-shot after an in-app update, not workspace state.
+    /// What's New is a one-shot after an in-app update, not workspace state; the
+    /// wizard and transient panels have nothing to restore.
     pub fn persist_in_session(&self) -> bool {
-        !matches!(self, Self::ReleaseNotes { .. })
+        !matches!(
+            self,
+            Self::ReleaseNotes { .. } | Self::ConnectionWizard { .. } | Self::Transient { .. }
+        )
     }
 }
 

@@ -63,7 +63,8 @@ impl Workspace {
         if !matches!(
             spec,
             TabSpec::Home
-                | TabSpec::Builtin { .. }
+                | TabSpec::ConnectionWizard { .. }
+                | TabSpec::Transient { .. }
                 | TabSpec::QueryEditor { .. }
                 | TabSpec::Dashboard { .. }
         ) && let Some(id) = self.focus_existing_tab(&spec, window, cx)
@@ -110,7 +111,10 @@ impl Workspace {
                 let panel = cx.new(|cx| ConnectionDashboardPanel::new(ent, window, cx));
                 return self.dock_add_and_register_tab(spec, Arc::new(panel), window, cx);
             }
-            TabSpec::Builtin { .. } => return OpenOutcome::Unsupported,
+            // Opened by their own entry points, never from a spec.
+            TabSpec::ConnectionWizard { .. } | TabSpec::Transient { .. } => {
+                return OpenOutcome::Unsupported;
+            }
             _ => {}
         }
 

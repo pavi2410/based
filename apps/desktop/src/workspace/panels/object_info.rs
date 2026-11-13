@@ -21,6 +21,7 @@ use crate::sqlite::pragmas::fetch_sqlite_pragmas;
 use crate::widgets::PANEL_RADIUS;
 use crate::widgets::{compact_description_list_vertical, engine_name, metadata_pill, panel_header};
 use crate::workspace::connection_tree::ObjectKind;
+use crate::workspace::tabs::kind::names;
 use crate::workspace::tabs::render_strip_tab;
 
 pub struct ConnectionDashboardPanel {
@@ -112,7 +113,7 @@ impl Focusable for ConnectionDashboardPanel {
 }
 
 impl BasePanel for ConnectionDashboardPanel {
-    crate::based_panel_behavior!("ConnectionDashboard");
+    crate::based_panel_behavior!(names::DASHBOARD);
 }
 
 impl Panel for ConnectionDashboardPanel {
@@ -265,7 +266,7 @@ impl Focusable for ObjectInfoPanel {
 }
 
 impl BasePanel for ObjectInfoPanel {
-    crate::based_panel_behavior!("ObjectInfo");
+    crate::based_panel_behavior!(names::OBJECT_INFO);
 }
 
 impl Panel for ObjectInfoPanel {

@@ -24,6 +24,7 @@ use crate::widgets::kbd_for_action;
 use crate::widgets::motion;
 use crate::workspace::WorkspaceRef;
 use crate::workspace::query_lane::create_loose_query_from_palette;
+use crate::workspace::tabs::kind::names;
 
 const HOME_COLUMN_W: f32 = 420.0;
 
@@ -50,7 +51,7 @@ impl Focusable for HomePanel {
 }
 
 impl BasePanel for HomePanel {
-    crate::based_panel_behavior!("HomePanel");
+    crate::based_panel_behavior!(names::HOME);
 }
 
 impl Panel for HomePanel {

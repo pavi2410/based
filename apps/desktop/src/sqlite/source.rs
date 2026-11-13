@@ -6,6 +6,7 @@ use sqlx::SqlitePool;
 
 use crate::widgets::filter_bar::FilterSet;
 use crate::workspace::panels::data_viewer::{DataSource, Fut, PageData};
+use crate::workspace::tabs::kind::names;
 use based_core::ColumnCatalog;
 
 pub struct SqliteSource {
@@ -15,7 +16,7 @@ pub struct SqliteSource {
 
 impl DataSource for SqliteSource {
     fn panel_name(&self) -> &'static str {
-        "SqliteDataViewer"
+        names::SQLITE_DATA_VIEWER
     }
 
     fn id(&self) -> &'static str {

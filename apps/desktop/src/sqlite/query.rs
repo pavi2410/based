@@ -12,6 +12,7 @@ use super::eqp_parse::{EqpNode, parse_eqp};
 use super::eqp_viewer::render_eqp_body;
 use crate::editor::{SchemaCache, sqlite_schema};
 use crate::workspace::panels::query_editor::{Explained, Fut, PlanView, QuerySource, RunOutput};
+use crate::workspace::tabs::kind::names;
 use based_sqlite::sqlite_cell;
 
 pub struct SqliteQuery {
@@ -28,7 +29,7 @@ impl PlanView for EqpPlan {
 
 impl QuerySource for SqliteQuery {
     fn panel_name(&self) -> &'static str {
-        "SqliteQueryEditor"
+        names::SQLITE_QUERY_EDITOR
     }
 
     fn id(&self) -> &'static str {

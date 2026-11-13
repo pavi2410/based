@@ -4,6 +4,7 @@ use crate::app::updater::fetch_release_body;
 use crate::based_panel_dropdown;
 use crate::based_panel_tab_chrome;
 use crate::db::run;
+use crate::workspace::tabs::kind::names;
 use gpui_kit::component::{
     ActiveTheme,
     dock::{BasePanel, Panel, PanelEvent},
@@ -69,7 +70,7 @@ impl Focusable for ReleaseNotesPanel {
 }
 
 impl BasePanel for ReleaseNotesPanel {
-    crate::based_panel_behavior!("ReleaseNotesPanel");
+    crate::based_panel_behavior!(names::RELEASE_NOTES);
 }
 
 impl Panel for ReleaseNotesPanel {

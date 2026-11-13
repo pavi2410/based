@@ -4,6 +4,7 @@ use futures::future::BoxFuture;
 use sqlx::SqlitePool;
 
 use crate::workspace::panels::table_inspector::{InspectSource, Kind, Section, TabDef};
+use crate::workspace::tabs::kind::names;
 
 pub struct SqliteInspect {
     pub pool: SqlitePool,
@@ -12,7 +13,7 @@ pub struct SqliteInspect {
 
 impl InspectSource for SqliteInspect {
     fn panel_name(&self) -> &'static str {
-        "SqliteTableInspector"
+        names::SQLITE_TABLE_INSPECTOR
     }
 
     fn breadcrumb_id(&self) -> &'static str {

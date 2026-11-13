@@ -23,6 +23,7 @@ use crate::widgets::panel::{
 use crate::widgets::virtual_table::{
     Cell, RowDelegate, data_column, empty_column_meta, replace_table_data,
 };
+use crate::workspace::tabs::kind::names;
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 enum MongoInspectorTab {
@@ -202,7 +203,7 @@ impl Focusable for CollectionInspectorPanel {
 }
 
 impl BasePanel for CollectionInspectorPanel {
-    crate::based_panel_behavior!("MongoCollectionInspector");
+    crate::based_panel_behavior!(names::MONGO_INSPECTOR);
 }
 
 impl Panel for CollectionInspectorPanel {

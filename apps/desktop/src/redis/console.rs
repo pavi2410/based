@@ -23,6 +23,7 @@ use crate::db;
 use crate::editor::redis_completion::RedisCompletionProvider;
 use crate::widgets::sql_editor::{set_input_text, text_from_input};
 use crate::workspace::pop_out::PopOutWindowTitle;
+use crate::workspace::tabs::kind::names;
 
 struct Output {
     command: String,
@@ -186,7 +187,7 @@ impl Focusable for ConsolePanel {
 }
 
 impl BasePanel for ConsolePanel {
-    crate::based_panel_behavior!("RedisConsole");
+    crate::based_panel_behavior!(names::REDIS_CONSOLE);
 }
 
 impl Panel for ConsolePanel {

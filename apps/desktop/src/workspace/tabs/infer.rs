@@ -60,9 +60,8 @@ pub(crate) fn infer_tab_spec(panel: &Arc<dyn PanelView>, cx: &App) -> Option<Tab
             .view()
             .downcast::<ConnectionWizardPanel>()
             .ok()
-            .map(|ent| TabSpec::Builtin {
-                conn_id: ent.read(cx).editing_id().cloned(),
-                panel: "ConnectionWizard".into(),
+            .map(|ent| TabSpec::ConnectionWizard {
+                editing: ent.read(cx).editing_id().cloned(),
             }),
         _ => None,
     }
@@ -85,10 +84,10 @@ fn query_editor_spec(
     }
 }
 
-/// Placeholder spec for a panel nothing else identified.
+/// Spec for a panel nothing else identified: live-only, never saved.
 pub(crate) fn fallback_spec(panel: &Arc<dyn PanelView>, cx: &App) -> TabSpec {
-    TabSpec::Builtin {
+    TabSpec::Transient {
         conn_id: None,
-        panel: panel.panel_name(cx).to_string(),
+        kind: PanelKind::of(panel, cx),
     }
 }

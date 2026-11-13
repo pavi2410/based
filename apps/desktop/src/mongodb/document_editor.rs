@@ -19,6 +19,7 @@ use crate::db;
 use crate::mongodb::document_from_json;
 use crate::widgets::panel_status::PanelStatus;
 use crate::widgets::sql_editor::new_json_input;
+use crate::workspace::tabs::kind::names;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum EditorMode {
@@ -123,7 +124,7 @@ impl Focusable for DocumentEditorPanel {
 }
 
 impl BasePanel for DocumentEditorPanel {
-    crate::based_panel_behavior!("MongoDocumentEditor");
+    crate::based_panel_behavior!(names::MONGO_DOCUMENT_EDITOR);
 }
 
 impl Panel for DocumentEditorPanel {

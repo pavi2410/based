@@ -6,6 +6,7 @@ use sqlx::PgPool;
 
 use crate::widgets::filter_bar::FilterSet;
 use crate::workspace::panels::data_viewer::{DataSource, Fut, PageData};
+use crate::workspace::tabs::kind::names;
 use based_core::ColumnCatalog;
 
 pub struct PgSource {
@@ -16,7 +17,7 @@ pub struct PgSource {
 
 impl DataSource for PgSource {
     fn panel_name(&self) -> &'static str {
-        "PgDataViewer"
+        names::PG_DATA_VIEWER
     }
 
     fn id(&self) -> &'static str {

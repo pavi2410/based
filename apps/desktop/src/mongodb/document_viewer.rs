@@ -29,6 +29,7 @@ use crate::widgets::virtual_table::{
     Cell, RowDelegate, align_meta_to_columns, data_column, replace_table_data,
 };
 use crate::workspace::notify::push_export_success;
+use crate::workspace::tabs::kind::names;
 
 fn mongo_filter_doc(expr: &FilterSet) -> Document {
     let s = expr.to_mongo_filter();
@@ -192,7 +193,7 @@ impl Focusable for DocumentViewerPanel {
 }
 
 impl BasePanel for DocumentViewerPanel {
-    crate::based_panel_behavior!("MongoDocumentViewer");
+    crate::based_panel_behavior!(names::MONGO_DOCUMENT_VIEWER);
 }
 
 impl Panel for DocumentViewerPanel {

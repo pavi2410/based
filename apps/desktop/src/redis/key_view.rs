@@ -26,6 +26,7 @@ use crate::widgets::sql_editor::{
 };
 use crate::widgets::{metadata_pill, new_field, set_field};
 use crate::workspace::pop_out::PopOutWindowTitle;
+use crate::workspace::tabs::kind::names;
 use gpui_kit::component::input::EditorState;
 
 pub struct KeyViewPanel {
@@ -426,7 +427,7 @@ impl Focusable for KeyViewPanel {
 }
 
 impl BasePanel for KeyViewPanel {
-    crate::based_panel_behavior!("RedisKeyView");
+    crate::based_panel_behavior!(names::REDIS_KEY_VIEW);
 }
 
 impl Panel for KeyViewPanel {

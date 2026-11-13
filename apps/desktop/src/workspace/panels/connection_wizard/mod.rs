@@ -46,6 +46,7 @@ use crate::workspace::WorkspaceRef;
 use crate::workspace::connection_destination::{
     ConnectionDestination, destination_row, resolve_wizard_destination,
 };
+use crate::workspace::tabs::kind::names;
 use crate::workspace::wizard_logic::{
     AI_CHOICES, add_wizard_tag, ai_context_of, ai_settings_for, can_edit_saved_connection,
     remove_wizard_tag, save_label_from_config, ssl_mode_from_toggle, ssl_on_choice,
@@ -274,7 +275,7 @@ impl Focusable for ConnectionWizardPanel {
 }
 
 impl BasePanel for ConnectionWizardPanel {
-    crate::based_panel_behavior!("ConnectionWizard");
+    crate::based_panel_behavior!(names::WIZARD);
 }
 
 impl Panel for ConnectionWizardPanel {

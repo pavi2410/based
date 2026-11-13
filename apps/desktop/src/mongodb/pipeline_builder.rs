@@ -34,6 +34,7 @@ use crate::widgets::virtual_table::{
     Cell, RowDelegate, align_meta_to_columns, data_column, replace_table_data,
 };
 use crate::workspace::notify::push_export_success;
+use crate::workspace::tabs::kind::names;
 use std::time::Instant;
 
 pub struct PipelineBuilderPanel {
@@ -274,7 +275,7 @@ impl Focusable for PipelineBuilderPanel {
 }
 
 impl BasePanel for PipelineBuilderPanel {
-    crate::based_panel_behavior!("MongoPipelineBuilder");
+    crate::based_panel_behavior!(names::MONGO_PIPELINE);
 }
 
 impl Panel for PipelineBuilderPanel {

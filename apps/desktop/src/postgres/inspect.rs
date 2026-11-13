@@ -4,6 +4,7 @@ use futures::future::BoxFuture;
 use sqlx::PgPool;
 
 use crate::workspace::panels::table_inspector::{InspectSource, Kind, Section, TabDef};
+use crate::workspace::tabs::kind::names;
 
 pub struct PgInspect {
     pub pool: PgPool,
@@ -13,7 +14,7 @@ pub struct PgInspect {
 
 impl InspectSource for PgInspect {
     fn panel_name(&self) -> &'static str {
-        "PgTableInspector"
+        names::PG_TABLE_INSPECTOR
     }
 
     fn breadcrumb_id(&self) -> &'static str {

@@ -14,6 +14,7 @@ use based_desktop::db::Tokio;
 use based_desktop::workspace::boot::WorkspaceEnv;
 use based_desktop::workspace::connection_tree::ObjectKind;
 use based_desktop::workspace::tabs::SessionSnapshot;
+use based_desktop::workspace::tabs::open::WorkspaceRef;
 use based_desktop::workspace::{TabSpec, Workspace};
 use based_desktop::{init_globals, query_store, storage};
 use based_sqlite::config::SqliteConfig;
@@ -105,7 +106,12 @@ pub fn open_window(
                 ..Default::default()
             },
             cx,
-            |window, cx| cx.new(|cx| Workspace::with_env(workspace_env, window, cx)),
+            |window, cx| {
+                let ws = cx.new(|cx| Workspace::with_env(workspace_env, window, cx));
+                // Like launch: panels find their workspace (e.g. connection tags) through this.
+                cx.set_global(WorkspaceRef(ws.clone()));
+                ws
+            },
         )
         .expect("open workspace window");
         let _: WindowHandle<Root> = window.downcast().expect("Root");
@@ -157,6 +163,17 @@ pub fn connect_sqlite(
     id: &str,
     path: &Path,
 ) -> ConnectionId {
+    connect_sqlite_tagged(cx, ws, id, path, vec![])
+}
+
+/// [`connect_sqlite`] with connection tags (e.g. `"production"`).
+pub fn connect_sqlite_tagged(
+    cx: &mut TestAppContext,
+    ws: &Entity<Workspace>,
+    id: &str,
+    path: &Path,
+    tags: Vec<String>,
+) -> ConnectionId {
     let config = ConnectionConfig::SQLite(SqliteConfig {
         label: id.into(),
         path: path.to_path_buf(),
@@ -171,7 +188,7 @@ pub fn connect_sqlite(
     let conn_id = ConnectionId(id.into());
     let session = conn_id.clone();
     ws.update(cx, |ws, cx| {
-        ws.attach_wizard_session(config, opened, session, vec![], false, cx)
+        ws.attach_wizard_session(config, opened, session, tags, false, cx)
     });
     settle(cx);
     conn_id

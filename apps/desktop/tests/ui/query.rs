@@ -1,14 +1,16 @@
 //! SQLite query round trip: real connection, real editor panel, real results grid.
 
 use based_desktop::connection::ConnectionId;
-use based_desktop::workspace::panels::query_editor::QueryEditorPanel;
+use based_desktop::workspace::panels::query_editor::{HoldReason, QueryEditorPanel};
 use based_desktop::workspace::panels::query_view::ResultSnapshot;
 use based_desktop::workspace::tabs::spec::SavedQueryRef;
 use based_desktop::workspace::{QueryEditorInit, TabSpec, Workspace};
 use gpui_kit::test::TestWindowExt;
 use gpui_kit::{AnyWindowHandle, AppContext, Entity, TestAppContext};
 
-use crate::common::{connect_sqlite, open_workspace, seed_sqlite, settle, wait_until};
+use crate::common::{
+    connect_sqlite, connect_sqlite_tagged, open_workspace, seed_sqlite, settle, wait_until,
+};
 
 const SEED: &[&str] = &[
     "create table t (id integer primary key, name text)",
@@ -33,6 +35,48 @@ impl Editor {
         });
         self.snapshot(cx)
     }
+
+    fn hold(&self, cx: &mut TestAppContext) -> Option<HoldReason> {
+        self.panel.read_with(cx, |p, _| p.hold_reason())
+    }
+
+    /// Render, then click the element with `id` (a run or banner button).
+    fn click(&self, id: &'static str, cx: &mut TestAppContext) {
+        cx.update_window(self.win, |_, window, cx| {
+            window.render_frame(cx);
+            window.click(id, cx);
+        })
+        .unwrap();
+        settle(cx);
+    }
+
+    fn set_sql(&self, sql: &str, cx: &mut TestAppContext) {
+        cx.update_window(self.win, |_, window, cx| {
+            self.panel.update(cx, |p, cx| p.set_sql(sql, window, cx));
+        })
+        .unwrap();
+        settle(cx);
+    }
+
+    fn apply_ai(&self, sql: &str, cx: &mut TestAppContext) {
+        cx.update_window(self.win, |_, window, cx| {
+            self.panel
+                .update(cx, |p, cx| p.apply_ai_proposal(sql, window, cx));
+        })
+        .unwrap();
+        settle(cx);
+    }
+
+    /// Rows left in the seeded table, counted through the editor.
+    fn row_count(&self, cx: &mut TestAppContext) -> String {
+        self.set_sql("select count(*) as n from t", cx);
+        self.click("sqlite-run", cx);
+        wait_until(cx, |cx| {
+            let s = self.snapshot(cx);
+            !s.running && s.columns == ["n"]
+        });
+        self.snapshot(cx).rows[0][0].clone()
+    }
 }
 
 /// Seed a SQLite file, connect it, and open a query tab with `sql`.
@@ -41,11 +85,22 @@ fn open_editor(
     sql: &str,
     auto_run: bool,
 ) -> (Editor, Entity<Workspace>, tempfile::TempDir) {
+    open_editor_tagged(cx, sql, auto_run, &[])
+}
+
+/// [`open_editor`] on a connection carrying `tags` (e.g. `"production"`).
+fn open_editor_tagged(
+    cx: &mut TestAppContext,
+    sql: &str,
+    auto_run: bool,
+    tags: &[&str],
+) -> (Editor, Entity<Workspace>, tempfile::TempDir) {
     let dir = tempfile::tempdir().unwrap();
     let db = dir.path().join("demo.db");
     seed_sqlite(&db, SEED);
     let (win, ws) = open_workspace(cx);
-    let conn = connect_sqlite(cx, &ws, "demo", &db);
+    let tags = tags.iter().map(|t| t.to_string()).collect();
+    let conn = connect_sqlite_tagged(cx, &ws, "demo", &db, tags);
     open_query_tab(cx, win, &ws, conn, sql, auto_run);
     let panel = ws.read_with(cx, |ws, cx| {
         ws.tab_manager()
@@ -251,4 +306,79 @@ fn restored_tab_keeps_its_saved_query_and_unsaved_state(cx: &mut TestAppContext)
     let (linked, dirty) = panel.read_with(cx, |p, _| (p.saved_query(), p.is_dirty()));
     assert_eq!(linked, Some(saved));
     assert!(dirty);
+}
+
+#[gpui_kit::test]
+fn production_write_waits_for_its_banner_and_runs_once_confirmed(cx: &mut TestAppContext) {
+    let (ed, _ws, _dir) =
+        open_editor_tagged(cx, "delete from t where id = 1", false, &["production"]);
+    ed.click("sqlite-run", cx);
+    assert_eq!(ed.hold(cx), Some(HoldReason::ProductionWrite));
+
+    ed.click("sqlite-write-run", cx);
+    wait_until(cx, |cx| !ed.snapshot(cx).running);
+    assert_eq!(ed.hold(cx), None);
+    assert_eq!(ed.row_count(cx), "1");
+}
+
+#[gpui_kit::test]
+fn cancelling_the_production_banner_runs_nothing(cx: &mut TestAppContext) {
+    let (ed, _ws, _dir) = open_editor_tagged(cx, "delete from t", false, &["production"]);
+    ed.click("sqlite-run", cx);
+    assert_eq!(ed.hold(cx), Some(HoldReason::ProductionWrite));
+
+    ed.click("sqlite-write-cancel", cx);
+    assert_eq!(ed.hold(cx), None);
+    assert_eq!(ed.row_count(cx), "2");
+}
+
+#[gpui_kit::test]
+fn editing_held_text_drops_the_banner(cx: &mut TestAppContext) {
+    let (ed, _ws, _dir) = open_editor_tagged(cx, "delete from t", false, &["production"]);
+    ed.click("sqlite-run", cx);
+    assert_eq!(ed.hold(cx), Some(HoldReason::ProductionWrite));
+
+    ed.set_sql("delete from t where id = 1", cx);
+    assert_eq!(ed.hold(cx), None, "the banner described text that is gone");
+    assert_eq!(ed.row_count(cx), "2");
+}
+
+#[gpui_kit::test]
+fn edited_ai_write_runs_as_edited_not_as_proposed(cx: &mut TestAppContext) {
+    let (ed, _ws, _dir) = open_editor(cx, "select 1", false);
+    ed.apply_ai("delete from t", cx);
+    ed.click("sqlite-run", cx);
+    assert_eq!(ed.hold(cx), Some(HoldReason::AiWrite));
+
+    // The user narrows the AI's delete; the old banner must not run the original.
+    ed.set_sql("delete from t where id = 2", cx);
+    assert_eq!(ed.hold(cx), None);
+    ed.click("sqlite-run", cx);
+    wait_until(cx, |cx| !ed.snapshot(cx).running);
+    assert_eq!(
+        ed.hold(cx),
+        None,
+        "edited text is the user's and runs normally"
+    );
+    assert_eq!(ed.row_count(cx), "1");
+}
+
+#[gpui_kit::test]
+fn ai_write_on_production_asks_on_both_banners(cx: &mut TestAppContext) {
+    let (ed, _ws, _dir) = open_editor_tagged(cx, "select 1", false, &["production"]);
+    ed.apply_ai("delete from t where id = 1", cx);
+    ed.click("sqlite-run", cx);
+    assert_eq!(ed.hold(cx), Some(HoldReason::AiWrite));
+
+    ed.click("sqlite-ai-run", cx);
+    assert_eq!(
+        ed.hold(cx),
+        Some(HoldReason::ProductionWrite),
+        "accepting the AI write still asks about production"
+    );
+
+    ed.click("sqlite-write-run", cx);
+    wait_until(cx, |cx| !ed.snapshot(cx).running);
+    assert_eq!(ed.hold(cx), None);
+    assert_eq!(ed.row_count(cx), "1");
 }

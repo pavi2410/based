@@ -1,6 +1,5 @@
 // SQL query editor shared by SQL engines via [`QuerySource`]: editor, results, messages, explain.
 
-use std::mem;
 use std::ops::Range;
 use std::path::Path;
 use std::rc::Rc;
@@ -69,6 +68,22 @@ use crate::workspace::{
 };
 
 pub type Fut<T> = BoxFuture<'static, anyhow::Result<T>>;
+
+/// Why a run is waiting behind a confirmation banner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HoldReason {
+    /// AI-written text that changes data, not yet run or edited.
+    AiWrite,
+    /// A data-changing statement on a connection tagged production.
+    ProductionWrite,
+}
+
+/// A run held back until the user confirms its banner. Any edit drops it.
+pub(super) struct HeldRun {
+    pub(super) sql: String,
+    pub(super) batch: bool,
+    pub(super) reason: HoldReason,
+}
 
 /// Result of running a script: last result set (name, type) + cells, and rows affected if known.
 #[derive(Default)]
@@ -149,17 +164,14 @@ pub struct QueryEditorPanel {
     explain: ExplainView,
     dirty: bool,
     pub(super) ai: AiHost,
-    /// A write from an AI proposal is waiting on the confirmation banner.
-    pub(super) ai_confirm: bool,
     /// Byte range the pending AI edit replaces; `None` means the whole query.
     pub(super) ai_scope: Option<Range<usize>>,
     /// The in-flight run; dropping it stops waiting for the result.
     run_task: Option<Task<()>>,
     ticker: Option<Task<()>>,
     run_started: Option<Instant>,
-    /// Text waiting behind a confirmation banner.
-    held_sql: Option<String>,
-    held_batch: bool,
+    /// The run waiting behind a confirmation banner; at most one banner shows.
+    pub(super) held: Option<HeldRun>,
     /// One entry per statement that returned rows (or the single statement run).
     pub(super) results: Vec<StatementResult>,
     pub(super) active_result: usize,
@@ -170,9 +182,6 @@ pub struct QueryEditorPanel {
     saved_path: Option<String>,
     /// Where the last error points in the editor text, when the message names a token.
     pub(super) error_span: Option<Range<usize>>,
-    /// A write on a production connection is waiting for confirmation.
-    write_confirm: bool,
-    write_approved: bool,
     pub(crate) tab_label: SharedString,
 }
 
@@ -213,21 +222,17 @@ impl QueryEditorPanel {
             explain: ExplainView::Empty,
             dirty: false,
             ai: AiHost::new(window, cx, Self::on_ai_event),
-            ai_confirm: false,
             ai_scope: None,
             run_task: None,
             ticker: None,
             run_started: None,
-            held_sql: None,
-            held_batch: false,
+            held: None,
             results: Vec::new(),
             active_result: 0,
             run_log: Vec::new(),
             total_affected: None,
             saved_path: None,
             error_span: None,
-            write_confirm: false,
-            write_approved: false,
             tab_label: "Query".into(),
         };
         cx.subscribe_in(&sql_input, window, |panel, _, event, _, cx| match event {
@@ -238,7 +243,7 @@ impl QueryEditorPanel {
             InputEvent::Change => {
                 // Edits only: focus and selection changes also notify the editor.
                 panel.dirty = true;
-                panel.write_confirm = false;
+                panel.clear_hold(cx);
                 mark_tab_dirty(cx.entity_id(), cx);
                 panel.schedule_lint(cx);
                 note_tab_edited(cx);
@@ -354,7 +359,7 @@ impl QueryEditorPanel {
     pub fn set_sql(&mut self, sql: &str, window: &mut Window, cx: &mut Context<Self>) {
         replace_input_text(&self.sql_input, sql, window, cx);
         self.dirty = true;
-        self.write_confirm = false;
+        self.clear_hold(cx);
         mark_tab_dirty(cx.entity_id(), cx);
         self.schedule_lint(cx);
     }
@@ -448,36 +453,66 @@ impl QueryEditorPanel {
     /// Run the whole editor text as one batch.
     pub fn run_all(&mut self, cx: &mut Context<Self>) {
         let text = self.current_sql(cx);
-        self.run_statements(text, true, cx);
+        self.run_statements(text, true, false, cx);
     }
 
-    /// Run the text a confirmation banner was holding back.
-    pub(super) fn run_held(&mut self, cx: &mut Context<Self>) {
-        match self.held_sql.take() {
-            Some(sql) => {
-                let batch = mem::take(&mut self.held_batch);
-                self.run_statements(sql, batch, cx)
-            }
-            None => self.run(cx),
+    /// Run the held text after its banner was confirmed. Confirming the production banner
+    /// skips that gate for this one run; confirming the AI banner re-checks production.
+    pub(super) fn run_held(&mut self, skip_production_gate: bool, cx: &mut Context<Self>) {
+        if let Some(held) = self.held.take() {
+            self.run_statements(held.sql, held.batch, skip_production_gate, cx);
         }
     }
 
+    /// Drop the held run and its banner (the text changed or the user cancelled).
+    pub(super) fn clear_hold(&mut self, cx: &mut Context<Self>) {
+        if self.held.take().is_some() {
+            cx.notify();
+        }
+    }
+
+    /// Why the last run is waiting behind a banner, if it is.
+    pub fn hold_reason(&self) -> Option<HoldReason> {
+        self.held.as_ref().map(|h| h.reason)
+    }
+
     fn run_sql(&mut self, sql_raw: String, cx: &mut Context<Self>) {
-        self.run_statements(sql_raw, false, cx);
+        self.run_statements(sql_raw, false, false, cx);
+    }
+
+    /// Why `sql` must wait for confirmation before it runs, if it must.
+    fn hold_for(&self, sql: &str, skip_production_gate: bool, cx: &App) -> Option<HoldReason> {
+        if self.ai.needs_confirm(self.source.engine(), sql) {
+            Some(HoldReason::AiWrite)
+        } else if !skip_production_gate && changes_data(sql) && self.production_name(cx).is_some() {
+            Some(HoldReason::ProductionWrite)
+        } else {
+            None
+        }
     }
 
     /// Run `sql_raw` as one statement, or with `batch` split it and run each in order,
     /// stopping at the first failure. Every statement that returns rows gets a result tab.
-    fn run_statements(&mut self, sql_raw: String, batch: bool, cx: &mut Context<Self>) {
+    fn run_statements(
+        &mut self,
+        sql_raw: String,
+        batch: bool,
+        skip_production_gate: bool,
+        cx: &mut Context<Self>,
+    ) {
         if sql_raw.trim().is_empty() {
             return;
         }
-        if self.gate_ai_run(&sql_raw, cx) || self.gate_production_write(&sql_raw, cx) {
-            self.held_sql = Some(sql_raw);
-            self.held_batch = batch;
+        if let Some(reason) = self.hold_for(&sql_raw, skip_production_gate, cx) {
+            self.held = Some(HeldRun {
+                sql: sql_raw,
+                batch,
+                reason,
+            });
+            cx.notify();
             return;
         }
-        self.held_sql = None;
+        self.clear_hold(cx);
         let project_vars = cx.global::<ProjectVars>().vars.clone();
         let var_ctx = based_query::VariableContext {
             session: Default::default(),
@@ -678,22 +713,9 @@ impl QueryEditorPanel {
             .then(|| SharedString::from(e.config.label().to_string()))
     }
 
-    /// `true` when a data-changing statement on production was held for confirmation.
-    fn gate_production_write(&mut self, sql: &str, cx: &mut Context<Self>) -> bool {
-        if mem::take(&mut self.write_approved) {
-            return false;
-        }
-        let hold = changes_data(sql) && self.production_name(cx).is_some();
-        if self.write_confirm != hold {
-            self.write_confirm = hold;
-            cx.notify();
-        }
-        hold
-    }
-
     /// What the held text does, e.g. "DELETE with no WHERE clause".
     pub(super) fn held_summary(&self) -> String {
-        let sql = self.held_sql.as_deref().unwrap_or_default();
+        let sql = self.held.as_ref().map_or("", |h| h.sql.as_str());
         let summary = write_summary(sql);
         if summary.is_empty() {
             "a change".to_owned()
@@ -702,14 +724,12 @@ impl QueryEditorPanel {
         }
     }
 
-    fn confirm_write_run(&mut self, cx: &mut Context<Self>) {
-        self.write_confirm = false;
-        self.write_approved = true;
-        self.run_held(cx);
+    pub(super) fn confirm_write_run(&mut self, cx: &mut Context<Self>) {
+        self.run_held(true, cx);
     }
 
     fn render_write_confirm(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        if !self.write_confirm {
+        if self.hold_reason() != Some(HoldReason::ProductionWrite) {
             return None;
         }
         let id = self.source.id();
@@ -745,10 +765,7 @@ impl QueryEditorPanel {
                         .ghost()
                         .small()
                         .label("Cancel")
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.write_confirm = false;
-                            cx.notify();
-                        })),
+                        .on_click(cx.listener(|this, _, _, cx| this.clear_hold(cx))),
                 )
                 .into_any_element(),
         )

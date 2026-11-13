@@ -11,7 +11,7 @@ use gpui_kit::component::{
 };
 use gpui_kit::{AnyElement, Context, IntoElement, ParentElement, Styled, Window, div};
 
-use super::query_editor::{QueryEditorPanel, QueryStatus};
+use super::query_editor::{HoldReason, QueryEditorPanel, QueryStatus};
 use crate::ai::{AiPromptEvent, ask_assistant, connection_ai, schema};
 use crate::editor::statements::{split_statements, statement_at};
 use crate::widgets::sql_editor::text_from_input;
@@ -191,23 +191,26 @@ impl QueryEditorPanel {
     ) {
         match event {
             AiPromptEvent::Submit(instruction) => self.ask_ai(instruction.clone(), cx),
-            AiPromptEvent::Apply(text) => {
-                let text = splice_scope(
-                    &text_from_input(&self.sql_input, cx),
-                    self.ai_scope.take(),
-                    text,
-                );
-                self.ai.note_applied(&text);
-                self.ai_confirm = false;
-                self.set_sql(&text, window, cx);
-                self.ai.close(cx);
-                self.focus_editor(window, cx);
-            }
+            AiPromptEvent::Apply(text) => self.apply_ai_proposal(text, window, cx),
             AiPromptEvent::Close => {
                 self.ai.close(cx);
                 self.focus_editor(window, cx);
             }
         }
+    }
+
+    /// Put the AI's proposal into the editor (over its scope, when it had one). Until it is
+    /// confirmed or edited, running it asks first when it changes data.
+    pub fn apply_ai_proposal(&mut self, text: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let text = splice_scope(
+            &text_from_input(&self.sql_input, cx),
+            self.ai_scope.take(),
+            text,
+        );
+        self.ai.note_applied(&text);
+        self.set_sql(&text, window, cx);
+        self.ai.close(cx);
+        self.focus_editor(window, cx);
     }
 
     fn ask_ai(&mut self, instruction: String, cx: &mut Context<Self>) {
@@ -224,24 +227,14 @@ impl QueryEditorPanel {
         self.ai.ask(engine, schema, current, instruction, cx);
     }
 
-    /// `true` when the run was held back for confirmation.
-    pub(super) fn gate_ai_run(&mut self, sql: &str, cx: &mut Context<Self>) -> bool {
-        let hold = self.ai.needs_confirm(self.source.engine(), sql);
-        if self.ai_confirm != hold {
-            self.ai_confirm = hold;
-            cx.notify();
-        }
-        hold
-    }
-
-    fn confirm_ai_run(&mut self, cx: &mut Context<Self>) {
+    /// The user accepted the AI write; production still asks on its own banner.
+    pub(super) fn confirm_ai_run(&mut self, cx: &mut Context<Self>) {
         self.ai.confirmed();
-        self.ai_confirm = false;
-        self.run_held(cx);
+        self.run_held(false, cx);
     }
 
     pub(super) fn render_ai_confirm(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        if !self.ai_confirm {
+        if self.hold_reason() != Some(HoldReason::AiWrite) {
             return None;
         }
         let id = self.source.id();
@@ -272,10 +265,7 @@ impl QueryEditorPanel {
                         .ghost()
                         .small()
                         .label("Cancel")
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.ai_confirm = false;
-                            cx.notify();
-                        })),
+                        .on_click(cx.listener(|this, _, _, cx| this.clear_hold(cx))),
                 )
                 .into_any_element(),
         )

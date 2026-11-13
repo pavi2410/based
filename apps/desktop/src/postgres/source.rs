@@ -1,14 +1,12 @@
 // Postgres table source for the shared data viewer (schema-qualified).
 
-use std::collections::HashMap;
-
 use crate::widgets::virtual_table::cells;
 use based_core::quote_ident;
 use sqlx::PgPool;
 
-use crate::widgets::column_header::ColumnMeta;
 use crate::widgets::filter_bar::FilterSet;
 use crate::workspace::panels::data_viewer::{DataSource, Fut, PageData};
+use based_core::ColumnCatalog;
 
 pub struct PgSource {
     pub pool: PgPool,
@@ -29,7 +27,7 @@ impl DataSource for PgSource {
         vec![self.schema.clone(), self.table.clone()]
     }
 
-    fn catalog(&self) -> Fut<HashMap<String, ColumnMeta>> {
+    fn catalog(&self) -> Fut<ColumnCatalog> {
         let (pool, schema, table) = (self.pool.clone(), self.schema.clone(), self.table.clone());
         Box::pin(async move { based_postgres::column_catalog(&pool, &schema, &table).await })
     }
@@ -39,7 +37,7 @@ impl DataSource for PgSource {
         filter: Option<FilterSet>,
         offset: u64,
         limit: u64,
-        catalog: HashMap<String, ColumnMeta>,
+        catalog: ColumnCatalog,
     ) -> Fut<PageData> {
         let pool = self.pool.clone();
         let table = format!("{}.{}", quote_ident(&self.schema), quote_ident(&self.table));

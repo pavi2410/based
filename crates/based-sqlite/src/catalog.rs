@@ -1,17 +1,17 @@
 //! Per-column catalog metadata (types, keys) for table browse.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use anyhow::Result;
-use based_core::{ColumnMeta, FkTarget, ObjectRef, quote_ident};
+use based_core::{ColumnCatalog, ColumnMeta, FkTarget, ObjectRef, quote_ident};
 use sqlx::{AssertSqlSafe, Row, SqlitePool};
 
-pub async fn column_catalog(pool: &SqlitePool, table: &str) -> Result<HashMap<String, ColumnMeta>> {
+pub async fn column_catalog(pool: &SqlitePool, table: &str) -> Result<ColumnCatalog> {
     let q = quote_ident(table);
     let col_sql = format!("PRAGMA table_info({q})");
     let col_rows = sqlx::query(AssertSqlSafe(col_sql)).fetch_all(pool).await?;
 
-    let mut out = HashMap::new();
+    let mut out = ColumnCatalog::default();
     let mut pk_columns = HashSet::new();
     for row in &col_rows {
         let name: String = row.try_get("name")?;
@@ -21,7 +21,7 @@ pub async fn column_catalog(pool: &SqlitePool, table: &str) -> Result<HashMap<St
         if pk > 0 {
             pk_columns.insert(name.clone());
         }
-        out.insert(
+        out.push(
             name.clone(),
             ColumnMeta {
                 data_type: if type_name.is_empty() {
@@ -119,6 +119,7 @@ mod tests {
             sqlx::query(sql).execute(&pool).await.unwrap();
         }
         let m = column_catalog(&pool, "c t").await.unwrap();
+        assert_eq!(m.names().collect::<Vec<_>>(), ["id", "pid", "email"]);
         assert!(m["id"].is_primary_key);
         assert_eq!(
             m["pid"].fk,

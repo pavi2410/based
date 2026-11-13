@@ -1,9 +1,9 @@
 // mongodb::document_viewer — paginated find() as a virtual table.
 
+use based_core::ColumnCatalog;
 use based_core::Value;
 use based_mongo::bson_to_value;
 use gpui_kit::assets::IconName as AssetIcon;
-use std::collections::HashMap;
 
 use gpui_kit::component::{
     ActiveTheme, Icon, IconName, Sizable as _,
@@ -168,8 +168,10 @@ impl DocumentViewerPanel {
                     panel.filter_bar.update(cx, |fb, cx| {
                         fb.set_columns_if_empty(keys.clone(), cx);
                     });
-                    let column_meta =
-                        align_meta_to_columns(keys.iter().map(String::as_str), &HashMap::new());
+                    let column_meta = align_meta_to_columns(
+                        keys.iter().map(String::as_str),
+                        &ColumnCatalog::default(),
+                    );
                     panel.table.update(cx, |state, cx| {
                         replace_table_data(state, columns, rows, column_meta, cx);
                     });

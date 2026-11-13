@@ -1,14 +1,12 @@
 // SQLite table source for the shared data viewer.
 
-use std::collections::HashMap;
-
 use crate::widgets::virtual_table::cells;
 use based_core::quote_ident;
 use sqlx::SqlitePool;
 
-use crate::widgets::column_header::ColumnMeta;
 use crate::widgets::filter_bar::FilterSet;
 use crate::workspace::panels::data_viewer::{DataSource, Fut, PageData};
+use based_core::ColumnCatalog;
 
 pub struct SqliteSource {
     pub pool: SqlitePool,
@@ -28,7 +26,7 @@ impl DataSource for SqliteSource {
         vec![self.table.clone()]
     }
 
-    fn catalog(&self) -> Fut<HashMap<String, ColumnMeta>> {
+    fn catalog(&self) -> Fut<ColumnCatalog> {
         let (pool, table) = (self.pool.clone(), self.table.clone());
         Box::pin(async move { based_sqlite::column_catalog(&pool, &table).await })
     }
@@ -38,7 +36,7 @@ impl DataSource for SqliteSource {
         filter: Option<FilterSet>,
         offset: u64,
         limit: u64,
-        catalog: HashMap<String, ColumnMeta>,
+        catalog: ColumnCatalog,
     ) -> Fut<PageData> {
         let pool = self.pool.clone();
         let table = quote_ident(&self.table);

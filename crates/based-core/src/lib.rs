@@ -18,7 +18,9 @@ pub use connection_error::{
 pub use connection_id::{ConnectionId, ConnectionKey, ConnectionScope};
 pub use engine::{EngineKind, UnknownEngine};
 pub use object::ObjectRef;
-pub use page::{ColumnMeta, FkTarget, Grid, RawPage, TableExtra, TableInfo, quote_ident};
+pub use page::{
+    ColumnCatalog, ColumnMeta, FkTarget, Grid, RawPage, TableExtra, TableInfo, quote_ident,
+};
 pub use session::{PersistedConnection, WorkspaceState};
 pub use ssh::SshTunnelConfig;
 pub use tab::{TabId, TabKind};

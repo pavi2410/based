@@ -1,7 +1,7 @@
 // mongodb::pipeline_builder — run aggregation from a JSON pipeline array.
 
+use based_core::ColumnCatalog;
 use based_mongo::bson_to_value;
-use std::collections::HashMap;
 
 use based_ai::context::{
     ContextLevel, Entity as AiEntity, EntityKind, RenderOptions, SchemaSnapshot, render,
@@ -203,8 +203,10 @@ impl PipelineBuilderPanel {
                             based_query::RunStatus::Ok,
                         ));
                     });
-                    let column_meta =
-                        align_meta_to_columns(keys.iter().map(String::as_str), &HashMap::new());
+                    let column_meta = align_meta_to_columns(
+                        keys.iter().map(String::as_str),
+                        &ColumnCatalog::default(),
+                    );
                     panel.result.update(cx, |state, cx| {
                         replace_table_data(state, columns, rows, column_meta, cx);
                     });

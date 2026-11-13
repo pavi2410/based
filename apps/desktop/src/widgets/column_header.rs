@@ -1,6 +1,6 @@
 //! Column header chrome: constraint icons, type tooltips.
 
-use std::collections::HashMap;
+use based_core::ColumnCatalog;
 
 use gpui_kit::component::{ActiveTheme, Icon, Sizable as _, h_flex, tooltip::Tooltip, v_flex};
 use gpui_kit::{App, Div, Hsla, SharedString, Stateful, Window, div, prelude::*, px};
@@ -96,7 +96,7 @@ pub fn meta_for_column_name(name: &str) -> ColumnMeta {
 
 pub fn align_meta_to_columns(
     column_keys: impl IntoIterator<Item = impl AsRef<str>>,
-    catalog: &HashMap<String, ColumnMeta>,
+    catalog: &ColumnCatalog,
 ) -> Vec<ColumnMeta> {
     column_keys
         .into_iter()

@@ -1,6 +1,7 @@
 //! Engine-agnostic table page, as returned by headless engine crates.
 
 use std::fmt;
+use std::ops::Index;
 
 use crate::{ObjectRef, Value};
 
@@ -26,6 +27,44 @@ pub struct ColumnMeta {
 impl ColumnMeta {
     pub fn is_foreign_key(&self) -> bool {
         self.fk.is_some()
+    }
+}
+
+/// Column metadata for one table, in the table's column order.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ColumnCatalog(Vec<(String, ColumnMeta)>);
+
+impl ColumnCatalog {
+    /// Append a column (callers add them in ordinal order).
+    pub fn push(&mut self, name: impl Into<String>, meta: ColumnMeta) {
+        self.0.push((name.into(), meta));
+    }
+
+    pub fn get(&self, name: &str) -> Option<&ColumnMeta> {
+        self.0.iter().find(|(n, _)| n == name).map(|(_, m)| m)
+    }
+
+    pub fn get_mut(&mut self, name: &str) -> Option<&mut ColumnMeta> {
+        self.0.iter_mut().find(|(n, _)| n == name).map(|(_, m)| m)
+    }
+
+    /// Column names in table order.
+    pub fn names(&self) -> impl Iterator<Item = &str> {
+        self.0.iter().map(|(n, _)| n.as_str())
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Index<&str> for ColumnCatalog {
+    type Output = ColumnMeta;
+
+    /// Panics when the column is missing; use [`ColumnCatalog::get`] otherwise.
+    fn index(&self, name: &str) -> &ColumnMeta {
+        self.get(name)
+            .unwrap_or_else(|| panic!("no column {name:?} in catalog"))
     }
 }
 

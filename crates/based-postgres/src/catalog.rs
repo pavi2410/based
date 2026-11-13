@@ -3,14 +3,10 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use based_core::{ColumnMeta, FkTarget, ObjectRef};
+use based_core::{ColumnCatalog, ColumnMeta, FkTarget, ObjectRef};
 use sqlx::{PgPool, Row};
 
-pub async fn column_catalog(
-    pool: &PgPool,
-    schema: &str,
-    table: &str,
-) -> Result<HashMap<String, ColumnMeta>> {
+pub async fn column_catalog(pool: &PgPool, schema: &str, table: &str) -> Result<ColumnCatalog> {
     let col_rows = sqlx::query(
         r"SELECT
             c.column_name,
@@ -88,14 +84,14 @@ pub async fn column_catalog(
         });
     }
 
-    let mut out = HashMap::new();
+    let mut out = ColumnCatalog::default();
     for row in col_rows {
         let name: String = row.try_get("column_name")?;
         let display_type: String = row.try_get("display_type")?;
         let nullable: bool = row.try_get("nullable")?;
         let is_pk: bool = row.try_get("is_pk")?;
         let is_unique: bool = row.try_get("is_unique")?;
-        out.insert(
+        out.push(
             name.clone(),
             ColumnMeta {
                 data_type: Some(display_type),

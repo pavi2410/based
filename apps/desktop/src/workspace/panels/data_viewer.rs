@@ -46,7 +46,7 @@ use crate::workspace::WorkspaceRef;
 use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::tabs::{DrillFilter, TabSpec, inbox, request_workspace_flush};
 use based_ai::context::ContextLevel;
-use based_core::{ObjectRef, Value};
+use based_core::{ColumnCatalog, ObjectRef, Value};
 
 fn is_array_type(ty: Option<&str>) -> bool {
     ty.is_some_and(|t| t.trim().ends_with("[]") || t.trim().eq_ignore_ascii_case("array"))
@@ -77,13 +77,10 @@ impl PageData {
         total: i64,
         names: Option<Vec<String>>,
         rows: Vec<Vec<Cell>>,
-        catalog: &HashMap<String, ColumnMeta>,
+        catalog: &ColumnCatalog,
     ) -> Self {
-        let names = names.unwrap_or_else(|| {
-            let mut keys: Vec<_> = catalog.keys().cloned().collect();
-            keys.sort();
-            keys
-        });
+        // An empty page has no result columns; show the table's, in table order.
+        let names = names.unwrap_or_else(|| catalog.names().map(str::to_string).collect());
         let columns = names
             .into_iter()
             .map(|n| data_column(n.clone(), n))
@@ -105,13 +102,13 @@ pub trait DataSource: Send + Sync + 'static {
     fn id(&self) -> &'static str;
     /// Object path shown in breadcrumbs and titles, e.g. `["public", "users"]`.
     fn path(&self) -> Vec<String>;
-    fn catalog(&self) -> Fut<HashMap<String, ColumnMeta>>;
+    fn catalog(&self) -> Fut<ColumnCatalog>;
     fn page(
         &self,
         filter: Option<FilterSet>,
         offset: u64,
         limit: u64,
-        catalog: HashMap<String, ColumnMeta>,
+        catalog: ColumnCatalog,
     ) -> Fut<PageData>;
 }
 
@@ -130,7 +127,7 @@ pub struct DataViewerPanel {
     last_fetched: Option<OffsetDateTime>,
     /// First line of the last load failure; cleared by the next load.
     load_error: Option<SharedString>,
-    column_catalog: HashMap<String, ColumnMeta>,
+    column_catalog: ColumnCatalog,
     /// Foreign-key jump for the selected cell.
     fk_jump: Option<(ObjectRef, DrillFilter)>,
     self_handle: WeakEntity<Self>,
@@ -170,7 +167,7 @@ impl DataViewerPanel {
             last_load_ms: None,
             last_fetched: None,
             load_error: None,
-            column_catalog: HashMap::new(),
+            column_catalog: ColumnCatalog::default(),
             fk_jump: None,
             self_handle: cx.weak_entity(),
             tab_label,

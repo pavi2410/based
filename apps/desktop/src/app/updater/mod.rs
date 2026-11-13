@@ -1,4 +1,5 @@
-use std::sync::Mutex;
+use std::mem;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 use std::time::Duration;
 
@@ -14,7 +15,9 @@ mod state;
 
 pub use install::{open_releases_page, relaunch_app};
 pub use release_notes::fetch_release_body;
-pub use state::{UpdateBarSnapshot, UpdatePhase};
+pub use state::UpdateStatus;
+
+use self::state::Phase;
 
 use gpui_kit::component::{ActiveTheme, WindowExt};
 use gpui_kit::{
@@ -36,40 +39,20 @@ use self::log::{debug as udebug, info as uinfo, warn as uwarn};
 use self::persist::{UpdaterStateFile, should_run_periodic_check, startup_check_stale};
 use self::release_notes::fetch_latest_release;
 
-/// Download progress (0-100) written from the blocking download thread.
-static DL_PROGRESS: AtomicU8 = AtomicU8::new(0);
-
-/// Verified update bundle waiting for the user to approve the install.
-static STAGED: Mutex<Option<(cargo_packager_updater::Update, Vec<u8>)>> = Mutex::new(None);
+/// A verified update bundle: the manifest entry and its downloaded bytes.
+type StagedUpdate = (cargo_packager_updater::Update, Vec<u8>);
 
 /// Global update coordinator state (UI + scheduling).
-#[derive(Clone, Default)]
-pub struct UpdateCoordinator {
-    pub phase: UpdatePhase,
-    pub available_version: Option<String>,
-    pub download_progress: u8,
-    pub error: Option<String>,
-    pub toast_shown_for_version: Option<String>,
-    /// The available version can be downloaded and installed in-app.
-    pub can_install: bool,
+#[derive(Default)]
+struct UpdateCoordinator {
+    phase: Phase<StagedUpdate>,
+    /// Remembered across checks so each version toasts once per run.
+    toast_shown_for_version: Option<String>,
 }
 
 impl Global for UpdateCoordinator {}
 
 impl UpdateCoordinator {
-    pub fn snapshot(&self) -> UpdateBarSnapshot {
-        UpdateBarSnapshot {
-            phase: self.phase,
-            version: self
-                .available_version
-                .as_ref()
-                .map(|v| SharedString::from(format!("v{v}"))),
-            progress_percent: self.download_progress,
-            can_install: self.can_install,
-            error: self.error.as_ref().map(|e| SharedString::from(e.clone())),
-        }
-    }
-
     fn notify_workspace(cx: &mut App) {
         if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
             ws.update(cx, |_, cx| cx.notify());
@@ -90,9 +73,9 @@ impl UpdateCoordinator {
     }
 }
 
-pub fn coordinator_snapshot(cx: &App) -> UpdateBarSnapshot {
+pub fn coordinator_snapshot(cx: &App) -> UpdateStatus {
     cx.try_global::<UpdateCoordinator>()
-        .map(|c| c.snapshot())
+        .map(|c| c.phase.status())
         .unwrap_or_default()
 }
 
@@ -200,51 +183,59 @@ pub fn check_now(cx: &mut App) {
 /// Don't offer this version again (a manual check still shows it).
 pub fn skip_version(cx: &mut App) {
     cx.update_global(|coord: &mut UpdateCoordinator, app| {
-        if let Some(v) = coord.available_version.clone() {
-            uinfo(format!("skip_version: version={v}"));
-            let mut state = UpdaterStateFile::load_from(AppPaths::get(app).updater_state_path());
-            state.dismissed_version = Some(v);
-            state.save_best_effort();
-        }
-        coord.available_version = None;
-        coord.phase = UpdatePhase::Idle;
+        let Phase::Available { version, .. } = &coord.phase else {
+            udebug("skip_version: skipped (no update offered)");
+            return;
+        };
+        uinfo(format!("skip_version: version={version}"));
+        let mut state = UpdaterStateFile::load_from(AppPaths::get(app).updater_state_path());
+        state.dismissed_version = Some(version.clone());
+        state.save_best_effort();
+        coord.phase = Phase::Idle;
         UpdateCoordinator::notify_workspace(app);
     });
 }
 
 /// User-approved download of the available update; stages it for a later install.
 pub fn start_download(cx: &mut App) {
-    let version = cx.update_global(|coord: &mut UpdateCoordinator, _| {
-        if coord.phase != UpdatePhase::Available || !coord.can_install {
+    let started = cx.update_global(|coord: &mut UpdateCoordinator, _| {
+        let Phase::Available {
+            version,
+            can_install: true,
+        } = &coord.phase
+        else {
             return None;
-        }
-        coord.phase = UpdatePhase::Downloading;
-        coord.download_progress = 0;
-        coord.available_version.clone()
+        };
+        let version = version.clone();
+        let progress = Arc::new(AtomicU8::new(0));
+        coord.phase = Phase::Downloading {
+            version: version.clone(),
+            progress: progress.clone(),
+        };
+        Some((version, progress))
     });
-    let Some(version) = version else {
+    let Some((version, progress)) = started else {
         uwarn("start_download: nothing to download");
         return;
     };
     uinfo(format!("start_download: version={version}"));
-    DL_PROGRESS.store(0, Ordering::Relaxed);
     cx.spawn(async move |cx| {
-        run_download(cx, version).await;
+        run_download(cx, version, progress).await;
     })
     .detach();
     cx.spawn(async move |cx| {
-        // The download runs on a blocking thread; poll its progress for the status bar.
+        // The download runs on a blocking thread; redraw so the status bar shows its progress.
         loop {
             sleep_on_tokio(cx, Duration::from_millis(250)).await;
             let downloading = cx.update(|app| {
-                app.update_global(|coord: &mut UpdateCoordinator, app| {
-                    if coord.phase != UpdatePhase::Downloading {
-                        return false;
-                    }
-                    coord.download_progress = DL_PROGRESS.load(Ordering::Relaxed);
+                let downloading = matches!(
+                    app.global::<UpdateCoordinator>().phase,
+                    Phase::Downloading { .. }
+                );
+                if downloading {
                     UpdateCoordinator::notify_workspace(app);
-                    true
-                })
+                }
+                downloading
             });
             if !downloading {
                 break;
@@ -261,21 +252,20 @@ pub fn install_and_restart(
     window: &mut Window,
     cx: &mut App,
 ) {
-    let (phase, version) = {
-        let coord = cx.global::<UpdateCoordinator>();
-        (coord.phase, coord.available_version.clone())
+    let version = match &cx.global::<UpdateCoordinator>().phase {
+        Phase::Ready { version, .. } => version.clone(),
+        _ => {
+            udebug("install_and_restart: skipped (nothing downloaded)");
+            return;
+        }
     };
-    if phase != UpdatePhase::Ready {
-        udebug("install_and_restart: skipped (nothing downloaded)");
-        return;
-    }
     let live = live_connection_count(registry, cx);
     uinfo(format!(
         "install_and_restart: prompting (live_connections={live})"
     ));
     let mut description = format!(
         "Based {} has been downloaded. Based will quit and relaunch to install it.",
-        version.as_deref().unwrap_or("update")
+        version.trim_start_matches('v')
     );
     match live {
         0 => {}
@@ -326,7 +316,12 @@ pub fn open_release_notes_for_current(cx: &mut App) {
 
 /// Changelog of the update being offered (not the running version).
 pub fn open_release_notes_for_available(cx: &mut App) {
-    let Some(version) = cx.global::<UpdateCoordinator>().available_version.clone() else {
+    let Some(version) = cx
+        .global::<UpdateCoordinator>()
+        .phase
+        .version()
+        .map(str::to_owned)
+    else {
         return;
     };
     inbox::open_release_notes(version.trim_start_matches('v').to_string(), cx);
@@ -338,15 +333,14 @@ fn trigger_check(cx: &mut App, manual: bool) {
         return;
     }
     let skipped = cx.update_global(|coord: &mut UpdateCoordinator, app| {
-        if coord.phase == UpdatePhase::Checking || coord.phase == UpdatePhase::Downloading {
+        if !coord.phase.allows_check() {
             udebug(format!(
                 "trigger_check: skipped phase={:?} manual={manual}",
-                coord.phase
+                coord.phase.status()
             ));
             return true;
         }
-        coord.phase = UpdatePhase::Checking;
-        coord.error = None;
+        coord.phase = Phase::Checking;
         UpdateCoordinator::notify_workspace(app);
         false
     });
@@ -365,7 +359,22 @@ fn trigger_check(cx: &mut App, manual: bool) {
 }
 
 fn install_staged(cx: &mut App) {
-    let Some((update, bytes)) = STAGED.lock().ok().and_then(|mut g| g.take()) else {
+    // Taking the bundle out of `Ready` makes a second confirm a no-op.
+    let staged =
+        cx.update_global(
+            |coord: &mut UpdateCoordinator, app| match mem::take(&mut coord.phase) {
+                Phase::Ready { version, bundle } => {
+                    coord.phase = Phase::Installing { version };
+                    UpdateCoordinator::notify_workspace(app);
+                    Some(*bundle)
+                }
+                other => {
+                    coord.phase = other;
+                    None
+                }
+            },
+        );
+    let Some((update, bytes)) = staged else {
         uwarn("install_staged: no staged update");
         return;
     };
@@ -392,8 +401,7 @@ fn install_staged(cx: &mut App) {
 fn fail(cx: &mut AsyncApp, msg: String) {
     cx.update(|app| {
         app.update_global(|coord: &mut UpdateCoordinator, a| {
-            coord.phase = UpdatePhase::Failed;
-            coord.error = Some(msg);
+            coord.phase = Phase::Failed { error: msg };
             UpdateCoordinator::notify_workspace(a);
         });
     });
@@ -467,10 +475,13 @@ async fn run_check(cx: &mut AsyncApp, manual: bool) {
 
     cx.update(|app| {
         apply_check_outcome(app, result);
-        let ready = {
-            let coord = app.global::<UpdateCoordinator>();
-            coord.phase == UpdatePhase::Available && coord.can_install
-        };
+        let ready = matches!(
+            app.global::<UpdateCoordinator>().phase,
+            Phase::Available {
+                can_install: true,
+                ..
+            }
+        );
         if ready && prefs.auto_download && !manual {
             start_download(app);
         }
@@ -488,41 +499,43 @@ fn apply_check_outcome(cx: &mut App, result: Result<CheckOutcome, anyhow::Error>
     cx.update_global(|coord: &mut UpdateCoordinator, app| match result {
         Ok(CheckOutcome::UpToDate) => {
             uinfo("check outcome: up_to_date");
-            coord.phase = UpdatePhase::UpToDate;
-            coord.available_version = None;
+            coord.phase = Phase::UpToDate;
         }
         Ok(CheckOutcome::Skipped) => {
             udebug("check outcome: skipped version");
-            coord.phase = UpdatePhase::Idle;
+            coord.phase = Phase::Idle;
         }
         Ok(CheckOutcome::AvailableManual { version }) => {
             uinfo(format!("check outcome: available_manual version={version}"));
-            coord.phase = UpdatePhase::Available;
-            coord.can_install = false;
-            coord.available_version = Some(version.clone());
+            coord.phase = Phase::Available {
+                version: version.clone(),
+                can_install: false,
+            };
             if coord.should_toast(&version) {
                 notify::push_update_available(app, &version);
             }
         }
         Ok(CheckOutcome::AvailableInApp { version }) => {
             uinfo(format!("check outcome: available_in_app version={version}"));
-            coord.phase = UpdatePhase::Available;
-            coord.can_install = true;
-            coord.available_version = Some(version.clone());
+            coord.phase = Phase::Available {
+                version: version.clone(),
+                can_install: true,
+            };
             if coord.should_toast(&version) {
                 notify::push_update_available(app, &version);
             }
         }
         Err(err) => {
             uwarn(format!("check outcome: failed {err:#}"));
-            coord.phase = UpdatePhase::Failed;
-            coord.error = Some(err.to_string());
+            coord.phase = Phase::Failed {
+                error: err.to_string(),
+            };
         }
     });
     UpdateCoordinator::notify_workspace(cx);
 }
 
-async fn run_download(cx: &mut AsyncApp, version: String) {
+async fn run_download(cx: &mut AsyncApp, version: String, progress: Arc<AtomicU8>) {
     uinfo(format!("download: starting version={version}"));
     let result = run(cx, async move {
         let update = spawn_blocking(check_packager_update)
@@ -541,7 +554,7 @@ async fn run_download(cx: &mut AsyncApp, version: String) {
                         let done = seen.fetch_add(chunk, Ordering::Relaxed) + chunk;
                         if let Some(total) = total.filter(|t| *t > 0) {
                             let pct = (done as u64 * 100 / total).min(100) as u8;
-                            DL_PROGRESS.store(pct, Ordering::Relaxed);
+                            progress.store(pct, Ordering::Relaxed);
                         }
                     },
                     || {},
@@ -557,13 +570,16 @@ async fn run_download(cx: &mut AsyncApp, version: String) {
     match result {
         Ok(staged) => {
             uinfo("download: complete, staged for install");
-            if let Ok(mut slot) = STAGED.lock() {
-                *slot = Some(staged);
-            }
             cx.update(|app| {
                 app.update_global(|coord: &mut UpdateCoordinator, a| {
-                    coord.phase = UpdatePhase::Ready;
-                    coord.download_progress = 100;
+                    let Phase::Downloading { version, .. } = &coord.phase else {
+                        uwarn("download: finished outside Downloading, dropping bundle");
+                        return;
+                    };
+                    coord.phase = Phase::Ready {
+                        version: version.clone(),
+                        bundle: Box::new(staged),
+                    };
                     UpdateCoordinator::notify_workspace(a);
                 });
             });

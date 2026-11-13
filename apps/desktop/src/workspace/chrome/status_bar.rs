@@ -9,8 +9,7 @@ use gpui_kit::{App, Entity, IntoElement, RenderOnce, SharedString, div, prelude:
 use crate::ai::AiStatus;
 use crate::app::prefs::{self, update_check_settings_locked};
 use crate::app::shell::open_settings;
-use crate::app::updater::UpdateBarSnapshot;
-use crate::app::updater::{self, UpdatePhase};
+use crate::app::updater::{self, UpdateStatus};
 use crate::bindings::{ToggleChatPane, ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane};
 use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{ConnectionEntry, ConnectionId, ConnectionState, EngineKind};
@@ -53,7 +52,7 @@ impl StatusBarConnection {
 /// Context passed into the workspace status rail.
 #[derive(Clone, Debug)]
 pub struct StatusBarModel {
-    pub update: UpdateBarSnapshot,
+    pub update: UpdateStatus,
     pub focused_connection: Option<StatusBarConnection>,
 }
 
@@ -270,21 +269,19 @@ fn ghost_item(cx: &App) -> impl IntoElement {
 
 /// Version label doubling as the update entry point; the click menu depends on the phase.
 fn version_item(
-    snapshot: &UpdateBarSnapshot,
+    status: &UpdateStatus,
     registry: gpui_kit::Entity<ConnectionRegistry>,
     cx: &App,
 ) -> impl IntoElement {
-    let phase = snapshot.phase;
+    let status = status.clone();
     let locked = update_check_settings_locked();
-    let can_install = snapshot.can_install;
     let muted = cx.theme().muted_foreground;
     let accent = cx.theme().accent_foreground;
     let warning = cx.theme().warning_foreground;
     let danger = cx.theme().danger_foreground;
     let current = env!("CARGO_PKG_VERSION");
-    let new_version: SharedString = snapshot
-        .version
-        .as_ref()
+    let new_version: SharedString = status
+        .version()
         .map(|v| v.trim_start_matches('v').to_string())
         .unwrap_or_default()
         .into();
@@ -292,46 +289,46 @@ fn version_item(
     let (suffix, color, tooltip): (Option<String>, _, String) = if locked {
         (None, muted, format!("Based {current}"))
     } else {
-        match phase {
-            UpdatePhase::Idle => (None, muted, format!("Based {current} — click for options")),
-            UpdatePhase::Checking => (
+        match &status {
+            UpdateStatus::Idle => (None, muted, format!("Based {current} — click for options")),
+            UpdateStatus::Checking => (
                 Some("checking…".into()),
                 muted,
                 "Checking for updates…".into(),
             ),
-            UpdatePhase::UpToDate => (None, muted, format!("Based {current} is up to date")),
-            UpdatePhase::Available => (
+            UpdateStatus::UpToDate => (None, muted, format!("Based {current} is up to date")),
+            UpdateStatus::Available { .. } => (
                 Some(format!("→ {new_version}")),
                 accent,
                 format!("Based {new_version} is available — click to review"),
             ),
-            UpdatePhase::Downloading => (
-                Some(format!("{}%", snapshot.progress_percent)),
+            UpdateStatus::Downloading { percent, .. } => (
+                Some(format!("{percent}%")),
                 accent,
-                format!("Downloading {new_version}… {}%", snapshot.progress_percent),
+                format!("Downloading {new_version}… {percent}%"),
             ),
-            UpdatePhase::Ready => (
+            UpdateStatus::Ready { .. } => (
                 Some("restart".into()),
                 warning,
                 format!("Based {new_version} is downloaded — click to install"),
             ),
-            UpdatePhase::Failed => (
-                Some("update failed".into()),
-                danger,
-                snapshot
-                    .error
-                    .as_ref()
-                    .map(|e| e.to_string())
-                    .unwrap_or_else(|| "Update failed".into()),
+            UpdateStatus::Installing { .. } => (
+                Some("installing…".into()),
+                warning,
+                format!("Installing Based {new_version}…"),
             ),
+            UpdateStatus::Failed { error } => {
+                (Some("update failed".into()), danger, error.to_string())
+            }
         }
     };
     let show_dot = matches!(
-        phase,
-        UpdatePhase::Available
-            | UpdatePhase::Downloading
-            | UpdatePhase::Ready
-            | UpdatePhase::Failed
+        status,
+        UpdateStatus::Available { .. }
+            | UpdateStatus::Downloading { .. }
+            | UpdateStatus::Ready { .. }
+            | UpdateStatus::Installing { .. }
+            | UpdateStatus::Failed { .. }
     ) && !locked;
 
     Button::new("status-version")
@@ -366,10 +363,11 @@ fn version_item(
                     .on_click(|_, _, cx| updater::open_release_notes_for_available(cx))
             };
             if !locked {
-                match phase {
-                    UpdatePhase::Available => {
+                match &status {
+                    UpdateStatus::Installing { .. } => return menu,
+                    UpdateStatus::Available { can_install, .. } => {
                         menu = menu.item(notes_new());
-                        menu = if can_install {
+                        menu = if *can_install {
                             menu.item(
                                 PopupMenuItem::new("Download update")
                                     .icon(IconName::ArrowDown)
@@ -389,8 +387,8 @@ fn version_item(
                         );
                         return menu;
                     }
-                    UpdatePhase::Downloading => return menu.item(notes_new()),
-                    UpdatePhase::Ready => {
+                    UpdateStatus::Downloading { .. } => return menu.item(notes_new()),
+                    UpdateStatus::Ready { .. } => {
                         return menu
                             .item(
                                 PopupMenuItem::new("Install & Restart…")
@@ -405,10 +403,10 @@ fn version_item(
                         menu = menu.item(
                             PopupMenuItem::new("Check for updates")
                                 .icon(IconName::Inbox)
-                                .disabled(phase == UpdatePhase::Checking)
+                                .disabled(status == UpdateStatus::Checking)
                                 .on_click(|_, _, cx| updater::check_now(cx)),
                         );
-                        if phase == UpdatePhase::Failed {
+                        if matches!(status, UpdateStatus::Failed { .. }) {
                             menu = menu.item(
                                 PopupMenuItem::new("Open releases page")
                                     .icon(IconName::ExternalLink)

@@ -20,7 +20,7 @@ use time::OffsetDateTime;
 use crate::app::prefs::{manual_update_checks_enabled, update_lock_reason};
 use crate::app::shell;
 use crate::app::updater::{
-    UpdatePhase, check_now, coordinator_snapshot, open_release_notes_for_current,
+    UpdateStatus, check_now, coordinator_snapshot, open_release_notes_for_current,
 };
 
 const APP_NAME: &str = "Based";
@@ -153,19 +153,15 @@ fn update_card(muted: Hsla, border: Hsla, accent: Hsla, cx: &gpui_kit::App) -> i
     let status: SharedString = if let Some(reason) = update_lock_reason() {
         reason.into()
     } else {
-        match snapshot.phase {
-            UpdatePhase::Idle => "Check for updates to see status".into(),
-            UpdatePhase::Checking => "Checking for updates…".into(),
-            UpdatePhase::UpToDate => "You're up to date".into(),
-            UpdatePhase::Available => snapshot
-                .version
-                .map(|v| format!("{v} is available").into())
-                .unwrap_or_else(|| "Update available".into()),
-            UpdatePhase::Downloading => "Downloading update…".into(),
-            UpdatePhase::Ready => "Update downloaded — install from the status bar".into(),
-            UpdatePhase::Failed => snapshot
-                .error
-                .unwrap_or_else(|| "Update check failed".into()),
+        match snapshot {
+            UpdateStatus::Idle => "Check for updates to see status".into(),
+            UpdateStatus::Checking => "Checking for updates…".into(),
+            UpdateStatus::UpToDate => "You're up to date".into(),
+            UpdateStatus::Available { version, .. } => format!("{version} is available").into(),
+            UpdateStatus::Downloading { .. } => "Downloading update…".into(),
+            UpdateStatus::Ready { .. } => "Update downloaded — install from the status bar".into(),
+            UpdateStatus::Installing { .. } => "Installing update…".into(),
+            UpdateStatus::Failed { error } => error,
         }
     };
 

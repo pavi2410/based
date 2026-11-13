@@ -1,5 +1,6 @@
 //! Query persistence, variable substitution, and SQL utilities (no UI).
 
+pub mod filter;
 pub mod history;
 pub mod lint;
 pub mod resolve;

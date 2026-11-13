@@ -3,10 +3,10 @@
 use based_core::quote_ident;
 use sqlx::PgPool;
 
-use crate::widgets::filter_bar::FilterSet;
 use crate::workspace::panels::data_viewer::{DataSource, Fut, PageData};
 use crate::workspace::tabs::kind::names;
 use based_core::ColumnCatalog;
+use based_query::filter::FilterSet;
 
 pub struct PgSource {
     pub pool: PgPool,

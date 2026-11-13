@@ -1,6 +1,9 @@
 //! Categorized connection errors for actionable UI (Track A taxonomy).
 
+use std::error::Error;
 use std::fmt;
+use std::io;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
@@ -58,84 +61,91 @@ impl ConnectionErrorCategory {
     }
 }
 
-/// User-facing connection error with category and optional raw details.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConnectionErrorDetail {
+/// A failed connect or test, classified where it happened (driver error codes and
+/// kinds, not message text), with the driver's own message as `detail`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConnectError {
     pub category: ConnectionErrorCategory,
-    pub details: Option<String>,
+    pub detail: String,
 }
 
-impl ConnectionErrorDetail {
-    pub fn display_message(&self) -> String {
-        let mut msg = self.category.summary().to_string();
-        if let Some(d) = &self.details
-            && !d.is_empty()
-        {
-            msg.push_str(": ");
-            msg.push_str(d);
+impl ConnectError {
+    pub fn new(category: ConnectionErrorCategory, detail: impl fmt::Display) -> Self {
+        Self {
+            category,
+            detail: detail.to_string(),
         }
-        msg
+    }
+
+    /// A bug or a crashed task, not something the user can fix in the form.
+    pub fn internal(err: impl fmt::Display) -> Self {
+        Self::new(ConnectionErrorCategory::Internal, err)
+    }
+
+    /// The SSH hop in front of the database failed.
+    pub fn ssh(err: impl fmt::Display) -> Self {
+        Self::new(ConnectionErrorCategory::SshFailed, err)
+    }
+
+    /// The connect attempt ran out of time.
+    pub fn timeout(after: Duration) -> Self {
+        Self::new(
+            ConnectionErrorCategory::NetTimeout,
+            format!("no answer after {}s", after.as_secs()),
+        )
+    }
+
+    /// A socket error, classified by its kind.
+    pub fn io(err: &io::Error) -> Self {
+        let category = match err.kind() {
+            io::ErrorKind::TimedOut => ConnectionErrorCategory::NetTimeout,
+            io::ErrorKind::NotFound | io::ErrorKind::PermissionDenied => {
+                ConnectionErrorCategory::ConfigInvalid
+            }
+            _ => ConnectionErrorCategory::NetUnreachable,
+        };
+        Self::new(category, err)
+    }
+
+    /// Summary, then the driver's message.
+    pub fn display_message(&self) -> String {
+        if self.detail.is_empty() {
+            self.category.summary().to_string()
+        } else {
+            format!("{}: {}", self.category.summary(), self.detail)
+        }
     }
 }
 
-impl fmt::Display for ConnectionErrorDetail {
+impl fmt::Display for ConnectError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.display_message())
+        f.write_str(&self.display_message())
     }
 }
 
-/// Best-effort mapping from driver error strings (sqlx, etc.).
-pub fn categorize_connect_error(err: &str) -> ConnectionErrorDetail {
-    let lower = err.to_ascii_lowercase();
-    let category = if lower.contains("ssh tunnel") || lower.contains("known_hosts") {
-        ConnectionErrorCategory::SshFailed
-    } else if lower.contains("password authentication failed")
-        || lower.contains("authentication failed")
-        || lower.contains("invalid password")
-    {
-        ConnectionErrorCategory::AuthFailed
-    } else if lower.contains("ssl") && lower.contains("required") {
-        ConnectionErrorCategory::TlsRequired
-    } else if lower.contains("ssl") || lower.contains("tls") {
-        ConnectionErrorCategory::TlsRejected
-    } else if lower.contains("timed out") || lower.contains("timeout") {
-        ConnectionErrorCategory::NetTimeout
-    } else if lower.contains("connection refused")
-        || lower.contains("could not connect")
-        || lower.contains("no route")
-        || lower.contains("network is unreachable")
-    {
-        ConnectionErrorCategory::NetUnreachable
-    } else if lower.contains("database") && lower.contains("does not exist") {
-        ConnectionErrorCategory::DbNotFound
-    } else {
-        ConnectionErrorCategory::ServerError
-    };
-    ConnectionErrorDetail {
-        category,
-        details: Some(err.to_string()),
-    }
-}
+impl Error for ConnectError {}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn maps_auth_failure() {
-        let d = categorize_connect_error("password authentication failed for user \"x\"");
-        assert_eq!(d.category, ConnectionErrorCategory::AuthFailed);
+    fn refused_and_timed_out_sockets() {
+        let refused = io::Error::from(io::ErrorKind::ConnectionRefused);
+        assert_eq!(
+            ConnectError::io(&refused).category,
+            ConnectionErrorCategory::NetUnreachable
+        );
+        let slow = io::Error::from(io::ErrorKind::TimedOut);
+        assert_eq!(
+            ConnectError::io(&slow).category,
+            ConnectionErrorCategory::NetTimeout
+        );
     }
 
     #[test]
-    fn maps_ssh_tunnel_before_generic_auth() {
-        let d = categorize_connect_error("SSH tunnel: authentication failed");
-        assert_eq!(d.category, ConnectionErrorCategory::SshFailed);
-    }
-
-    #[test]
-    fn maps_unknown_host_key() {
-        let d = categorize_connect_error("SSH tunnel: host is not in known_hosts");
-        assert_eq!(d.category, ConnectionErrorCategory::SshFailed);
+    fn message_leads_with_the_category() {
+        let e = ConnectError::new(ConnectionErrorCategory::AuthFailed, "bad password");
+        assert_eq!(e.to_string(), "Authentication failed: bad password");
     }
 }

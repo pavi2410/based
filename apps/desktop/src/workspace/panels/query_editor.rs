@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use time::OffsetDateTime;
 
-use based_core::{EngineKind, ResultSet, SqlOutcome};
+use based_core::{EngineKind, QueryError, ResultSet, SqlOutcome};
 use based_project::{SaveTarget, save_sql_query};
 use based_query::{
     Lint, RunOutcome, Severity, changes_data, split_statements, statement_at, write_summary,
@@ -34,7 +34,7 @@ use crate::app::prefs;
 use crate::bindings::AskAi;
 use crate::connection::{ConnectionId, Environment, is_connection_read_only};
 use crate::db;
-use crate::editor::error_locate::{line_col, locate_error};
+use crate::editor::error_locate::{line_col, token_at};
 use crate::editor::sql_completion::InlineAi;
 use crate::editor::{SchemaCache, lint::lint};
 use crate::project::{ProjectRoot, ProjectVars, substitute};
@@ -79,8 +79,17 @@ pub enum HoldReason {
 }
 
 /// A run held back until the user confirms its banner. Any edit drops it.
+/// One statement sent to the server: its text as run, and where that text
+/// starts in the editor when it ran exactly as written there.
+struct Sent {
+    sql: String,
+    at: Option<usize>,
+}
+
 pub(super) struct HeldRun {
     pub(super) sql: String,
+    /// Where `sql` starts in the editor text, when it was taken from there.
+    pub(super) base: Option<usize>,
     pub(super) batch: bool,
     pub(super) reason: HoldReason,
 }
@@ -107,7 +116,12 @@ pub trait QuerySource: Send + Sync + 'static {
     fn load_schema(&self) -> Option<Fut<SchemaCache>> {
         None
     }
-    fn run(&self, sql: String, timeout_secs: u32) -> Fut<SqlOutcome>;
+    /// Run `sql`; an error's `position` is a byte offset into `sql`.
+    fn run(
+        &self,
+        sql: String,
+        timeout_secs: u32,
+    ) -> BoxFuture<'static, Result<SqlOutcome, QueryError>>;
     fn explain(&self, sql: String) -> Fut<Explained>;
 }
 
@@ -445,40 +459,43 @@ impl QueryEditorPanel {
     }
 
     /// What Run executes: the selection, else the statement under the cursor when the
-    /// editor holds several, else everything.
-    fn run_text(&self, cx: &App) -> String {
+    /// editor holds several, else everything. Returned as its range in the editor text.
+    fn run_range(&self, cx: &App) -> Range<usize> {
         let state = self.sql_input.read(cx);
-        let selected = state.selected_value().to_string();
-        if !selected.trim().is_empty() {
+        let all: &str = &state.value();
+        let selected = state.selected_range();
+        if all
+            .get(selected.clone())
+            .is_some_and(|s| !s.trim().is_empty())
+        {
             return selected;
         }
-        let all = state.value().to_string();
         let engine = self.source.engine();
-        if split_statements(&all, engine).len() > 1
-            && let Some(range) = statement_at(&all, engine, state.cursor())
+        if split_statements(all, engine).len() > 1
+            && let Some(range) = statement_at(all, engine, state.cursor())
         {
-            return all[range].to_string();
+            return range;
         }
-        all
+        0..all.len()
     }
 
     /// Run the selection or the current statement.
     pub(super) fn run(&mut self, cx: &mut Context<Self>) {
-        let text = self.run_text(cx);
-        self.run_sql(text, cx);
+        let range = self.run_range(cx);
+        self.run_statement(range, cx);
     }
 
     /// Run the whole editor text as one batch.
     pub fn run_all(&mut self, cx: &mut Context<Self>) {
         let text = self.current_sql(cx);
-        self.run_statements(text, true, false, cx);
+        self.run_statements(text, Some(0), true, false, cx);
     }
 
     /// Run the held text after its banner was confirmed. Confirming the production banner
     /// skips that gate for this one run; confirming the AI banner re-checks production.
     pub(super) fn run_held(&mut self, skip_production_gate: bool, cx: &mut Context<Self>) {
         if let Some(held) = self.held.take() {
-            self.run_statements(held.sql, held.batch, skip_production_gate, cx);
+            self.run_statements(held.sql, held.base, held.batch, skip_production_gate, cx);
         }
     }
 
@@ -494,8 +511,9 @@ impl QueryEditorPanel {
         self.held.as_ref().map(|h| h.reason)
     }
 
-    fn run_sql(&mut self, sql_raw: String, cx: &mut Context<Self>) {
-        self.run_statements(sql_raw, false, false, cx);
+    /// Run text taken from `base` in the editor (`None` when it isn't editor text).
+    fn run_sql(&mut self, sql_raw: String, base: Option<usize>, cx: &mut Context<Self>) {
+        self.run_statements(sql_raw, base, false, false, cx);
     }
 
     /// Why `sql` must wait for confirmation before it runs, if it must.
@@ -517,6 +535,7 @@ impl QueryEditorPanel {
     fn run_statements(
         &mut self,
         sql_raw: String,
+        base: Option<usize>,
         batch: bool,
         skip_production_gate: bool,
         cx: &mut Context<Self>,
@@ -527,6 +546,7 @@ impl QueryEditorPanel {
         if let Some(reason) = self.hold_for(&sql_raw, skip_production_gate, cx) {
             self.held = Some(HeldRun {
                 sql: sql_raw,
+                base,
                 batch,
                 reason,
             });
@@ -543,18 +563,22 @@ impl QueryEditorPanel {
             workspace: project_vars.clone(),
             connection: project_vars.clone(),
         };
-        let texts: Vec<String> = if batch {
+        let texts: Vec<(Option<usize>, String)> = if batch {
             split_statements(&sql_raw, self.source.engine())
                 .into_iter()
-                .map(|r| sql_raw[r].to_string())
+                .map(|r| (base.map(|b| b + r.start), sql_raw[r].to_string()))
                 .collect()
         } else {
-            vec![sql_raw]
+            vec![(base, sql_raw)]
         };
         let mut resolved = Vec::with_capacity(texts.len());
-        for text in &texts {
+        for (at, text) in &texts {
             match based_query::resolve_query(&substitute(text, &project_vars), &var_ctx) {
-                Ok(sql) => resolved.push(sql),
+                // Positions map back to the editor only when the text ran as written.
+                Ok(sql) => resolved.push(Sent {
+                    at: at.filter(|_| &sql == text),
+                    sql,
+                }),
                 Err(e) => {
                     self.status = QueryStatus::Error {
                         message: e.to_string(),
@@ -582,14 +606,14 @@ impl QueryEditorPanel {
         let timeout = prefs::query_timeout_secs(cx);
         let total = resolved.len();
         let task = cx.spawn(async move |this, cx| {
-            for (index, sql) in resolved.into_iter().enumerate() {
-                let fut = source.run(sql.clone(), timeout);
+            for (index, sent) in resolved.into_iter().enumerate() {
+                let fut = source.run(sent.sql.clone(), timeout);
                 let start = Instant::now();
-                let outcome = db::run(cx, fut).await;
+                let outcome = db::run_try(cx, fut, |e| QueryError::new(e.to_string())).await;
                 let ms = start.elapsed().as_millis() as u64;
                 let proceed = this
                     .update(cx, |panel, cx| {
-                        panel.finish_statement(index, total, sql, outcome, ms, cx)
+                        panel.finish_statement(index, total, sent, outcome, ms, cx)
                     })
                     .unwrap_or(false);
                 if !proceed {
@@ -609,13 +633,14 @@ impl QueryEditorPanel {
         &mut self,
         index: usize,
         total: usize,
-        sql: String,
-        outcome: anyhow::Result<SqlOutcome>,
+        sent: Sent,
+        outcome: Result<SqlOutcome, QueryError>,
         ms: u64,
         cx: &mut Context<Self>,
     ) -> bool {
         let last = index + 1 == total;
         let conn_id = self.conn_id.clone();
+        let Sent { sql, at } = sent;
         let first_line = sql
             .lines()
             .find(|l| !l.trim().is_empty())
@@ -690,8 +715,7 @@ impl QueryEditorPanel {
                 self.last_run
                     .log
                     .push(format!("{}  {first_line} — failed", index + 1));
-                let editor_sql = self.current_sql(cx);
-                let span = locate_error(&editor_sql, &message);
+                let span = self.span_in_editor(&sql, at, e.position, cx);
                 let history = RunOutcome::error(&message);
                 self.status = QueryStatus::Error { message, span };
                 self.mark_error(cx);
@@ -1074,9 +1098,26 @@ impl QueryEditorPanel {
     /// Run the statement at `range` of the editor text.
     fn run_statement(&mut self, range: Range<usize>, cx: &mut Context<Self>) {
         let text = self.current_sql(cx);
-        if let Some(sql) = text.get(range) {
-            self.run_sql(sql.to_string(), cx);
+        if let Some(sql) = text.get(range.clone()) {
+            self.run_sql(sql.to_string(), Some(range.start), cx);
         }
+    }
+
+    /// Where in the editor a failed statement's error points: the token at the
+    /// server's position, when `sql` still sits at `at` in the editor text.
+    fn span_in_editor(
+        &self,
+        sql: &str,
+        at: Option<usize>,
+        position: Option<usize>,
+        cx: &App,
+    ) -> Option<Range<usize>> {
+        let (at, position) = (at?, position?);
+        let editor = self.current_sql(cx);
+        if editor.get(at..at + sql.len()) != Some(sql) {
+            return None;
+        }
+        token_at(&editor, at + position)
     }
 
     /// A run mark beside the first line of every statement, placed from the editor's

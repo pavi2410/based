@@ -61,11 +61,27 @@ impl Tokio {
         Fut: Future<Output = Result<R>> + Send + 'static,
         R: Send + 'static,
     {
+        Self::spawn_try(cx, f, anyhow::Error::from)
+    }
+
+    /// [`Tokio::spawn_result`] for a typed error; `on_panic` turns a crashed
+    /// or cancelled task into one.
+    pub fn spawn_try<C, Fut, R, E>(
+        cx: &C,
+        f: Fut,
+        on_panic: fn(JoinError) -> E,
+    ) -> Task<StdResult<R, E>>
+    where
+        C: AppContext,
+        Fut: Future<Output = StdResult<R, E>> + Send + 'static,
+        R: Send + 'static,
+        E: Send + 'static,
+    {
         cx.read_global(|tokio: &GlobalTokio, cx| {
             let join_handle = tokio.handle.spawn(f);
             let abort = AbortOnDrop(join_handle.abort_handle());
             cx.background_spawn(async move {
-                let result = join_handle.await?;
+                let result = join_handle.await.map_err(on_panic)?;
                 drop(abort);
                 result
             })

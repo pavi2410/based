@@ -46,9 +46,7 @@ impl ConnectionWizardPanel {
                 }
                 Err(e) => {
                     let _ = this.update(cx, |panel, cx| {
-                        panel.status = WizardStatus::ConnectErr(
-                            categorize_connect_error(&e.to_string()).display_message(),
-                        );
+                        panel.status = WizardStatus::ConnectErr(e.display_message());
                         cx.notify();
                     });
                 }
@@ -129,10 +127,10 @@ impl ConnectionWizardPanel {
                     }
                 }
                 Err(e) => {
-                    let msg = categorize_connect_error(&e.to_string()).display_message();
+                    let msg = e.display_message();
                     if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
                         ws.update(cx, |workspace, cx| {
-                            workspace.fail_reconnect(&session_id, msg.clone(), cx);
+                            workspace.fail_reconnect(&session_id, e, cx);
                         });
                     }
                     let _ = this.update(cx, |panel, cx| {
@@ -219,7 +217,7 @@ impl ConnectionWizardPanel {
 
 pub(super) fn apply_test_result(
     this: gpui_kit::WeakEntity<ConnectionWizardPanel>,
-    result: anyhow::Result<TestReport>,
+    result: Result<TestReport, ConnectError>,
     cx: &mut App,
 ) {
     let _ = this.update(cx, |panel, cx| {
@@ -228,9 +226,7 @@ pub(super) fn apply_test_result(
                 latency_ms: report.latency_ms,
                 detail: report.server_version.or(report.message).unwrap_or_default(),
             },
-            Err(e) => {
-                WizardStatus::TestErr(categorize_connect_error(&e.to_string()).display_message())
-            }
+            Err(e) => WizardStatus::TestErr(e.display_message()),
         };
         cx.notify();
     });

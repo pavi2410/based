@@ -21,7 +21,7 @@ use crate::postgres::{PgConnection, PostgresConfig};
 use crate::redis::{RedisConfig, RedisConnection};
 use crate::sqlite::{SqliteConfig, SqliteConnection};
 
-pub use based_core::categorize_connect_error;
+pub use based_core::ConnectError;
 pub use based_core::{ConnectionId, EngineKind};
 
 /// Which based-dir (and sidebar group) a connection belongs to. Derived from the
@@ -96,9 +96,7 @@ pub enum ConnectionState {
     /// In-flight connect is tracked by `Workspace` spawn; this state is UX-only.
     Connecting,
     Connected(AnyConnection),
-    Failed {
-        reason: String,
-    },
+    Failed(ConnectError),
 }
 
 impl ConnectionState {
@@ -107,7 +105,7 @@ impl ConnectionState {
             Self::Disconnected => "disconnected",
             Self::Connecting { .. } => "connecting",
             Self::Connected(_) => "connected",
-            Self::Failed { .. } => "failed",
+            Self::Failed(_) => "failed",
         }
     }
 }
@@ -121,7 +119,6 @@ pub struct ConnectionEntry {
     pub config: ConnectionConfig,
     pub tags: Vec<String>,
     pub state: ConnectionState,
-    pub last_error: Option<String>,
     /// `[ai]` table from the connection file; `None` means never configured (AI off).
     pub ai: ContextLevel,
 }
@@ -139,7 +136,6 @@ impl ConnectionEntry {
             config,
             tags,
             state: ConnectionState::Disconnected,
-            last_error: None,
             ai: ContextLevel::Off,
         }
     }

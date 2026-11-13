@@ -22,7 +22,7 @@ impl Link {
             ConnectionState::Disconnected => Self::Disconnected,
             ConnectionState::Connecting => Self::Connecting,
             ConnectionState::Connected(_) => Self::Connected,
-            ConnectionState::Failed { reason, .. } => Self::Failed(Some(reason.clone())),
+            ConnectionState::Failed(err) => Self::Failed(Some(err.display_message())),
         }
     }
 }
@@ -100,7 +100,7 @@ fn connection_state_dot(state: &ConnectionState, t: &Theme) -> Hsla {
         ConnectionState::Disconnected => t.muted_foreground.opacity(0.75),
         ConnectionState::Connecting => t.warning_foreground,
         ConnectionState::Connected(_) => t.green_light,
-        ConnectionState::Failed { .. } => t.danger_foreground,
+        ConnectionState::Failed(_) => t.danger_foreground,
     }
 }
 

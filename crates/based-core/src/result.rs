@@ -1,5 +1,8 @@
 //! Tabular results shared by every engine, and the outcome of one SQL statement.
 
+use std::error::Error;
+use std::fmt;
+
 use crate::Value;
 
 /// One result column. `type_name` is the server's type name when the engine has
@@ -40,3 +43,29 @@ pub enum SqlOutcome {
     /// A statement that changes data or schema, with the server's affected count.
     Affected(u64),
 }
+
+/// A statement that failed, and where in its text the server says it went wrong.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QueryError {
+    pub message: String,
+    /// Byte offset into the statement text, when the server reports one.
+    pub position: Option<usize>,
+}
+
+impl QueryError {
+    /// An error with no position (timeouts, drivers that don't report one).
+    pub fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            position: None,
+        }
+    }
+}
+
+impl fmt::Display for QueryError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl Error for QueryError {}

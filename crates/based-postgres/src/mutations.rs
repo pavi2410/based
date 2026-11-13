@@ -5,9 +5,10 @@ use sqlx::{
     AssertSqlSafe, Column as SqlxColumn, Either, Executor, PgPool, Row, SqlSafeStr, TypeInfo,
 };
 
-use based_core::{ResultColumn, ResultSet, SqlOutcome};
+use based_core::{QueryError, ResultColumn, ResultSet, SqlOutcome};
 
 use crate::decode::pg_cell;
+use crate::error::query_error;
 
 pub async fn insert_row(
     pool: &PgPool,
@@ -57,7 +58,13 @@ pub async fn delete_row(
 /// `… RETURNING`, set-returning functions, a leading comment …), so nothing here
 /// guesses from the SQL text. When no rows come back, `describe` tells a row
 /// statement with an empty result (its columns) from a write (no columns).
-pub async fn execute_sql(pool: &PgPool, sql: &str) -> Result<SqlOutcome> {
+pub async fn execute_sql(pool: &PgPool, sql: &str) -> Result<SqlOutcome, QueryError> {
+    run_statement(pool, sql)
+        .await
+        .map_err(|e| query_error(e, sql))
+}
+
+async fn run_statement(pool: &PgPool, sql: &str) -> Result<SqlOutcome, sqlx::Error> {
     // One connection for both calls: `describe` must see the same session
     // (temp tables, search_path) the statement just ran in.
     let mut conn = pool.acquire().await?;

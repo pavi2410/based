@@ -259,6 +259,21 @@ fn run_all_stops_at_the_first_failure(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
+fn the_error_highlight_is_in_the_statement_that_failed(cx: &mut TestAppContext) {
+    // `selec` also appears, quoted, in the first statement; only the second fails.
+    let sql = "select 'selec';\nselec nope";
+    let (ed, _ws, _dir) = open_editor(cx, sql, false);
+    ed.panel.update(cx, |p, cx| p.run_all(cx));
+    wait_until(cx, |cx| {
+        let s = ed.snapshot(cx);
+        !s.running && s.error.is_some()
+    });
+    let span = ed.snapshot(cx).error_span.expect("a highlight");
+    assert_eq!(span, 16..21);
+    assert_eq!(&sql[span], "selec");
+}
+
+#[gpui_kit::test]
 fn replacing_the_query_is_undoable_and_marks_the_tab_dirty(cx: &mut TestAppContext) {
     let (ed, ws, _dir) = open_editor(cx, "select 1", false);
     assert!(

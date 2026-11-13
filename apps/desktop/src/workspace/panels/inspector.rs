@@ -26,7 +26,9 @@ pub(crate) fn render_inspector_body(
         let label = entry.label.as_str().to_string();
         let state = entry.state.label().to_string();
         let summary = match &entry.state {
-            ConnectionState::Failed { reason, .. } => notify::error_one_liner(reason).to_string(),
+            ConnectionState::Failed(err) => {
+                notify::error_one_liner(&err.display_message()).to_string()
+            }
             ConnectionState::Connected(_) => "Ready for browsing and queries".to_string(),
             ConnectionState::Connecting => "Opening connection".to_string(),
             ConnectionState::Disconnected => "Click to connect".to_string(),

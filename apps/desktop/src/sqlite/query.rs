@@ -2,7 +2,8 @@
 
 use std::time::Duration;
 
-use based_core::{EngineKind, SqlOutcome};
+use based_core::{EngineKind, QueryError, SqlOutcome};
+use futures::future::BoxFuture;
 use gpui_kit::component::Theme;
 use gpui_kit::{AnyElement, IntoElement as _};
 use sqlx::{AssertSqlSafe, Row, SqlitePool};
@@ -11,6 +12,7 @@ use tokio::time::timeout;
 use super::eqp_parse::{EqpNode, parse_eqp};
 use super::eqp_viewer::render_eqp_body;
 use crate::editor::SchemaCache;
+use crate::editor::error_locate::locate_error;
 use crate::workspace::panels::query_editor::{Explained, Fut, PlanView, QuerySource};
 use crate::workspace::tabs::kind::names;
 
@@ -55,7 +57,11 @@ impl QuerySource for SqliteQuery {
 
     /// Runs every statement in the script: the last row result wins, and with
     /// none, the writes' affected counts add up.
-    fn run(&self, sql: String, timeout_secs: u32) -> Fut<SqlOutcome> {
+    fn run(
+        &self,
+        sql: String,
+        timeout_secs: u32,
+    ) -> BoxFuture<'static, Result<SqlOutcome, QueryError>> {
         let pool = self.pool.clone();
         Box::pin(async move {
             let limit = Duration::from_secs(timeout_secs as u64);
@@ -63,13 +69,25 @@ impl QuerySource for SqliteQuery {
             let mut affected = 0u64;
             let statements = based_query::split_statements(&sql, EngineKind::SQLite);
             for (i, stmt) in statements.into_iter().enumerate() {
-                let run = based_sqlite::execute_sql(&pool, &sql[stmt]);
+                let run = based_sqlite::execute_sql(&pool, &sql[stmt.clone()]);
                 match timeout(limit, run).await {
-                    Err(_) => anyhow::bail!(
-                        "Query timed out after {timeout_secs}s (statement {})",
-                        i + 1
-                    ),
-                    Ok(Err(e)) => anyhow::bail!("Statement {} failed: {e}", i + 1),
+                    Err(_) => {
+                        return Err(QueryError::new(format!(
+                            "Query timed out after {timeout_secs}s (statement {})",
+                            i + 1
+                        )));
+                    }
+                    Ok(Err(e)) => {
+                        // SQLite reports no position; the `near "…"` token it names,
+                        // looked up inside the statement that failed, is the best guess.
+                        let message = e.to_string();
+                        let position = locate_error(&sql[stmt.clone()], &message)
+                            .map(|r| stmt.start + r.start);
+                        return Err(QueryError {
+                            message: format!("Statement {} failed: {message}", i + 1),
+                            position,
+                        });
+                    }
                     Ok(Ok(SqlOutcome::Rows(set))) => rows = Some(set),
                     Ok(Ok(SqlOutcome::Affected(n))) => affected += n,
                 }

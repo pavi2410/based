@@ -281,7 +281,6 @@ fn disconnect_matching(
             {
                 close_any_connection(ac, cx);
             }
-            entry.last_error = None;
             cx.notify();
         });
     }

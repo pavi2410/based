@@ -15,6 +15,19 @@ pub fn locate_error(sql: &str, error: &str) -> Option<Range<usize>> {
     Some(start..start + token.len())
 }
 
+/// The token starting at byte `offset`: a run of word characters, else one character.
+pub fn token_at(sql: &str, offset: usize) -> Option<Range<usize>> {
+    let rest = sql.get(offset..)?;
+    let is_word = |c: char| c.is_alphanumeric() || c == '_';
+    let first = rest.chars().next()?;
+    let len = if is_word(first) {
+        rest.find(|c: char| !is_word(c)).unwrap_or(rest.len())
+    } else {
+        first.len_utf8()
+    };
+    Some(offset..offset + len)
+}
+
 fn quoted_after<'a>(text: &'a str, marker: &str) -> Option<&'a str> {
     let rest = &text[text.find(marker)? + marker.len()..];
     Some(&rest[..rest.find('"')?])
@@ -44,7 +57,15 @@ pub fn line_col(sql: &str, offset: usize) -> (usize, usize) {
 
 #[cfg(test)]
 mod tests {
-    use super::{line_col, locate_error};
+    use super::{line_col, locate_error, token_at};
+
+    #[test]
+    fn token_at_takes_a_word_or_one_character() {
+        let sql = "select * from nope_é";
+        assert_eq!(token_at(sql, 14), Some(14..sql.len()));
+        assert_eq!(token_at(sql, 7), Some(7..8));
+        assert_eq!(token_at(sql, sql.len()), None);
+    }
 
     #[test]
     fn finds_the_token_a_postgres_error_names() {

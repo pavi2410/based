@@ -1,6 +1,7 @@
 //! Read-only view of a query editor's results, for tests and inspection.
 
 use gpui_kit::App;
+use std::ops::Range;
 
 use super::query_editor::{QueryEditorPanel, QueryStatus};
 use crate::widgets::virtual_table::display_rows;
@@ -12,6 +13,8 @@ pub struct ResultSnapshot {
     pub rows: Vec<Vec<String>>,
     pub running: bool,
     pub error: Option<String>,
+    /// The editor text the error points at.
+    pub error_span: Option<Range<usize>>,
     /// How many result sets the last run produced.
     pub result_count: usize,
     /// Which of them the grid shows.
@@ -31,6 +34,7 @@ impl QueryEditorPanel {
                 QueryStatus::Error { message, .. } => Some(message.clone()),
                 _ => None,
             },
+            error_span: self.status.error_span(),
         }
     }
 }

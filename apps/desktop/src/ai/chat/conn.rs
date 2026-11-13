@@ -106,12 +106,11 @@ impl ChatPane {
             ConnectionState::Connecting => {
                 return Task::ready(ToolResult::err("still connecting; try again shortly"));
             }
-            ConnectionState::Disconnected | ConnectionState::Failed { .. } => {}
+            ConnectionState::Disconnected | ConnectionState::Failed(_) => {}
         }
         let config = entry.read(cx).config.clone();
         entry.update(cx, |e, cx| {
             e.state = ConnectionState::Connecting;
-            e.last_error = None;
             cx.notify();
         });
         let open = open_connection(config, cx);
@@ -124,12 +123,10 @@ impl ChatPane {
                         None
                     }
                     Err(err) => {
-                        e.state = ConnectionState::Failed {
-                            reason: err.to_string(),
-                        };
-                        e.last_error = Some(err.to_string());
+                        let message = err.to_string();
+                        e.state = ConnectionState::Failed(err);
                         ecx.notify();
-                        Some(format!("{err:#}"))
+                        Some(message)
                     }
                 })
             });

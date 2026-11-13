@@ -105,7 +105,6 @@ impl ConnectionTree {
         let conn_id = ent.read(cx).id.clone();
         let old = ent.update(cx, |e, cx| {
             e.config = config.clone();
-            e.last_error = None;
             cx.notify();
             mem::replace(&mut e.state, ConnectionState::Connecting)
         });

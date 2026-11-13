@@ -1,7 +1,7 @@
 use gpui_kit::{App, Context, Entity, Window};
 
 use crate::connection::{
-    ConnectionEntry, ConnectionState, EngineKind, OpenedConnection, open_connection,
+    ConnectError, ConnectionEntry, ConnectionState, EngineKind, OpenedConnection, open_connection,
     opened_into_any,
 };
 
@@ -31,14 +31,13 @@ impl ConnectionTree {
                 cx.notify();
                 return;
             }
-            ConnectionState::Disconnected | ConnectionState::Failed { .. } => {}
+            ConnectionState::Disconnected | ConnectionState::Failed(_) => {}
         }
 
         let config = conn_ent.read(cx).config.clone();
         self.bump_object_list_epoch(cx);
         conn_ent.update(cx, |e, cx| {
             e.state = ConnectionState::Connecting;
-            e.last_error = None;
             cx.notify();
         });
         cx.notify();
@@ -68,7 +67,7 @@ impl ConnectionTree {
 }
 
 pub(super) fn finish_connection_open(
-    result: anyhow::Result<OpenedConnection>,
+    result: Result<OpenedConnection, ConnectError>,
     conn_ent: Entity<ConnectionEntry>,
     tree: Entity<ConnectionTree>,
     idx_for_pending: usize,
@@ -89,10 +88,7 @@ pub(super) fn finish_connection_open(
                     conn_engine.short_label(),
                     err
                 );
-                entry.state = ConnectionState::Failed {
-                    reason: err.to_string(),
-                };
-                entry.last_error = Some(err.to_string());
+                entry.state = ConnectionState::Failed(err.clone());
                 tray_fail = Some((
                     conn_label.clone(),
                     conn_engine.short_label().to_string(),

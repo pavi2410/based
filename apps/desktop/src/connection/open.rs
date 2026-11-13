@@ -1,3 +1,5 @@
+use based_core::ConnectError;
+
 use crate::db::Tokio;
 use gpui_kit::{App, AppContext, Task};
 
@@ -20,29 +22,39 @@ pub enum OpenedConnection {
 pub fn open_connection(
     config: ConnectionConfig,
     cx: &mut App,
-) -> Task<anyhow::Result<OpenedConnection>> {
+) -> Task<Result<OpenedConnection, ConnectError>> {
     match config {
         ConnectionConfig::SQLite(cfg) => {
             let task = SqliteConnection::open(cfg, cx);
-            Tokio::spawn_result(cx, async move { Ok(OpenedConnection::Sqlite(task.await?)) })
+            Tokio::spawn_try(
+                cx,
+                async move { Ok(OpenedConnection::Sqlite(task.await?)) },
+                ConnectError::internal,
+            )
         }
         ConnectionConfig::Postgres(cfg) => {
             let task = PgConnection::open(cfg, cx);
-            Tokio::spawn_result(
+            Tokio::spawn_try(
                 cx,
                 async move { Ok(OpenedConnection::Postgres(task.await?)) },
+                ConnectError::internal,
             )
         }
         ConnectionConfig::MongoDB(cfg) => {
             let task = MongoConnection::open(cfg, cx);
-            Tokio::spawn_result(
+            Tokio::spawn_try(
                 cx,
                 async move { Ok(OpenedConnection::MongoDB(task.await?)) },
+                ConnectError::internal,
             )
         }
         ConnectionConfig::Redis(cfg) => {
             let task = RedisConnection::open(cfg, cx);
-            Tokio::spawn_result(cx, async move { Ok(OpenedConnection::Redis(task.await?)) })
+            Tokio::spawn_try(
+                cx,
+                async move { Ok(OpenedConnection::Redis(task.await?)) },
+                ConnectError::internal,
+            )
         }
     }
 }

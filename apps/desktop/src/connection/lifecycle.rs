@@ -2,6 +2,7 @@
 // Covers open / test / close lifecycle ONLY.
 // Tab content reaches into engine-specific APIs directly.
 
+use based_core::ConnectError;
 use gpui_kit::{App, Task};
 
 #[derive(Debug, Clone)]
@@ -14,6 +15,6 @@ pub struct TestReport {
 pub trait Connectable: 'static + Sized {
     type Config: Clone + Send + 'static;
 
-    fn open(config: Self::Config, cx: &mut App) -> Task<anyhow::Result<Self>>;
-    fn test(config: &Self::Config, cx: &mut App) -> Task<anyhow::Result<TestReport>>;
+    fn open(config: Self::Config, cx: &mut App) -> Task<Result<Self, ConnectError>>;
+    fn test(config: &Self::Config, cx: &mut App) -> Task<Result<TestReport, ConnectError>>;
 }

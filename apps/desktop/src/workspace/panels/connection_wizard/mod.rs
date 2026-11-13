@@ -28,8 +28,8 @@ use based_core::{SshEndpoint, SshTunnelConfig};
 use crate::app::prefs;
 use crate::connection::Environment;
 use crate::connection::{
-    ConnectionConfig, ConnectionDraft, ConnectionEntry, ConnectionId, EngineKind, OpenedConnection,
-    categorize_connect_error,
+    ConnectError, ConnectionConfig, ConnectionDraft, ConnectionEntry, ConnectionId, EngineKind,
+    OpenedConnection,
     lifecycle::{Connectable, TestReport},
     open_connection,
 };

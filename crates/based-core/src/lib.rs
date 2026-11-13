@@ -16,16 +16,14 @@ pub mod value;
 
 pub use ai::ContextLevel;
 pub use catalog::{DbColumn, DbObject, ObjectKind, Relation};
-pub use connection_error::{
-    ConnectionErrorCategory, ConnectionErrorDetail, categorize_connect_error,
-};
+pub use connection_error::{ConnectError, ConnectionErrorCategory};
 pub use connection_id::{ConnectionId, ConnectionKey, ConnectionScope};
 pub use engine::{EngineKind, UnknownEngine};
 pub use object::ObjectRef;
 pub use page::{
     ColumnCatalog, ColumnMeta, FkTarget, Grid, RawPage, TableExtra, TableInfo, quote_ident,
 };
-pub use result::{ResultColumn, ResultSet, SqlOutcome};
+pub use result::{QueryError, ResultColumn, ResultSet, SqlOutcome};
 pub use secret::Secret;
 pub use session::{PersistedConnection, WorkspaceState};
 pub use ssh::{SshEndpoint, SshTunnelConfig};

@@ -13,6 +13,7 @@ use based_redis::{Conn, connect, ping, redis_cli_command, redis_url, server_vers
 
 use crate::connection::lifecycle::{Connectable, TestReport};
 use crate::db::Tokio;
+use based_core::ConnectError;
 
 /// Live Redis connection: an auto-reconnecting manager bound to the URL's DB index.
 pub struct RedisConnection {
@@ -38,28 +39,36 @@ pub fn redis_cli(config: &RedisConfig, include_password: bool) -> String {
 impl Connectable for RedisConnection {
     type Config = RedisConfig;
 
-    fn open(config: Self::Config, cx: &mut App) -> Task<anyhow::Result<Self>> {
-        Tokio::spawn_result(cx, async move {
-            let mut conn = connect(&config.url).await?;
-            let server_version = server_version(&mut conn).await;
-            Ok(Self {
-                server_version,
-                conn,
-            })
-        })
+    fn open(config: Self::Config, cx: &mut App) -> Task<Result<Self, ConnectError>> {
+        Tokio::spawn_try(
+            cx,
+            async move {
+                let mut conn = connect(&config.url).await?;
+                let server_version = server_version(&mut conn).await;
+                Ok(Self {
+                    server_version,
+                    conn,
+                })
+            },
+            ConnectError::internal,
+        )
     }
 
-    fn test(config: &Self::Config, cx: &mut App) -> Task<anyhow::Result<TestReport>> {
+    fn test(config: &Self::Config, cx: &mut App) -> Task<Result<TestReport, ConnectError>> {
         let url = config.url.clone();
-        Tokio::spawn_result(cx, async move {
-            let start = Instant::now();
-            let mut conn = connect(&url).await?;
-            ping(&mut conn).await?;
-            Ok(TestReport {
-                latency_ms: start.elapsed().as_millis() as u64,
-                server_version: server_version(&mut conn).await,
-                message: Some("ping ok".into()),
-            })
-        })
+        Tokio::spawn_try(
+            cx,
+            async move {
+                let start = Instant::now();
+                let mut conn = connect(&url).await?;
+                ping(&mut conn).await?;
+                Ok(TestReport {
+                    latency_ms: start.elapsed().as_millis() as u64,
+                    server_version: server_version(&mut conn).await,
+                    message: Some("ping ok".into()),
+                })
+            },
+            ConnectError::internal,
+        )
     }
 }

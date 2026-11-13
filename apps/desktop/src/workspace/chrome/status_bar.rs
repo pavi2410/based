@@ -42,7 +42,7 @@ impl StatusBarConnection {
                 ConnectionState::Disconnected => cx.theme().muted_foreground.opacity(0.75),
                 ConnectionState::Connecting => cx.theme().warning_foreground,
                 ConnectionState::Connected(_) => cx.theme().green_light,
-                ConnectionState::Failed { .. } => cx.theme().danger_foreground,
+                ConnectionState::Failed(_) => cx.theme().danger_foreground,
             },
             muted,
         }

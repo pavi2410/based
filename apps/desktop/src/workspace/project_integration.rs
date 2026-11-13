@@ -10,8 +10,8 @@ use gpui_kit::Context;
 use crate::app::paths::AppPaths;
 use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{
-    ConnectionConfig, ConnectionDraft, ConnectionEntry, ConnectionId, ConnectionOrigin,
-    ConnectionState, OpenedConnection, close_any_connection, opened_into_any,
+    ConnectError, ConnectionConfig, ConnectionDraft, ConnectionEntry, ConnectionId,
+    ConnectionOrigin, ConnectionState, OpenedConnection, close_any_connection, opened_into_any,
 };
 use crate::project::ProjectContext;
 use crate::project::loader::entry_from_tree;
@@ -103,7 +103,7 @@ impl Workspace {
     }
 
     /// Persist succeeded but reconnect failed — drop the stale live session.
-    pub fn fail_reconnect(&mut self, id: &ConnectionId, reason: String, cx: &mut Context<Self>) {
+    pub fn fail_reconnect(&mut self, id: &ConnectionId, err: ConnectError, cx: &mut Context<Self>) {
         self.registry.update(cx, |reg, cx| {
             let Some(existing) = reg.get(id, cx).cloned() else {
                 return;
@@ -114,10 +114,7 @@ impl Workspace {
                 {
                     close_any_connection(ac, cx);
                 }
-                e.state = ConnectionState::Failed {
-                    reason: reason.clone(),
-                };
-                e.last_error = Some(reason);
+                e.state = ConnectionState::Failed(err.clone());
                 cx.notify();
             });
         });
@@ -287,7 +284,6 @@ impl Workspace {
                             close_any_connection(ac, cx);
                         }
                     }
-                    e.last_error = None;
                     cx.notify();
                 });
             } else {

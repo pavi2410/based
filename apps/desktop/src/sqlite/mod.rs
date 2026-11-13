@@ -18,6 +18,8 @@ pub use based_sqlite::{
     sqlite_uri, sqlite3_command,
 };
 
+use based_core::ConnectError;
+use based_sqlite::connect_error;
 use sqlx::{AssertSqlSafe, SqlitePool};
 
 use crate::connection::lifecycle::{Connectable, TestReport};
@@ -40,52 +42,63 @@ pub struct SqliteConnection {
     pub server_version: Option<String>,
 }
 
+/// Open a pool on `path` and read the SQLite version.
+async fn open_pool(path: &Path, read_only: bool) -> Result<(SqlitePool, String), ConnectError> {
+    let pool = SqlitePool::connect_with(sqlite_connect_options(&SqliteOpenOptions {
+        path,
+        read_only,
+    }))
+    .await
+    .map_err(connect_error)?;
+    let version: String = sqlx::query_scalar("SELECT sqlite_version()")
+        .fetch_one(&pool)
+        .await
+        .map_err(connect_error)?;
+    Ok((pool, version))
+}
+
 impl Connectable for SqliteConnection {
     type Config = SqliteConfig;
 
-    fn open(config: Self::Config, cx: &mut App) -> Task<anyhow::Result<Self>> {
+    fn open(config: Self::Config, cx: &mut App) -> Task<Result<Self, ConnectError>> {
         let path = resolve_sqlite_path(&config.path, cx);
-        Tokio::spawn_result(cx, async move {
-            let pool = SqlitePool::connect_with(sqlite_connect_options(&SqliteOpenOptions {
-                path: &path,
-                read_only: config.read_only,
-            }))
-            .await?;
-            apply_sqlite_pragmas(&pool, &config).await?;
-            let version: String = sqlx::query_scalar("SELECT sqlite_version()")
-                .fetch_one(&pool)
-                .await?;
-            Ok(Self {
-                pool,
-                server_version: Some(version),
-            })
-        })
+        Tokio::spawn_try(
+            cx,
+            async move {
+                let (pool, version) = open_pool(&path, config.read_only).await?;
+                apply_sqlite_pragmas(&pool, &config)
+                    .await
+                    .map_err(connect_error)?;
+                Ok(Self {
+                    pool,
+                    server_version: Some(version),
+                })
+            },
+            ConnectError::internal,
+        )
     }
 
-    fn test(config: &Self::Config, cx: &mut App) -> Task<anyhow::Result<TestReport>> {
+    fn test(config: &Self::Config, cx: &mut App) -> Task<Result<TestReport, ConnectError>> {
         let config = config.clone();
         let path = resolve_sqlite_path(&config.path, cx);
-        Tokio::spawn_result(cx, async move {
-            let start = Instant::now();
-            let pool = SqlitePool::connect_with(sqlite_connect_options(&SqliteOpenOptions {
-                path: &path,
-                read_only: config.read_only,
-            }))
-            .await?;
-            let version: String = sqlx::query_scalar("SELECT sqlite_version()")
-                .fetch_one(&pool)
-                .await?;
-            pool.close().await;
-            Ok(TestReport {
-                latency_ms: start.elapsed().as_millis() as u64,
-                server_version: Some(version),
-                message: None,
-            })
-        })
+        Tokio::spawn_try(
+            cx,
+            async move {
+                let start = Instant::now();
+                let (pool, version) = open_pool(&path, config.read_only).await?;
+                pool.close().await;
+                Ok(TestReport {
+                    latency_ms: start.elapsed().as_millis() as u64,
+                    server_version: Some(version),
+                    message: None,
+                })
+            },
+            ConnectError::internal,
+        )
     }
 }
 
-async fn apply_sqlite_pragmas(pool: &SqlitePool, config: &SqliteConfig) -> anyhow::Result<()> {
+async fn apply_sqlite_pragmas(pool: &SqlitePool, config: &SqliteConfig) -> Result<(), sqlx::Error> {
     if let Some(p) = &config.pragma {
         if !config.read_only {
             sqlx::query(AssertSqlSafe(p.journal_mode.pragma()))

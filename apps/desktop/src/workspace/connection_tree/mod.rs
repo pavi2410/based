@@ -222,7 +222,6 @@ impl ConnectionTree {
             {
                 close_any_connection(ac, cx);
             }
-            e.last_error = None;
             cx.notify();
         });
         cx.notify();

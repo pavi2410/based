@@ -2,6 +2,7 @@
 
 pub mod client;
 pub mod config;
+mod error;
 pub mod mutations;
 mod objects;
 pub mod value;
@@ -10,6 +11,7 @@ pub use client::{
     apply_auth_source, parse_client_options, resolve_database_name, test_database_name,
 };
 pub use config::{MongoConfig, mongo_uri, mongosh_command};
+pub use error::connect_error;
 pub use mutations::{delete_by_id, document_from_json, replace_by_id, update_fields_by_id};
 pub use objects::list_collections;
 pub use value::{bson_to_value, documents_to_result_set};

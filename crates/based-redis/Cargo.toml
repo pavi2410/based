@@ -8,11 +8,12 @@ publish = false
 
 [dependencies]
 anyhow = { workspace = true }
+based-core = { path = "../based-core" }
 redis = { workspace = true }
 serde = { workspace = true }
 
 [dev-dependencies]
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]
 workspace = true

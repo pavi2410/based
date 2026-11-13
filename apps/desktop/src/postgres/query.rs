@@ -2,7 +2,8 @@
 
 use std::time::Duration;
 
-use based_core::{EngineKind, SqlOutcome};
+use based_core::{EngineKind, QueryError, SqlOutcome};
+use futures::future::BoxFuture;
 use gpui_kit::component::{Theme, scroll::ScrollableElement as _};
 use gpui_kit::{
     AnyElement, InteractiveElement as _, IntoElement as _, ParentElement as _, Styled as _, div, px,
@@ -60,13 +61,17 @@ impl QuerySource for PgQuery {
         }))
     }
 
-    fn run(&self, sql: String, timeout_secs: u32) -> Fut<SqlOutcome> {
+    fn run(
+        &self,
+        sql: String,
+        timeout_secs: u32,
+    ) -> BoxFuture<'static, Result<SqlOutcome, QueryError>> {
         let pool = self.pool.clone();
         Box::pin(async move {
             let limit = Duration::from_secs(timeout_secs as u64);
             timeout(limit, based_postgres::execute_sql(&pool, &sql))
                 .await
-                .map_err(|_| anyhow::anyhow!("Query timed out after {timeout_secs}s"))?
+                .map_err(|_| QueryError::new(format!("Query timed out after {timeout_secs}s")))?
         })
     }
 

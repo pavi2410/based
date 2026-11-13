@@ -560,3 +560,33 @@ fn cancelling_a_card_run_leaves_later_runs_writable(cx: &mut TestAppContext) {
     let s = card.finished_or_idle(cx);
     assert!(s.error.is_none(), "unexpected error: {:?}", s.error);
 }
+
+#[gpui_kit::test]
+fn the_gutter_marks_the_statement_run_will_execute(cx: &mut TestAppContext) {
+    let (editor, _ws, _dir) = open_editor(cx, "select 1", false);
+    // The cursor sits at the start, in the first of two statements.
+    editor.set_sql("select 1;\nselect 2;", cx);
+    cx.update_window(editor.win, |_, window, cx| window.render_frame(cx))
+        .unwrap();
+    let marks = editor.panel.read_with(cx, |p, _| p.gutter_snapshot());
+    assert_eq!(
+        marks,
+        ["run 0..8"],
+        "only the first statement, not the whole editor"
+    );
+}
+
+#[gpui_kit::test]
+fn the_gutter_marks_the_error_line(cx: &mut TestAppContext) {
+    // A syntax error: SQLite names the token, so the error has a place.
+    let (editor, _ws, _dir) = open_editor(cx, "select * frm t", false);
+    editor.click("sqlite-run", cx);
+    editor.finished(cx);
+    cx.update_window(editor.win, |_, window, cx| window.render_frame(cx))
+        .unwrap();
+    let marks = editor.panel.read_with(cx, |p, _| p.gutter_snapshot());
+    assert!(
+        marks.iter().any(|m| m.starts_with("error ")),
+        "expected an error mark, got {marks:?}"
+    );
+}

@@ -19,7 +19,9 @@ use gpui_kit::component::{
     dialog::{DialogAction, DialogClose, DialogFooter},
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
-    input::{EditorState, Input, InputEvent, RopeExt as _},
+    input::{
+        EditorState, GutterDecoration, GutterDecorationCollection, Input, InputEvent, RopeExt as _,
+    },
     menu::{DropdownMenu as _, PopupMenu, PopupMenuItem},
     resizable::{ResizableState, resizable_panel, v_resizable},
     table::{Column, TableState},
@@ -197,6 +199,10 @@ pub struct QueryEditorPanel {
     pub(super) source: Arc<dyn QuerySource>,
     pub(super) conn_id: ConnectionId,
     pub(super) sql_input: Entity<EditorState>,
+    /// Gutter bars: the text Run will execute, and the line of the last error.
+    gutter: GutterDecorationCollection,
+    /// What the gutter shows now, so it is only rewritten when that changes.
+    gutter_marks: Vec<GutterMark>,
     pub(super) schema: Arc<SchemaCache>,
     lint_seq: u64,
     pub(super) result: Entity<TableState<RowDelegate>>,
@@ -237,6 +243,10 @@ impl QueryEditorPanel {
         let source_engine = source.engine();
         let sql = initial_sql.unwrap_or_else(|| source.default_sql().to_string());
         let sql_input = new_sql_input(&sql, window, cx);
+        let gutter = sql_input.update(cx, |state, cx| {
+            state.set_gutter_decorations_width(px(3.0), cx);
+            state.create_gutter_decorations_collection(Vec::new(), cx)
+        });
         let result = cx.new(|cx| configure_row_table(RowDelegate::default(), window, cx));
         let split_state = cx.new(|_| ResizableState::default());
         let panel = Self {
@@ -244,6 +254,8 @@ impl QueryEditorPanel {
             source,
             conn_id,
             sql_input: sql_input.clone(),
+            gutter,
+            gutter_marks: Vec::new(),
             schema: Arc::new(SchemaCache::new(source_engine)),
             lint_seq: 0,
             result,
@@ -499,5 +511,54 @@ impl Panel for QueryEditorPanel {
 impl PopOutWindowTitle for QueryEditorPanel {
     fn pop_out_window_title(&mut self, _: &mut Window, _: &mut App) -> String {
         "Query".into()
+    }
+}
+
+/// One bar in the editor gutter.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum GutterMark {
+    /// The statement or selection Run executes, when it is not the whole editor.
+    RunRange(Range<usize>),
+    /// The text the last database error points at.
+    Error(Range<usize>),
+}
+
+impl QueryEditorPanel {
+    /// Bring the gutter in line with the run range and the last error. Cheap when
+    /// nothing changed, so render can call it.
+    pub(super) fn sync_gutter(&mut self, cx: &mut Context<Self>) {
+        let mut marks = Vec::new();
+        let len = self.sql_input.read(cx).value().len();
+        let run = self.run_range(cx);
+        if !self.status.is_running() && run != (0..len) {
+            marks.push(GutterMark::RunRange(run));
+        }
+        if let Some(span) = self.status.error_span() {
+            marks.push(GutterMark::Error(span));
+        }
+        if marks == self.gutter_marks {
+            return;
+        }
+        let theme = cx.theme();
+        let (accent, danger) = (theme.primary.opacity(0.55), theme.danger);
+        let decorations = marks
+            .iter()
+            .map(|m| match m {
+                GutterMark::RunRange(r) => GutterDecoration::new(r.clone()).with_color(accent),
+                GutterMark::Error(r) => GutterDecoration::new(r.clone()).with_color(danger),
+            })
+            .collect();
+        self.gutter.set(decorations, cx);
+        self.gutter_marks = marks;
+    }
+    /// The gutter bars as `run a..b` / `error a..b`, for tests.
+    pub fn gutter_snapshot(&self) -> Vec<String> {
+        self.gutter_marks
+            .iter()
+            .map(|m| match m {
+                GutterMark::RunRange(r) => format!("run {}..{}", r.start, r.end),
+                GutterMark::Error(r) => format!("error {}..{}", r.start, r.end),
+            })
+            .collect()
     }
 }

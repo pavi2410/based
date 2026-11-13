@@ -506,6 +506,7 @@ pub(super) fn hint(text: impl Into<SharedString>, muted: Hsla) -> AnyElement {
 
 impl Render for QueryEditorPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.sync_gutter(cx);
         let id = self.source.id();
         let has_error = matches!(self.status, QueryStatus::Error { .. });
         let toolbar = self.render_toolbar(cx);

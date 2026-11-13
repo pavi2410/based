@@ -14,14 +14,20 @@ use std::process;
 
 use crate::project::loader::SkippedConnection;
 
-/// Push a notification on the **active** window’s `Root`. No-op if there is no active window.
-pub fn push_notification(app: &mut App, note: Notification) {
-    let Some(handle) = app.active_window() else {
-        return;
+/// Push a notification on the active window’s `Root`, or on the first open window
+/// while Based is in the background. Returns whether a window took it.
+pub fn push_notification(app: &mut App, note: Notification) -> bool {
+    let Some(handle) = app
+        .active_window()
+        .or_else(|| app.windows().into_iter().next())
+    else {
+        return false;
     };
-    let _ = handle.update(app, |_root, window, app| {
-        window.push_notification(note, app);
-    });
+    handle
+        .update(app, |_root, window, app| {
+            window.push_notification(note, app);
+        })
+        .is_ok()
 }
 
 pub fn push_error(app: &mut App, title: impl Into<SharedString>, message: impl Into<SharedString>) {
@@ -132,7 +138,8 @@ struct SkippedNoticeSeen(HashMap<PathBuf, Vec<SkippedConnection>>);
 impl Global for SkippedNoticeSeen {}
 
 /// A notice for connection files in `based_dir` that did not load, or `None` when
-/// there is nothing new to say (none skipped, or the same set as last time).
+/// there is nothing new to say (none skipped, or the same set as last shown).
+/// Call [`remember_skipped_notice`] once it is on screen.
 pub fn skipped_connections_notice(
     app: &mut App,
     based_dir: &Path,
@@ -142,8 +149,8 @@ pub fn skipped_connections_notice(
     if seen.get(based_dir).map(Vec::as_slice).unwrap_or_default() == skipped {
         return None;
     }
-    seen.insert(based_dir.to_path_buf(), skipped.to_vec());
     if skipped.is_empty() {
+        seen.remove(based_dir);
         return None;
     }
 
@@ -184,6 +191,13 @@ pub fn skipped_connections_notice(
         });
     }
     Some(note)
+}
+
+/// Record that the notice for this set was shown, so an unchanged reload stays quiet.
+pub fn remember_skipped_notice(app: &mut App, based_dir: &Path, skipped: &[SkippedConnection]) {
+    app.default_global::<SkippedNoticeSeen>()
+        .0
+        .insert(based_dir.to_path_buf(), skipped.to_vec());
 }
 
 /// Open the based-dir `.env` in the system editor, creating it empty if missing.

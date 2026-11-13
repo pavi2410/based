@@ -168,6 +168,7 @@ impl Workspace {
             for (based_dir, skipped) in skipped {
                 if let Some(note) = notify::skipped_connections_notice(cx, &based_dir, &skipped) {
                     window.push_notification(note, cx);
+                    notify::remember_skipped_notice(cx, &based_dir, &skipped);
                 }
             }
         });

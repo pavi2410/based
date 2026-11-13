@@ -7,8 +7,9 @@ use based_desktop::connection::ConnectionOrigin;
 use based_desktop::project::loader::SkippedConnection;
 use based_desktop::workspace::Workspace;
 use based_desktop::workspace::boot::WorkspaceEnv;
-use based_desktop::workspace::notify::skipped_connections_notice;
-use gpui_kit::{Entity, TestAppContext};
+use based_desktop::workspace::notify::{remember_skipped_notice, skipped_connections_notice};
+use gpui_kit::component::WindowExt as _;
+use gpui_kit::{AnyWindowHandle, AppContext as _, Entity, TestAppContext};
 
 use crate::common::{no_project_env, open_project, open_with, open_workspace, settle};
 
@@ -71,6 +72,11 @@ fn skipped_connections_notice_shows_once_per_change(cx: &mut TestAppContext) {
     cx.update(|cx| {
         assert!(skipped_connections_notice(cx, dir, &missing).is_some());
         assert!(
+            skipped_connections_notice(cx, dir, &missing).is_some(),
+            "not shown yet (no window took it): still pending"
+        );
+        remember_skipped_notice(cx, dir, &missing);
+        assert!(
             skipped_connections_notice(cx, dir, &missing).is_none(),
             "a reload with the same problem stays quiet"
         );
@@ -83,4 +89,36 @@ fn skipped_connections_notice_shows_once_per_change(cx: &mut TestAppContext) {
             "broken again: say so again"
         );
     });
+}
+
+fn notice_count(win: AnyWindowHandle, cx: &mut TestAppContext) -> usize {
+    cx.update_window(win, |_, window, cx| window.notifications(cx).len())
+        .unwrap()
+}
+
+#[gpui_kit::test]
+fn clean_startup_shows_no_notice(cx: &mut TestAppContext) {
+    let project = tempfile::tempdir().unwrap();
+    write_connection(&project.path().join(".based"), "demo");
+    let (win, _ws) = open_project(cx, project.path());
+    settle(cx);
+    assert_eq!(notice_count(win, cx), 0);
+}
+
+#[gpui_kit::test]
+fn startup_names_connections_missing_a_secret(cx: &mut TestAppContext) {
+    let project = tempfile::tempdir().unwrap();
+    let dir = project.path().join(".based").join("connections");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(
+        dir.join("prod.toml"),
+        "schema_version = 1\nlabel = \"Prod\"\nengine = \"postgres\"\nhost = \"db\"\n\
+         database = \"app\"\nusername = \"app\"\n\
+         password = { env = \"BASED_UI_TEST_MISSING_SECRET\" }\n",
+    )
+    .unwrap();
+    let (win, ws) = open_project(cx, project.path());
+    settle(cx);
+    assert!(origins(&ws, cx).is_empty());
+    assert_eq!(notice_count(win, cx), 1);
 }

@@ -71,8 +71,10 @@ pub fn reload_from_disk(project_root: &Path, registry: &Entity<ConnectionRegistr
     registry.update(cx, |reg, cx| {
         reg.sync_origin_entries(ConnectionOrigin::Project, loaded.entries, cx);
     });
-    if let Some(note) = toast::skipped_connections_notice(cx, &based_dir, &loaded.skipped) {
-        toast::push_notification(cx, note);
+    if let Some(note) = toast::skipped_connections_notice(cx, &based_dir, &loaded.skipped)
+        && toast::push_notification(cx, note)
+    {
+        toast::remember_skipped_notice(cx, &based_dir, &loaded.skipped);
     }
 
     cx.set_global(ctx.clone());

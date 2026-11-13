@@ -6,9 +6,13 @@ use gpui_kit::component::{
     h_flex,
     notification::Notification,
 };
-use gpui_kit::{App, IntoElement, SharedString, prelude::*, px};
-use std::path::Path;
+use gpui_kit::{App, Global, IntoElement, SharedString, prelude::*, px};
+use std::collections::HashMap;
+use std::fs::OpenOptions;
+use std::path::{Path, PathBuf};
 use std::process;
+
+use crate::project::loader::SkippedConnection;
 
 /// Push a notification on the **active** window’s `Root`. No-op if there is no active window.
 pub fn push_notification(app: &mut App, note: Notification) {
@@ -118,6 +122,77 @@ pub fn push_export_success(app: &mut App, path: &Path) {
         });
 
     push_notification(app, note);
+}
+
+/// Last skipped-connections notice per based-dir, so a reload that changes
+/// nothing does not repeat it.
+#[derive(Default)]
+struct SkippedNoticeSeen(HashMap<PathBuf, Vec<SkippedConnection>>);
+
+impl Global for SkippedNoticeSeen {}
+
+/// A notice for connection files in `based_dir` that did not load, or `None` when
+/// there is nothing new to say (none skipped, or the same set as last time).
+pub fn skipped_connections_notice(
+    app: &mut App,
+    based_dir: &Path,
+    skipped: &[SkippedConnection],
+) -> Option<Notification> {
+    let seen = &mut app.default_global::<SkippedNoticeSeen>().0;
+    if seen.get(based_dir).map(Vec::as_slice).unwrap_or_default() == skipped {
+        return None;
+    }
+    seen.insert(based_dir.to_path_buf(), skipped.to_vec());
+    if skipped.is_empty() {
+        return None;
+    }
+
+    let lines: Vec<String> = skipped
+        .iter()
+        .map(|s| match &s.missing_var {
+            Some(var) => format!("• {} — needs {var}", s.id),
+            None => format!("• {} — {}", s.id, error_one_liner(&s.reason)),
+        })
+        .collect();
+    let needs_secret = skipped.iter().any(|s| s.missing_var.is_some());
+    let env_path = based_dir.join(".env");
+    let mut message = lines.join("\n");
+    if needs_secret {
+        message.push_str(&format!(
+            "\n\nAdd the missing values to {}.",
+            env_path.display()
+        ));
+    }
+    let title = match skipped.len() {
+        1 => "1 connection didn't load".to_string(),
+        n => format!("{n} connections didn't load"),
+    };
+    let mut note = Notification::warning(message).title(title).autohide(false);
+    if needs_secret {
+        note = note.content(move |_, _, _| {
+            let env_path = env_path.clone();
+            h_flex()
+                .pt(px(4.0))
+                .child(
+                    Button::new("skipped-open-env")
+                        .ghost()
+                        .small()
+                        .label("Open .env")
+                        .on_click(move |_, _, _| open_env_file(&env_path)),
+                )
+                .into_any_element()
+        });
+    }
+    Some(note)
+}
+
+/// Open the based-dir `.env` in the system editor, creating it empty if missing.
+fn open_env_file(path: &Path) {
+    if let Err(err) = OpenOptions::new().create(true).append(true).open(path) {
+        log::warn!("could not create {}: {err}", path.display());
+        return;
+    }
+    open_path(path);
 }
 
 /// Open a file with the system default handler.

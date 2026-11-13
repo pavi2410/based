@@ -3,7 +3,7 @@ use std::path::Path;
 
 use based_core::SshTunnelConfig;
 use based_project::{
-    ConnectionSpec, PostgresSslMode, PragmaSettings, ProjectConnection, SshSettings,
+    ConnectionSpec, MissingEnvVar, PostgresSslMode, PragmaSettings, ProjectConnection, SshSettings,
     load_connections_from_based_dir, load_env_file,
 };
 use based_sqlite::SqlitePragma;
@@ -99,10 +99,24 @@ pub fn entry_from_tree(
     Ok(entry)
 }
 
-pub fn load_entries_from_based_dir(
-    based_dir: &Path,
-    origin: ConnectionOrigin,
-) -> Vec<ConnectionEntry> {
+/// A connection file that did not load, and why.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SkippedConnection {
+    /// Connection id, or the based-dir when the whole folder failed to parse.
+    pub id: String,
+    /// The `.env` variable it needs, when that is the reason.
+    pub missing_var: Option<String>,
+    pub reason: String,
+}
+
+/// Connections from a based-dir, plus the ones that could not load.
+#[derive(Default)]
+pub struct LoadedEntries {
+    pub entries: Vec<ConnectionEntry>,
+    pub skipped: Vec<SkippedConnection>,
+}
+
+pub fn load_entries_from_based_dir(based_dir: &Path, origin: ConnectionOrigin) -> LoadedEntries {
     let file_vars = load_env_file(&based_dir.join(".env")).unwrap_or_default();
     let connections = match load_connections_from_based_dir(based_dir) {
         Ok(c) => c,
@@ -111,19 +125,35 @@ pub fn load_entries_from_based_dir(
                 "load connections from {} failed: {err:#}",
                 based_dir.display()
             );
-            return Vec::new();
+            return LoadedEntries {
+                entries: Vec::new(),
+                skipped: vec![SkippedConnection {
+                    id: based_dir.display().to_string(),
+                    missing_var: None,
+                    reason: format!("{err:#}"),
+                }],
+            };
         }
     };
-    connections
-        .iter()
-        .filter_map(|conn| match entry_from_tree(conn, origin, &file_vars) {
-            Ok(entry) => Some(entry),
+    let mut loaded = LoadedEntries::default();
+    for conn in &connections {
+        match entry_from_tree(conn, origin, &file_vars) {
+            Ok(entry) => loaded.entries.push(entry),
             Err(err) => {
                 log::warn!("connection {} skipped: {err:#}", conn.id);
-                None
+                let missing_var = err
+                    .chain()
+                    .find_map(|e| e.downcast_ref::<MissingEnvVar>())
+                    .map(|m| m.var.clone());
+                loaded.skipped.push(SkippedConnection {
+                    id: conn.id.clone(),
+                    missing_var,
+                    reason: format!("{err:#}"),
+                });
             }
-        })
-        .collect()
+        }
+    }
+    loaded
 }
 
 fn resolve_ssh(
@@ -155,6 +185,7 @@ fn map_pragma(p: &PragmaSettings) -> SqlitePragma {
 mod tests {
     use super::*;
     use based_project::{EnvOrString, write_connection_file};
+    use std::fs;
     use std::path::PathBuf;
 
     #[test]
@@ -175,10 +206,44 @@ mod tests {
             ai: None,
         };
         write_connection_file(based, &conn).unwrap();
-        let entries = load_entries_from_based_dir(based, ConnectionOrigin::Personal);
+        let entries = load_entries_from_based_dir(based, ConnectionOrigin::Personal).entries;
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].id, ConnectionId::personal("analytics"));
         assert_eq!(entries[0].origin, ConnectionOrigin::Personal);
+    }
+
+    #[test]
+    fn connections_missing_a_secret_are_reported_not_dropped_silently() {
+        let dir = tempfile::tempdir().unwrap();
+        let based = dir.path();
+        let conn_dir = based.join("connections");
+        fs::create_dir_all(&conn_dir).unwrap();
+        fs::write(
+            conn_dir.join("prod.toml"),
+            r#"
+schema_version = 1
+label = "Prod"
+engine = "postgres"
+host = "db"
+database = "app"
+username = "app"
+password = { env = "BASED_TEST_LOADER_MISSING_SECRET" }
+"#,
+        )
+        .unwrap();
+        fs::write(
+            conn_dir.join("local.toml"),
+            "schema_version = 1\nlabel = \"Local\"\nengine = \"sqlite\"\nfile = \"/tmp/a.db\"\n",
+        )
+        .unwrap();
+        let loaded = load_entries_from_based_dir(based, ConnectionOrigin::Project);
+        assert_eq!(loaded.entries.len(), 1);
+        assert_eq!(loaded.skipped.len(), 1);
+        assert_eq!(loaded.skipped[0].id, "prod");
+        assert_eq!(
+            loaded.skipped[0].missing_var.as_deref(),
+            Some("BASED_TEST_LOADER_MISSING_SECRET")
+        );
     }
 
     #[test]

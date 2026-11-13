@@ -4,8 +4,10 @@ use std::fs;
 use std::path::Path;
 
 use based_desktop::connection::ConnectionOrigin;
+use based_desktop::project::loader::SkippedConnection;
 use based_desktop::workspace::Workspace;
 use based_desktop::workspace::boot::WorkspaceEnv;
+use based_desktop::workspace::notify::skipped_connections_notice;
 use gpui_kit::{Entity, TestAppContext};
 
 use crate::common::{no_project_env, open_project, open_with, open_workspace, settle};
@@ -56,4 +58,29 @@ fn loads_personal_connections(cx: &mut TestAppContext) {
     let (_win, ws) = open_with(cx, env);
     settle(cx);
     assert_eq!(origins(&ws, cx), vec![ConnectionOrigin::Personal]);
+}
+
+#[gpui_kit::test]
+fn skipped_connections_notice_shows_once_per_change(cx: &mut TestAppContext) {
+    let dir = Path::new("/tmp/based-notice-test/.based");
+    let missing = vec![SkippedConnection {
+        id: "prod".into(),
+        missing_var: Some("BASED_PROD_PASSWORD".into()),
+        reason: "environment variable `BASED_PROD_PASSWORD` is not set".into(),
+    }];
+    cx.update(|cx| {
+        assert!(skipped_connections_notice(cx, dir, &missing).is_some());
+        assert!(
+            skipped_connections_notice(cx, dir, &missing).is_none(),
+            "a reload with the same problem stays quiet"
+        );
+        assert!(
+            skipped_connections_notice(cx, dir, &[]).is_none(),
+            "fixed: nothing to say"
+        );
+        assert!(
+            skipped_connections_notice(cx, dir, &missing).is_some(),
+            "broken again: say so again"
+        );
+    });
 }

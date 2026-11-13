@@ -1,8 +1,25 @@
 use std::collections::HashMap;
 use std::env;
+use std::error::Error;
+use std::fmt;
 
 use anyhow::{Result, bail};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+/// A `{ env = "VAR" }` value whose variable is set neither in the process
+/// environment nor in the based-dir `.env`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MissingEnvVar {
+    pub var: String,
+}
+
+impl fmt::Display for MissingEnvVar {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "environment variable `{}` is not set", self.var)
+    }
+}
+
+impl Error for MissingEnvVar {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EnvOrString {
@@ -23,7 +40,7 @@ impl EnvOrString {
                 Ok(value) => Ok(value),
                 Err(env::VarError::NotPresent) => match file_vars.get(var) {
                     Some(value) => Ok(value.clone()),
-                    None => bail!("environment variable `{var}` is not set"),
+                    None => Err(MissingEnvVar { var: var.clone() }.into()),
                 },
                 Err(env::VarError::NotUnicode(_)) => {
                     bail!("environment variable `{var}` is not valid Unicode")

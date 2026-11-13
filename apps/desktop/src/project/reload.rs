@@ -12,6 +12,7 @@ use crate::project::context::ProjectContext;
 use crate::project::loader::load_entries_from_based_dir;
 use crate::project::settings::apply_project_settings;
 use crate::query_store::{QueryHistory, QueryStore};
+use crate::workspace::notify as toast;
 
 use super::{ProjectVars, load_variables, watcher::ConfigWatcher};
 
@@ -64,12 +65,15 @@ pub fn reload_from_disk(project_root: &Path, registry: &Entity<ConnectionRegistr
         store.apply_snapshot(&ctx.snapshot);
     });
 
-    let entries =
-        load_entries_from_based_dir(&project_root.join(".based"), ConnectionOrigin::Project);
+    let based_dir = project_root.join(".based");
+    let loaded = load_entries_from_based_dir(&based_dir, ConnectionOrigin::Project);
 
     registry.update(cx, |reg, cx| {
-        reg.sync_origin_entries(ConnectionOrigin::Project, entries, cx);
+        reg.sync_origin_entries(ConnectionOrigin::Project, loaded.entries, cx);
     });
+    if let Some(note) = toast::skipped_connections_notice(cx, &based_dir, &loaded.skipped) {
+        toast::push_notification(cx, note);
+    }
 
     cx.set_global(ctx.clone());
     apply_project_settings(&ctx.snapshot.manifest, cx);

@@ -38,6 +38,7 @@ use dock_utils::tabs_layout;
 use crate::ai::OFF_NOTICE;
 use crate::ai::chat::{ChatContext, ChatPane};
 use based_ai::context::ContextLevel;
+use gpui_kit::component::WindowExt as _;
 use gpui_kit::component::dock::{DockArea, DockEvent, DockSkin, PanelStyle, PanelView};
 use gpui_kit::{
     App, Context, Entity, FocusHandle, Focusable, SharedString, Task, Window, prelude::*,
@@ -150,13 +151,24 @@ impl Workspace {
             .unwrap_or_else(|| workspace_ctx.active.name.clone().into());
 
         let registry = cx.new(ConnectionRegistry::new);
+        let mut skipped = Vec::new();
         registry.update(cx, |reg, cx| {
             let personal = load_entries_from_based_dir(&personal_root, ConnectionOrigin::Personal);
-            reg.sync_origin_entries(ConnectionOrigin::Personal, personal, cx);
+            reg.sync_origin_entries(ConnectionOrigin::Personal, personal.entries, cx);
+            skipped.push((personal_root.clone(), personal.skipped));
             if let Some(root) = project_dir.as_ref() {
-                let project =
-                    load_entries_from_based_dir(&root.join(".based"), ConnectionOrigin::Project);
-                reg.sync_origin_entries(ConnectionOrigin::Project, project, cx);
+                let based_dir = root.join(".based");
+                let project = load_entries_from_based_dir(&based_dir, ConnectionOrigin::Project);
+                reg.sync_origin_entries(ConnectionOrigin::Project, project.entries, cx);
+                skipped.push((based_dir, project.skipped));
+            }
+        });
+        // After the first frame, so the notice lands on this window's tray.
+        cx.defer_in(window, move |_, window, cx| {
+            for (based_dir, skipped) in skipped {
+                if let Some(note) = notify::skipped_connections_notice(cx, &based_dir, &skipped) {
+                    window.push_notification(note, cx);
+                }
             }
         });
 

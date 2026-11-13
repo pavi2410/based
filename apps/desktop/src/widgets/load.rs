@@ -24,15 +24,22 @@ pub enum Load {
     Failed(LoadFailure),
 }
 
+impl LoadFailure {
+    /// A failure titled `title`, keeping only the first line of `detail`.
+    pub fn new(title: &'static str, detail: impl ToString) -> Self {
+        let detail = detail.to_string();
+        let first = detail.lines().next().unwrap_or("Unknown error").to_owned();
+        Self {
+            title,
+            detail: first.into(),
+        }
+    }
+}
+
 impl Load {
     /// A failure titled `title`, keeping only the first line of `detail`.
     pub fn failed(title: &'static str, detail: impl ToString) -> Self {
-        let detail = detail.to_string();
-        let first = detail.lines().next().unwrap_or("Unknown error").to_owned();
-        Self::Failed(LoadFailure {
-            title,
-            detail: first.into(),
-        })
+        Self::Failed(LoadFailure::new(title, detail))
     }
 
     pub fn is_loading(&self) -> bool {

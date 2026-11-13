@@ -184,3 +184,66 @@ fn tab_footer_names_the_connection_and_marks_production(cx: &mut TestAppContext)
     );
     assert_eq!(crumbs.environment, Some(Environment::Production));
 }
+
+#[gpui_kit::test]
+fn structure_tab_shows_references_both_ways(cx: &mut TestAppContext) {
+    use crate::common::strip::{open_tab, specs};
+    use based_desktop::workspace::panels::table_inspector::TableInspectorPanel;
+
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("s.db");
+    seed_sqlite(
+        &db,
+        &[
+            "create table customers (id integer primary key, email text unique)",
+            "create table orders (id integer primary key, customer_id integer references customers, total numeric not null default 0)",
+            "create table items (order_id integer references orders (id), sku text)",
+        ],
+    );
+    let (win, ws) = open_workspace(cx);
+    let conn = connect_sqlite(cx, &ws, "shop", &db);
+    open_tab(
+        win,
+        &ws,
+        TabSpec::Inspector {
+            conn_id: conn.clone(),
+            object: based_core::ObjectRef::bare("orders"),
+        },
+        cx,
+    );
+    let panel = ws.read_with(cx, |ws, cx| {
+        ws.tab_manager()
+            .read(cx)
+            .tabs
+            .iter()
+            .find_map(|t| t.downcast::<TableInspectorPanel>())
+            .expect("structure tab")
+    });
+    wait_until(cx, |cx| panel.read_with(cx, |p, _| p.structure().is_some()));
+    let (fk, referenced_by) = panel.read_with(cx, |p, _| {
+        let spec = p.structure().unwrap();
+        let fk = spec.columns[1]
+            .references
+            .clone()
+            .expect("customer_id references customers");
+        (fk, spec.referenced_by.clone())
+    });
+    assert_eq!(
+        (fk.table.name.as_str(), fk.column.as_str()),
+        ("customers", "id")
+    );
+    assert_eq!(referenced_by.len(), 1);
+    assert_eq!(referenced_by[0].from_table.name, "items");
+
+    cx.update_window(win, |_, window, cx| {
+        window.render_frame(cx);
+        window.click("structure-open-data", cx);
+    })
+    .unwrap();
+    wait_until(cx, |cx| {
+        cx.update_window(win, |_, window, _| window.refresh()).ok();
+        specs(&ws, cx)
+            .iter()
+            .any(|s| matches!(s, TabSpec::DataViewer { object, .. } if object.name == "orders"))
+    });
+}

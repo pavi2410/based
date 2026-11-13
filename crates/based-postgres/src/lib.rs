@@ -18,7 +18,7 @@ pub use config::{
 pub use decode::{decode_pg_cell, pg_cell};
 pub use error::{connect_error, is_connection_lost, lost_connection, query_error};
 pub use explain::{PlanNode, parse_pg_explain_json};
-pub use inspect::inspect_table;
+pub use inspect::table_spec;
 pub use mutations::{delete_row, execute_sql, insert_row};
 pub use objects::{list_objects, list_relations};
 pub use page::fetch_page;

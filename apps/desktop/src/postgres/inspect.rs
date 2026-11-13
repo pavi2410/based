@@ -3,7 +3,9 @@
 use futures::future::BoxFuture;
 use sqlx::PgPool;
 
-use crate::workspace::panels::table_inspector::{InspectSource, Kind, Section, TabDef};
+use based_core::{ObjectRef, TableSpec};
+
+use crate::workspace::panels::table_inspector::InspectSource;
 use crate::workspace::tabs::kind::names;
 
 pub struct PgInspect {
@@ -21,25 +23,12 @@ impl InspectSource for PgInspect {
         "pg-insp-breadcrumb"
     }
 
-    fn path(&self) -> Vec<String> {
-        vec![self.schema.clone(), self.table.clone()]
+    fn object(&self) -> ObjectRef {
+        ObjectRef::qualified(self.schema.clone(), self.table.clone())
     }
 
-    fn tabs(&self) -> Vec<TabDef> {
-        let tab = |id, label, kind| TabDef { id, label, kind };
-        vec![
-            tab("pg-insp-columns", "Columns", Kind::Table),
-            tab("pg-insp-indexes", "Indexes", Kind::Table),
-            tab("pg-insp-constraints", "Constraints", Kind::Table),
-            tab("pg-insp-stats", "Stats", Kind::Facts),
-        ]
-    }
-
-    fn load(&self) -> BoxFuture<'static, anyhow::Result<Vec<Section>>> {
+    fn load(&self) -> BoxFuture<'static, anyhow::Result<TableSpec>> {
         let (pool, schema, table) = (self.pool.clone(), self.schema.clone(), self.table.clone());
-        Box::pin(async move {
-            let info = based_postgres::inspect_table(&pool, &schema, &table).await?;
-            Ok(Section::from_info(info))
-        })
+        Box::pin(async move { based_postgres::table_spec(&pool, &schema, &table).await })
     }
 }

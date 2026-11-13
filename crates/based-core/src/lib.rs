@@ -12,6 +12,7 @@ pub mod secret;
 pub mod session;
 pub mod ssh;
 pub mod ssl;
+pub mod structure;
 pub mod value;
 
 pub use ai::ContextLevel;
@@ -21,12 +22,14 @@ pub use connection_id::{ConnectionId, ConnectionKey, ConnectionScope};
 pub use engine::{EngineKind, UnknownEngine};
 pub use object::ObjectRef;
 pub use page::{
-    ColumnCatalog, ColumnMeta, FkTarget, Grid, PageSort, RawPage, TableExtra, TableInfo,
-    page_order_sql, quote_ident,
+    ColumnCatalog, ColumnMeta, FkTarget, PageSort, RawPage, page_order_sql, quote_ident,
 };
 pub use result::{QueryError, ResultColumn, ResultSet, SqlOutcome};
 pub use secret::Secret;
 pub use session::{PersistedConnection, WorkspaceState};
 pub use ssh::{SshEndpoint, SshTunnelConfig};
 pub use ssl::{SslMode, UnknownSslMode};
+pub use structure::{
+    ColumnRef, ColumnSpec, ConstraintSpec, IndexSpec, Reference, TableSizes, TableSpec,
+};
 pub use value::Value;

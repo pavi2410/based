@@ -132,7 +132,7 @@ fn tab_info(label: &SharedString, spec: Option<&TabSpec>) -> SharedString {
     };
     let detail = match spec {
         TabSpec::DataViewer { object, .. } => format!("Table data · {object}"),
-        TabSpec::Inspector { object, .. } => format!("Schema · {object}"),
+        TabSpec::Inspector { object, .. } => format!("Structure · {object}"),
         TabSpec::QueryEditor { .. } => "Query editor".into(),
         TabSpec::Pipeline { collection, .. } => format!(
             "Aggregation pipeline · {}",
@@ -185,7 +185,7 @@ pub fn tab_label_for_spec(spec: &TabSpec, dirty: bool) -> SharedString {
         TabSpec::Pipeline { collection, .. } => collection
             .clone()
             .unwrap_or_else(|| DEFAULT_COLLECTION.to_string()),
-        TabSpec::Inspector { object, .. } => format!("{} (schema)", object.name),
+        TabSpec::Inspector { object, .. } => format!("{} · Structure", object.name),
         TabSpec::ObjectInfo { object, kind, .. } => format!("{} ({})", object.name, kind.label()),
         TabSpec::DocumentInsert { collection, .. } => format!("Insert · {collection}"),
         TabSpec::ReleaseNotes { version } => format!("What's New in v{version}"),

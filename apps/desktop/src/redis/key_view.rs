@@ -19,7 +19,11 @@ use gpui_kit::component::{
 use gpui_kit::{prelude::*, *};
 
 use crate::app::prefs;
+use crate::connection::ConnectionId;
 use crate::db;
+use crate::widgets::panel::{
+    panel_tab_content, tab_breadcrumb_footer, tab_breadcrumb_for_connection,
+};
 use crate::widgets::panel_status::PanelStatus;
 use crate::widgets::sql_editor::{
     code_editor_flex, new_code_input, set_input_text, text_from_input,
@@ -31,6 +35,7 @@ use gpui_kit::component::input::EditorState;
 
 pub struct KeyViewPanel {
     focus_handle: FocusHandle,
+    conn_id: ConnectionId,
     conn: Conn,
     key: String,
     meta: Option<KeyMeta>,
@@ -46,7 +51,13 @@ pub struct KeyViewPanel {
 }
 
 impl KeyViewPanel {
-    pub fn new(conn: Conn, key: String, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        conn: Conn,
+        conn_id: ConnectionId,
+        key: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let add_input = new_field(window, cx, "", "");
         cx.subscribe_in(&add_input, window, |panel, _, event, window, cx| {
             if let InputEvent::PressEnter {
@@ -60,6 +71,7 @@ impl KeyViewPanel {
         .detach();
         let mut panel = Self {
             focus_handle: cx.focus_handle(),
+            conn_id,
             conn,
             tab_label: key.clone().into(),
             key,
@@ -451,11 +463,16 @@ impl PopOutWindowTitle for KeyViewPanel {
 
 impl Render for KeyViewPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        v_flex()
+        let body = v_flex()
             .size_full()
             .bg(cx.theme().background)
             .child(self.render_toolbar(cx))
             .children(self.status.line(cx))
-            .child(self.render_body(cx))
+            .child(self.render_body(cx));
+        let crumbs = tab_breadcrumb_for_connection(&self.conn_id, [self.key.clone()], cx);
+        panel_tab_content(
+            body,
+            tab_breadcrumb_footer("redis-key-breadcrumb", crumbs, None, cx),
+        )
     }
 }

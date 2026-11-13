@@ -30,8 +30,14 @@ pub fn build_panel(
         TabSpec::DataViewer { object, .. } => {
             let label = tab_label_for_spec(spec, false);
             let collection: Collection<Document> = db.collection(&object.name);
-            let panel = cx
-                .new(|cx| super::document_viewer::DocumentViewerPanel::new(collection, window, cx));
+            let panel = cx.new(|cx| {
+                super::document_viewer::DocumentViewerPanel::new(
+                    collection,
+                    conn_id.clone(),
+                    window,
+                    cx,
+                )
+            });
             panel.update(cx, |p, _| p.tab_label = label);
             Some(Arc::new(panel))
         }

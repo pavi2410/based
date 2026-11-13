@@ -375,61 +375,8 @@ impl QueryEditorPanel {
         }
     }
 
-    /// Where this editor runs: connection, environment and access, always visible.
-    pub(super) fn context_chip(&self, read_only: bool, cx: &mut Context<Self>) -> AnyElement {
-        let entry = cx.try_global::<WorkspaceRef>().and_then(|ws| {
-            ws.0.read(cx)
-                .registry()
-                .read(cx)
-                .get(&self.conn_id, cx)
-                .cloned()
-        });
-        let Some(entry) = entry else {
-            return div().into_any_element();
-        };
-        let (label, env) = {
-            let e = entry.read(cx);
-            (
-                SharedString::from(e.label.as_str().to_string()),
-                Environment::from_tags(&e.tags),
-            )
-        };
-        let theme = cx.theme();
-        let (border, muted) = (theme.border, theme.muted_foreground);
-        h_flex()
-            .gap(px(7.0))
-            .items_center()
-            .px(px(9.0))
-            .py(px(3.0))
-            .rounded(px(8.0))
-            .border_1()
-            .border_color(border)
-            .bg(theme.background)
-            .child(engine_icon(self.source.engine()))
-            .child(div().text_xs().font_weight(FontWeight::MEDIUM).child(label))
-            .children(env.map(|e| env_pill(e, cx)))
-            .when(read_only, |h| {
-                h.child(
-                    div()
-                        .id("qe-read-only")
-                        .text_xs()
-                        .text_color(muted)
-                        .child("read-only")
-                        .tooltip(|window, cx| {
-                            Tooltip::new("Writes will fail on this connection").build(window, cx)
-                        }),
-                )
-            })
-            .into_any_element()
-    }
-
     pub(super) fn render_toolbar(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let id = self.source.id();
-        let read_only = cx
-            .try_global::<WorkspaceRef>()
-            .map(|ws| is_connection_read_only(&self.conn_id, ws.0.read(cx).registry().read(cx), cx))
-            .unwrap_or(false);
-        let context = self.context_chip(read_only, cx);
         let project_dir = cx.try_global::<ProjectRoot>().map(|p| p.0.clone());
         let var_map = cx.global::<ProjectVars>().vars.clone();
         let mono_font = cx.theme().mono_font_family.clone();
@@ -442,14 +389,6 @@ impl QueryEditorPanel {
             .border_b_1()
             .border_color(cx.theme().border.opacity(0.72))
             .bg(cx.theme().muted.opacity(0.18))
-            .child(context)
-            .child(
-                div()
-                    .w(px(1.0))
-                    .h(px(18.0))
-                    .mx(px(2.0))
-                    .bg(cx.theme().border),
-            )
             .child(if self.status.is_running() {
                 Button::new(format!("{id}-stop"))
                     .danger()

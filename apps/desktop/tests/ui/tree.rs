@@ -6,7 +6,12 @@ use based_desktop::workspace::{TabSpec, Workspace};
 use gpui_kit::test::TestWindowExt;
 use gpui_kit::{AnyWindowHandle, AppContext, Entity, TestAppContext};
 
-use crate::common::{connect_sqlite, open_workspace, seed_sqlite, settle, wait_until};
+use based_desktop::connection::Environment;
+use based_desktop::widgets::panel::tab_breadcrumb_for_connection;
+
+use crate::common::{
+    connect_sqlite, connect_sqlite_tagged, open_workspace, seed_sqlite, settle, wait_until,
+};
 
 const SEED: &[&str] = &[
     "create table users (id integer primary key, name text)",
@@ -162,4 +167,20 @@ fn catalog_search_filters_and_clears(cx: &mut TestAppContext) {
     tree_entity.update(cx, |t, cx| t.search_catalog("", cx));
     tree.render(cx);
     assert_eq!(tree.names(cx).len(), 4);
+}
+
+#[gpui_kit::test]
+fn tab_footer_names_the_connection_and_marks_production(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("p.db");
+    seed_sqlite(&db, SEED);
+    let (_win, ws) = open_workspace(cx);
+    let conn = connect_sqlite_tagged(cx, &ws, "shop", &db, vec!["production".into()]);
+    let crumbs = cx.update(|cx| tab_breadcrumb_for_connection(&conn, ["users"], cx));
+    assert_eq!(
+        crumbs.segments,
+        ["shop", "users"],
+        "SQLite has no database segment"
+    );
+    assert_eq!(crumbs.environment, Some(Environment::Production));
 }

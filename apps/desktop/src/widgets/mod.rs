@@ -7,7 +7,6 @@ pub mod cell_hover;
 pub mod cell_render;
 pub mod choice;
 pub mod column_header;
-pub mod command_shell;
 pub mod data_table;
 pub mod datetime;
 pub mod description_list;
@@ -38,7 +37,6 @@ pub mod virtual_table;
 pub mod wizard_fields;
 
 // Flat re-exports — callers use `crate::widgets::X` instead of `crate::widgets::submod::X`.
-pub use command_shell::*;
 pub use description_list::*;
 pub use engine::*;
 pub use kbd::*;

@@ -25,7 +25,7 @@ pub fn build_panel(
     match spec {
         TabSpec::DataViewer { object, .. } => {
             let key = object.name.clone();
-            let panel = cx.new(|cx| KeyViewPanel::new(conn, key, window, cx));
+            let panel = cx.new(|cx| KeyViewPanel::new(conn, conn_id.clone(), key, window, cx));
             panel.update(cx, |p, _| p.tab_label = tab_label_for_spec(spec, false));
             Some(Arc::new(panel))
         }

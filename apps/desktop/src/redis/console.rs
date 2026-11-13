@@ -21,6 +21,9 @@ use crate::bindings::AskAi;
 use crate::connection::ConnectionId;
 use crate::db;
 use crate::editor::redis_completion::RedisCompletionProvider;
+use crate::widgets::panel::{
+    panel_tab_content, tab_breadcrumb_footer, tab_breadcrumb_for_connection,
+};
 use crate::widgets::sql_editor::{set_input_text, text_from_input};
 use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::tabs::kind::names;
@@ -216,7 +219,7 @@ impl Render for ConsolePanel {
         let border = cx.theme().border.opacity(0.6);
         let mono = prefs::code_font_family(cx);
 
-        v_flex()
+        let body = v_flex()
             .size_full()
             .bg(cx.theme().background)
             .on_action(cx.listener(|p, _: &AskAi, w, cx| p.toggle_ai(w, cx)))
@@ -295,6 +298,11 @@ impl Render for ConsolePanel {
                             .child(div().text_color(muted).child(format!("> {}", o.command)))
                             .child(div().text_color(color).child(text))
                     })),
-            )
+            );
+        let crumbs = tab_breadcrumb_for_connection(&self.conn_id, ["Console"], cx);
+        panel_tab_content(
+            body,
+            tab_breadcrumb_footer("redis-console-breadcrumb", crumbs, None, cx),
+        )
     }
 }

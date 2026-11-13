@@ -22,7 +22,7 @@ use super::chrome::{
     left_pane::LeftPane,
     panes::{history_pane::render_history_pane, saved_pane::render_saved_pane},
     side_pane::{PaneResize, SidePane, render_side_pane, width_for_pointer},
-    status_bar::{StatusBar, StatusBarConnection, StatusBarModel},
+    status_bar::{StatusBar, StatusBarModel},
     target_picker::render_target_picker,
     topbar::Topbar,
 };
@@ -254,19 +254,9 @@ impl Render for Workspace {
             .child(StatusBar::new(
                 StatusBarModel {
                     update: coordinator_snapshot(cx),
-                    focused_connection: focused_conn_id
-                        .as_ref()
-                        .and_then(|id| self.registry.read(cx).get(id, cx).cloned())
-                        .map(|ent| StatusBarConnection::from_entry(ent.read(cx), false, cx))
-                        .or_else(|| {
-                            selected_connection
-                                .as_ref()
-                                .map(|ent| StatusBarConnection::from_entry(ent.read(cx), true, cx))
-                        }),
                 },
                 active_pane,
                 self.registry.clone(),
-                self.connection_tree.clone(),
             ))
             .child(self.command_palette.clone());
 

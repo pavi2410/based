@@ -147,6 +147,25 @@ impl ConnectionEntry {
     pub fn origin(&self) -> ConnectionOrigin {
         ConnectionOrigin::of(&self.id)
     }
+
+    /// The database queries run against, as people name it: the Postgres database,
+    /// Redis `db2`, the Mongo database the live client uses. `None` for SQLite,
+    /// whose file is the database.
+    pub fn database_label(&self, cx: &gpui_kit::App) -> Option<String> {
+        match (&self.config, &self.state) {
+            (_, ConnectionState::Connected(AnyConnection::MongoDB(m))) => {
+                Some(m.read(cx).database().name().to_string())
+            }
+            (ConnectionConfig::Postgres(c), _) => Some(c.database.clone()),
+            (ConnectionConfig::Redis(c), _) => Some(format!("db{}", based_redis::url_db(&c.url))),
+            (ConnectionConfig::MongoDB(c), _) => c.database.clone(),
+            (ConnectionConfig::SQLite(_), _) => None,
+        }
+    }
+
+    pub fn environment(&self) -> Option<Environment> {
+        Environment::from_tags(&self.tags)
+    }
 }
 
 // ── Connection entry events ───────────────────────────────────────────────────
@@ -231,5 +250,43 @@ pub fn close_any_connection(ac: AnyConnection, cx: &gpui_kit::App) {
         AnyConnection::MongoDB(_) | AnyConnection::Redis(_) => {
             // Mongo / Redis clients close when the connection entity is dropped.
         }
+    }
+}
+
+#[cfg(test)]
+mod database_label_tests {
+    use super::*;
+
+    fn entry(config: ConnectionConfig, tags: &[&str]) -> ConnectionEntry {
+        ConnectionEntry::new(
+            ConnectionId::parse("c"),
+            "C".into(),
+            config,
+            tags.iter().map(|t| t.to_string()).collect(),
+        )
+    }
+
+    #[gpui_kit::test]
+    fn names_the_database_people_query(cx: &mut gpui_kit::TestAppContext) {
+        let redis = entry(
+            ConnectionConfig::Redis(RedisConfig {
+                url: "redis://localhost:6379/2".into(),
+            }),
+            &["prod"],
+        );
+        let sqlite = entry(
+            ConnectionConfig::SQLite(SqliteConfig {
+                path: "a.db".into(),
+                read_only: true,
+                pragma: None,
+            }),
+            &[],
+        );
+        cx.update(|cx| {
+            assert_eq!(redis.database_label(cx).as_deref(), Some("db2"));
+            assert_eq!(sqlite.database_label(cx), None, "the file is the database");
+        });
+        assert_eq!(redis.environment(), Some(Environment::Production));
+        assert!(sqlite.config.is_read_only());
     }
 }

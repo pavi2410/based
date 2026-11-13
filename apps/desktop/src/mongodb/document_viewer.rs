@@ -19,6 +19,7 @@ use mongodb::bson::{Document, doc, to_document};
 
 use gpui_kit::component::table::TableEvent;
 
+use crate::connection::ConnectionId;
 use crate::db;
 use crate::widgets::cell_detail::CellDetail;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
@@ -27,6 +28,9 @@ use crate::widgets::export;
 use crate::widgets::filter_bar::{FilterBar, FilterEvent, FilterSet};
 use crate::widgets::load::{Load, LoadFailure};
 use crate::widgets::panel::data_viewer_toolbar;
+use crate::widgets::panel::{
+    panel_tab_content, tab_breadcrumb_footer, tab_breadcrumb_for_connection,
+};
 use crate::widgets::virtual_table::{
     RowDelegate, align_meta_to_columns, cells, data_column, replace_table_data,
 };
@@ -43,6 +47,7 @@ fn mongo_filter_doc(expr: &FilterSet) -> Result<Document, String> {
 
 pub struct DocumentViewerPanel {
     focus_handle: FocusHandle,
+    conn_id: ConnectionId,
     collection: Collection<Document>,
     table: Entity<TableState<RowDelegate>>,
     cell_detail: Entity<CellDetail>,
@@ -55,6 +60,7 @@ pub struct DocumentViewerPanel {
 impl DocumentViewerPanel {
     pub fn new(
         collection: Collection<Document>,
+        conn_id: ConnectionId,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -69,6 +75,7 @@ impl DocumentViewerPanel {
         let cell_detail = cx.new(|_| CellDetail::default());
         let mut p = Self {
             focus_handle: cx.focus_handle(),
+            conn_id,
             collection,
             table,
             cell_detail,
@@ -221,7 +228,7 @@ impl Render for DocumentViewerPanel {
             (h, r)
         };
 
-        v_flex()
+        let body = v_flex()
             .relative()
             .size_full()
             .child(
@@ -278,7 +285,13 @@ impl Render for DocumentViewerPanel {
                         )
                     }),
             )
-            .child(self.cell_detail.clone())
+            .child(self.cell_detail.clone());
+        let crumbs =
+            tab_breadcrumb_for_connection(&self.conn_id, [self.collection.name().to_string()], cx);
+        panel_tab_content(
+            body,
+            tab_breadcrumb_footer("mongo-docs-breadcrumb", crumbs, None, cx),
+        )
     }
 }
 

@@ -28,6 +28,9 @@ use crate::db;
 use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export;
+use crate::widgets::panel::{
+    panel_tab_content, tab_breadcrumb_footer, tab_breadcrumb_for_connection,
+};
 use crate::widgets::panel_status::PanelStatus;
 use crate::widgets::sql_editor::{self, new_json_input, set_input_text, text_from_input};
 use crate::widgets::virtual_table::{
@@ -297,7 +300,7 @@ impl Render for PipelineBuilderPanel {
             (h, r)
         };
 
-        v_flex()
+        let body = v_flex()
             .size_full()
             .on_action(cx.listener(|p, _: &AskAi, w, cx| p.toggle_ai(w, cx)))
             .when_some(self.ai.bar(), |v, bar| v.child(bar))
@@ -357,6 +360,15 @@ impl Render for PipelineBuilderPanel {
                     )
                     .child(div().flex_1().text_sm().children(self.status.line(cx))),
             )
-            .child(div().flex_1().child(render_row_table(&self.result, cx)))
+            .child(div().flex_1().child(render_row_table(&self.result, cx)));
+        let crumbs = tab_breadcrumb_for_connection(
+            &self.conn_id,
+            [self.collection.name().to_string(), "Pipeline".to_owned()],
+            cx,
+        );
+        panel_tab_content(
+            body,
+            tab_breadcrumb_footer("mongo-pipeline-breadcrumb", crumbs, None, cx),
+        )
     }
 }

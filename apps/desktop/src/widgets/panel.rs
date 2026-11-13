@@ -8,11 +8,12 @@ use gpui_kit::component::{
 use gpui_kit::{prelude::*, *};
 
 use crate::app::prefs;
-use crate::connection::{ConnectionId, EngineKind};
-use crate::project::RegistryRef;
+use crate::connection::{ConnectionId, EngineKind, Environment};
 use crate::widgets::engine_icon;
 use crate::widgets::layout::panel_header_height;
+use crate::widgets::metadata_pill::env_pill;
 use crate::widgets::status_item::STATUS_BAR_HEIGHT;
+use crate::workspace::WorkspaceRef;
 
 /// Bottom-of-tab breadcrumb rail height (matches status bar segment height).
 pub const TAB_BREADCRUMB_HEIGHT: f32 = STATUS_BAR_HEIGHT;
@@ -104,26 +105,43 @@ pub fn tab_button_styled(id: &'static str, label: &'static str, active: bool) ->
 pub struct TabBreadcrumb {
     pub engine: EngineKind,
     pub segments: Vec<SharedString>,
+    /// Marked on the connection; production tints the whole footer.
+    pub environment: Option<Environment>,
+    pub read_only: bool,
 }
 
-/// Build breadcrumb segments: connection label from registry, then `tail` (schema, table, …).
+/// Where the tab's queries run: connection, database, then `tail` (schema, table, …).
+/// This footer is the one place a tab names its connection, so it carries the
+/// environment and read-only state too.
 pub fn tab_breadcrumb_for_connection(
     conn_id: &ConnectionId,
     tail: impl IntoIterator<Item = impl Into<SharedString>>,
     cx: &App,
 ) -> TabBreadcrumb {
-    let (engine, conn_label) = cx
-        .try_global::<RegistryRef>()
-        .and_then(|r| r.0.read(cx).get(conn_id, cx))
-        .map(|entry| {
-            let entry = entry.read(cx);
-            (entry.config.engine(), entry.label.as_str().to_string())
-        })
-        .unwrap_or_else(|| (EngineKind::Postgres, conn_id.to_string()));
-
-    let mut segments = vec![conn_label.into()];
+    // The workspace's registry, which exists with or without an open project.
+    let entry = cx
+        .try_global::<WorkspaceRef>()
+        .and_then(|ws| ws.0.read(cx).registry().read(cx).get(conn_id, cx))
+        .map(|e| e.read(cx));
+    let Some(entry) = entry else {
+        let mut segments = vec![conn_id.to_string().into()];
+        segments.extend(tail.into_iter().map(Into::into));
+        return TabBreadcrumb {
+            engine: EngineKind::Postgres,
+            segments,
+            environment: None,
+            read_only: false,
+        };
+    };
+    let mut segments: Vec<SharedString> = vec![entry.label.clone().into()];
+    segments.extend(entry.database_label(cx).map(Into::into));
     segments.extend(tail.into_iter().map(Into::into));
-    TabBreadcrumb { engine, segments }
+    TabBreadcrumb {
+        engine: entry.engine(),
+        segments,
+        environment: entry.environment(),
+        read_only: entry.config.is_read_only(),
+    }
 }
 
 /// Trailing cluster for data-viewer breadcrumbs: pagination, load time, optional read-only indicator.
@@ -173,6 +191,13 @@ pub fn tab_breadcrumb_footer(
     let border = cx.theme().border;
     let last = crumbs.segments.len().saturating_sub(1);
 
+    let production = crumbs.environment == Some(Environment::Production);
+    let danger = cx.theme().danger;
+    let (border, bg) = if production {
+        (danger.opacity(0.6), danger.opacity(0.12))
+    } else {
+        (border.opacity(0.72), cx.theme().muted.opacity(0.18))
+    };
     let mut row = h_flex()
         .id(id)
         .w_full()
@@ -182,8 +207,8 @@ pub fn tab_breadcrumb_footer(
         .gap(px(4.0))
         .px(px(10.0))
         .border_t_1()
-        .border_color(border.opacity(0.72))
-        .bg(cx.theme().muted.opacity(0.18))
+        .border_color(border)
+        .bg(bg)
         .child(engine_icon(crumbs.engine));
 
     for (i, segment) in crumbs.segments.into_iter().enumerate() {
@@ -204,6 +229,14 @@ pub fn tab_breadcrumb_footer(
                 .truncate()
                 .child(segment),
         );
+        if i == 0 {
+            if let Some(env) = crumbs.environment {
+                row = row.child(env_pill(env, cx));
+            }
+            if crumbs.read_only {
+                row = row.child(div().text_xs().text_color(muted).child("read-only"));
+            }
+        }
     }
 
     row = row.child(div().flex_1().min_w_0());

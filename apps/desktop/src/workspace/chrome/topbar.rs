@@ -19,10 +19,11 @@ use gpui_kit::{
 const GIT_BRANCH_ICON_PATH: &str = "icons/git-branch.svg";
 
 use crate::app::{prefs, shell};
-use crate::bindings::CycleAppearance;
+use crate::bindings::{CycleAppearance, ToggleCommandPalette};
 use crate::connection::registry::ConnectionRegistry;
 use crate::project::ProjectContext;
-use crate::widgets::{SIDEBAR_INSET, command_shell};
+use crate::widgets::SIDEBAR_INSET;
+use crate::workspace::WorkspaceRef;
 
 /// A `RenderOnce` top bar that renders inside the window's `TitleBar`.
 #[derive(IntoElement)]
@@ -53,7 +54,6 @@ impl RenderOnce for Topbar {
                     .items_center()
                     .gap_2()
                     .child(ContextRail)
-                    .child(TopbarCenter)
                     .child(TopbarRight),
             )
     }
@@ -185,16 +185,6 @@ impl RenderOnce for ContextRail {
     }
 }
 
-/// Title bar center: command palette trigger.
-#[derive(IntoElement)]
-struct TopbarCenter;
-
-impl RenderOnce for TopbarCenter {
-    fn render(self, window: &mut gpui_kit::Window, cx: &mut App) -> impl IntoElement {
-        command_shell(window, cx, "Search tables, queries, history…")
-    }
-}
-
 /// Title bar right rail: theme toggle, app overflow menu (About / Settings).
 #[derive(IntoElement)]
 struct TopbarRight;
@@ -210,6 +200,18 @@ impl RenderOnce for TopbarRight {
             .justify_end()
             .gap_1()
             .pr(px(SIDEBAR_INSET))
+            .child(
+                Button::new("open-command-palette")
+                    .ghost()
+                    .small()
+                    .icon(IconName::Search)
+                    .tooltip_with_action("Search or run a command", &ToggleCommandPalette, None)
+                    .on_click(|_, window, cx| {
+                        if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+                            ws.update(cx, |ws, cx| ws.toggle_command_palette(window, cx));
+                        }
+                    }),
+            )
             .child(
                 Button::new("appearance")
                     .ghost()

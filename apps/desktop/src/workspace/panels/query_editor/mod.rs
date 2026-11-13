@@ -32,7 +32,7 @@ use super::query_ai::Assist;
 use crate::ai::AiHost;
 use crate::app::prefs;
 use crate::bindings::AskAi;
-use crate::connection::{ConnectionId, Environment, is_connection_read_only};
+use crate::connection::{ConnectionId, Environment};
 use crate::db;
 use crate::editor::error_locate::{line_col, token_at};
 use crate::editor::sql_completion::InlineAi;
@@ -42,9 +42,7 @@ use crate::query_store::{HistoryEntry, QueryStore};
 use crate::widgets::column_header::ColumnMeta;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::datetime::format_relative;
-use crate::widgets::engine_icon;
 use crate::widgets::export_popover::export_popover;
-use crate::widgets::metadata_pill::env_pill;
 use crate::widgets::motion;
 use crate::widgets::panel::{
     panel_tab_content, tab_breadcrumb_footer, tab_breadcrumb_for_connection,

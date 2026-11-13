@@ -1,11 +1,11 @@
 use gpui_kit::SharedString;
 
-use super::types::SchemaObject;
+use super::types::DbObject;
 
 #[derive(Clone)]
 pub(crate) struct ObjectSection {
     pub(crate) name: SharedString,
-    pub(crate) items: Vec<SchemaObject>,
+    pub(crate) items: Vec<DbObject>,
 }
 
 #[derive(Clone)]
@@ -14,8 +14,8 @@ pub(crate) struct SchemaSection {
     pub(crate) kinds: Vec<ObjectSection>,
 }
 
-pub(crate) fn group_by_kind(objects: Vec<SchemaObject>) -> Vec<ObjectSection> {
-    let mut groups: Vec<(&'static str, Vec<SchemaObject>)> = Vec::new();
+pub(crate) fn group_by_kind(objects: Vec<DbObject>) -> Vec<ObjectSection> {
+    let mut groups: Vec<(&'static str, Vec<DbObject>)> = Vec::new();
     for object in objects {
         let group = object.kind.group();
         if let Some((_, rows)) = groups.iter_mut().find(|(name, _)| *name == group) {
@@ -33,10 +33,10 @@ pub(crate) fn group_by_kind(objects: Vec<SchemaObject>) -> Vec<ObjectSection> {
         .collect()
 }
 
-pub(crate) fn group_postgres_objects(objects: Vec<SchemaObject>) -> Vec<SchemaSection> {
+pub(crate) fn group_postgres_objects(objects: Vec<DbObject>) -> Vec<SchemaSection> {
     use std::collections::BTreeMap;
 
-    let mut by_schema: BTreeMap<String, Vec<SchemaObject>> = BTreeMap::new();
+    let mut by_schema: BTreeMap<String, Vec<DbObject>> = BTreeMap::new();
     for object in objects {
         let schema = object.schema.clone().unwrap_or_else(|| "public".into());
         by_schema.entry(schema).or_default().push(object);
@@ -68,7 +68,7 @@ fn kind_section_order(name: &str) -> u8 {
     }
 }
 
-pub(crate) fn object_matches_query(object: &SchemaObject, q: &str) -> bool {
+pub(crate) fn object_matches_query(object: &DbObject, q: &str) -> bool {
     if q.is_empty() {
         return true;
     }
@@ -86,24 +86,24 @@ mod tests {
     use super::super::types::ObjectKind;
     use super::*;
 
-    fn pg_table(schema: &str, name: &str) -> SchemaObject {
-        SchemaObject {
+    fn pg_table(schema: &str, name: &str) -> DbObject {
+        DbObject {
             name: name.into(),
             schema: Some(schema.into()),
             kind: ObjectKind::Table,
         }
     }
 
-    fn pg_view(schema: &str, name: &str) -> SchemaObject {
-        SchemaObject {
+    fn pg_view(schema: &str, name: &str) -> DbObject {
+        DbObject {
             name: name.into(),
             schema: Some(schema.into()),
             kind: ObjectKind::View,
         }
     }
 
-    fn pg_matview(schema: &str, name: &str) -> SchemaObject {
-        SchemaObject {
+    fn pg_matview(schema: &str, name: &str) -> DbObject {
+        DbObject {
             name: name.into(),
             schema: Some(schema.into()),
             kind: ObjectKind::MaterializedView,
@@ -176,12 +176,12 @@ mod tests {
     #[test]
     fn group_by_kind_schema_less_objects() {
         let objects = vec![
-            SchemaObject {
+            DbObject {
                 name: "notes".into(),
                 schema: None,
                 kind: ObjectKind::Table,
             },
-            SchemaObject {
+            DbObject {
                 name: "events".into(),
                 schema: None,
                 kind: ObjectKind::Collection,

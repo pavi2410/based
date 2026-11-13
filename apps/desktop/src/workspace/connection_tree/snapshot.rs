@@ -3,7 +3,7 @@
 use gpui_kit::{App, Context, Window};
 
 use super::ConnectionTree;
-use super::types::SchemaObject;
+use super::types::DbObject;
 
 /// What the catalog pane currently shows.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -11,7 +11,7 @@ pub struct CatalogSnapshot {
     pub selected: Option<usize>,
     /// "Loading objects…", "Not connected", … when no objects are listed.
     pub status: Option<String>,
-    pub objects: Vec<SchemaObject>,
+    pub objects: Vec<DbObject>,
 }
 
 impl ConnectionTree {

@@ -1,49 +1,21 @@
 use std::collections::HashSet;
 
-use based_core::ObjectRef;
-use serde::{Deserialize, Serialize};
-
 use crate::workspace::TabSpec;
 use gpui_kit::Hsla;
 use gpui_kit::component::{IconName, Theme};
 
-/// Serialized in saved sessions (`ObjectInfo` tabs): keep the names stable.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ObjectKind {
-    Table,
-    View,
-    #[serde(rename = "matview")]
-    MaterializedView,
-    Trigger,
-    Collection,
-    Key,
+pub use based_core::{DbObject, ObjectKind};
+
+/// How the sidebar draws an object kind.
+pub(crate) trait ObjectKindUi {
+    /// Sidebar list icon (gpui-kit bundled SVG).
+    fn list_icon(self) -> IconName;
+    /// Kind color for catalog icons (table / view / collection / trigger).
+    fn accent_color(self, theme: &Theme) -> Hsla;
 }
 
-impl ObjectKind {
-    pub(crate) fn label(&self) -> &'static str {
-        match self {
-            Self::Table => "table",
-            Self::View => "view",
-            Self::MaterializedView => "matview",
-            Self::Trigger => "trigger",
-            Self::Collection => "collection",
-            Self::Key => "key",
-        }
-    }
-
-    pub fn group(&self) -> &'static str {
-        match self {
-            Self::Table => "Tables",
-            Self::View | Self::MaterializedView => "Views",
-            Self::Trigger => "Triggers",
-            Self::Collection => "Collections",
-            Self::Key => "Keys",
-        }
-    }
-
-    /// Sidebar list icon (gpui-kit bundled SVG).
-    pub(crate) fn list_icon(&self) -> IconName {
+impl ObjectKindUi for ObjectKind {
+    fn list_icon(self) -> IconName {
         match self {
             Self::Table => IconName::LayoutDashboard,
             Self::View => IconName::Eye,
@@ -54,8 +26,7 @@ impl ObjectKind {
         }
     }
 
-    /// Kind color for catalog icons (table / view / collection / trigger).
-    pub(crate) fn accent_color(&self, theme: &Theme) -> Hsla {
+    fn accent_color(self, theme: &Theme) -> Hsla {
         match self {
             Self::Table => theme.blue_light,
             Self::View | Self::MaterializedView => theme.magenta_light,
@@ -66,38 +37,12 @@ impl ObjectKind {
     }
 }
 
-/// Schema browser row (PostgreSQL exposes `schema` + local name).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SchemaObject {
-    pub name: String,
-    pub schema: Option<String>,
-    pub kind: ObjectKind,
-}
-
-impl SchemaObject {
-    /// The object as tabs refer to it.
-    pub fn object_ref(&self) -> ObjectRef {
-        ObjectRef {
-            schema: self.schema.clone(),
-            name: self.name.clone(),
-        }
-    }
-
-    pub fn display_name(&self) -> String {
-        if let Some(schema) = &self.schema {
-            format!("{schema}.{}", self.name)
-        } else {
-            self.name.clone()
-        }
-    }
-}
-
 #[derive(Clone, Debug, Default)]
 pub(crate) enum ConnCache {
     #[default]
     Idle,
     Loading,
-    Ready(Vec<SchemaObject>),
+    Ready(Vec<DbObject>),
     Error(String),
 }
 
@@ -106,7 +51,7 @@ impl ConnCache {
         matches!(self, Self::Loading | Self::Ready(_))
     }
 
-    pub(crate) fn objects(&self) -> Option<&[SchemaObject]> {
+    pub(crate) fn objects(&self) -> Option<&[DbObject]> {
         match self {
             Self::Ready(objects) => Some(objects),
             _ => None,
@@ -117,7 +62,7 @@ impl ConnCache {
         *self = Self::Loading;
     }
 
-    pub(crate) fn set_ready(&mut self, objects: Vec<SchemaObject>) {
+    pub(crate) fn set_ready(&mut self, objects: Vec<DbObject>) {
         *self = Self::Ready(objects);
     }
 
@@ -149,7 +94,7 @@ impl ConnState {
     }
 
     /// Expand `public` by default when no schema has been opened yet.
-    pub(crate) fn seed_public_schema(&mut self, objects: &[SchemaObject]) {
+    pub(crate) fn seed_public_schema(&mut self, objects: &[DbObject]) {
         if self.expanded_schemas.is_empty()
             && objects
                 .iter()

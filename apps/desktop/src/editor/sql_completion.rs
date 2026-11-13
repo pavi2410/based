@@ -7,7 +7,7 @@ use std::time::Duration;
 use anyhow::Result;
 use based_ai::context::ContextLevel;
 use based_ai::prompt;
-use based_core::EngineKind;
+use based_core::{EngineKind, ObjectKind};
 use gpui_kit::component::Rope;
 use gpui_kit::component::input::{CompletionProvider, RopeExt};
 use gpui_kit::{App, AppContext as _, Task, Window};
@@ -20,7 +20,7 @@ use crate::ai::{complete, connection_ai, schema};
 use crate::app::prefs;
 use crate::connection::ConnectionId;
 
-use super::schema_cache::{ObjectKind, SchemaCache, quote_ident, unquote};
+use super::schema_cache::{RelationText as _, SchemaCache, quote_ident, unquote};
 use super::sql_scope::{previous_word, tables_in_scope};
 
 /// Pause after the last keystroke before asking the model.
@@ -336,10 +336,12 @@ fn schema_and_keyword_items(
         .complete(query)
         .into_iter()
         .map(|obj| {
-            let kind = if obj.kind == ObjectKind::View {
-                "view"
-            } else {
-                "table"
+            let kind = match obj.object.kind {
+                ObjectKind::View | ObjectKind::MaterializedView => "view",
+                ObjectKind::Table
+                | ObjectKind::Trigger
+                | ObjectKind::Collection
+                | ObjectKind::Key => "table",
             };
             item(
                 &obj.display(),

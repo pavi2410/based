@@ -6,6 +6,7 @@ pub mod decode;
 pub mod explain;
 pub mod inspect;
 pub mod mutations;
+mod objects;
 pub mod page;
 pub mod readonly;
 
@@ -17,5 +18,6 @@ pub use decode::{decode_pg_cell, pg_cell};
 pub use explain::{PlanNode, parse_pg_explain_json};
 pub use inspect::inspect_table;
 pub use mutations::{delete_row, execute_sql, insert_row};
+pub use objects::{list_objects, list_relations};
 pub use page::fetch_page;
 pub use readonly::query_readonly;

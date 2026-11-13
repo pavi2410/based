@@ -1,6 +1,7 @@
 //! Engine-agnostic types and local session persistence (no UI dependencies).
 
 pub mod ai;
+pub mod catalog;
 pub mod connection_error;
 pub mod connection_id;
 pub mod engine;
@@ -14,6 +15,7 @@ pub mod ssl;
 pub mod value;
 
 pub use ai::ContextLevel;
+pub use catalog::{DbColumn, DbObject, ObjectKind, Relation};
 pub use connection_error::{
     ConnectionErrorCategory, ConnectionErrorDetail, categorize_connect_error,
 };

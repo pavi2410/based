@@ -10,7 +10,7 @@ use tokio::time::timeout;
 
 use super::eqp_parse::{EqpNode, parse_eqp};
 use super::eqp_viewer::render_eqp_body;
-use crate::editor::{SchemaCache, sqlite_schema};
+use crate::editor::SchemaCache;
 use crate::workspace::panels::query_editor::{Explained, Fut, PlanView, QuerySource};
 use crate::workspace::tabs::kind::names;
 
@@ -45,9 +45,12 @@ impl QuerySource for SqliteQuery {
 
     fn load_schema(&self) -> Option<Fut<SchemaCache>> {
         let pool = self.pool.clone();
-        Some(Box::pin(
-            async move { sqlite_schema::load_schema(&pool).await },
-        ))
+        Some(Box::pin(async move {
+            Ok(SchemaCache::loaded(
+                EngineKind::SQLite,
+                based_sqlite::list_relations(&pool).await?,
+            ))
+        }))
     }
 
     /// Runs every statement in the script: the last row result wins, and with

@@ -41,7 +41,7 @@ pub(crate) use context_menu::connection_actions_menu;
 pub(crate) use icon_rail::ICON_RAIL_WIDTH;
 #[cfg(any(test, feature = "test-support"))]
 pub use snapshot::CatalogSnapshot;
-pub use types::{ObjectKind, SchemaObject, TreeEvent};
+pub use types::{DbObject, ObjectKind, TreeEvent};
 
 use types::ConnState;
 
@@ -347,7 +347,7 @@ impl ConnectionTree {
 
     pub(crate) fn on_object_clicked(
         &mut self,
-        object: SchemaObject,
+        object: DbObject,
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -361,7 +361,7 @@ impl ConnectionTree {
 
     pub(crate) fn open_data_tab(
         &mut self,
-        object: SchemaObject,
+        object: DbObject,
         conn_idx: usize,
         cx: &mut Context<Self>,
     ) {
@@ -421,7 +421,7 @@ impl ConnectionTree {
 
     pub(crate) fn open_structure_tab(
         &mut self,
-        object: SchemaObject,
+        object: DbObject,
         conn_idx: usize,
         cx: &mut Context<Self>,
     ) {
@@ -450,12 +450,7 @@ impl ConnectionTree {
         self.open_inspector_tab(object, conn_id, cx);
     }
 
-    fn emit_object_info_tab(
-        &mut self,
-        object: SchemaObject,
-        conn_idx: usize,
-        cx: &mut Context<Self>,
-    ) {
+    fn emit_object_info_tab(&mut self, object: DbObject, conn_idx: usize, cx: &mut Context<Self>) {
         let Some(ent) = self.registry.read(cx).connections().get(conn_idx).cloned() else {
             return;
         };
@@ -469,7 +464,7 @@ impl ConnectionTree {
 
     pub(crate) fn open_inspector_tab(
         &mut self,
-        object: SchemaObject,
+        object: DbObject,
         conn_id: ConnectionId,
         cx: &mut Context<Self>,
     ) {
@@ -537,7 +532,7 @@ impl ConnectionTree {
         &self,
         query: &str,
         cx: &gpui_kit::App,
-    ) -> Vec<(ConnectionId, SchemaObject, EngineKind)> {
+    ) -> Vec<(ConnectionId, DbObject, EngineKind)> {
         let q = query.to_lowercase();
         let mut out = Vec::new();
         for (conn_id, state) in &self.conn_states {

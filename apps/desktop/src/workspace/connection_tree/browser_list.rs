@@ -28,7 +28,7 @@ use super::ConnectionTree;
 use super::connection_list::{Link, build_connection_rows};
 use super::context_menu::{connection_is_connected, object_context_menu, schema_context_menu};
 use super::object_list::{group_postgres_objects, object_matches_query};
-use super::types::{ConnCache, ConnState, SchemaObject};
+use super::types::{ConnCache, ConnState, DbObject, ObjectKindUi as _};
 use crate::connection::ConnectionState::Connected;
 
 const DEPTH_SCHEMA: u32 = 0;
@@ -51,7 +51,7 @@ pub(crate) enum BrowserRow {
     },
     Object {
         conn_idx: usize,
-        object: SchemaObject,
+        object: DbObject,
         depth: u32,
         bare_label: bool,
     },
@@ -75,7 +75,7 @@ impl BrowserListDelegate {
     }
 
     /// Object rows currently visible (after search and schema expansion).
-    pub(crate) fn visible_objects(&self) -> Vec<SchemaObject> {
+    pub(crate) fn visible_objects(&self) -> Vec<DbObject> {
         self.rows
             .iter()
             .filter_map(|r| match r {
@@ -178,7 +178,7 @@ impl BrowserListDelegate {
 
 fn push_postgres_rows(
     conn_idx: usize,
-    objects: &[SchemaObject],
+    objects: &[DbObject],
     state: &ConnState,
     q: &str,
     child_rows: &mut Vec<BrowserRow>,
@@ -209,7 +209,7 @@ fn push_postgres_rows(
         });
 
         if schema_expanded {
-            let mut objects: Vec<SchemaObject> = schema_section
+            let mut objects: Vec<DbObject> = schema_section
                 .kinds
                 .into_iter()
                 .flat_map(|kind| kind.items)
@@ -232,12 +232,12 @@ fn push_postgres_rows(
 
 fn push_kind_rows(
     conn_idx: usize,
-    objects: &[SchemaObject],
+    objects: &[DbObject],
     q: &str,
     child_rows: &mut Vec<BrowserRow>,
     bare_label: bool,
 ) -> bool {
-    let mut items: Vec<SchemaObject> = objects
+    let mut items: Vec<DbObject> = objects
         .iter()
         .filter(|object| object_matches_query(object, q))
         .cloned()
@@ -474,7 +474,7 @@ fn schema_row_element(
         .child(div().flex_1().min_w_0().text_sm().truncate().child(name))
 }
 
-fn object_row_key(object: &SchemaObject) -> u64 {
+fn object_row_key(object: &DbObject) -> u64 {
     let mut hasher = DefaultHasher::new();
     object.display_name().hash(&mut hasher);
     object.kind.label().hash(&mut hasher);
@@ -484,7 +484,7 @@ fn object_row_key(object: &SchemaObject) -> u64 {
 #[allow(clippy::too_many_arguments)]
 fn object_row_element(
     conn_idx: usize,
-    object: SchemaObject,
+    object: DbObject,
     bare_label: bool,
     depth: u32,
     selected: bool,

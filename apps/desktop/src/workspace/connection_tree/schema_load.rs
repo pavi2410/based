@@ -1,11 +1,11 @@
 use gpui_kit::Context;
 use mongodb::Database;
-use sqlx::{PgPool, Row, SqlitePool};
+use sqlx::{PgPool, SqlitePool};
 
 use crate::connection::{AnyConnection, ConnectionId, EngineKind};
 
 use super::ConnectionTree;
-use super::types::{ObjectKind, SchemaObject};
+use super::types::{DbObject, ObjectKind};
 use crate::db::run;
 
 /// Keys loaded into the sidebar per refresh (SCAN stops here).
@@ -61,35 +61,7 @@ impl ConnectionTree {
         cx: &mut Context<Self>,
     ) {
         cx.spawn(async move |this, cx| {
-            let result = run(cx, async move {
-                let rows = sqlx::query(
-                    "SELECT name, type FROM sqlite_master \
-                     WHERE type IN ('table','view','trigger') \
-                     ORDER BY type, name",
-                )
-                .fetch_all(&pool)
-                .await?;
-
-                let objects = rows
-                    .iter()
-                    .map(|row| {
-                        let name: String = row.get("name");
-                        let kind_str: String = row.get("type");
-                        let kind = match kind_str.as_str() {
-                            "view" => ObjectKind::View,
-                            "trigger" => ObjectKind::Trigger,
-                            _ => ObjectKind::Table,
-                        };
-                        SchemaObject {
-                            name,
-                            schema: None,
-                            kind,
-                        }
-                    })
-                    .collect::<Vec<_>>();
-                Ok(objects)
-            })
-            .await;
+            let result = run(cx, async move { based_sqlite::list_objects(&pool).await }).await;
 
             let _ = this.update(cx, |tree, cx| {
                 tree.apply_schema_load_result(&conn_id, engine, result, cx);
@@ -106,37 +78,7 @@ impl ConnectionTree {
         cx: &mut Context<Self>,
     ) {
         cx.spawn(async move |this, cx| {
-            let result = run(cx, async move {
-                let rows = sqlx::query(
-                    r"SELECT table_schema, table_name, table_type
-                      FROM information_schema.tables
-                      WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
-                      ORDER BY table_schema, table_type, table_name",
-                )
-                .fetch_all(&pool)
-                .await?;
-
-                let objects = rows
-                    .iter()
-                    .map(|row| {
-                        let schema: String = row.get("table_schema");
-                        let name: String = row.get("table_name");
-                        let ty: String = row.get("table_type");
-                        let kind = match ty.as_str() {
-                            "VIEW" => ObjectKind::View,
-                            "MATERIALIZED VIEW" => ObjectKind::MaterializedView,
-                            _ => ObjectKind::Table,
-                        };
-                        SchemaObject {
-                            name,
-                            schema: Some(schema),
-                            kind,
-                        }
-                    })
-                    .collect::<Vec<_>>();
-                Ok(objects)
-            })
-            .await;
+            let result = run(cx, async move { based_postgres::list_objects(&pool).await }).await;
 
             let _ = this.update(cx, |tree, cx| {
                 tree.apply_schema_load_result(&conn_id, engine, result, cx);
@@ -153,19 +95,7 @@ impl ConnectionTree {
         cx: &mut Context<Self>,
     ) {
         cx.spawn(async move |this, cx| {
-            let result = run(cx, async move {
-                let names = db.list_collection_names().await?;
-                let objects = names
-                    .into_iter()
-                    .map(|name| SchemaObject {
-                        name,
-                        schema: None,
-                        kind: ObjectKind::Collection,
-                    })
-                    .collect::<Vec<_>>();
-                Ok(objects)
-            })
-            .await;
+            let result = run(cx, async move { based_mongo::list_collections(&db).await }).await;
 
             let _ = this.update(cx, |tree, cx| {
                 tree.apply_schema_load_result(&conn_id, engine, result, cx);
@@ -186,7 +116,7 @@ impl ConnectionTree {
                 let keys = based_redis::scan_keys(&mut conn, "*", REDIS_KEY_LIMIT).await?;
                 Ok(keys
                     .into_iter()
-                    .map(|name| SchemaObject {
+                    .map(|name| DbObject {
                         name,
                         schema: None,
                         kind: ObjectKind::Key,
@@ -206,7 +136,7 @@ impl ConnectionTree {
         &mut self,
         conn_id: &ConnectionId,
         engine: EngineKind,
-        result: Result<Vec<SchemaObject>, anyhow::Error>,
+        result: Result<Vec<DbObject>, anyhow::Error>,
         cx: &mut Context<Self>,
     ) {
         if let Some(st) = self.conn_states.get_mut(conn_id) {

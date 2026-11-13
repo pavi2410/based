@@ -1,35 +1,35 @@
 //! Cached schema objects for LSP completion and ER diagram data.
 
-use based_core::EngineKind;
 use std::time::Instant;
 
-/// A schema object (table, view, collection, etc.) visible to the editor.
-#[derive(Debug, Clone)]
-pub struct SchemaObject {
-    /// Fully-qualified name (e.g. `public.users`).
-    pub full_name: String,
-    /// Short display label (e.g. `users`).
-    pub label: String,
-    /// Owning schema, when the engine has them (`None` for SQLite).
-    pub schema: Option<String>,
-    pub kind: ObjectKind,
-    pub columns: Vec<ColumnInfo>,
+use based_core::{DbColumn, EngineKind, Relation};
+
+/// How the editor names a table or view.
+pub trait RelationText {
+    /// The bare name, e.g. `users`.
+    fn label(&self) -> &str;
+    /// Text shown in the menu: `schema.table` outside `public`, else the bare name.
+    fn display(&self) -> String;
+    /// SQL to insert: identifiers quoted where needed.
+    fn insert_text(&self) -> String;
 }
 
-impl SchemaObject {
-    /// Text shown in the menu: `schema.table` outside `public`, else the bare name.
-    pub fn display(&self) -> String {
-        match self.schema.as_deref() {
-            Some(s) if s != "public" => format!("{s}.{}", self.label),
-            _ => self.label.clone(),
+impl RelationText for Relation {
+    fn label(&self) -> &str {
+        &self.object.name
+    }
+
+    fn display(&self) -> String {
+        match self.object.schema.as_deref() {
+            Some(s) if s != "public" => format!("{s}.{}", self.label()),
+            _ => self.label().to_string(),
         }
     }
 
-    /// SQL to insert: identifiers quoted where needed.
-    pub fn insert_text(&self) -> String {
-        match self.schema.as_deref() {
-            Some(s) if s != "public" => format!("{}.{}", quote_ident(s), quote_ident(&self.label)),
-            _ => quote_ident(&self.label),
+    fn insert_text(&self) -> String {
+        match self.object.schema.as_deref() {
+            Some(s) if s != "public" => format!("{}.{}", quote_ident(s), quote_ident(self.label())),
+            _ => quote_ident(self.label()),
         }
     }
 }
@@ -76,18 +76,6 @@ pub fn split_dotted(s: &str) -> Vec<String> {
     parts
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ObjectKind {
-    Table,
-    View,
-}
-
-#[derive(Debug, Clone)]
-pub struct ColumnInfo {
-    pub name: String,
-    pub data_type: String,
-}
-
 /// Lazily-populated cache of schema objects for a single connection.
 ///
 /// Panels request a refresh via [`SchemaCache::mark_stale`]; a background task
@@ -96,7 +84,7 @@ pub struct ColumnInfo {
 #[derive(Debug, Default, Clone)]
 pub struct SchemaCache {
     pub engine: Option<EngineKind>,
-    pub objects: Vec<SchemaObject>,
+    pub objects: Vec<Relation>,
     pub last_refreshed_at: Option<Instant>,
 }
 
@@ -109,19 +97,28 @@ impl SchemaCache {
         }
     }
 
+    /// A cache filled from the engine's catalog just now.
+    pub fn loaded(engine: EngineKind, objects: Vec<Relation>) -> Self {
+        Self {
+            engine: Some(engine),
+            objects,
+            last_refreshed_at: Some(Instant::now()),
+        }
+    }
+
     /// Returns objects whose label starts with `prefix` (case-insensitive).
-    pub fn complete(&self, prefix: &str) -> Vec<&SchemaObject> {
+    pub fn complete(&self, prefix: &str) -> Vec<&Relation> {
         let lower = unquote(prefix).to_lowercase();
         self.objects
             .iter()
             .filter(|o| {
-                o.label.to_lowercase().starts_with(&lower)
+                o.label().to_lowercase().starts_with(&lower)
                     || o.display().to_lowercase().starts_with(&lower)
             })
             .collect()
     }
 
-    pub fn find_by_name(&self, name: &str) -> Option<&SchemaObject> {
+    pub fn find_by_name(&self, name: &str) -> Option<&Relation> {
         let parts = split_dotted(name);
         let (table, schema) = match parts.as_slice() {
             [t] => (t.as_str(), None),
@@ -132,18 +129,18 @@ impl SchemaCache {
         let matches = |exact: bool| {
             self.objects.iter().find(|o| {
                 let same = if exact {
-                    o.label == table
+                    o.label() == table
                 } else {
-                    o.label.to_lowercase() == lower
+                    o.label().to_lowercase() == lower
                 };
-                same && schema.is_none_or(|s| o.schema.as_deref() == Some(s))
+                same && schema.is_none_or(|s| o.object.schema.as_deref() == Some(s))
             })
         };
         matches(true).or_else(|| matches(false))
     }
 
     /// Column names on `table_name` matching `prefix` (case-insensitive).
-    pub fn complete_columns(&self, table_name: &str, prefix: &str) -> Vec<&ColumnInfo> {
+    pub fn complete_columns(&self, table_name: &str, prefix: &str) -> Vec<&DbColumn> {
         let lower = unquote(prefix).to_lowercase();
         self.find_by_name(table_name)
             .map(|obj| {
@@ -159,20 +156,18 @@ impl SchemaCache {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use based_core::{DbObject, ObjectKind};
 
     fn sample_cache() -> SchemaCache {
         let mut cache = SchemaCache::new(EngineKind::SQLite);
-        cache.objects.push(SchemaObject {
-            full_name: "docs".into(),
-            label: "docs".into(),
-            schema: None,
-            kind: ObjectKind::Table,
+        cache.objects.push(Relation {
+            object: DbObject::new(None, "docs", ObjectKind::Table),
             columns: vec![
-                ColumnInfo {
+                DbColumn {
                     name: "id".into(),
                     data_type: "INTEGER".into(),
                 },
-                ColumnInfo {
+                DbColumn {
                     name: "title".into(),
                     data_type: "TEXT".into(),
                 },

@@ -11,7 +11,7 @@ use sqlx::{AssertSqlSafe, PgPool, Row};
 use tokio::time::timeout;
 
 use super::explain_plan::{PlanNode, parse_pg_explain_json, render_plan};
-use crate::editor::{SchemaCache, pg_schema};
+use crate::editor::SchemaCache;
 use crate::workspace::panels::query_editor::{Explained, Fut, PlanView, QuerySource};
 use crate::workspace::tabs::kind::names;
 
@@ -52,7 +52,12 @@ impl QuerySource for PgQuery {
 
     fn load_schema(&self) -> Option<Fut<SchemaCache>> {
         let pool = self.pool.clone();
-        Some(Box::pin(async move { pg_schema::load_schema(&pool).await }))
+        Some(Box::pin(async move {
+            Ok(SchemaCache::loaded(
+                EngineKind::Postgres,
+                based_postgres::list_relations(&pool).await?,
+            ))
+        }))
     }
 
     fn run(&self, sql: String, timeout_secs: u32) -> Fut<SqlOutcome> {

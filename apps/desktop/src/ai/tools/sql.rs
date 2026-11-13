@@ -8,7 +8,8 @@ use futures::future::BoxFuture;
 use sqlx::{PgPool, SqlitePool};
 
 use crate::ai::schema;
-use crate::editor::{SchemaCache, pg_schema, sqlite_schema};
+use crate::editor::SchemaCache;
+use crate::editor::schema_cache::RelationText as _;
 
 #[derive(Clone)]
 pub enum SqlPool {
@@ -22,11 +23,12 @@ pub struct SqlTools(pub SqlPool);
 
 impl SqlTools {
     async fn cache(&self) -> Result<SchemaCache, AiError> {
-        match &self.0 {
-            SqlPool::Postgres(p) => pg_schema::load_schema(p).await,
-            SqlPool::Sqlite(p) => sqlite_schema::load_schema(p).await,
+        let relations = match &self.0 {
+            SqlPool::Postgres(p) => based_postgres::list_relations(p).await,
+            SqlPool::Sqlite(p) => based_sqlite::list_relations(p).await,
         }
-        .map_err(fail)
+        .map_err(fail)?;
+        Ok(SchemaCache::loaded(self.engine(), relations))
     }
 
     async fn rows(&self, sql: &str, limit: usize) -> Result<ResultSet, AiError> {

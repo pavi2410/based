@@ -3,16 +3,18 @@
 use based_ai::context::{
     ContextLevel, Entity, EntityKind, Field, RenderOptions, SchemaSnapshot, render,
 };
-use based_core::EngineKind;
+use based_core::{EngineKind, ObjectKind, Relation};
 
 use crate::editor::SchemaCache;
-use crate::editor::schema_cache::{ObjectKind, SchemaObject};
+use crate::editor::schema_cache::RelationText as _;
 
 /// One table or view as a prompt entity.
-pub fn entity(o: &SchemaObject) -> Entity {
-    let kind = match o.kind {
-        ObjectKind::Table => EntityKind::Table,
-        ObjectKind::View => EntityKind::View,
+pub fn entity(o: &Relation) -> Entity {
+    let kind = match o.object.kind {
+        ObjectKind::View | ObjectKind::MaterializedView => EntityKind::View,
+        ObjectKind::Collection => EntityKind::Collection,
+        ObjectKind::Key => EntityKind::KeyPattern,
+        ObjectKind::Table | ObjectKind::Trigger => EntityKind::Table,
     };
     let fields = o
         .columns
@@ -41,7 +43,7 @@ pub fn context(engine: EngineKind, cache: &SchemaCache, level: ContextLevel, tex
     let focus: Vec<String> = cache
         .objects
         .iter()
-        .filter(|o| lower.contains(&o.label.to_lowercase()))
+        .filter(|o| lower.contains(&o.label().to_lowercase()))
         .map(|o| o.display())
         .collect();
     let mut opts = RenderOptions::new(engine, level);
@@ -52,15 +54,12 @@ pub fn context(engine: EngineKind, cache: &SchemaCache, level: ContextLevel, tex
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::editor::schema_cache::{ColumnInfo, SchemaObject};
+    use based_core::{DbColumn, DbObject};
 
     fn cache() -> SchemaCache {
-        let table = |name: &str| SchemaObject {
-            full_name: format!("public.{name}"),
-            label: name.into(),
-            schema: Some("public".into()),
-            kind: ObjectKind::Table,
-            columns: vec![ColumnInfo {
+        let table = |name: &str| Relation {
+            object: DbObject::new(Some("public".into()), name, ObjectKind::Table),
+            columns: vec![DbColumn {
                 name: "id".into(),
                 data_type: "int4".into(),
             }],

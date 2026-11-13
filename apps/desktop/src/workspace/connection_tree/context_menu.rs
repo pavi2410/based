@@ -15,7 +15,7 @@ use crate::workspace::wizard_logic::can_edit_saved_connection;
 use crate::ai::ask_assistant;
 
 use super::ConnectionTree;
-use super::types::{ObjectKind, SchemaObject};
+use super::types::{DbObject, ObjectKind};
 
 const ICON_PENCIL: &str = "icons/pencil.svg";
 const ICON_COPY: &str = "icons/copy.svg";
@@ -430,7 +430,7 @@ pub(crate) fn schema_context_menu(
 
 pub(crate) fn object_context_menu(
     conn_idx: usize,
-    object: SchemaObject,
+    object: DbObject,
     engine: EngineKind,
     is_connected: bool,
     tree: WeakEntity<ConnectionTree>,

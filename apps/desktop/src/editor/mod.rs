@@ -5,11 +5,9 @@
 
 pub mod error_locate;
 pub mod lint;
-pub mod pg_schema;
 pub mod redis_completion;
 pub mod schema_cache;
 pub mod sql_completion;
 pub mod sql_scope;
-pub mod sqlite_schema;
 
 pub use schema_cache::SchemaCache;

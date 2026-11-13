@@ -54,15 +54,12 @@ pub fn lint(sql: &str, engine: EngineKind, cache: &SchemaCache) -> Vec<Lint> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::editor::schema_cache::{ObjectKind, SchemaObject};
+    use based_core::{DbObject, ObjectKind, Relation};
 
     fn cache() -> SchemaCache {
         let mut c = SchemaCache::new(EngineKind::Postgres);
-        c.objects.push(SchemaObject {
-            full_name: "public.users".into(),
-            label: "users".into(),
-            schema: Some("public".into()),
-            kind: ObjectKind::Table,
+        c.objects.push(Relation {
+            object: DbObject::new(Some("public".into()), "users", ObjectKind::Table),
             columns: vec![],
         });
         c

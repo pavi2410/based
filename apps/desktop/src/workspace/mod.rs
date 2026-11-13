@@ -163,6 +163,12 @@ impl Workspace {
                 skipped.push((based_dir, project.skipped));
             }
         });
+        let skipped_queries = project_context.as_ref().map(|ctx| {
+            (
+                ctx.root.join(".based"),
+                ctx.snapshot.skipped_queries.clone(),
+            )
+        });
         // After the first frame, so the notice lands on this window's tray.
         cx.defer_in(window, move |_, window, cx| {
             for (based_dir, skipped) in skipped {
@@ -170,6 +176,12 @@ impl Workspace {
                     window.push_notification(note, cx);
                     notify::remember_skipped_notice(cx, &based_dir, &skipped);
                 }
+            }
+            if let Some((based_dir, skipped)) = skipped_queries
+                && let Some(note) = notify::skipped_queries_notice(cx, &based_dir, &skipped)
+            {
+                window.push_notification(note, cx);
+                notify::remember_skipped_queries(cx, &based_dir, &skipped);
             }
         });
 

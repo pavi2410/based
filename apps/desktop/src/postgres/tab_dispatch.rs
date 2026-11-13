@@ -6,6 +6,7 @@
 
 use std::sync::Arc;
 
+use based_core::ObjectRef;
 use gpui_kit::component::dock::PanelView;
 use gpui_kit::{Context, Window, prelude::*};
 use sqlx::PgPool;
@@ -32,9 +33,13 @@ pub fn build_panel(
 ) -> Option<Arc<dyn PanelView>> {
     match spec {
         TabSpec::DataViewer { object, filter, .. } => {
-            // The tree always sets the schema; legacy sessions are migrated on restore.
-            let schema = object.schema.clone().unwrap_or_else(|| "public".into());
-            let name = object.name.clone();
+            // The tree always sets the schema. A spec without one is a legacy
+            // "schema.name" string that restore could not migrate.
+            let object = match object.schema {
+                Some(_) => object.clone(),
+                None => ObjectRef::from_legacy_qualified(&object.name, "public"),
+            };
+            let (schema, name) = (object.schema.unwrap_or_default(), object.name);
             let label = tab_label_for_spec(spec, false);
             let panel = cx.new(|cx| {
                 DataViewerPanel::new(
@@ -84,9 +89,13 @@ pub fn build_panel(
             ..
         } => None,
         TabSpec::Inspector { object, .. } => {
-            // The tree always sets the schema; legacy sessions are migrated on restore.
-            let schema = object.schema.clone().unwrap_or_else(|| "public".into());
-            let name = object.name.clone();
+            // The tree always sets the schema. A spec without one is a legacy
+            // "schema.name" string that restore could not migrate.
+            let object = match object.schema {
+                Some(_) => object.clone(),
+                None => ObjectRef::from_legacy_qualified(&object.name, "public"),
+            };
+            let (schema, name) = (object.schema.unwrap_or_default(), object.name);
             let label = tab_label_for_spec(spec, false);
             let panel = cx.new(|cx| {
                 TableInspectorPanel::new(

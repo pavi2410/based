@@ -74,6 +74,15 @@ pub fn save_label_from_config(name: &str, config: &ConnectionConfig) -> String {
 }
 
 /// SSL off → Disable. On with no/loose mode → Require; keep verify-ca / verify-full.
+/// The SSL select's value for a mode with TLS on: verify modes as themselves,
+/// everything else (`prefer`, `require`) as `require`.
+pub fn ssl_on_choice(mode: SslMode) -> SslMode {
+    match mode {
+        SslMode::VerifyCa | SslMode::VerifyFull => mode,
+        _ => SslMode::Require,
+    }
+}
+
 pub fn ssl_mode_from_toggle(enabled: bool, selected: Option<SslMode>) -> SslMode {
     if !enabled {
         return SslMode::Disable;
@@ -323,6 +332,12 @@ mod tests {
             pragma: None,
         });
         assert_eq!(save_label_from_config("", &config), "shop");
+    }
+
+    #[test]
+    fn ssl_select_shows_prefer_as_require() {
+        assert_eq!(ssl_on_choice(SslMode::Prefer), SslMode::Require);
+        assert_eq!(ssl_on_choice(SslMode::VerifyFull), SslMode::VerifyFull);
     }
 
     #[test]

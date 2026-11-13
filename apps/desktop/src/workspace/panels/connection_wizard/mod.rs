@@ -48,8 +48,8 @@ use crate::workspace::connection_destination::{
 };
 use crate::workspace::wizard_logic::{
     AI_CHOICES, add_wizard_tag, ai_context_of, ai_settings_for, can_edit_saved_connection,
-    remove_wizard_tag, save_label_from_config, ssl_mode_from_toggle, ssl_toggle_enabled,
-    wizard_session_id,
+    remove_wizard_tag, save_label_from_config, ssl_mode_from_toggle, ssl_on_choice,
+    ssl_toggle_enabled, wizard_session_id,
 };
 
 mod actions;

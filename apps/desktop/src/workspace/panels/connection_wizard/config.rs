@@ -31,7 +31,7 @@ impl ConnectionWizardPanel {
                 set_field(&self.password, &c.password, window, cx);
                 self.ssl_enabled = ssl_toggle_enabled(c.ssl_mode);
                 if self.ssl_enabled {
-                    let mode = c.ssl_mode;
+                    let mode = ssl_on_choice(c.ssl_mode);
                     self.ssl_mode.update(cx, |select, cx| {
                         select.set_selected_value(&mode, window, cx);
                     });
@@ -175,7 +175,7 @@ impl ConnectionWizardPanel {
         set_field(&self.password, &cfg.password, window, cx);
         self.ssl_enabled = ssl_toggle_enabled(cfg.ssl_mode);
         if self.ssl_enabled {
-            let mode = cfg.ssl_mode;
+            let mode = ssl_on_choice(cfg.ssl_mode);
             self.ssl_mode.update(cx, |select, cx| {
                 select.set_selected_value(&mode, window, cx);
             });

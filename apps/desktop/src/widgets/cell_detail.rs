@@ -1,7 +1,15 @@
 //! Floating cell inspector: column, inferred type label, monospace body.
 
-use gpui_kit::component::{ActiveTheme, h_flex, scroll::ScrollableElement, v_flex};
-use gpui_kit::{Context, IntoElement, MouseButton, Render, Window, div, prelude::*, px};
+use gpui_kit::component::{
+    ActiveTheme, Sizable as _,
+    button::{Button, ButtonVariants as _},
+    h_flex,
+    scroll::ScrollableElement,
+    v_flex,
+};
+use gpui_kit::{
+    ClipboardItem, Context, IntoElement, MouseButton, Render, Window, div, prelude::*, px,
+};
 
 use based_core::Value;
 
@@ -53,6 +61,7 @@ impl Render for CellDetail {
         }
 
         let display = inspector_text(&self.value);
+        let copy = display.clone();
         let type_label = self.value.type_label();
         let theme = cx.theme();
         let mono = prefs::code_font_family(cx);
@@ -117,11 +126,13 @@ impl Render for CellDetail {
                     .border_color(theme.border)
                     .gap_2()
                     .child(
-                        div()
-                            .text_xs()
-                            .text_color(theme.muted_foreground)
-                            .cursor_pointer()
-                            .child("Copy value"),
+                        Button::new("cell-detail-copy")
+                            .ghost()
+                            .xsmall()
+                            .label("Copy value")
+                            .on_click(move |_, _, cx| {
+                                cx.write_to_clipboard(ClipboardItem::new_string(copy.to_string()));
+                            }),
                     ),
             )
             .into_any_element()

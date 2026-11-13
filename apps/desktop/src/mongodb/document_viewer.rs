@@ -7,7 +7,7 @@ use gpui_kit::assets::IconName as AssetIcon;
 
 use gpui_kit::component::{
     ActiveTheme, Icon, IconName, Sizable as _,
-    button::Button,
+    button::{Button, ButtonVariants as _},
     dock::{BasePanel, Panel, PanelEvent},
     menu::PopupMenu,
     table::{Column, TableState},
@@ -22,8 +22,10 @@ use gpui_kit::component::table::TableEvent;
 use crate::db;
 use crate::widgets::cell_detail::CellDetail;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
+use crate::widgets::empty_state::status_panel;
 use crate::widgets::export;
 use crate::widgets::filter_bar::{FilterBar, FilterEvent, FilterSet};
+use crate::widgets::load::{Load, LoadFailure};
 use crate::widgets::panel::data_viewer_toolbar;
 use crate::widgets::virtual_table::{
     RowDelegate, align_meta_to_columns, cells, data_column, replace_table_data,
@@ -31,12 +33,12 @@ use crate::widgets::virtual_table::{
 use crate::workspace::notify::push_export_success;
 use crate::workspace::tabs::kind::names;
 
-fn mongo_filter_doc(expr: &FilterSet) -> Document {
+/// The filter as a query document. An error rather than `{}`: an empty filter
+/// would quietly match every document.
+fn mongo_filter_doc(expr: &FilterSet) -> Result<Document, String> {
     let s = expr.to_mongo_filter();
-    serde_json::from_str::<serde_json::Value>(&s)
-        .ok()
-        .and_then(|v| to_document(&v).ok())
-        .unwrap_or_else(|| doc! {})
+    let json = serde_json::from_str::<serde_json::Value>(&s).map_err(|e| e.to_string())?;
+    to_document(&json).map_err(|e| e.to_string())
 }
 
 pub struct DocumentViewerPanel {
@@ -46,7 +48,7 @@ pub struct DocumentViewerPanel {
     cell_detail: Entity<CellDetail>,
     filter_bar: Entity<FilterBar>,
     limit: i64,
-    loading: bool,
+    load: Load,
     pub(crate) tab_label: SharedString,
 }
 
@@ -72,7 +74,7 @@ impl DocumentViewerPanel {
             cell_detail,
             filter_bar,
             limit: 200,
-            loading: false,
+            load: Load::Idle,
             tab_label,
         };
         cx.subscribe(&p.table, |panel, _, event, cx| {
@@ -103,15 +105,20 @@ impl DocumentViewerPanel {
     }
 
     fn reload(&mut self, cx: &mut Context<Self>) {
-        self.loading = true;
         let coll = self.collection.clone();
         let lim = self.limit;
-        let filter_doc = self
-            .filter_bar
-            .read(cx)
-            .current_set(cx)
-            .map(|e| mongo_filter_doc(&e))
-            .unwrap_or_else(|| doc! {});
+        let filter_doc = match self.filter_bar.read(cx).current_set(cx) {
+            None => doc! {},
+            Some(set) => match mongo_filter_doc(&set) {
+                Ok(doc) => doc,
+                Err(e) => {
+                    self.load = Load::failed("The filter isn't a valid query", e);
+                    cx.notify();
+                    return;
+                }
+            },
+        };
+        self.load = Load::Loading;
 
         cx.spawn(async move |this, cx| {
             let docs = match db::run(cx, async move {
@@ -126,10 +133,10 @@ impl DocumentViewerPanel {
             .await
             {
                 Ok(d) => d,
-                Err(_) => {
+                Err(e) => {
                     let _ = cx.update(|cx| {
                         this.update(cx, |panel, cx| {
-                            panel.loading = false;
+                            panel.load = Load::failed("Couldn't load documents", e);
                             cx.notify();
                         })
                     });
@@ -154,7 +161,7 @@ impl DocumentViewerPanel {
 
             let _ = cx.update(|cx| {
                 this.update(cx, |panel, cx| {
-                    panel.loading = false;
+                    panel.load = Load::Loaded;
                     panel.filter_bar.update(cx, |fb, cx| {
                         fb.set_columns_if_empty(keys.clone(), cx);
                     });
@@ -227,7 +234,7 @@ impl Render for DocumentViewerPanel {
                             .on_click(cx.listener(|p, _, _, cx| p.reload(cx))),
                     )
                     .child(self.filter_bar.clone())
-                    .when(self.loading, |h| {
+                    .when(self.load.is_loading(), |h| {
                         h.child(div().text_sm().text_color(muted).child("Loading…"))
                     })
                     .child(
@@ -255,7 +262,54 @@ impl Render for DocumentViewerPanel {
                             }),
                     ),
             )
-            .child(render_row_table(&self.table, cx))
+            .child(
+                div()
+                    .relative()
+                    .flex_1()
+                    .min_h_0()
+                    .child(render_row_table(&self.table, cx))
+                    .when_some(self.error_overlay(cx), |d, o| {
+                        d.child(
+                            div()
+                                .absolute()
+                                .inset_0()
+                                .bg(cx.theme().background)
+                                .child(o),
+                        )
+                    }),
+            )
             .child(self.cell_detail.clone())
+    }
+}
+
+impl DocumentViewerPanel {
+    /// The last load's failure, with Retry and Copy details, over the grid.
+    fn error_overlay(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let LoadFailure { title, detail } = self.load.failure()?.clone();
+        let copy = detail.to_string();
+        Some(status_panel(
+            title,
+            "Check the filter and the connection, then try again.",
+            IconName::TriangleAlert,
+            Some(cx.theme().danger),
+            Some(detail),
+            vec![
+                Button::new("mongo-retry")
+                    .small()
+                    .primary()
+                    .label("Retry")
+                    .on_click(cx.listener(|p, _, _, cx| p.reload(cx)))
+                    .into_any_element(),
+                Button::new("mongo-copy-error")
+                    .small()
+                    .outline()
+                    .label("Copy details")
+                    .on_click(move |_, _, cx| {
+                        cx.write_to_clipboard(ClipboardItem::new_string(copy.clone()));
+                    })
+                    .into_any_element(),
+            ],
+            cx,
+        ))
     }
 }

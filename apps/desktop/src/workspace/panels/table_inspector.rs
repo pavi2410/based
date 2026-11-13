@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use gpui_kit::component::{
-    ActiveTheme,
-    button::Button,
+    ActiveTheme, IconName, Sizable as _,
+    button::{Button, ButtonVariants as _},
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
     input::EditorState,
@@ -21,6 +21,8 @@ use crate::connection::ConnectionId;
 use crate::db;
 use crate::widgets::compact_description_list_vertical;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
+use crate::widgets::empty_state::status_panel;
+use crate::widgets::load::{Load, LoadFailure};
 use crate::widgets::panel::{
     panel_tab_content, tab_breadcrumb_footer, tab_breadcrumb_for_connection, tab_button_styled,
 };
@@ -103,6 +105,8 @@ pub struct TableInspectorPanel {
     conn_id: ConnectionId,
     tabs: Vec<(TabDef, Body)>,
     active: usize,
+    /// A failure replaces the tabs' contents with an error card.
+    load: Load,
     pub(crate) tab_label: SharedString,
 }
 
@@ -134,6 +138,7 @@ impl TableInspectorPanel {
             conn_id,
             tabs,
             active: 0,
+            load: Load::Idle,
             tab_label,
         };
         panel.load(cx);
@@ -141,14 +146,23 @@ impl TableInspectorPanel {
     }
 
     fn load(&mut self, cx: &mut Context<Self>) {
+        self.load = Load::Loading;
         let fetch = self.source.load();
         cx.spawn(async move |this, cx| {
-            let Ok(sections) = db::run(cx, fetch).await else {
-                return;
+            let sections = match db::run(cx, fetch).await {
+                Ok(sections) => sections,
+                Err(e) => {
+                    let _ = this.update(cx, |panel, cx| {
+                        panel.load = Load::failed("Couldn't load the structure", e);
+                        cx.notify();
+                    });
+                    return;
+                }
             };
             cx.update(|cx| {
                 let mut code = vec![];
                 let _ = this.update(cx, |panel, cx| {
+                    panel.load = Load::Loaded;
                     for ((_, body), section) in panel.tabs.iter_mut().zip(sections) {
                         match (body, section) {
                             (Body::Table(ent), Section::Table { columns, rows }) => {
@@ -232,19 +246,51 @@ impl Render for TableInspectorPanel {
             })
             .collect();
 
-        let content: AnyElement = match self.tabs.get(self.active).map(|(_, b)| b) {
-            Some(Body::Table(ent)) => render_row_table(ent, cx).into_any_element(),
-            Some(Body::Code(ent)) => div()
+        let error = self
+            .load
+            .failure()
+            .cloned()
+            .map(|LoadFailure { title, detail }| {
+                let copy = detail.to_string();
+                status_panel(
+                    title,
+                    "Check the connection and your access to this object, then try again.",
+                    IconName::TriangleAlert,
+                    Some(cx.theme().danger),
+                    Some(detail),
+                    vec![
+                        Button::new("inspector-retry")
+                            .small()
+                            .primary()
+                            .label("Retry")
+                            .on_click(cx.listener(|p, _, _, cx| p.load(cx)))
+                            .into_any_element(),
+                        Button::new("inspector-copy-error")
+                            .small()
+                            .outline()
+                            .label("Copy details")
+                            .on_click(move |_, _, cx| {
+                                cx.write_to_clipboard(ClipboardItem::new_string(copy.clone()));
+                            })
+                            .into_any_element(),
+                    ],
+                    cx,
+                )
+            });
+        let content: AnyElement = match (error, self.tabs.get(self.active).map(|(_, b)| b)) {
+            (Some(error), _) => error,
+            (None, Some(Body::Table(ent))) => render_row_table(ent, cx).into_any_element(),
+            (None, Some(Body::Code(ent))) => div()
                 .id("inspector-code")
                 .size_full()
                 .min_h_0()
                 .child(sql_editor::code_editor_flex(ent, false, true, cx))
                 .into_any_element(),
-            Some(Body::Facts(facts)) => div()
+            (None, Some(Body::Facts(facts))) => div()
                 .p_3()
                 .child(compact_description_list_vertical(facts.clone(), true))
                 .into_any_element(),
-            None => div().into_any_element(),
+            (None, None) => div().into_any_element(),
         };
 
         let body = v_flex()

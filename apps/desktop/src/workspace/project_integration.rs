@@ -16,6 +16,7 @@ use crate::connection::{
 use crate::project::ProjectContext;
 use crate::project::loader::entry_from_tree;
 use crate::query_store::QueryStore;
+use crate::workspace::notify::push_error;
 
 use super::Workspace;
 use super::connection_destination::ConnectionDestination;
@@ -45,6 +46,11 @@ impl Workspace {
         let store = cx.global::<QueryStore>();
         let Some(query) = store.project_queries().iter().find(|q| q.path == path) else {
             log::warn!("project query not found: {path}");
+            push_error(
+                cx,
+                "Couldn't open query",
+                format!("{path} is no longer in .based/queries."),
+            );
             return;
         };
         let focused = self.focused_conn_id(cx);
@@ -55,7 +61,7 @@ impl Workspace {
             OpenQueryResult::PickConnection { candidates, .. } => {
                 self.pending_target_pick = Some((query.clone(), candidates));
             }
-            OpenQueryResult::Error(msg) => log::warn!("{msg}"),
+            OpenQueryResult::Error(msg) => push_error(cx, "Couldn't open query", msg),
         }
     }
 

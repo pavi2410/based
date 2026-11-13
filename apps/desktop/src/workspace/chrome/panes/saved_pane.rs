@@ -12,6 +12,7 @@ use crate::project::ProjectRoot;
 use crate::query_store::QueryStore;
 use crate::widgets::empty_state::pane_empty_hint;
 use crate::workspace::Workspace;
+use crate::workspace::notify::push_error;
 use crate::workspace::project_query::{OpenQueryResult, open_project_query, target_hint};
 use crate::workspace::tabs::inbox;
 
@@ -107,7 +108,7 @@ pub fn render_saved_pane(
                             });
                             log::info!("ambiguous target for {query_path}; pick connection");
                         }
-                        OpenQueryResult::Error(msg) => log::warn!("{msg}"),
+                        OpenQueryResult::Error(msg) => push_error(cx, "Couldn't open query", msg),
                     }
                 })
         }))

@@ -21,6 +21,7 @@ pub mod json_hover;
 pub mod kbd;
 pub mod layout;
 pub mod list_row;
+pub mod load;
 pub mod metadata_pill;
 pub mod motion;
 pub mod pagination;

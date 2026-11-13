@@ -114,8 +114,12 @@ query = "SELECT 1"
     )
     .unwrap();
     fs::write(based.join("queries/bad.toml"), raw).unwrap();
-    let err = load_project(dir.path()).unwrap_err();
-    assert!(err.to_string().contains("exclusive"));
+    // The bad file is reported, not fatal to the project.
+    let snap = load_project(dir.path()).unwrap();
+    assert!(snap.queries.is_empty());
+    assert_eq!(snap.skipped_queries.len(), 1);
+    assert_eq!(snap.skipped_queries[0].path, "bad");
+    assert!(snap.skipped_queries[0].reason.contains("exclusive"));
 }
 
 #[test]

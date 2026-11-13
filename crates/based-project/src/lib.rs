@@ -23,5 +23,7 @@ pub use environment::{ActiveEnvironment, load_active_environment, persist_active
 pub use favorites::{FavoriteEntry, FavoritesFile, load_favorites, persist_favorites};
 pub use load::{ProjectSnapshot, load_project};
 pub use project::{ProjectManifest, ProjectSettings};
-pub use query::{ProjectQuery, QueryBody, SaveTarget, save_sql_query, slugify};
+pub use query::{
+    LoadedQueries, ProjectQuery, QueryBody, SaveTarget, SkippedQuery, save_sql_query, slugify,
+};
 pub use target::{ConnectionRef, QueryTarget, ResolveError, TargetConnection, resolve_target};

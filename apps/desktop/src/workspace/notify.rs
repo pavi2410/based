@@ -12,6 +12,8 @@ use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
 use std::process;
 
+use based_project::SkippedQuery;
+
 use crate::project::loader::SkippedConnection;
 
 /// Push a notification on the active window’s `Root`, or on the first open window
@@ -196,6 +198,46 @@ pub fn skipped_connections_notice(
 /// Record that the notice for this set was shown, so an unchanged reload stays quiet.
 pub fn remember_skipped_notice(app: &mut App, based_dir: &Path, skipped: &[SkippedConnection]) {
     app.default_global::<SkippedNoticeSeen>()
+        .0
+        .insert(based_dir.to_path_buf(), skipped.to_vec());
+}
+
+/// Last skipped-queries notice per based-dir (same dedupe as connections).
+#[derive(Default)]
+struct SkippedQueriesSeen(HashMap<PathBuf, Vec<SkippedQuery>>);
+
+impl Global for SkippedQueriesSeen {}
+
+/// A notice for saved-query files in `based_dir` that did not parse, or `None`
+/// when there is nothing new to say. Show it, then call [`remember_skipped_queries`].
+pub fn skipped_queries_notice(
+    app: &mut App,
+    based_dir: &Path,
+    skipped: &[SkippedQuery],
+) -> Option<Notification> {
+    let seen = &mut app.default_global::<SkippedQueriesSeen>().0;
+    if seen.get(based_dir).map(Vec::as_slice).unwrap_or_default() == skipped {
+        return None;
+    }
+    if skipped.is_empty() {
+        seen.remove(based_dir);
+        return None;
+    }
+    let message = skipped
+        .iter()
+        .map(|s| format!("• {} — {}", s.path, error_one_liner(&s.reason)))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let title = match skipped.len() {
+        1 => "1 saved query didn't load".to_string(),
+        n => format!("{n} saved queries didn't load"),
+    };
+    Some(Notification::warning(message).title(title).autohide(false))
+}
+
+/// Record that the notice for this set was shown.
+pub fn remember_skipped_queries(app: &mut App, based_dir: &Path, skipped: &[SkippedQuery]) {
+    app.default_global::<SkippedQueriesSeen>()
         .0
         .insert(based_dir.to_path_buf(), skipped.to_vec());
 }

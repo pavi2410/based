@@ -164,17 +164,41 @@ fn update_sql_in_place(file: &Path, name: &str, sql: &str) -> Option<String> {
     Some(doc.to_string())
 }
 
-pub fn load_queries(project_root: &Path) -> Result<Vec<ProjectQuery>> {
+/// A query file that could not be loaded, and why.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SkippedQuery {
+    /// Path under `.based/queries/`, without the `.toml` suffix.
+    pub path: String,
+    pub reason: String,
+}
+
+/// Saved queries, plus the files that did not parse. One bad file never hides
+/// the others.
+#[derive(Debug, Clone, Default)]
+pub struct LoadedQueries {
+    pub queries: Vec<ProjectQuery>,
+    pub skipped: Vec<SkippedQuery>,
+}
+
+pub fn load_queries(project_root: &Path) -> Result<LoadedQueries> {
     let dir = project_root.join(".based").join("queries");
+    let mut out = LoadedQueries::default();
     if !dir.is_dir() {
-        return Ok(vec![]);
+        return Ok(out);
     }
-    let files = walk_toml_files(&dir)?;
-    let mut queries = Vec::with_capacity(files.len());
-    for path in files {
-        queries.push(parse_query_file(&dir, &path)?);
+    for path in walk_toml_files(&dir)? {
+        match parse_query_file(&dir, &path) {
+            Ok(q) => out.queries.push(q),
+            Err(e) => out.skipped.push(SkippedQuery {
+                path: path
+                    .strip_prefix(&dir)
+                    .map(rel_id)
+                    .unwrap_or_else(|_| path.display().to_string()),
+                reason: format!("{e:#}"),
+            }),
+        }
     }
-    Ok(queries)
+    Ok(out)
 }
 
 fn parse_query_file(queries_dir: &Path, path: &Path) -> Result<ProjectQuery> {
@@ -281,7 +305,7 @@ query = "SELECT 1"
         let a = save_sql_query(dir.path(), "My Query", sql, &target, None).unwrap();
         let b = save_sql_query(dir.path(), "My Query", "select 2", &target, None).unwrap();
         assert_eq!((a.as_str(), b.as_str()), ("my-query", "my-query-2"));
-        let loaded = load_queries(dir.path()).unwrap();
+        let loaded = load_queries(dir.path()).unwrap().queries;
         assert_eq!(loaded.len(), 2);
         let first = loaded.iter().find(|q| q.path == "my-query").unwrap();
         assert_eq!(first.name, "My Query");
@@ -295,7 +319,7 @@ query = "SELECT 1"
             Some("my-query"),
         )
         .unwrap();
-        let loaded = load_queries(dir.path()).unwrap();
+        let loaded = load_queries(dir.path()).unwrap().queries;
         let again = loaded.iter().find(|q| q.path == "my-query").unwrap();
         assert!(matches!(&again.body, QueryBody::Sql { query } if query == "select 3"));
     }
@@ -331,7 +355,7 @@ query = "select 1"
         .unwrap();
         let raw = fs::read_to_string(queries.join("top.toml")).unwrap();
         assert!(raw.starts_with("# Shared report"), "{raw}");
-        let q = load_queries(dir.path()).unwrap().remove(0);
+        let q = load_queries(dir.path()).unwrap().queries.remove(0);
         assert!(matches!(&q.body, QueryBody::Sql { query } if query == "select 2"));
         assert_eq!(
             q.description.as_deref(),
@@ -353,8 +377,21 @@ query = "select 1"
             None,
         )
         .unwrap();
-        let q = load_queries(dir.path()).unwrap().remove(0);
+        let q = load_queries(dir.path()).unwrap().queries.remove(0);
         assert_eq!(q.target.engine.as_deref(), Some("sqlite"));
         assert!(q.target.connection.is_none());
+    }
+
+    #[test]
+    fn one_bad_query_file_does_not_hide_the_others() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = SaveTarget::Connection("local/northwind".into());
+        save_sql_query(dir.path(), "Good", "select 1", &target, None).unwrap();
+        let queries = dir.path().join(".based").join("queries");
+        fs::write(queries.join("broken.toml"), "schema_version = 1\nname = ").unwrap();
+        let loaded = load_queries(dir.path()).unwrap();
+        assert_eq!(loaded.queries.len(), 1);
+        assert_eq!(loaded.skipped.len(), 1);
+        assert_eq!(loaded.skipped[0].path, "broken");
     }
 }

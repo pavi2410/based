@@ -76,6 +76,12 @@ pub fn reload_from_disk(project_root: &Path, registry: &Entity<ConnectionRegistr
     {
         toast::remember_skipped_notice(cx, &based_dir, &loaded.skipped);
     }
+    let skipped_queries = &ctx.snapshot.skipped_queries;
+    if let Some(note) = toast::skipped_queries_notice(cx, &based_dir, skipped_queries)
+        && toast::push_notification(cx, note)
+    {
+        toast::remember_skipped_queries(cx, &based_dir, skipped_queries);
+    }
 
     cx.set_global(ctx.clone());
     apply_project_settings(&ctx.snapshot.manifest, cx);

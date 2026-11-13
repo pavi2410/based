@@ -3,7 +3,7 @@
 
 use std::env;
 
-use based_core::Value;
+use based_core::{ResultSet, SqlOutcome, Value};
 use based_postgres::execute_sql;
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
@@ -17,38 +17,42 @@ async fn pool() -> Option<PgPool> {
     )
 }
 
-fn names(cols: &[based_postgres::QueryColumn]) -> Vec<&str> {
-    cols.iter().map(|c| c.name.as_str()).collect()
+async fn rows(pool: &PgPool, sql: &str) -> ResultSet {
+    match execute_sql(pool, sql).await.unwrap() {
+        SqlOutcome::Rows(set) => set,
+        other => panic!("{sql}: expected rows, got {other:?}"),
+    }
+}
+
+fn names(set: &ResultSet) -> Vec<&str> {
+    set.column_names().collect()
 }
 
 #[tokio::test]
 async fn row_returning_statements_return_rows() {
     let Some(pool) = pool().await else { return };
 
-    let (cols, rows, _) = execute_sql(&pool, "-- Active users\nSELECT 1 AS one")
-        .await
-        .unwrap();
-    assert_eq!(names(&cols), ["one"]);
-    assert_eq!(rows, [[Value::Int(1)]]);
+    let set = rows(&pool, "-- Active users\nSELECT 1 AS one").await;
+    assert_eq!(names(&set), ["one"]);
+    assert_eq!(set.rows, [[Value::Int(1)]]);
 
-    let (cols, rows, _) = execute_sql(&pool, "/* c */ (SELECT 2 AS two)")
-        .await
-        .unwrap();
-    assert_eq!(names(&cols), ["two"]);
-    assert_eq!(rows.len(), 1);
+    let set = rows(&pool, "/* c */ (SELECT 2 AS two)").await;
+    assert_eq!(names(&set), ["two"]);
+    assert_eq!(set.rows.len(), 1);
 
-    let (cols, rows, _) = execute_sql(&pool, "VALUES (1), (2)").await.unwrap();
-    assert_eq!(cols.len(), 1);
-    assert_eq!(rows.len(), 2);
+    let set = rows(&pool, "VALUES (1), (2)").await;
+    assert_eq!(set.columns.len(), 1);
+    assert_eq!(set.rows.len(), 2);
 }
 
 #[tokio::test]
 async fn null_and_the_text_null_stay_distinct() {
     let Some(pool) = pool().await else { return };
-    let (_, rows, _) = execute_sql(&pool, "SELECT NULL::text, 'NULL'::text, ''::text")
-        .await
-        .unwrap();
-    assert_eq!(rows, [[Value::Null, Value::text("NULL"), Value::text("")]]);
+    let set = rows(&pool, "SELECT NULL::text, 'NULL'::text, ''::text").await;
+    assert_eq!(
+        set.rows,
+        [[Value::Null, Value::text("NULL"), Value::text("")]]
+    );
 }
 
 #[tokio::test]
@@ -61,30 +65,27 @@ async fn empty_select_keeps_columns_and_dml_reports_affected() {
         .await
         .unwrap();
 
-    let (cols, rows, _) = execute_sql(&pool, "SELECT id, name FROM based_exec_test")
+    let set = rows(&pool, "SELECT id, name FROM based_exec_test").await;
+    assert_eq!(names(&set), ["id", "name"]);
+    assert!(set.rows.is_empty());
+
+    assert_eq!(
+        execute_sql(
+            &pool,
+            "INSERT INTO based_exec_test VALUES (1, 'a'), (2, 'b')"
+        )
         .await
-        .unwrap();
-    assert_eq!(names(&cols), ["id", "name"]);
-    assert!(rows.is_empty());
+        .unwrap(),
+        SqlOutcome::Affected(2)
+    );
 
-    let (cols, rows, affected) = execute_sql(
-        &pool,
-        "INSERT INTO based_exec_test VALUES (1, 'a'), (2, 'b')",
-    )
-    .await
-    .unwrap();
-    assert!(cols.is_empty());
-    assert!(rows.is_empty());
-    assert_eq!(affected, 2);
-
-    let (cols, rows, _) = execute_sql(
+    let set = rows(
         &pool,
         "INSERT INTO based_exec_test VALUES (3, 'c') RETURNING id",
     )
-    .await
-    .unwrap();
-    assert_eq!(names(&cols), ["id"]);
-    assert_eq!(rows, [[Value::Int(3)]]);
+    .await;
+    assert_eq!(names(&set), ["id"]);
+    assert_eq!(set.rows, [[Value::Int(3)]]);
 
     execute_sql(&pool, "DROP TABLE based_exec_test")
         .await
@@ -105,7 +106,7 @@ async fn empty_select_from_a_temp_table_keeps_its_columns() {
     execute_sql(&pool, "CREATE TEMP TABLE based_tmp (id int, note text)")
         .await
         .unwrap();
-    let (cols, rows, _) = execute_sql(&pool, "SELECT * FROM based_tmp").await.unwrap();
-    assert_eq!(names(&cols), ["id", "note"]);
-    assert!(rows.is_empty());
+    let set = rows(&pool, "SELECT * FROM based_tmp").await;
+    assert_eq!(names(&set), ["id", "note"]);
+    assert!(set.rows.is_empty());
 }

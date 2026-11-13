@@ -39,14 +39,14 @@ use crate::widgets::panel::{
     tab_breadcrumb_footer, tab_breadcrumb_for_connection,
 };
 use crate::widgets::virtual_table::{
-    Cell, RowDelegate, align_meta_to_columns, column_visibility, data_column, replace_table_data,
-    sort_column, toggle_column,
+    Cell, RowDelegate, align_meta_to_columns, cells, column_visibility, data_column,
+    replace_table_data, sort_column, toggle_column,
 };
 use crate::workspace::WorkspaceRef;
 use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::tabs::{DrillFilter, TabSpec, inbox, request_workspace_flush};
 use based_ai::context::ContextLevel;
-use based_core::{ColumnCatalog, ObjectRef, Value};
+use based_core::{ColumnCatalog, ObjectRef, RawPage, Value};
 
 fn is_array_type(ty: Option<&str>) -> bool {
     ty.is_some_and(|t| t.trim().ends_with("[]") || t.trim().eq_ignore_ascii_case("array"))
@@ -72,23 +72,21 @@ pub struct PageData {
 }
 
 impl PageData {
-    /// `names` are the result-set column names; when the page is empty, fall back to the catalog.
-    pub fn new(
-        total: i64,
-        names: Option<Vec<String>>,
-        rows: Vec<Vec<Cell>>,
-        catalog: &ColumnCatalog,
-    ) -> Self {
-        // An empty page has no result columns; show the table's, in table order.
-        let names = names.unwrap_or_else(|| catalog.names().map(str::to_string).collect());
+    /// An empty page has no result columns; it shows the table's, in table order.
+    pub fn new(page: RawPage, catalog: &ColumnCatalog) -> Self {
+        let names: Vec<String> = if page.set.columns.is_empty() {
+            catalog.names().map(str::to_string).collect()
+        } else {
+            page.set.column_names().map(str::to_string).collect()
+        };
         let columns = names
             .into_iter()
             .map(|n| data_column(n.clone(), n))
             .collect();
         Self {
-            total,
+            total: page.total,
             columns,
-            rows,
+            rows: cells(page.set.rows),
         }
     }
 }

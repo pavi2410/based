@@ -1,8 +1,10 @@
 //! Table browse page fetch and cell formatting (no UI).
 
 use anyhow::Result;
-use based_core::{RawPage, Value};
-use sqlx::{AssertSqlSafe, Column, Row, SqlitePool, TypeInfo, ValueRef, sqlite::SqliteRow};
+use based_core::{RawPage, ResultSet, Value};
+use sqlx::{AssertSqlSafe, Row, SqlitePool, TypeInfo, ValueRef, sqlite::SqliteRow};
+
+use crate::mutations::result_columns;
 
 /// Decode a column from a SQLite row by the storage class of *this* value.
 ///
@@ -48,14 +50,22 @@ pub async fn fetch_page(
     .await?;
     Ok(RawPage {
         total,
+        set: result_set(&rows),
+    })
+}
+
+/// Rows as a result set; no rows means no columns.
+pub(crate) fn result_set(rows: &[SqliteRow]) -> ResultSet {
+    ResultSet {
         columns: rows
             .first()
-            .map(|r| r.columns().iter().map(|c| c.name().to_string()).collect()),
+            .map(|r| result_columns(r.columns()))
+            .unwrap_or_default(),
         rows: rows
             .iter()
             .map(|r| (0..r.len()).map(|i| sqlite_cell(r, i)).collect())
             .collect(),
-    })
+    }
 }
 
 #[cfg(test)]
@@ -78,12 +88,12 @@ mod tests {
         }
         let p = fetch_page(&pool, "\"t\"", "", 2, 4).await.unwrap();
         assert_eq!(p.total, 5);
-        assert_eq!(p.columns, Some(vec!["id".into(), "name".into()]));
-        assert_eq!(p.rows, vec![vec![Value::Int(4), Value::Null]]);
+        assert_eq!(p.set.column_names().collect::<Vec<_>>(), ["id", "name"]);
+        assert_eq!(p.set.rows, vec![vec![Value::Int(4), Value::Null]]);
         let p = fetch_page(&pool, "\"t\"", " WHERE id > 9", 10, 0)
             .await
             .unwrap();
-        assert_eq!((p.total, p.columns, p.rows.len()), (0, None, 0));
+        assert_eq!((p.total, p.set.columns.len(), p.set.rows.len()), (0, 0, 0));
     }
 
     #[tokio::test]
@@ -99,7 +109,7 @@ mod tests {
             .unwrap();
         let p = fetch_page(&pool, "\"t\"", "", 10, 0).await.unwrap();
         assert_eq!(
-            p.rows,
+            p.set.rows,
             vec![vec![
                 Value::Int(1_700_000_000),
                 Value::text("NULL"),

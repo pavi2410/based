@@ -2,18 +2,17 @@
 
 use std::time::Duration;
 
-use based_core::EngineKind;
+use based_core::{EngineKind, SqlOutcome};
 use gpui_kit::component::Theme;
 use gpui_kit::{AnyElement, IntoElement as _};
-use sqlx::{AssertSqlSafe, Column, Row, SqlitePool, TypeInfo};
+use sqlx::{AssertSqlSafe, Row, SqlitePool};
 use tokio::time::timeout;
 
 use super::eqp_parse::{EqpNode, parse_eqp};
 use super::eqp_viewer::render_eqp_body;
 use crate::editor::{SchemaCache, sqlite_schema};
-use crate::workspace::panels::query_editor::{Explained, Fut, PlanView, QuerySource, RunOutput};
+use crate::workspace::panels::query_editor::{Explained, Fut, PlanView, QuerySource};
 use crate::workspace::tabs::kind::names;
-use based_sqlite::sqlite_cell;
 
 pub struct SqliteQuery {
     pub pool: SqlitePool,
@@ -51,37 +50,28 @@ impl QuerySource for SqliteQuery {
         ))
     }
 
-    /// Runs every statement in the script; the last non-empty result set wins.
-    fn run(&self, sql: String, timeout_secs: u32) -> Fut<RunOutput> {
+    /// Runs every statement in the script: the last row result wins, and with
+    /// none, the writes' affected counts add up.
+    fn run(&self, sql: String, timeout_secs: u32) -> Fut<SqlOutcome> {
         let pool = self.pool.clone();
         Box::pin(async move {
             let limit = Duration::from_secs(timeout_secs as u64);
-            let mut out = RunOutput::default();
+            let mut rows = None;
+            let mut affected = 0u64;
             let statements = based_query::split_statements(&sql, EngineKind::SQLite);
             for (i, stmt) in statements.into_iter().enumerate() {
-                let text = &sql[stmt];
-                let fetch = sqlx::query(AssertSqlSafe(text.to_string())).fetch_all(&pool);
-                let rows = match timeout(limit, fetch).await {
+                let run = based_sqlite::execute_sql(&pool, &sql[stmt]);
+                match timeout(limit, run).await {
                     Err(_) => anyhow::bail!(
                         "Query timed out after {timeout_secs}s (statement {})",
                         i + 1
                     ),
                     Ok(Err(e)) => anyhow::bail!("Statement {} failed: {e}", i + 1),
-                    Ok(Ok(rows)) => rows,
-                };
-                if let Some(first) = rows.first() {
-                    out.columns = first
-                        .columns()
-                        .iter()
-                        .map(|c| (c.name().to_string(), c.type_info().name().to_string()))
-                        .collect();
-                    out.rows = rows
-                        .iter()
-                        .map(|r| (0..r.len()).map(|c| sqlite_cell(r, c)).collect())
-                        .collect();
+                    Ok(Ok(SqlOutcome::Rows(set))) => rows = Some(set),
+                    Ok(Ok(SqlOutcome::Affected(n))) => affected += n,
                 }
             }
-            Ok(out)
+            Ok(rows.map_or(SqlOutcome::Affected(affected), SqlOutcome::Rows))
         })
     }
 

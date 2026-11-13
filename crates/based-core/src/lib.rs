@@ -6,6 +6,7 @@ pub mod connection_id;
 pub mod engine;
 pub mod object;
 pub mod page;
+pub mod result;
 pub mod secret;
 pub mod session;
 pub mod ssh;
@@ -22,6 +23,7 @@ pub use object::ObjectRef;
 pub use page::{
     ColumnCatalog, ColumnMeta, FkTarget, Grid, RawPage, TableExtra, TableInfo, quote_ident,
 };
+pub use result::{ResultColumn, ResultSet, SqlOutcome};
 pub use secret::Secret;
 pub use session::{PersistedConnection, WorkspaceState};
 pub use ssh::{SshEndpoint, SshTunnelConfig};

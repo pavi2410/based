@@ -1,10 +1,12 @@
 //! Table browse page fetch (no UI).
 
 use anyhow::Result;
-use based_core::RawPage;
-use sqlx::{AssertSqlSafe, Column, PgPool, Row};
+use based_core::{RawPage, ResultSet};
+use sqlx::postgres::PgRow;
+use sqlx::{AssertSqlSafe, PgPool, Row};
 
 use crate::decode::pg_cell;
+use crate::mutations::result_columns;
 
 /// `table` must be a quoted (schema-qualified) identifier; `where_sql` is empty or ` WHERE …`.
 pub async fn fetch_page(
@@ -27,12 +29,20 @@ pub async fn fetch_page(
     .await?;
     Ok(RawPage {
         total,
+        set: result_set(&rows),
+    })
+}
+
+/// Rows as a result set; no rows means no columns.
+pub(crate) fn result_set(rows: &[PgRow]) -> ResultSet {
+    ResultSet {
         columns: rows
             .first()
-            .map(|r| r.columns().iter().map(|c| c.name().to_string()).collect()),
+            .map(|r| result_columns(r.columns()))
+            .unwrap_or_default(),
         rows: rows
             .iter()
             .map(|r| (0..r.len()).map(|i| pg_cell(r, i)).collect())
             .collect(),
-    })
+    }
 }

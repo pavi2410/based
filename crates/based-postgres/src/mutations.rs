@@ -5,15 +5,9 @@ use sqlx::{
     AssertSqlSafe, Column as SqlxColumn, Either, Executor, PgPool, Row, SqlSafeStr, TypeInfo,
 };
 
-use based_core::Value;
+use based_core::{ResultColumn, ResultSet, SqlOutcome};
 
 use crate::decode::pg_cell;
-
-#[derive(Debug, Clone)]
-pub struct QueryColumn {
-    pub name: String,
-    pub type_name: String,
-}
 
 pub async fn insert_row(
     pool: &PgPool,
@@ -61,17 +55,13 @@ pub async fn delete_row(
 ///
 /// Postgres decides whether a statement returns rows (`SELECT`, `VALUES`, `TABLE`,
 /// `… RETURNING`, set-returning functions, a leading comment …), so nothing here
-/// guesses from the SQL text. When no rows come back, `describe` supplies the
-/// column headers so an empty result set still shows its shape.
-pub async fn execute_sql(
-    pool: &PgPool,
-    sql: &str,
-) -> Result<(Vec<QueryColumn>, Vec<Vec<Value>>, u64)> {
+/// guesses from the SQL text. When no rows come back, `describe` tells a row
+/// statement with an empty result (its columns) from a write (no columns).
+pub async fn execute_sql(pool: &PgPool, sql: &str) -> Result<SqlOutcome> {
     // One connection for both calls: `describe` must see the same session
     // (temp tables, search_path) the statement just ran in.
     let mut conn = pool.acquire().await?;
-    let mut columns: Vec<QueryColumn> = Vec::new();
-    let mut data: Vec<Vec<Value>> = Vec::new();
+    let mut set = ResultSet::default();
     let mut affected = 0u64;
     {
         let mut stream = conn.fetch_many(sqlx::query(AssertSqlSafe(sql)));
@@ -79,32 +69,31 @@ pub async fn execute_sql(
             match item {
                 Either::Left(done) => affected += done.rows_affected(),
                 Either::Right(row) => {
-                    if columns.is_empty() {
-                        columns = query_columns(row.columns());
+                    if set.columns.is_empty() {
+                        set.columns = result_columns(row.columns());
                     }
-                    data.push((0..row.len()).map(|i| pg_cell(&row, i)).collect());
+                    set.rows
+                        .push((0..row.len()).map(|i| pg_cell(&row, i)).collect());
                 }
             }
         }
     }
-    if data.is_empty() {
-        // Headers for an empty result set. The statement already succeeded, so a
-        // describe failure (e.g. it dropped the table it read) just means none.
+    if set.rows.is_empty() {
+        // The statement already succeeded, so a describe failure (e.g. it dropped
+        // the table it read) just means it has no columns to show.
         if let Ok(described) = conn.describe(AssertSqlSafe(sql).into_sql_str()).await {
-            columns = query_columns(described.columns());
+            set.columns = result_columns(described.columns());
         }
-    } else {
-        // Postgres reports `SELECT n` as n rows affected; the grid already shows n.
-        affected = 0;
     }
-    Ok((columns, data, affected))
+    Ok(if set.columns.is_empty() {
+        SqlOutcome::Affected(affected)
+    } else {
+        SqlOutcome::Rows(set)
+    })
 }
 
-fn query_columns(cols: &[PgColumn]) -> Vec<QueryColumn> {
+pub(crate) fn result_columns(cols: &[PgColumn]) -> Vec<ResultColumn> {
     cols.iter()
-        .map(|c| QueryColumn {
-            name: c.name().to_string(),
-            type_name: c.type_info().name().to_string(),
-        })
+        .map(|c| ResultColumn::new(c.name(), Some(c.type_info().name().to_string())))
         .collect()
 }

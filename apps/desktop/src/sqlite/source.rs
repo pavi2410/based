@@ -1,6 +1,5 @@
 // SQLite table source for the shared data viewer.
 
-use crate::widgets::virtual_table::cells;
 use based_core::quote_ident;
 use sqlx::SqlitePool;
 
@@ -46,12 +45,7 @@ impl DataSource for SqliteSource {
             .unwrap_or_default();
         Box::pin(async move {
             let page = based_sqlite::fetch_page(&pool, &table, &where_sql, limit, offset).await?;
-            Ok(PageData::new(
-                page.total,
-                page.columns,
-                cells(page.rows),
-                &catalog,
-            ))
+            Ok(PageData::new(page, &catalog))
         })
     }
 }

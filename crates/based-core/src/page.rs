@@ -3,14 +3,14 @@
 use std::fmt;
 use std::ops::Index;
 
-use crate::{ObjectRef, Value};
+use crate::{ObjectRef, ResultSet};
 
-/// One page of a table browse. `columns` is `None` when the page is empty.
+/// One page of a table browse. An empty page has no result columns; callers
+/// fall back to the table's catalog order.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct RawPage {
     pub total: i64,
-    pub columns: Option<Vec<String>>,
-    pub rows: Vec<Vec<Value>>,
+    pub set: ResultSet,
 }
 
 /// Per-column metadata for table browse headers.

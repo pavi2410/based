@@ -14,6 +14,6 @@ pub use config::{
     UnknownPragmaValue, resolve_sqlite_path, sqlite_connect_options, sqlite_uri, sqlite3_command,
 };
 pub use inspect::inspect_table;
-pub use mutations::{QueryColumn, delete_row, execute_sql, insert_row, update_row};
+pub use mutations::{delete_row, execute_sql, insert_row, update_row};
 pub use page::{fetch_page, sqlite_cell};
 pub use readonly::query_readonly;

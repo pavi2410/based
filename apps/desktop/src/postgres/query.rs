@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use based_core::EngineKind;
+use based_core::{EngineKind, SqlOutcome};
 use gpui_kit::component::{Theme, scroll::ScrollableElement as _};
 use gpui_kit::{
     AnyElement, InteractiveElement as _, IntoElement as _, ParentElement as _, Styled as _, div, px,
@@ -12,7 +12,7 @@ use tokio::time::timeout;
 
 use super::explain_plan::{PlanNode, parse_pg_explain_json, render_plan};
 use crate::editor::{SchemaCache, pg_schema};
-use crate::workspace::panels::query_editor::{Explained, Fut, PlanView, QuerySource, RunOutput};
+use crate::workspace::panels::query_editor::{Explained, Fut, PlanView, QuerySource};
 use crate::workspace::tabs::kind::names;
 
 pub struct PgQuery {
@@ -55,18 +55,13 @@ impl QuerySource for PgQuery {
         Some(Box::pin(async move { pg_schema::load_schema(&pool).await }))
     }
 
-    fn run(&self, sql: String, timeout_secs: u32) -> Fut<RunOutput> {
+    fn run(&self, sql: String, timeout_secs: u32) -> Fut<SqlOutcome> {
         let pool = self.pool.clone();
         Box::pin(async move {
             let limit = Duration::from_secs(timeout_secs as u64);
-            let (cols, rows, affected) = timeout(limit, based_postgres::execute_sql(&pool, &sql))
+            timeout(limit, based_postgres::execute_sql(&pool, &sql))
                 .await
-                .map_err(|_| anyhow::anyhow!("Query timed out after {timeout_secs}s"))??;
-            Ok(RunOutput {
-                columns: cols.into_iter().map(|c| (c.name, c.type_name)).collect(),
-                rows,
-                affected: Some(affected),
-            })
+                .map_err(|_| anyhow::anyhow!("Query timed out after {timeout_secs}s"))?
         })
     }
 

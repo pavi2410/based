@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use time::OffsetDateTime;
 
-use based_core::{EngineKind, Value};
+use based_core::{EngineKind, ResultSet, SqlOutcome};
 use based_project::{SaveTarget, save_sql_query};
 use based_query::{
     Lint, RunOutcome, Severity, changes_data, split_statements, statement_at, write_summary,
@@ -85,14 +85,6 @@ pub(super) struct HeldRun {
     pub(super) reason: HoldReason,
 }
 
-/// Result of running a script: last result set (name, type) + cells, and rows affected if known.
-#[derive(Default)]
-pub struct RunOutput {
-    pub columns: Vec<(String, String)>,
-    pub rows: Vec<Vec<Value>>,
-    pub affected: Option<u64>,
-}
-
 /// Engine-specific query plan, rendered inline.
 pub trait PlanView: Send {
     fn render(&self, theme: &Theme) -> AnyElement;
@@ -115,7 +107,7 @@ pub trait QuerySource: Send + Sync + 'static {
     fn load_schema(&self) -> Option<Fut<SchemaCache>> {
         None
     }
-    fn run(&self, sql: String, timeout_secs: u32) -> Fut<RunOutput>;
+    fn run(&self, sql: String, timeout_secs: u32) -> Fut<SqlOutcome>;
     fn explain(&self, sql: String) -> Fut<Explained>;
 }
 
@@ -618,7 +610,7 @@ impl QueryEditorPanel {
         index: usize,
         total: usize,
         sql: String,
-        outcome: anyhow::Result<RunOutput>,
+        outcome: anyhow::Result<SqlOutcome>,
         ms: u64,
         cx: &mut Context<Self>,
     ) -> bool {
@@ -633,28 +625,36 @@ impl QueryEditorPanel {
         let batch = total > 1;
         let (history_outcome, proceed) = match outcome {
             Ok(out) => {
-                let columns: Vec<Column> = out
+                let (set, affected) = match out {
+                    SqlOutcome::Rows(set) => (set, None),
+                    SqlOutcome::Affected(a) => (ResultSet::default(), Some(a)),
+                };
+                let columns: Vec<Column> = set
                     .columns
                     .iter()
-                    .map(|(n, _)| data_column(n.clone(), n.clone()))
+                    .map(|c| data_column(c.name.clone(), c.name.clone()))
                     .collect();
-                let meta: Vec<ColumnMeta> = out
+                let meta: Vec<ColumnMeta> = set
                     .columns
                     .iter()
-                    .map(|(_, t)| meta_from_query_type(t))
+                    .map(|c| {
+                        c.type_name
+                            .clone()
+                            .map(meta_from_query_type)
+                            .unwrap_or_default()
+                    })
                     .collect();
-                let rows = cells(out.rows);
+                let rows = cells(set.rows);
                 let n = rows.len();
-                let tabular = !columns.is_empty();
-                let what = match (tabular, out.affected) {
-                    (true, _) => format!("{n} rows"),
-                    (false, Some(a)) => format!("{a} rows affected"),
-                    (false, None) => "done".to_string(),
+                let tabular = affected.is_none();
+                let what = match affected {
+                    None => format!("{n} rows"),
+                    Some(a) => format!("{a} rows affected"),
                 };
                 let run = &mut self.last_run;
                 run.log
                     .push(format!("{}  {first_line} — {what} · {ms} ms", index + 1));
-                if let Some(a) = out.affected {
+                if let Some(a) = affected {
                     run.affected = Some(run.affected.unwrap_or(0) + a);
                 }
                 if tabular || !batch {

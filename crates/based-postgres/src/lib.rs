@@ -16,6 +16,6 @@ pub use config::{
 pub use decode::{decode_pg_cell, pg_cell};
 pub use explain::{PlanNode, parse_pg_explain_json};
 pub use inspect::inspect_table;
-pub use mutations::{QueryColumn, delete_row, execute_sql, insert_row};
+pub use mutations::{delete_row, execute_sql, insert_row};
 pub use page::fetch_page;
 pub use readonly::query_readonly;

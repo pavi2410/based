@@ -2,6 +2,9 @@
 //!
 //! A "launch" is a Workspace window over the same app (and metadata store).
 
+use std::fs;
+use std::path::Path;
+
 use based_desktop::connection::ConnectionId;
 use based_desktop::db::Tokio;
 use based_desktop::storage;
@@ -240,15 +243,15 @@ fn pinning_one_of_two_equal_tabs_pins_only_that_one(cx: &mut TestAppContext) {
     assert_eq!(tabs.iter().filter(|p| **p).count(), 1, "{tabs:?}");
 }
 
-fn project_env(root: &std::path::Path) -> WorkspaceEnv {
-    std::fs::create_dir_all(root.join(".based")).unwrap();
+fn project_env(root: &Path) -> WorkspaceEnv {
+    fs::create_dir_all(root.join(".based")).unwrap();
     WorkspaceEnv {
         project_dir: Some(root.to_path_buf()),
         ..no_project_env()
     }
 }
 
-fn scope(root: &std::path::Path) -> SessionScope {
+fn scope(root: &Path) -> SessionScope {
     SessionScope::for_project(Some(root))
 }
 

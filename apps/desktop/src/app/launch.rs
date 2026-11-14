@@ -8,7 +8,10 @@ use gpui_kit::{App, AppContext, Bounds, WindowBounds, WindowId, WindowOptions, p
 use super::aux_windows::AuxWindows;
 use super::paths::AppPaths;
 use super::shell::{self, APP_NAME};
+use crate::db::Tokio;
+use crate::storage;
 use crate::workspace::boot::WorkspaceEnv;
+use crate::workspace::tabs::SessionScope;
 use crate::workspace::{PopOutManager, Workspace, Workspaces};
 
 /// How far a new window sits from the one it was opened from.
@@ -44,7 +47,8 @@ pub fn activate_window(window: WindowId, cx: &mut App) {
 }
 
 fn open_workspace_window(env: WorkspaceEnv, cx: &mut App) -> anyhow::Result<()> {
-    let bounds = cascaded_bounds(cx)
+    let bounds = saved_placement(&env, cx)
+        .or_else(|| cascaded_bounds(cx))
         .unwrap_or_else(|| WindowBounds::centered(size(px(1280.0), px(800.0)), cx));
     gpui_kit::open_window(
         WindowOptions {
@@ -56,6 +60,19 @@ fn open_workspace_window(env: WorkspaceEnv, cx: &mut App) -> anyhow::Result<()> 
         |window, cx| cx.new(|cx| Workspace::with_env(env, window, cx)),
     )?;
     Ok(())
+}
+
+/// Where this project's window was last, if that spot is still on a display
+/// (a monitor may have been unplugged since).
+fn saved_placement(env: &WorkspaceEnv, cx: &App) -> Option<WindowBounds> {
+    let scope = SessionScope::for_project(env.project_dir.as_deref());
+    let store = storage::store(cx);
+    let saved = Tokio::handle(cx).block_on(scope.load_placement(&store))?;
+    let center = saved.get_bounds().center();
+    cx.displays()
+        .iter()
+        .any(|d| d.bounds().contains(&center))
+        .then_some(saved)
 }
 
 /// The focused workspace window's size, shifted down and right.

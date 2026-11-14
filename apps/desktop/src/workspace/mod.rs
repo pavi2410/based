@@ -40,7 +40,8 @@ use based_ai::context::ContextLevel;
 use gpui_kit::component::WindowExt as _;
 use gpui_kit::component::dock::{DockArea, DockEvent, DockSkin, PanelStyle, PanelView};
 use gpui_kit::{
-    App, Context, Entity, FocusHandle, Focusable, SharedString, Task, Window, WindowId, prelude::*,
+    App, Context, Entity, FocusHandle, Focusable, SharedString, Task, Window, WindowBounds,
+    WindowId, prelude::*,
 };
 
 use crate::app::paths::AppPaths;
@@ -81,6 +82,8 @@ struct ChatScope {
 }
 
 const SESSION_EDIT_DEBOUNCE: Duration = Duration::from_secs(2);
+/// Save the window's placement once it stops moving.
+const PLACEMENT_DEBOUNCE: Duration = Duration::from_millis(500);
 
 pub struct Workspace {
     registry: Entity<ConnectionRegistry>,
@@ -113,6 +116,9 @@ pub struct Workspace {
     pending_target_pick: Option<(ProjectQuery, Vec<ConnectionId>)>,
     /// Debounced session save after editor typing (see [`Self::note_editor_edit`]).
     session_edit_save: Option<Task<()>>,
+    /// The window's bounds, saved per project so it reopens where it was.
+    placement: WindowBounds,
+    placement_save: Option<Task<()>>,
     /// A confirm dialog to show on the next [`Render`] (see [`QueuedDialog`]).
     queued_dialog: Option<QueuedDialog>,
     tab_navigation: TabNavigationHistory,
@@ -286,6 +292,8 @@ impl Workspace {
             )),
             pending_target_pick: None,
             session_edit_save: None,
+            placement: window.window_bounds(),
+            placement_save: None,
             queued_dialog: None,
             tab_navigation: TabNavigationHistory::default(),
             close_prompt: None,
@@ -347,6 +355,15 @@ impl Workspace {
                 tabs::TabEvent::Changed => ws.save_session(ecx),
             },
         )
+        .detach();
+
+        cx.observe_window_bounds(window, |ws, window, cx| {
+            ws.placement = window.window_bounds();
+            ws.placement_save = Some(cx.spawn(async move |this, cx| {
+                cx.background_executor().timer(PLACEMENT_DEBOUNCE).await;
+                let _ = this.update(cx, |ws, cx| ws.save_placement(cx));
+            }));
+        })
         .detach();
 
         let registry_for_close = registry.clone();
@@ -441,9 +458,15 @@ impl Workspace {
     /// [`Self::save_session`] would not get to run.
     pub fn flush_session(&mut self, cx: &mut Context<Self>) {
         self.session_edit_save = None;
+        self.placement_save = None;
         let Some(scope) = self.session.save_scope().cloned() else {
             return;
         };
+        let store = storage::store(cx);
+        let placement = scope.save_placement(&store, self.placement);
+        if let Err(err) = Tokio::handle(cx).block_on(placement) {
+            log::warn!("window placement flush failed: {err:#}");
+        }
         self.sync_tab_manager_from_dock(cx);
         let active_conn = self.focused_conn_id(cx);
         let Some(snapshot) =
@@ -451,10 +474,28 @@ impl Workspace {
         else {
             return;
         };
-        let store = storage::store(cx);
         if let Err(err) = Tokio::handle(cx).block_on(snapshot.save(&store, &scope)) {
             log::warn!("session flush failed: {err:#}");
         }
+    }
+
+    fn save_placement(&mut self, cx: &mut Context<Self>) {
+        self.placement_save = None;
+        let Some(scope) = self.session.save_scope().cloned() else {
+            return;
+        };
+        let (store, bounds) = (storage::store(cx), self.placement);
+        cx.spawn(async move |_, cx| {
+            let saved = db::run(
+                cx,
+                async move { scope.save_placement(&store, bounds).await },
+            )
+            .await;
+            if let Err(err) = saved {
+                log::warn!("window placement save failed: {err:#}");
+            }
+        })
+        .detach();
     }
 
     /// A query editor's text changed: save the session once typing pauses, so a

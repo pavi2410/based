@@ -7,6 +7,7 @@ use std::mem;
 use std::path::Path;
 
 use based_storage::{ACTIVE_CONNECTION_ID, ACTIVE_TAB_INDEX, MetadataStore, OPEN_TABS};
+use gpui_kit::{Bounds, Pixels, WindowBounds};
 
 use super::manager::{TabId, TabManager};
 use super::spec::TabSpec;
@@ -63,6 +64,53 @@ impl SessionScope {
 
     fn key(&self, base: &str) -> String {
         format!("{}|{base}", self.0)
+    }
+
+    /// Where this project's window was last, if it was saved.
+    pub async fn load_placement(&self, store: &MetadataStore) -> Option<WindowBounds> {
+        get::<WindowPlacement>(store, &self.key(WINDOW_PLACEMENT))
+            .await
+            .map(Into::into)
+    }
+
+    pub async fn save_placement(
+        &self,
+        store: &MetadataStore,
+        bounds: WindowBounds,
+    ) -> anyhow::Result<()> {
+        store
+            .set_session_json(&self.key(WINDOW_PLACEMENT), &WindowPlacement::from(bounds))
+            .await
+    }
+}
+
+const WINDOW_PLACEMENT: &str = "window_placement";
+
+/// A window's bounds as saved: GPUI's `WindowBounds` has no serde.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+enum WindowPlacement {
+    Windowed(Bounds<Pixels>),
+    Maximized(Bounds<Pixels>),
+    Fullscreen(Bounds<Pixels>),
+}
+
+impl From<WindowBounds> for WindowPlacement {
+    fn from(b: WindowBounds) -> Self {
+        match b {
+            WindowBounds::Windowed(r) => Self::Windowed(r),
+            WindowBounds::Maximized(r) => Self::Maximized(r),
+            WindowBounds::Fullscreen(r) => Self::Fullscreen(r),
+        }
+    }
+}
+
+impl From<WindowPlacement> for WindowBounds {
+    fn from(p: WindowPlacement) -> Self {
+        match p {
+            WindowPlacement::Windowed(r) => Self::Windowed(r),
+            WindowPlacement::Maximized(r) => Self::Maximized(r),
+            WindowPlacement::Fullscreen(r) => Self::Fullscreen(r),
+        }
     }
 }
 

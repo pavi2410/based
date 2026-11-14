@@ -4,12 +4,14 @@ use std::fs;
 use std::path::Path;
 
 use based_desktop::app::launch;
+use based_desktop::db::Tokio;
 use based_desktop::project::open::complete_project_switch_in_window;
+use based_desktop::storage;
 use based_desktop::workspace::boot::WorkspaceEnv;
 use based_desktop::workspace::tabs::{SessionScope, SessionSnapshot, SessionTab};
 use based_desktop::workspace::{QueryEditorInit, TabSpec, Workspaces};
 use gpui_kit::test::TestWindowExt;
-use gpui_kit::{AnyWindowHandle, AppContext as _, TestAppContext};
+use gpui_kit::{AnyWindowHandle, AppContext as _, TestAppContext, px, size};
 
 use crate::common::strip::{open_tab, specs};
 use crate::common::{
@@ -151,4 +153,23 @@ fn switching_project_in_a_window_keeps_both_sessions(cx: &mut TestAppContext) {
         saved_has(cx, b.path(), &info("b")),
         "B's session is not overwritten"
     );
+}
+
+#[gpui_kit::test]
+fn a_window_saves_its_placement_for_its_project(cx: &mut TestAppContext) {
+    let (a, b) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    init_app(cx, &no_project_env().personal_root);
+    let (_win, ws) = open_window(cx, project_env(a.path()));
+    ws.update(cx, |ws, cx| ws.flush_session(cx));
+
+    let load = |root: &Path, cx: &mut TestAppContext| {
+        let scope = SessionScope::for_project(Some(root));
+        cx.update(|cx| {
+            let store = storage::store(cx);
+            Tokio::handle(cx).block_on(scope.load_placement(&store))
+        })
+    };
+    let saved = load(a.path(), cx).expect("A's placement");
+    assert_eq!(saved.get_bounds().size, size(px(1200.), px(800.)));
+    assert!(load(b.path(), cx).is_none(), "B never had a window");
 }

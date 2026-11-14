@@ -28,7 +28,7 @@ impl ConnectionWizardPanel {
             let result = task.await;
             let _ = cx.update(|_window, cx| match result {
                 Ok(opened) => {
-                    if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+                    if let Some(ws) = Workspaces::active(cx) {
                         ws.update(cx, |workspace, cx| {
                             workspace.attach_wizard_session(draft, opened, session_id, true, cx);
                         });
@@ -65,7 +65,7 @@ impl ConnectionWizardPanel {
                     return;
                 }
             };
-        let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) else {
+        let Some(ws) = Workspaces::active(cx) else {
             self.status = WizardStatus::SaveErr("Workspace is not open".into());
             cx.notify();
             return;
@@ -110,7 +110,7 @@ impl ConnectionWizardPanel {
             let result = task.await;
             let _ = cx.update(|_window, cx| match result {
                 Ok(opened) => {
-                    if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+                    if let Some(ws) = Workspaces::active(cx) {
                         ws.update(cx, |workspace, cx| {
                             workspace.attach_wizard_session(draft, opened, session_id, false, cx);
                         });
@@ -128,7 +128,7 @@ impl ConnectionWizardPanel {
                 }
                 Err(e) => {
                     let msg = e.display_message();
-                    if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+                    if let Some(ws) = Workspaces::active(cx) {
                         ws.update(cx, |workspace, cx| {
                             workspace.fail_reconnect(&session_id, e, cx);
                         });

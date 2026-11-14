@@ -3,11 +3,11 @@
 use gpui_kit::{App, AppContext, BorrowAppContext, WindowBounds, WindowOptions, px, size};
 
 use super::shell::{self, APP_NAME};
-use crate::workspace::{PopOutManager, Workspace, WorkspaceRef};
+use crate::workspace::{PopOutManager, Workspace, Workspaces};
 
 /// Open the main workspace window (no-op if already open).
 pub fn open_main_workspace(cx: &mut App) -> anyhow::Result<()> {
-    if cx.try_global::<WorkspaceRef>().is_some() {
+    if !Workspaces::all(cx).is_empty() {
         return Ok(());
     }
 
@@ -20,9 +20,7 @@ pub fn open_main_workspace(cx: &mut App) -> anyhow::Result<()> {
         cx,
         |window, cx| {
             window.set_window_title(APP_NAME);
-            let workspace = cx.new(|cx| Workspace::new(window, cx));
-            cx.set_global(WorkspaceRef(workspace.clone()));
-            workspace
+            cx.new(|cx| Workspace::new(window, cx))
         },
     )?;
 

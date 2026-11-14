@@ -16,7 +16,7 @@ use gpui_kit::{
 
 use super::{ChatPane, style};
 use crate::connection::ConnectionId;
-use crate::workspace::WorkspaceRef;
+use crate::workspace::Workspaces;
 use crate::workspace::notify::push_error;
 
 /// Starters shown on an empty chat.
@@ -106,7 +106,7 @@ impl ChatPane {
         level: ContextLevel,
         cx: &mut Context<Self>,
     ) {
-        let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) else {
+        let Some(ws) = Workspaces::active(cx) else {
             return;
         };
         let id = id.clone();

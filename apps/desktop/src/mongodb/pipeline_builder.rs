@@ -216,7 +216,7 @@ impl PipelineBuilderPanel {
 
 impl PipelineBuilderPanel {
     fn toggle_ai(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let off = connection_ai(&self.conn_id, cx) == ContextLevel::Off;
+        let off = connection_ai(&self.conn_id, cx.entity_id(), cx) == ContextLevel::Off;
         let was_open = self.ai.is_open();
         self.ai.toggle(off, window, cx);
         if was_open {
@@ -224,8 +224,8 @@ impl PipelineBuilderPanel {
         }
     }
 
-    fn ai_schema(&self, cx: &App) -> String {
-        let level = connection_ai(&self.conn_id, cx);
+    fn ai_schema(&self, cx: &Context<Self>) -> String {
+        let level = connection_ai(&self.conn_id, cx.entity_id(), cx);
         let name = self.collection.name();
         let snapshot = SchemaSnapshot {
             entities: vec![AiEntity::new(name, EntityKind::Collection, Vec::new())],
@@ -363,6 +363,7 @@ impl Render for PipelineBuilderPanel {
             .child(div().flex_1().child(render_row_table(&self.result, cx)));
         let crumbs = tab_breadcrumb_for_connection(
             &self.conn_id,
+            cx.entity_id(),
             [self.collection.name().to_string(), "Pipeline".to_owned()],
             cx,
         );

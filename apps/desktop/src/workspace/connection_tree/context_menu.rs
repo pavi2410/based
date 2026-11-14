@@ -10,7 +10,7 @@ use crate::postgres::{postgres_uri, psql_command};
 use crate::redis::{redis_cli, redis_uri};
 use crate::sqlite::{resolve_sqlite_path, sqlite_uri, sqlite3_command};
 use crate::workspace::TabSpec;
-use crate::workspace::tabs::WorkspaceRef;
+use crate::workspace::tabs::Workspaces;
 use crate::workspace::tabs::{inbox, request_workspace_flush};
 use crate::workspace::wizard_logic::can_edit_saved_connection;
 
@@ -290,7 +290,7 @@ pub(crate) fn connection_actions_menu(
         let edit_id = conn_id.clone();
         menu = menu.item(PopupMenuItem::new("Edit…").icon(svg(ICON_PENCIL)).on_click(
             move |_, window, cx| {
-                if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+                if let Some(ws) = Workspaces::active(cx) {
                     ws.update(cx, |ws, cx| {
                         ws.open_edit_connection_tab(edit_id.clone(), window, cx);
                     });

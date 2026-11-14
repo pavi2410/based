@@ -588,7 +588,7 @@ impl Render for QueryEditorPanel {
             .child(strip)
             .child(self.render_bottom_body(cx));
 
-        let crumbs = tab_breadcrumb_for_connection(&self.conn_id, ["Query"], cx);
+        let crumbs = tab_breadcrumb_for_connection(&self.conn_id, cx.entity_id(), ["Query"], cx);
         let footer = tab_breadcrumb_footer(format!("{id}-qe-breadcrumb"), crumbs, None, cx);
 
         panel_tab_content(

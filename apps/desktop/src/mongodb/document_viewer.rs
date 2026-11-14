@@ -292,8 +292,12 @@ impl Render for DocumentViewerPanel {
                     }),
             )
             .child(self.cell_detail.clone());
-        let crumbs =
-            tab_breadcrumb_for_connection(&self.conn_id, [self.collection.name().to_string()], cx);
+        let crumbs = tab_breadcrumb_for_connection(
+            &self.conn_id,
+            cx.entity_id(),
+            [self.collection.name().to_string()],
+            cx,
+        );
         panel_tab_content(
             body,
             tab_breadcrumb_footer("mongo-docs-breadcrumb", crumbs, None, cx),

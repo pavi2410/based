@@ -18,6 +18,7 @@ use gpui_kit::{
 use super::style;
 use crate::connection::ConnectionId;
 use crate::project::ProjectRoot;
+use crate::workspace::Workspaces;
 use crate::workspace::notify;
 use crate::workspace::panels::query_editor::save_target_for;
 use crate::workspace::tabs::inbox::{self, request_workspace_flush};
@@ -104,7 +105,8 @@ fn save_to_project(conn: &ConnectionId, engine: EngineKind, sql: &str, cx: &mut 
         notify::push_info(cx, "Open a project to save queries.");
         return;
     };
-    let target = save_target_for(conn, engine, cx);
+    let registry = Workspaces::active_registry(cx);
+    let target = save_target_for(conn, engine, registry.as_ref(), cx);
     let name = query_name(sql);
     match save_sql_query(&root, &name, sql, &target, None) {
         Ok(_) => notify::push_info(cx, format!("Saved {name}")),

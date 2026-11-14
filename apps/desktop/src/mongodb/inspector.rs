@@ -269,7 +269,8 @@ impl Render for CollectionInspectorPanel {
             );
 
         let collection_name = self.collection.name().to_string();
-        let crumbs = tab_breadcrumb_for_connection(&self.conn_id, [collection_name], cx);
+        let crumbs =
+            tab_breadcrumb_for_connection(&self.conn_id, cx.entity_id(), [collection_name], cx);
         let footer = tab_breadcrumb_footer("mongo-insp-breadcrumb", crumbs, None, cx);
 
         panel_tab_content(body, footer).into_any_element()

@@ -33,7 +33,7 @@ use crate::project::{
 };
 use crate::settings_window::SettingsWindow;
 use crate::workspace::{
-    WorkspaceRef,
+    Workspaces,
     tabs::{inbox, request_workspace_flush},
 };
 
@@ -234,7 +234,7 @@ pub fn init(cx: &mut App) {
 
 /// Focus or re-open the Home center tab (Help menu and topbar overflow).
 pub fn open_home(cx: &mut App) {
-    if cx.try_global::<WorkspaceRef>().is_none() {
+    if Workspaces::active(cx).is_none() {
         return;
     }
     inbox::show_home(cx);

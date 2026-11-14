@@ -42,7 +42,7 @@ use crate::redis::{RedisConfig, RedisConnection};
 use crate::sqlite::{SqliteConfig, SqliteConnection, SqlitePragma};
 use crate::widgets::choice::{Choice, choices};
 use crate::widgets::{form_section, labeled_field, labeled_fixed, new_field, set_field};
-use crate::workspace::WorkspaceRef;
+use crate::workspace::Workspaces;
 use crate::workspace::connection_destination::{
     ConnectionDestination, destination_row, resolve_wizard_destination,
 };

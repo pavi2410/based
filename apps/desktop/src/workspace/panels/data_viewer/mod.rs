@@ -43,7 +43,7 @@ use crate::widgets::virtual_table::{
     Cell, RowDelegate, align_meta_to_columns, cells, column_visibility, data_column,
     replace_table_data, sort_column, toggle_column,
 };
-use crate::workspace::WorkspaceRef;
+use crate::workspace::Workspaces;
 use crate::workspace::pop_out::PopOutWindowTitle;
 use crate::workspace::tabs::{DrillFilter, TabSpec, inbox, request_workspace_flush};
 use based_ai::context::ContextLevel;
@@ -572,11 +572,11 @@ impl Render for DataViewerPanel {
             },
             cx,
         );
-        let read_only = cx
-            .try_global::<WorkspaceRef>()
-            .map(|ws| is_connection_read_only(&self.conn_id, ws.0.read(cx).registry().read(cx), cx))
+        let read_only = Workspaces::registry_for_panel(cx.entity_id(), cx)
+            .map(|r| is_connection_read_only(&self.conn_id, r.read(cx), cx))
             .unwrap_or(false);
-        let crumbs = tab_breadcrumb_for_connection(&self.conn_id, self.source.path(), cx);
+        let crumbs =
+            tab_breadcrumb_for_connection(&self.conn_id, cx.entity_id(), self.source.path(), cx);
         let footer = tab_breadcrumb_footer(
             SharedString::from(format!("{id}-breadcrumb")),
             crumbs,

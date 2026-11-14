@@ -4,13 +4,13 @@
 use based_core::{ConnectError, ConnectionErrorCategory};
 use gpui_kit::App;
 
-use super::WorkspaceRef;
+use super::Workspaces;
 use crate::connection::{ConnectionId, ConnectionState};
 
 /// Mark `conn` as lost after a query failed because the connection is gone
 /// (see `based_postgres::is_connection_lost`). Does nothing unless it was connected.
 pub fn mark_connection_lost(conn: &ConnectionId, detail: &str, cx: &mut App) {
-    let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) else {
+    let Some(ws) = Workspaces::active(cx) else {
         return;
     };
     let Some(entry) = ws.read(cx).registry().read(cx).get(conn, cx).cloned() else {

@@ -19,7 +19,7 @@ use crate::connection::{
     live_connections,
 };
 use crate::widgets::{engine_icon, engine_label_inline};
-use crate::workspace::WorkspaceRef;
+use crate::workspace::Workspaces;
 use crate::workspace::{QueuedDialog, Workspace};
 use std::mem;
 
@@ -33,7 +33,7 @@ enum QuitMode {
 
 /// Write the session synchronously before the window or app goes away.
 fn flush_session(cx: &mut App) {
-    if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|ws| ws.0.clone()) {
+    if let Some(ws) = Workspaces::active(cx) {
         ws.update(cx, |ws, cx| ws.flush_session(cx));
     }
 }
@@ -141,7 +141,7 @@ fn queue_close_confirm(workspace: &Entity<Workspace>, cx: &mut App) {
 /// Menu / ⌘Q quit — shows the same confirmation when connections are live.
 pub fn request_app_quit(cx: &mut App) {
     trace("request_app_quit");
-    let Some(ws) = cx.try_global::<WorkspaceRef>().map(|ws| ws.0.clone()) else {
+    let Some(ws) = Workspaces::active(cx) else {
         trace("request_app_quit: no WorkspaceRef, calling cx.quit()");
         cx.quit();
         return;

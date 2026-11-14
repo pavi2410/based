@@ -3,11 +3,11 @@
 use gpui_kit::App;
 
 use crate::connection::ConnectionId;
-use crate::workspace::WorkspaceRef;
+use crate::workspace::Workspaces;
 
 /// Opens the assistant pane about `conn` and sends `text`.
 pub fn ask_assistant(conn: ConnectionId, text: String, cx: &mut App) {
-    let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) else {
+    let Some(ws) = Workspaces::active(cx) else {
         return;
     };
     ws.update(cx, |ws, cx| ws.ask_assistant(&conn, text, cx));

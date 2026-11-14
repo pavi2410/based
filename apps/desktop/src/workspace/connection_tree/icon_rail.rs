@@ -16,7 +16,7 @@ use gpui_kit::{
 use crate::connection::{ConnectionOrigin, EngineKind, Environment};
 use crate::widgets::engine_icon;
 use crate::widgets::motion;
-use crate::workspace::WorkspaceRef;
+use crate::workspace::Workspaces;
 
 use super::ConnectionTree;
 use super::connection_list::{ConnectionRow, Link, RailItem};
@@ -61,7 +61,7 @@ pub(crate) fn render_icon_rail(
                         .icon(Icon::new(IconName::Plus).text_color(muted))
                         .tooltip("New connection")
                         .on_click(|_, window, cx| {
-                            if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+                            if let Some(ws) = Workspaces::active(cx) {
                                 ws.update(cx, |ws, cx| ws.open_connection_picker_tab(window, cx));
                             }
                         }),

@@ -5,20 +5,21 @@
 use based_ai::tools::check;
 use based_core::ContextLevel;
 use based_core::EngineKind;
-use gpui_kit::{App, AppContext as _, Context, Entity, Window};
+use gpui_kit::{App, AppContext as _, Context, Entity, EntityId, Window};
 
 use super::prompt::{AiPrompt, AiPromptEvent};
 use crate::connection::ConnectionId;
-use crate::workspace::WorkspaceRef;
+use crate::workspace::Workspaces;
 
 pub const OFF_NOTICE: &str = "AI is off for this connection. Enable it in the connection settings.";
 
-/// The connection's AI access level; `Off` when it isn't in the registry.
-pub fn connection_ai(conn: &ConnectionId, cx: &App) -> ContextLevel {
-    let Some(ws) = cx.try_global::<WorkspaceRef>() else {
+/// The connection's AI access level in the workspace that owns `owner` (the asking
+/// panel); `Off` when it isn't in that registry.
+pub fn connection_ai(conn: &ConnectionId, owner: EntityId, cx: &App) -> ContextLevel {
+    let Some(registry) = Workspaces::registry_for_panel(owner, cx) else {
         return ContextLevel::Off;
     };
-    let registry = ws.0.read(cx).registry().read(cx);
+    let registry = registry.read(cx);
     registry
         .get(conn, cx)
         .map_or(ContextLevel::Off, |e| e.read(cx).ai)

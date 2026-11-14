@@ -81,7 +81,7 @@ impl QueryEditorPanel {
         &self,
         sql: &str,
         skip_production_gate: bool,
-        cx: &App,
+        cx: &Context<Self>,
     ) -> Option<HoldReason> {
         if self.ai.needs_confirm(self.source.engine(), sql) {
             Some(HoldReason::AiWrite)
@@ -315,14 +315,9 @@ impl QueryEditorPanel {
     }
 
     /// Production connection name when it is marked as production.
-    pub(super) fn production_name(&self, cx: &App) -> Option<SharedString> {
-        let ws = cx.try_global::<WorkspaceRef>()?;
-        let entry =
-            ws.0.read(cx)
-                .registry()
-                .read(cx)
-                .get(&self.conn_id, cx)?
-                .clone();
+    pub(super) fn production_name(&self, cx: &Context<Self>) -> Option<SharedString> {
+        let registry = Workspaces::registry_for_panel(cx.entity_id(), cx)?;
+        let entry = registry.read(cx).get(&self.conn_id, cx)?.clone();
         let e = entry.read(cx);
         (Environment::from_tags(&e.tags) == Some(Environment::Production))
             .then(|| SharedString::from(e.label.as_str().to_string()))

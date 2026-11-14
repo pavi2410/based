@@ -28,7 +28,7 @@ use crate::connection::live_connection_count;
 use crate::connection::registry::ConnectionRegistry;
 use crate::db::{run, run_infallible};
 use crate::workspace::notify;
-use crate::workspace::tabs::{WorkspaceRef, inbox};
+use crate::workspace::tabs::{Workspaces, inbox};
 
 use super::paths::AppPaths;
 use super::prefs::{self, UpdatePreferences};
@@ -54,7 +54,7 @@ impl Global for UpdateCoordinator {}
 
 impl UpdateCoordinator {
     fn notify_workspace(cx: &mut App) {
-        if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+        if let Some(ws) = Workspaces::active(cx) {
             ws.update(cx, |_, cx| cx.notify());
         }
         cx.refresh_windows();

@@ -14,7 +14,7 @@ use crate::bindings::{ToggleChatPane, ToggleHistoryPane, ToggleInspectorPane, To
 use crate::connection::registry::ConnectionRegistry;
 use crate::widgets::status_item::{STATUS_BAR_HEIGHT, status_divider, status_text};
 use crate::workspace::chrome::side_pane::SidePane;
-use crate::workspace::tabs::{WorkspaceRef, inbox};
+use crate::workspace::tabs::{Workspaces, inbox};
 
 /// Context passed into the workspace status rail.
 #[derive(Clone, Debug)]
@@ -74,7 +74,7 @@ fn side_pane_button(pane: SidePane, active: Option<SidePane>, cx: &App) -> impl 
         .tooltip_with_action(tooltip_text, action, None)
         .on_click(move |_, _, cx| {
             inbox::toggle_side_pane(pane, cx);
-            if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+            if let Some(ws) = Workspaces::active(cx) {
                 ws.update(cx, |_, cx| cx.notify());
             }
         })

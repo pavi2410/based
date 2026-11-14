@@ -9,12 +9,11 @@ use gpui_kit::component::{
 };
 use gpui_kit::{App, EntityId, Hsla, IntoElement, SharedString, div, prelude::*, px};
 
-use crate::workspace::WorkspaceRef;
+use crate::workspace::Workspaces;
 
 use super::CloseScope;
 use super::kind::PanelKind;
 use super::menu::tab_context_menu;
-use super::open::TabManagerRef;
 use super::spec::TabSpec;
 use crate::mongodb::DEFAULT_COLLECTION;
 
@@ -24,9 +23,9 @@ pub const TAB_MAX_WIDTH: f32 = 120.0;
 pub const PIN_ICON_PATH: &str = "icons/pin.svg";
 
 pub fn is_panel_pinned(panel_id: EntityId, cx: &App) -> bool {
-    cx.try_global::<TabManagerRef>()
-        .and_then(|tm| tm.0.read(cx).tab_for_panel_id(panel_id))
-        .is_some_and(|t| t.pinned)
+    Workspaces::tabs_for_panel(panel_id, cx)
+        .and_then(|tm| tm.read(cx).tab_for_panel_id(panel_id).map(|t| t.pinned))
+        .unwrap_or(false)
 }
 
 pub fn render_strip_tab(
@@ -80,8 +79,9 @@ pub fn render_strip_tab(
 }
 
 fn tab_spec(panel_id: EntityId, cx: &App) -> Option<TabSpec> {
-    cx.try_global::<TabManagerRef>()
-        .and_then(|tm| tm.0.read(cx).tab_for_panel_id(panel_id))
+    let tm = Workspaces::tabs_for_panel(panel_id, cx)?;
+    tm.read(cx)
+        .tab_for_panel_id(panel_id)
         .map(|t| t.spec.clone())
 }
 
@@ -165,7 +165,7 @@ fn close_button(panel_id: EntityId, color: gpui_kit::Hsla) -> impl IntoElement {
         .tooltip("Close tab")
         .on_click(move |_, window, cx| {
             cx.stop_propagation();
-            if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+            if let Some(ws) = Workspaces::active(cx) {
                 ws.update(cx, |ws, cx| {
                     ws.close_tabs(CloseScope::Tab(panel_id), window, cx);
                 });

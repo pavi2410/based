@@ -41,8 +41,8 @@ impl Assist {
 }
 
 impl QueryEditorPanel {
-    fn ai_level(&self, cx: &gpui_kit::App) -> ContextLevel {
-        connection_ai(&self.conn_id, cx)
+    fn ai_level(&self, cx: &Context<Self>) -> ContextLevel {
+        connection_ai(&self.conn_id, cx.entity_id(), cx)
     }
 
     pub(super) fn toggle_ai(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -104,7 +104,7 @@ impl QueryEditorPanel {
     }
 
     /// `true` when the connection shares row data and there is a result to discuss.
-    pub(super) fn can_ask_about_results(&self, cx: &gpui_kit::App) -> bool {
+    pub(super) fn can_ask_about_results(&self, cx: &Context<Self>) -> bool {
         self.ai_level(cx) == ContextLevel::SchemaRows
             && !self.result.read(cx).delegate().rows.is_empty()
     }

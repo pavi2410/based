@@ -176,7 +176,8 @@ fn tab_footer_names_the_connection_and_marks_production(cx: &mut TestAppContext)
     seed_sqlite(&db, SEED);
     let (_win, ws) = open_workspace(cx);
     let conn = connect_sqlite_tagged(cx, &ws, "shop", &db, vec!["production".into()]);
-    let crumbs = cx.update(|cx| tab_breadcrumb_for_connection(&conn, ["users"], cx));
+    let owner = ws.entity_id();
+    let crumbs = cx.update(|cx| tab_breadcrumb_for_connection(&conn, owner, ["users"], cx));
     assert_eq!(
         crumbs.segments,
         ["shop", "users"],

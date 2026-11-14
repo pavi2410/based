@@ -4,8 +4,9 @@ use super::*;
 
 impl QueryEditorPanel {
     /// Where a saved copy of this query should run.
-    pub(super) fn save_target(&self, cx: &App) -> SaveTarget {
-        save_target_for(&self.conn_id, self.source.engine(), cx)
+    pub(super) fn save_target(&self, cx: &Context<Self>) -> SaveTarget {
+        let registry = Workspaces::registry_for_panel(cx.entity_id(), cx);
+        save_target_for(&self.conn_id, self.source.engine(), registry.as_ref(), cx)
     }
 
     /// Save the editor text into the project: in place if it was saved before, else
@@ -156,10 +157,13 @@ impl QueryEditorPanel {
 
 /// Where a query saved for `conn_id` runs: that connection when it is part of the project,
 /// else any connection of its engine.
-pub(crate) fn save_target_for(conn_id: &ConnectionId, engine: EngineKind, cx: &App) -> SaveTarget {
-    let entry = cx
-        .try_global::<WorkspaceRef>()
-        .and_then(|ws| ws.0.read(cx).registry().read(cx).get(conn_id, cx).cloned());
+pub(crate) fn save_target_for(
+    conn_id: &ConnectionId,
+    engine: EngineKind,
+    registry: Option<&Entity<ConnectionRegistry>>,
+    cx: &App,
+) -> SaveTarget {
+    let entry = registry.and_then(|r| r.read(cx).get(conn_id, cx).cloned());
     if let Some(entry) = entry {
         let e = entry.read(cx);
         if let Some(key) = e.id.project_key() {

@@ -6,9 +6,7 @@ pub mod pop_out;
 pub mod tabs;
 
 pub use pop_out::PopOutManager;
-pub use tabs::{
-    DockAreaRef, Inbox, QueryEditorInit, TabManager, TabManagerRef, TabSpec, WorkspaceRef,
-};
+pub use tabs::{Inbox, QueryEditorInit, TabManager, TabSpec, Workspaces};
 
 pub mod connection_tree;
 pub use connection_tree::ConnectionTree;
@@ -240,8 +238,14 @@ impl Workspace {
         let connection_tree = cx.new(|cx| ConnectionTree::new(registry.clone(), cx));
 
         let tab_manager = cx.new(|_| TabManager::with_tab(TabSpec::Home, home_arc.clone()));
-        cx.set_global(TabManagerRef(tab_manager.clone()));
-        cx.set_global(DockAreaRef(dock_area.clone()));
+        Workspaces::register(
+            window.window_handle().window_id(),
+            cx.entity().downgrade(),
+            tab_manager.clone(),
+            dock_area.clone(),
+            registry.clone(),
+            cx,
+        );
         if let Some(root) = project_dir.clone() {
             cx.set_global(RegistryRef(registry.clone()));
             cx.set_global(ProjectRoot(root));
@@ -354,6 +358,10 @@ impl Workspace {
 
     pub fn registry(&self) -> &Entity<ConnectionRegistry> {
         &self.registry
+    }
+
+    pub fn dock_area(&self) -> &Entity<DockArea> {
+        &self.dock_area
     }
 
     pub fn tab_manager(&self) -> &Entity<TabManager> {

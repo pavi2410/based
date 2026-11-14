@@ -641,7 +641,7 @@ impl Render for TableInspectorPanel {
         };
         let object = self.source.object();
         let path: Vec<String> = object.schema.iter().cloned().chain([object.name]).collect();
-        let crumbs = tab_breadcrumb_for_connection(&self.conn_id, path, cx);
+        let crumbs = tab_breadcrumb_for_connection(&self.conn_id, cx.entity_id(), path, cx);
         let footer = tab_breadcrumb_footer(self.source.breadcrumb_id(), crumbs, None, cx);
         panel_tab_content(body, footer).into_any_element()
     }

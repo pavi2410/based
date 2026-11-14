@@ -38,8 +38,8 @@ impl DataViewerPanel {
 
     /// The "explain this column" question, or `None` when AI is off for the connection.
     /// Sample values are included only when the connection shares rows.
-    pub(super) fn explain_prompt(&self, col: usize, cx: &App) -> Option<String> {
-        let level = connection_ai(&self.conn_id, cx);
+    pub(super) fn explain_prompt(&self, col: usize, owner: EntityId, cx: &App) -> Option<String> {
+        let level = connection_ai(&self.conn_id, owner, cx);
         if level == ContextLevel::Off {
             return None;
         }
@@ -93,7 +93,7 @@ impl DataViewerPanel {
         let filter_name = name.clone();
         let copy_name = name.to_string();
         let hide_table = table.clone();
-        let explain = this.read(cx).explain_prompt(col, cx);
+        let explain = this.read(cx).explain_prompt(col, this.entity_id(), cx);
         let conn = this.read(cx).conn_id.clone();
         let menu = match explain {
             Some(prompt) => menu.item(

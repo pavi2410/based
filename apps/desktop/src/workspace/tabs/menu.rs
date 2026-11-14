@@ -5,7 +5,7 @@ use gpui_kit::{App, Context, EntityId, Window};
 
 use super::CloseScope;
 use super::label::is_panel_pinned;
-use super::open::WorkspaceRef;
+use super::open::Workspaces;
 use crate::workspace::Workspace;
 
 type WsAction = dyn Fn(&mut Workspace, &mut Window, &mut Context<Workspace>) + 'static;
@@ -19,7 +19,7 @@ fn item(
     PopupMenuItem::new(label)
         .disabled(disabled)
         .on_click(move |_, window, app| {
-            let Some(ws) = app.try_global::<WorkspaceRef>().map(|w| w.0.clone()) else {
+            let Some(ws) = Workspaces::active(app) else {
                 return;
             };
             ws.update(app, |ws, cx| f(ws, window, cx));

@@ -475,7 +475,8 @@ impl Render for KeyViewPanel {
             .child(self.render_toolbar(cx))
             .children(self.status.line(cx))
             .child(self.render_body(cx));
-        let crumbs = tab_breadcrumb_for_connection(&self.conn_id, [self.key.clone()], cx);
+        let crumbs =
+            tab_breadcrumb_for_connection(&self.conn_id, cx.entity_id(), [self.key.clone()], cx);
         panel_tab_content(
             body,
             tab_breadcrumb_footer("redis-key-breadcrumb", crumbs, None, cx),

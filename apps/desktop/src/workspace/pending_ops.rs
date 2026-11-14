@@ -2,12 +2,12 @@
 //!
 //! These are called from `render()` on every frame; see the comment in `render.rs` for why.
 
-use gpui_kit::{App, BorrowAppContext, Context, Entity};
+use gpui_kit::{App, Context, Entity};
 
 use super::Workspace;
 use super::panels::query_editor::QueryEditorPanel;
 use super::tabs::{
-    CloseScope, Inbox, OpenOutcome, QueryEditorInit, Request, TabId, TabSpec, inbox,
+    CloseScope, OpenOutcome, QueryEditorInit, Request, TabId, TabSpec, Workspaces, inbox,
 };
 use crate::app::logging::open_logs;
 use crate::app::updater::check_now;
@@ -48,7 +48,8 @@ impl Workspace {
 
     /// Apply every queued [`Request`], oldest first.
     pub(crate) fn drain_inbox(&mut self, window: &mut gpui_kit::Window, cx: &mut Context<Self>) {
-        while let Some(request) = cx.update_global(|inbox: &mut Inbox, _| inbox.pop()) {
+        let own = window.window_handle().window_id();
+        while let Some(request) = Workspaces::take_request(own, cx) {
             match request {
                 Request::OpenTab(spec) => {
                     self.dispatch_open_tab(spec, window, cx);

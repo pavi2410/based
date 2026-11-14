@@ -6,9 +6,9 @@
 
 use std::collections::VecDeque;
 
-use gpui_kit::{App, BorrowAppContext, Global};
+use gpui_kit::{App, WindowId};
 
-use super::{TabSpec, WorkspaceRef};
+use super::{TabSpec, Workspaces};
 use crate::connection::ConnectionId;
 use crate::workspace::chrome::{left_pane::LeftPane, side_pane::SidePane};
 
@@ -52,45 +52,55 @@ impl Inbox {
     }
 }
 
-impl Global for Inbox {}
-
-/// Queue a request. Pair with [`request_workspace_flush`] unless a render is already coming.
-pub fn post(request: Request, cx: &mut impl BorrowAppContext) {
-    cx.update_global(|inbox: &mut Inbox, _| inbox.push(request));
+/// Queue a request for the workspace the user is acting in. Pair with
+/// [`request_workspace_flush`] unless a render is already coming.
+pub fn post(request: Request, cx: &mut App) {
+    if let Some(window) = Workspaces::active_window(cx) {
+        Workspaces::post_to(window, request, cx);
+    }
 }
 
-/// Wake the workspace so it drains the inbox.
-pub fn request_workspace_flush(cx: &mut App) {
-    if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+/// Queue a request for the workspace in `window` and wake it.
+pub fn post_to(window: WindowId, request: Request, cx: &mut App) {
+    Workspaces::post_to(window, request, cx);
+    if let Some(ws) = Workspaces::for_window_id(window, cx) {
         ws.update(cx, |_, cx| cx.notify());
     }
 }
 
-pub fn open_tab(spec: TabSpec, cx: &mut impl BorrowAppContext) {
+/// Wake the active workspace so it drains its requests.
+pub fn request_workspace_flush(cx: &mut App) {
+    if let Some(ws) = Workspaces::active(cx) {
+        ws.update(cx, |_, cx| cx.notify());
+    }
+}
+
+pub fn open_tab(spec: TabSpec, cx: &mut App) {
     post(Request::OpenTab(spec), cx);
 }
 
-pub fn show_home(cx: &mut impl BorrowAppContext) {
+pub fn show_home(cx: &mut App) {
     post(Request::ShowHome, cx);
 }
 
-pub fn toggle_side_pane(pane: SidePane, cx: &mut impl BorrowAppContext) {
+pub fn toggle_side_pane(pane: SidePane, cx: &mut App) {
     post(Request::ToggleSidePane(pane), cx);
 }
 
-pub fn open_release_notes(version: String, cx: &mut impl BorrowAppContext) {
+pub fn open_release_notes(version: String, cx: &mut App) {
     post(Request::OpenReleaseNotes { version }, cx);
 }
 
-pub fn connection_opened(conn_id: ConnectionId, cx: &mut impl BorrowAppContext) {
-    post(Request::ConnectionOpened(conn_id), cx);
+/// A connection in `window`'s workspace just opened.
+pub fn connection_opened(window: WindowId, conn_id: ConnectionId, cx: &mut App) {
+    post_to(window, Request::ConnectionOpened(conn_id), cx);
 }
 
-pub fn ai_sql(conn_id: ConnectionId, sql: String, run: bool, cx: &mut impl BorrowAppContext) {
+pub fn ai_sql(conn_id: ConnectionId, sql: String, run: bool, cx: &mut App) {
     post(Request::AiSql { conn_id, sql, run }, cx);
 }
 
-pub fn inject_sql(conn_id: ConnectionId, sql: String, cx: &mut impl BorrowAppContext) {
+pub fn inject_sql(conn_id: ConnectionId, sql: String, cx: &mut App) {
     post(Request::InjectSql { conn_id, sql }, cx);
 }
 

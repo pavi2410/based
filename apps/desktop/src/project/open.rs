@@ -23,7 +23,7 @@ use crate::project::reload::{
     ProjectRoot, RegistryRef, install_reload_watcher, reload_from_disk, stop_reload_watcher,
 };
 use crate::query_store::QueryStore;
-use crate::workspace::WorkspaceRef;
+use crate::workspace::Workspaces;
 use crate::workspace::notify;
 use crate::workspace::tabs::CloseScope;
 use crate::workspace::{QueuedDialog, Workspace};
@@ -46,7 +46,7 @@ pub fn request_close_project_in_window(cx: &mut App) {
     if !has_open_project(cx) {
         return;
     }
-    let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) else {
+    let Some(ws) = Workspaces::active(cx) else {
         return;
     };
     // Always queue onto the next render. Popup-menu / palette clicks often have
@@ -94,7 +94,7 @@ fn spawn_pick_and_then(cx: &mut App, mode: ProjectOpenMode) {
 
 /// Validate and queue or complete an in-place project switch.
 pub fn request_open_project_in_window(root: PathBuf, cx: &mut App) {
-    let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) else {
+    let Some(ws) = Workspaces::active(cx) else {
         return;
     };
     if is_same_project(&root, cx) {
@@ -302,7 +302,7 @@ fn show_close_project_dialog(
 
 /// Disconnect live connections, reset tabs, bind the new project.
 pub fn complete_project_switch_in_window(root: PathBuf, window: &mut Window, cx: &mut App) {
-    let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) else {
+    let Some(ws) = Workspaces::active(cx) else {
         return;
     };
     if is_same_project(&root, cx) {
@@ -339,7 +339,7 @@ pub fn complete_project_switch_in_window(root: PathBuf, window: &mut Window, cx:
 /// Dialog callbacks use this. Idle close from render must call
 /// [`close_project_in_workspace`] instead — this re-enters the Workspace entity.
 pub fn complete_close_project_in_window(window: &mut Window, cx: &mut App) {
-    let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) else {
+    let Some(ws) = Workspaces::active(cx) else {
         return;
     };
     ws.update(cx, |workspace, cx| {

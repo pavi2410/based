@@ -147,7 +147,7 @@ impl ConsolePanel {
 
 impl ConsolePanel {
     fn toggle_ai(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let off = connection_ai(&self.conn_id, cx) == ContextLevel::Off;
+        let off = connection_ai(&self.conn_id, cx.entity_id(), cx) == ContextLevel::Off;
         let was_open = self.ai.is_open();
         self.ai.toggle(off, window, cx);
         if was_open {
@@ -299,7 +299,7 @@ impl Render for ConsolePanel {
                             .child(div().text_color(color).child(text))
                     })),
             );
-        let crumbs = tab_breadcrumb_for_connection(&self.conn_id, ["Console"], cx);
+        let crumbs = tab_breadcrumb_for_connection(&self.conn_id, cx.entity_id(), ["Console"], cx);
         panel_tab_content(
             body,
             tab_breadcrumb_footer("redis-console-breadcrumb", crumbs, None, cx),

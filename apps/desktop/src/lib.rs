@@ -36,7 +36,7 @@ use project::{
     ProjectContext, ProjectVars, find_project_root, install_reload_watcher, load_variables,
     settings::apply_project_settings,
 };
-use workspace::{Inbox, PopOutManager};
+use workspace::PopOutManager;
 
 /// Launch the desktop app (blocks until quit).
 pub fn run() {
@@ -85,7 +85,6 @@ pub fn init_globals(cx: &mut App) {
     db::init(cx);
     ai::init(cx);
 
-    cx.set_global(Inbox::default());
     // Empty until `init_project` loads the project's vars.
     cx.set_global(ProjectVars::default());
     PopOutManager::init(cx);

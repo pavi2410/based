@@ -13,7 +13,7 @@ use crate::widgets::engine_icon;
 use crate::widgets::layout::panel_header_height;
 use crate::widgets::metadata_pill::env_pill;
 use crate::widgets::status_item::STATUS_BAR_HEIGHT;
-use crate::workspace::WorkspaceRef;
+use crate::workspace::Workspaces;
 
 /// Bottom-of-tab breadcrumb rail height (matches status bar segment height).
 pub const TAB_BREADCRUMB_HEIGHT: f32 = STATUS_BAR_HEIGHT;
@@ -115,13 +115,15 @@ pub struct TabBreadcrumb {
 /// environment and read-only state too.
 pub fn tab_breadcrumb_for_connection(
     conn_id: &ConnectionId,
+    owner: EntityId,
     tail: impl IntoIterator<Item = impl Into<SharedString>>,
     cx: &App,
 ) -> TabBreadcrumb {
-    // The workspace's registry, which exists with or without an open project.
-    let entry = cx
-        .try_global::<WorkspaceRef>()
-        .and_then(|ws| ws.0.read(cx).registry().read(cx).get(conn_id, cx))
+    // The owning workspace's registry, which exists with or without an open project.
+    let registry = Workspaces::registry_for_panel(owner, cx);
+    let entry = registry
+        .as_ref()
+        .and_then(|r| r.read(cx).get(conn_id, cx))
         .map(|e| e.read(cx));
     let Some(entry) = entry else {
         let mut segments = vec![conn_id.to_string().into()];

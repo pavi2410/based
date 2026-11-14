@@ -16,7 +16,7 @@ use crate::connection::ConnectionState::Connected;
 use crate::db;
 use crate::storage;
 use crate::widgets::section_eyebrow::section_eyebrow;
-use crate::workspace::WorkspaceRef;
+use crate::workspace::Workspaces;
 use crate::workspace::context::WorkspaceContext;
 use crate::workspace::context::refresh_context;
 use crate::workspace::tabs::inbox;
@@ -212,8 +212,7 @@ fn open_loose_query(sql: &str, cx: &mut App) {
 }
 
 fn first_connected_conn_id(cx: &App) -> Option<ConnectionId> {
-    let ws = cx.try_global::<WorkspaceRef>()?;
-    let registry = ws.0.read(cx).registry().clone();
+    let registry = Workspaces::active_registry(cx)?;
     registry.read(cx).connections().iter().find_map(|e| {
         let entry = e.read(cx);
         if matches!(entry.state, Connected(_)) {
@@ -252,7 +251,7 @@ where
         if let Ok(ctx) = refreshed {
             cx.update(|cx| {
                 cx.set_global(ctx);
-                if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+                if let Some(ws) = Workspaces::active(cx) {
                     ws.update(cx, |_, cx| cx.notify());
                 }
             });

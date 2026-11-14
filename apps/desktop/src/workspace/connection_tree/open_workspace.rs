@@ -1,7 +1,7 @@
 use gpui_kit::{Context, Window};
 
 use crate::connection::AnyConnection;
-use crate::workspace::WorkspaceRef;
+use crate::workspace::Workspaces;
 use crate::workspace::tabs::inbox;
 
 use super::ConnectionTree;
@@ -27,14 +27,18 @@ impl ConnectionTree {
         self.set_connection_expanded(idx, true, cx);
         self.load_objects_for_connection(idx, ac.clone(), cx);
 
-        let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) else {
+        // This tree's own window: connects finish in the background, maybe while
+        // another window has focus.
+        let Some(window) = Workspaces::window_with_registry(&self.registry, cx) else {
+            return;
+        };
+        let Some(ws) = Workspaces::for_window_id(window, cx) else {
             return;
         };
         if ws.read(cx).should_preserve_restored_tabs(&conn_id) {
             ws.update(cx, |_, cx| cx.notify());
             return;
         }
-        inbox::connection_opened(conn_id, cx);
-        inbox::request_workspace_flush(cx);
+        inbox::connection_opened(window, conn_id, cx);
     }
 }

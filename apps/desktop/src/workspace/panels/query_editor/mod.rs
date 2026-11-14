@@ -62,9 +62,10 @@ use crate::widgets::wizard_fields::new_field;
 use crate::workspace::notify;
 use crate::workspace::pop_out::PopOutWindowTitle;
 
+use crate::connection::registry::ConnectionRegistry;
 use crate::workspace::tabs::spec::SavedQueryRef;
 use crate::workspace::{
-    WorkspaceRef,
+    Workspaces,
     tabs::{clear_tab_dirty, mark_tab_dirty, note_tab_edited},
 };
 
@@ -283,7 +284,7 @@ impl QueryEditorPanel {
                 panel.clear_hold(cx);
                 mark_tab_dirty(cx.entity_id(), cx);
                 panel.schedule_lint(cx);
-                note_tab_edited(cx);
+                note_tab_edited(cx.entity_id(), cx);
             }
             _ => {}
         })
@@ -366,6 +367,7 @@ impl QueryEditorPanel {
         };
         let sql_input = self.sql_input.clone();
         let ai = Some(InlineAi {
+            owner: cx.entity_id(),
             conn: self.conn_id.clone(),
             engine: self.source.engine(),
         });

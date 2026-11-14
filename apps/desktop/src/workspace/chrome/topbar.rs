@@ -23,7 +23,7 @@ use crate::bindings::{CycleAppearance, ToggleCommandPalette};
 use crate::connection::registry::ConnectionRegistry;
 use crate::project::ProjectContext;
 use crate::widgets::SIDEBAR_INSET;
-use crate::workspace::WorkspaceRef;
+use crate::workspace::Workspaces;
 
 /// A `RenderOnce` top bar that renders inside the window's `TitleBar`.
 #[derive(IntoElement)]
@@ -207,7 +207,7 @@ impl RenderOnce for TopbarRight {
                     .icon(IconName::Search)
                     .tooltip_with_action("Search or run a command", &ToggleCommandPalette, None)
                     .on_click(|_, window, cx| {
-                        if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+                        if let Some(ws) = Workspaces::active(cx) {
                             ws.update(cx, |ws, cx| ws.toggle_command_palette(window, cx));
                         }
                     }),

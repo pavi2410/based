@@ -13,7 +13,7 @@ use gpui_kit::{
 };
 
 use crate::widgets::{SIDEBAR_INSET, engine_icon};
-use crate::workspace::tabs::WorkspaceRef;
+use crate::workspace::tabs::Workspaces;
 use crate::workspace::wizard_logic::can_edit_saved_connection;
 
 use super::ConnectionTree;
@@ -119,9 +119,7 @@ pub(crate) fn connection_header(
                                 .icon(Icon::new(IconName::Settings))
                                 .tooltip("Edit connection")
                                 .on_click(move |_, window, cx| {
-                                    if let Some(ws) =
-                                        cx.try_global::<WorkspaceRef>().map(|w| w.0.clone())
-                                    {
+                                    if let Some(ws) = Workspaces::active(cx) {
                                         ws.update(cx, |ws, cx| {
                                             ws.open_edit_connection_tab(
                                                 edit_id.clone(),
@@ -205,9 +203,7 @@ pub(crate) fn connection_header(
                                         .outline()
                                         .label("Edit connection")
                                         .on_click(move |_, window, cx| {
-                                            if let Some(ws) =
-                                                cx.try_global::<WorkspaceRef>().map(|w| w.0.clone())
-                                            {
+                                            if let Some(ws) = Workspaces::active(cx) {
                                                 ws.update(cx, |ws, cx| {
                                                     ws.open_edit_connection_tab(
                                                         edit_failed_id.clone(),

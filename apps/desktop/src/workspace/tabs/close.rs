@@ -8,7 +8,7 @@ use gpui_kit::component::{
 };
 use gpui_kit::{Context, EntityId, SharedString, Window, prelude::*};
 
-use super::WorkspaceRef;
+use super::Workspaces;
 use crate::workspace::Workspace;
 use crate::workspace::dock_utils::{
     active_live_center_panel, panel_entity_id, remove_presentation_panel,
@@ -154,13 +154,13 @@ impl Workspace {
                         .child(DialogAction::new().child(discard)),
                 )
                 .on_ok(|_, window, cx| {
-                    if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+                    if let Some(ws) = Workspaces::active(cx) {
                         ws.update(cx, |ws, cx| ws.confirm_close_prompt(window, cx));
                     }
                     true
                 })
                 .on_cancel(|_, _, cx| {
-                    if let Some(ws) = cx.try_global::<WorkspaceRef>().map(|w| w.0.clone()) {
+                    if let Some(ws) = Workspaces::active(cx) {
                         ws.update(cx, |ws, cx| ws.cancel_close_prompt(cx));
                     }
                     true

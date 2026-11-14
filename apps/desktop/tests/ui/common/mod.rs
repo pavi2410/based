@@ -14,7 +14,6 @@ use based_desktop::db::Tokio;
 use based_desktop::workspace::boot::WorkspaceEnv;
 use based_desktop::workspace::connection_tree::ObjectKind;
 use based_desktop::workspace::tabs::SessionSnapshot;
-use based_desktop::workspace::tabs::open::WorkspaceRef;
 use based_desktop::workspace::{TabSpec, Workspace};
 use based_desktop::{init_globals, query_store, storage};
 use based_sqlite::config::SqliteConfig;
@@ -106,12 +105,7 @@ pub fn open_window(
                 ..Default::default()
             },
             cx,
-            |window, cx| {
-                let ws = cx.new(|cx| Workspace::with_env(workspace_env, window, cx));
-                // Like launch: panels find their workspace (e.g. connection tags) through this.
-                cx.set_global(WorkspaceRef(ws.clone()));
-                ws
-            },
+            |window, cx| cx.new(|cx| Workspace::with_env(workspace_env, window, cx)),
         )
         .expect("open workspace window");
         let _: WindowHandle<Root> = window.downcast().expect("Root");

@@ -10,7 +10,7 @@ use based_ai::prompt;
 use based_core::{EngineKind, ObjectKind};
 use gpui_kit::component::Rope;
 use gpui_kit::component::input::{CompletionProvider, RopeExt};
-use gpui_kit::{App, AppContext as _, Task, Window};
+use gpui_kit::{App, AppContext as _, EntityId, Task, Window};
 use lsp_types::{
     CompletionContext, CompletionItem, CompletionItemKind, CompletionResponse, CompletionTextEdit,
     InlineCompletionContext, InlineCompletionItem, InlineCompletionResponse, Range, TextEdit,
@@ -131,6 +131,8 @@ const SQL_FUNCTIONS: &[&str] = &[
 #[derive(Clone)]
 pub struct InlineAi {
     pub conn: ConnectionId,
+    /// The editor panel asking, so AI access is read from its own workspace.
+    pub owner: EntityId,
     pub engine: EngineKind,
 }
 
@@ -272,7 +274,7 @@ impl CompletionProvider for SqlCompletionProvider {
         let Some(ai) = &self.ai else {
             return none();
         };
-        let level = connection_ai(&ai.conn, cx);
+        let level = connection_ai(&ai.conn, ai.owner, cx);
         if !prefs::ai_prefs(cx).inline() || level == ContextLevel::Off {
             return none();
         }

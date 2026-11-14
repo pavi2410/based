@@ -22,7 +22,7 @@ use crate::bindings::{NewQuery, ToggleChatPane, ToggleCommandPalette};
 use crate::project::prompt_open_project_in_window;
 use crate::widgets::kbd_for_action;
 use crate::widgets::motion;
-use crate::workspace::WorkspaceRef;
+use crate::workspace::Workspaces;
 use crate::workspace::query_lane::create_loose_query_from_palette;
 use crate::workspace::tabs::kind::names;
 
@@ -104,9 +104,7 @@ impl Render for HomePanel {
                                 "Show Command Palette",
                                 palette_kbd,
                                 |_, window, cx| {
-                                    if let Some(ws) =
-                                        cx.try_global::<WorkspaceRef>().map(|w| w.0.clone())
-                                    {
+                                    if let Some(ws) = Workspaces::active(cx) {
                                         ws.update(cx, |ws, cx| {
                                             ws.toggle_command_palette(window, cx);
                                         });
@@ -130,9 +128,7 @@ impl Render for HomePanel {
                                 "New Connection",
                                 None,
                                 |_, window, cx| {
-                                    if let Some(ws) =
-                                        cx.try_global::<WorkspaceRef>().map(|w| w.0.clone())
-                                    {
+                                    if let Some(ws) = Workspaces::active(cx) {
                                         ws.update(cx, |ws, cx| {
                                             ws.open_connection_picker_tab(window, cx);
                                         });
@@ -147,9 +143,7 @@ impl Render for HomePanel {
                                 "AI Assistant",
                                 chat_kbd,
                                 |_, window, cx| {
-                                    if let Some(ws) =
-                                        cx.try_global::<WorkspaceRef>().map(|w| w.0.clone())
-                                    {
+                                    if let Some(ws) = Workspaces::active(cx) {
                                         ws.update(cx, |ws, cx| ws.open_chat(window, cx));
                                     }
                                 },

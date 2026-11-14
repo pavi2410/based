@@ -1,8 +1,10 @@
 //! Persisted session snapshot stored in the metadata SQLite database.
 
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use std::mem;
+use std::path::Path;
 
 use based_storage::{ACTIVE_CONNECTION_ID, ACTIVE_TAB_INDEX, MetadataStore, OPEN_TABS};
 
@@ -45,19 +47,47 @@ pub struct SessionSnapshot {
     pub active_connection_id: Option<ConnectionId>,
 }
 
-/// Load tabs from the session, migrating old entry shapes and skipping any
+/// Where a workspace's session is saved: one slot per project root, and one
+/// for windows with no project.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionScope(String);
+
+impl SessionScope {
+    pub fn for_project(root: Option<&Path>) -> Self {
+        Self(root.map_or_else(
+            || "no-project".to_owned(),
+            |root| format!("project:{}", root.display()),
+        ))
+    }
+
+    fn key(&self, base: &str) -> String {
+        format!("{}|{base}", self.0)
+    }
+}
+
+/// Keys from before sessions were saved per project. Read once, by the first
+/// scope that has no session of its own, then deleted.
+const LEGACY_KEYS: [&str; 4] = [
+    OPEN_TABS,
+    ACTIVE_TAB_INDEX,
+    ACTIVE_CONNECTION_ID,
+    LEGACY_PINNED_TABS,
+];
+
+/// Load tabs saved under `key`, migrating old entry shapes and skipping any
 /// that still fail to deserialize (e.g. pre-`QueryEditorInit` flat fields).
-async fn load_tabs_with_migration(store: &MetadataStore) -> Vec<SessionTab> {
-    let Ok(Some(raw)) = store
-        .get_session_json::<Vec<serde_json::Value>>(OPEN_TABS)
+/// `None` when nothing was ever saved there.
+async fn load_tabs_with_migration(store: &MetadataStore, key: &str) -> Option<Vec<SessionTab>> {
+    let raw = store
+        .get_session_json::<Vec<serde_json::Value>>(key)
         .await
-    else {
-        return vec![];
-    };
-    raw.into_iter()
-        .map(migrate_entry)
-        .filter_map(|v| serde_json::from_value(v).ok())
-        .collect()
+        .ok()??;
+    Some(
+        raw.into_iter()
+            .map(migrate_entry)
+            .filter_map(|v| serde_json::from_value(v).ok())
+            .collect(),
+    )
 }
 
 /// Mongo pipelines used to be saved as a query editor with
@@ -90,43 +120,42 @@ fn apply_legacy_pins(tabs: &mut [SessionTab], pinned: &[TabSpec]) {
 }
 
 impl SessionSnapshot {
-    pub async fn load(store: &MetadataStore) -> Self {
-        let mut tabs = load_tabs_with_migration(store).await;
-        let legacy_pins: Vec<TabSpec> = store
-            .get_session_json(LEGACY_PINNED_TABS)
-            .await
-            .ok()
-            .flatten()
-            .unwrap_or_default();
-        apply_legacy_pins(&mut tabs, &legacy_pins);
-        let active = store
-            .get_session_json(ACTIVE_TAB_INDEX)
-            .await
-            .ok()
-            .flatten();
-        let active_connection_id = store
-            .get_session_json(ACTIVE_CONNECTION_ID)
-            .await
-            .ok()
-            .flatten();
-        Self {
-            tabs,
-            active,
-            active_connection_id,
+    /// The session saved for `scope`. A scope that never saved one inherits the
+    /// pre-scope session once (the keys are deleted after), so an upgrade keeps
+    /// the user's tabs.
+    pub async fn load(store: &MetadataStore, scope: &SessionScope) -> Self {
+        if let Some(tabs) = load_tabs_with_migration(store, &scope.key(OPEN_TABS)).await {
+            return Self {
+                tabs,
+                active: get(store, &scope.key(ACTIVE_TAB_INDEX)).await,
+                active_connection_id: get(store, &scope.key(ACTIVE_CONNECTION_ID)).await,
+            };
         }
+        let Some(mut tabs) = load_tabs_with_migration(store, OPEN_TABS).await else {
+            return Self::default();
+        };
+        let legacy_pins: Vec<TabSpec> = get(store, LEGACY_PINNED_TABS).await.unwrap_or_default();
+        apply_legacy_pins(&mut tabs, &legacy_pins);
+        let legacy = Self {
+            tabs,
+            active: get(store, ACTIVE_TAB_INDEX).await,
+            active_connection_id: get(store, ACTIVE_CONNECTION_ID).await,
+        };
+        if let Err(err) = store.remove_session_keys(&LEGACY_KEYS).await {
+            log::warn!("clearing the pre-scope session failed: {err:#}");
+        }
+        legacy
     }
 
-    pub async fn save(&self, store: &MetadataStore) -> anyhow::Result<()> {
-        store.set_session_json(OPEN_TABS, &self.tabs).await?;
+    pub async fn save(&self, store: &MetadataStore, scope: &SessionScope) -> anyhow::Result<()> {
         store
-            .set_session_json(ACTIVE_TAB_INDEX, &self.active)
+            .set_session_json(&scope.key(OPEN_TABS), &self.tabs)
             .await?;
         store
-            .set_session_json(ACTIVE_CONNECTION_ID, &self.active_connection_id)
+            .set_session_json(&scope.key(ACTIVE_TAB_INDEX), &self.active)
             .await?;
-        // Pins live on the tabs now; an old list would re-pin by equality.
         store
-            .set_session_json(LEGACY_PINNED_TABS, &Vec::<TabSpec>::new())
+            .set_session_json(&scope.key(ACTIVE_CONNECTION_ID), &self.active_connection_id)
             .await?;
         Ok(())
     }
@@ -172,19 +201,47 @@ struct PendingTab {
     live: Option<TabId>,
 }
 
+async fn get<T: DeserializeOwned>(store: &MetadataStore, key: &str) -> Option<T> {
+    store.get_session_json(key).await.ok().flatten()
+}
+
 /// Restore bookkeeping and the coalescing write queue for one workspace.
 #[derive(Default)]
 pub struct SessionState {
+    /// Where saves go. `None` while the window changes project: the tabs being
+    /// closed for the switch must not overwrite the old project's session.
+    scope: Option<SessionScope>,
     restored: bool,
     /// Saved tabs, kept until the user closes them: opening a connection can
     /// replace the center, and these bring the tabs back next launch.
     pending: Vec<PendingTab>,
     /// Newest snapshot waiting for the writer (newer replaces older).
-    queued: Option<SessionSnapshot>,
+    queued: Option<(SessionScope, SessionSnapshot)>,
     writing: bool,
 }
 
 impl SessionState {
+    pub fn new(scope: SessionScope) -> Self {
+        Self {
+            scope: Some(scope),
+            ..Self::default()
+        }
+    }
+
+    pub fn scope(&self) -> Option<&SessionScope> {
+        self.scope.as_ref()
+    }
+
+    /// Stop saving until [`Self::resume`]: the window is changing project.
+    pub fn hold(&mut self) {
+        self.scope = None;
+    }
+
+    /// Save to `scope` from now on.
+    pub fn resume(&mut self, scope: SessionScope) {
+        self.scope = Some(scope);
+    }
+
     /// `true` exactly once: the first call, when the saved session should be restored.
     pub fn begin_restore(&mut self) -> bool {
         !mem::replace(&mut self.restored, true)
@@ -249,12 +306,12 @@ impl SessionState {
     }
 
     /// Queue a snapshot. Returns `true` when the caller must start the writer.
-    pub fn enqueue(&mut self, snapshot: SessionSnapshot) -> bool {
-        self.queued = Some(snapshot);
+    pub fn enqueue(&mut self, scope: SessionScope, snapshot: SessionSnapshot) -> bool {
+        self.queued = Some((scope, snapshot));
         !mem::replace(&mut self.writing, true)
     }
 
-    pub fn take_queued(&mut self) -> Option<SessionSnapshot> {
+    pub fn take_queued(&mut self) -> Option<(SessionScope, SessionSnapshot)> {
         self.queued.take()
     }
 
@@ -356,11 +413,28 @@ mod tests {
             active: Some(n),
             ..Default::default()
         };
-        assert!(st.enqueue(snap(1)), "first enqueue starts the writer");
-        assert!(!st.enqueue(snap(2)), "writer already running");
-        assert_eq!(st.take_queued().unwrap().active, Some(2));
+        let scope = SessionScope::for_project(None);
+        assert!(
+            st.enqueue(scope.clone(), snap(1)),
+            "first enqueue starts the writer"
+        );
+        assert!(
+            !st.enqueue(scope.clone(), snap(2)),
+            "writer already running"
+        );
+        assert_eq!(st.take_queued().unwrap().1.active, Some(2));
         assert!(st.take_queued().is_none());
         st.finish_writing();
-        assert!(st.enqueue(snap(3)));
+        assert!(st.enqueue(scope, snap(3)));
+    }
+
+    #[test]
+    fn each_project_has_its_own_slot() {
+        let a = SessionScope::for_project(Some(Path::new("/a")));
+        let b = SessionScope::for_project(Some(Path::new("/b")));
+        let none = SessionScope::for_project(None);
+        assert_ne!(a.key(OPEN_TABS), b.key(OPEN_TABS));
+        assert_ne!(a.key(OPEN_TABS), none.key(OPEN_TABS));
+        assert_ne!(none.key(OPEN_TABS), OPEN_TABS, "never the pre-scope key");
     }
 }

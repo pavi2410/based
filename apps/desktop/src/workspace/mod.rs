@@ -106,7 +106,6 @@ pub struct Workspace {
     last_chat_conn: Option<ConnectionId>,
     focus_handle: FocusHandle,
     project_title: SharedString,
-    project_dir: Option<PathBuf>,
     /// The window this workspace fills; its key in [`Workspaces`].
     window_id: WindowId,
     session: tabs::SessionState,
@@ -282,9 +281,10 @@ impl Workspace {
             last_chat_conn: None,
             focus_handle: cx.focus_handle(),
             project_title,
-            project_dir,
             window_id: window.window_handle().window_id(),
-            session: tabs::SessionState::default(),
+            session: tabs::SessionState::new(tabs::SessionScope::for_project(
+                project_dir.as_deref(),
+            )),
             pending_target_pick: None,
             session_edit_save: None,
             queued_dialog: None,
@@ -360,6 +360,19 @@ impl Workspace {
         workspace
     }
 
+    /// The folder of the project this window has open.
+    pub fn project_dir(&self, cx: &App) -> Option<PathBuf> {
+        Workspaces::project(self.window_id, cx).and_then(|p| p.root().map(ToOwned::to_owned))
+    }
+
+    /// The window is about to change project: save the old project's session
+    /// and stop saving until [`Self::apply_opened_project`] or
+    /// [`Self::apply_closed_project`] says where the session goes next.
+    pub fn begin_project_change(&mut self, cx: &mut Context<Self>) {
+        self.flush_session(cx);
+        self.session.hold();
+    }
+
     pub fn registry(&self) -> &Entity<ConnectionRegistry> {
         &self.registry
     }
@@ -390,20 +403,25 @@ impl Workspace {
     }
 
     fn save_session(&mut self, cx: &mut Context<Self>) {
+        let Some(scope) = self.session.scope().cloned() else {
+            return;
+        };
         let active_conn = self.focused_conn_id(cx);
         let tm = self.tab_manager.read(cx);
         let Some(snapshot) = tabs::SessionSnapshot::capture(tm, &self.session, active_conn) else {
             return;
         };
-        if !self.session.enqueue(snapshot) {
+        if !self.session.enqueue(scope, snapshot) {
             return;
         }
         let store = storage::store(cx);
         cx.spawn(async move |this, cx| {
             // Coalesce: keep writing until no newer snapshot arrived during the last write.
-            while let Ok(Some(snapshot)) = this.update(cx, |ws, _| ws.session.take_queued()) {
+            while let Ok(Some((scope, snapshot))) =
+                this.update(cx, |ws, _| ws.session.take_queued())
+            {
                 let store = store.clone();
-                let saved = db::run(cx, async move { snapshot.save(&store).await }).await;
+                let saved = db::run(cx, async move { snapshot.save(&store, &scope).await }).await;
                 if let Err(err) = saved {
                     log::warn!("session save failed: {err:#}");
                 }
@@ -418,6 +436,9 @@ impl Workspace {
     /// [`Self::save_session`] would not get to run.
     pub fn flush_session(&mut self, cx: &mut Context<Self>) {
         self.session_edit_save = None;
+        let Some(scope) = self.session.scope().cloned() else {
+            return;
+        };
         self.sync_tab_manager_from_dock(cx);
         let active_conn = self.focused_conn_id(cx);
         let Some(snapshot) =
@@ -426,7 +447,7 @@ impl Workspace {
             return;
         };
         let store = storage::store(cx);
-        if let Err(err) = Tokio::handle(cx).block_on(snapshot.save(&store)) {
+        if let Err(err) = Tokio::handle(cx).block_on(snapshot.save(&store, &scope)) {
             log::warn!("session flush failed: {err:#}");
         }
     }
@@ -447,7 +468,8 @@ impl Workspace {
     fn restore_session(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let store = storage::store(cx);
         let handle = Tokio::handle(cx);
-        let mut session = handle.block_on(tabs::SessionSnapshot::load(&store));
+        let scope = tabs::SessionScope::for_project(self.project_dir(cx).as_deref());
+        let mut session = handle.block_on(tabs::SessionSnapshot::load(&store, &scope));
         {
             let registry = self.registry().read(cx);
             let engine_of = |id: &ConnectionId| registry.get(id, cx).map(|e| e.read(cx).engine());

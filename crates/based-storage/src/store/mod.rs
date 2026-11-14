@@ -90,6 +90,17 @@ impl MetadataStore {
             .transpose()
     }
 
+    pub async fn remove_session_keys(&self, keys: &[&str]) -> Result<()> {
+        for key in keys {
+            sqlx::query("DELETE FROM session_state WHERE key = ?")
+                .bind(key)
+                .execute(&self.pool)
+                .await
+                .context("delete session_state")?;
+        }
+        Ok(())
+    }
+
     pub async fn set_session_json<T: Serialize>(&self, key: &str, value: &T) -> Result<()> {
         let json = serde_json::to_string(value).context("serialize session json")?;
         sqlx::query(

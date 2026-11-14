@@ -13,7 +13,7 @@ use based_desktop::connection::{ConnectionConfig, ConnectionDraft, ConnectionId,
 use based_desktop::db::Tokio;
 use based_desktop::workspace::boot::WorkspaceEnv;
 use based_desktop::workspace::connection_tree::ObjectKind;
-use based_desktop::workspace::tabs::SessionSnapshot;
+use based_desktop::workspace::tabs::{SessionScope, SessionSnapshot};
 use based_desktop::workspace::{TabSpec, Workspace};
 use based_desktop::{init_globals, storage};
 use based_sqlite::config::SqliteConfig;
@@ -230,11 +230,16 @@ pub fn wait_until(cx: &mut TestAppContext, mut done: impl FnMut(&mut TestAppCont
     panic!("condition not reached in time");
 }
 
-/// The session snapshot as currently stored (what the next launch would restore).
+/// The no-project session as currently stored (what the next launch would restore).
 pub fn saved_session(cx: &mut TestAppContext) -> SessionSnapshot {
+    saved_session_in(cx, &SessionScope::for_project(None))
+}
+
+/// The session stored for `scope`.
+pub fn saved_session_in(cx: &mut TestAppContext, scope: &SessionScope) -> SessionSnapshot {
     cx.update(|cx| {
         let store = storage::store(cx);
-        Tokio::handle(cx).block_on(SessionSnapshot::load(&store))
+        Tokio::handle(cx).block_on(SessionSnapshot::load(&store, scope))
     })
 }
 
@@ -243,12 +248,13 @@ pub fn saved_specs(cx: &mut TestAppContext) -> Vec<TabSpec> {
     saved_session(cx).tabs.into_iter().map(|t| t.spec).collect()
 }
 
-/// Store `snapshot` as if a previous run had saved it.
+/// Store `snapshot` as if a previous run with no project had saved it.
 pub fn store_session(cx: &mut TestAppContext, snapshot: &SessionSnapshot) {
+    let scope = SessionScope::for_project(None);
     cx.update(|cx| {
         let store = storage::store(cx);
         Tokio::handle(cx)
-            .block_on(snapshot.save(&store))
+            .block_on(snapshot.save(&store, &scope))
             .expect("save session");
     });
 }

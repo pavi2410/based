@@ -19,7 +19,7 @@ use crate::workspace::notify::push_error;
 use super::connection_destination::ConnectionDestination;
 use super::connection_persist::persist_config_to_based_dir;
 use super::project_query::{OpenQueryResult, open_project_query, tab_spec_for_query};
-use super::tabs::inbox;
+use super::tabs::{SessionScope, SessionState, inbox};
 use super::{Workspace, Workspaces};
 
 impl Workspace {
@@ -69,8 +69,10 @@ impl Workspace {
         }
     }
 
+    /// The window switched to `root`. Every tab was closed for the switch, so the
+    /// new project's saved tabs are restored on the next render.
     pub fn apply_opened_project(&mut self, root: PathBuf, cx: &mut Context<Self>) {
-        self.project_dir = Some(root);
+        self.session = SessionState::new(SessionScope::for_project(Some(&root)));
         if let Some(name) = Workspaces::project(self.window_id(), cx)
             .and_then(|p| p.context())
             .map(|c| c.project_name().to_owned())
@@ -81,8 +83,10 @@ impl Workspace {
         cx.notify();
     }
 
+    /// The window closed its project. The tabs that stayed open (personal
+    /// connections) are saved in the no-project slot from now on.
     pub fn apply_closed_project(&mut self, cx: &mut Context<Self>) {
-        self.project_dir = None;
+        self.session.resume(SessionScope::for_project(None));
         self.project_title = "No project".into();
         self.connection_tree.update(cx, |_, cx| cx.notify());
         cx.notify();
@@ -187,7 +191,7 @@ impl Workspace {
         } = draft;
         let based_dir = destination
             .based_dir(
-                self.project_dir.as_deref(),
+                self.project_dir(cx).as_deref(),
                 &AppPaths::get(cx).personal_root,
             )
             .map_err(|err| format!("{err:#}"))?;

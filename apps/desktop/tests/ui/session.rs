@@ -3,16 +3,19 @@
 //! A "launch" is a Workspace window over the same app (and metadata store).
 
 use based_desktop::connection::ConnectionId;
+use based_desktop::db::Tokio;
+use based_desktop::storage;
+use based_desktop::workspace::boot::WorkspaceEnv;
 use based_desktop::workspace::panels::query_editor::QueryEditorPanel;
-use based_desktop::workspace::tabs::{CloseScope, SessionSnapshot, SessionTab};
+use based_desktop::workspace::tabs::{CloseScope, SessionScope, SessionSnapshot, SessionTab};
 use based_desktop::workspace::{QueryEditorInit, TabSpec, Workspace};
 use gpui_kit::test::TestWindowExt;
 use gpui_kit::{AnyWindowHandle, AppContext as _, Entity, TestAppContext};
 
 use crate::common::strip::{active_spec, open_tab, specs};
 use crate::common::{
-    connect_sqlite, info, no_project_env, open_window, open_workspace, saved_session, saved_specs,
-    seed_sqlite, settle, store_session, wait_until,
+    connect_sqlite, info, init_app, no_project_env, open_window, open_with, open_workspace,
+    saved_session, saved_session_in, saved_specs, seed_sqlite, settle, store_session, wait_until,
 };
 
 /// Wait for the async writer to store a session containing `spec`.
@@ -235,4 +238,62 @@ fn pinning_one_of_two_equal_tabs_pins_only_that_one(cx: &mut TestAppContext) {
     });
     assert_eq!(tabs.len(), 2, "both blank editors restored: {tabs:?}");
     assert_eq!(tabs.iter().filter(|p| **p).count(), 1, "{tabs:?}");
+}
+
+fn project_env(root: &std::path::Path) -> WorkspaceEnv {
+    std::fs::create_dir_all(root.join(".based")).unwrap();
+    WorkspaceEnv {
+        project_dir: Some(root.to_path_buf()),
+        ..no_project_env()
+    }
+}
+
+fn scope(root: &std::path::Path) -> SessionScope {
+    SessionScope::for_project(Some(root))
+}
+
+#[gpui_kit::test]
+fn each_project_restores_only_its_own_tabs(cx: &mut TestAppContext) {
+    let (a, b) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let (win_a, ws_a) = open_with(cx, project_env(a.path()));
+    open_tab(win_a, &ws_a, info("in-a"), cx);
+    wait_until(cx, |cx| {
+        saved_session_in(cx, &scope(a.path()))
+            .tabs
+            .iter()
+            .any(|t| t.spec == info("in-a"))
+    });
+
+    let (_win_b, ws_b) = open_window(cx, project_env(b.path()));
+    assert!(
+        !specs(&ws_b, cx).contains(&info("in-a")),
+        "B has its own slot"
+    );
+    let (_win, ws_a2) = open_window(cx, project_env(a.path()));
+    assert!(specs(&ws_a2, cx).contains(&info("in-a")));
+}
+
+#[gpui_kit::test]
+fn the_session_saved_before_scopes_is_inherited_once(cx: &mut TestAppContext) {
+    let (a, b) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let env_a = project_env(a.path());
+    init_app(cx, &env_a.personal_root);
+    cx.update(|cx| {
+        let store = storage::store(cx);
+        let tabs = vec![SessionTab::new(info("old"))];
+        Tokio::handle(cx)
+            .block_on(store.set_session_json(based_storage::OPEN_TABS, &tabs))
+            .unwrap();
+    });
+
+    let (_win_a, ws_a) = open_window(cx, env_a);
+    assert!(
+        specs(&ws_a, cx).contains(&info("old")),
+        "first project inherits it"
+    );
+    let (_win_b, ws_b) = open_window(cx, project_env(b.path()));
+    assert!(
+        !specs(&ws_b, cx).contains(&info("old")),
+        "and only the first"
+    );
 }

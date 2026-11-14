@@ -298,10 +298,10 @@ fn show_close_project_dialog(
 
 /// Disconnect live connections, reset tabs, bind the new project.
 pub fn complete_project_switch_in_window(root: PathBuf, window: &mut Window, cx: &mut App) {
-    let Some(ws) = Workspaces::active(cx) else {
+    let Some(ws) = Workspaces::for_window(window, cx) else {
         return;
     };
-    if is_same_project(&root, cx) {
+    if ws.read(cx).project_dir(cx).as_deref() == Some(root.as_path()) {
         return;
     }
 
@@ -317,6 +317,7 @@ pub fn complete_project_switch_in_window(root: PathBuf, window: &mut Window, cx:
     }
 
     ws.update(cx, |workspace, cx| {
+        workspace.begin_project_change(cx);
         workspace.force_close_tabs(CloseScope::All, window, cx);
         workspace.sync_tab_manager_from_dock(cx);
     });
@@ -335,7 +336,7 @@ pub fn complete_project_switch_in_window(root: PathBuf, window: &mut Window, cx:
 /// Dialog callbacks use this. Idle close from render must call
 /// [`close_project_in_workspace`] instead — this re-enters the Workspace entity.
 pub fn complete_close_project_in_window(window: &mut Window, cx: &mut App) {
-    let Some(ws) = Workspaces::active(cx) else {
+    let Some(ws) = Workspaces::for_window(window, cx) else {
         return;
     };
     ws.update(cx, |workspace, cx| {
@@ -348,7 +349,7 @@ fn close_project_in_workspace(
     window: &mut Window,
     cx: &mut gpui_kit::Context<Workspace>,
 ) {
-    if !has_open_project(cx) {
+    if workspace.project_dir(cx).is_none() {
         return;
     }
 
@@ -363,6 +364,7 @@ fn close_project_in_workspace(
         return;
     }
 
+    workspace.begin_project_change(cx);
     workspace.force_close_tabs(CloseScope::Project, window, cx);
     workspace.sync_tab_manager_from_dock(cx);
     unbind_project(&registry, cx);

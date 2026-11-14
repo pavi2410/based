@@ -250,11 +250,15 @@ pub fn saved_specs(cx: &mut TestAppContext) -> Vec<TabSpec> {
 
 /// Store `snapshot` as if a previous run with no project had saved it.
 pub fn store_session(cx: &mut TestAppContext, snapshot: &SessionSnapshot) {
-    let scope = SessionScope::for_project(None);
+    store_session_in(cx, &SessionScope::for_project(None), snapshot);
+}
+
+/// Store `snapshot` for `scope` as if a previous run had saved it.
+pub fn store_session_in(cx: &mut TestAppContext, scope: &SessionScope, snapshot: &SessionSnapshot) {
     cx.update(|cx| {
         let store = storage::store(cx);
         Tokio::handle(cx)
-            .block_on(snapshot.save(&store, &scope))
+            .block_on(snapshot.save(&store, scope))
             .expect("save session");
     });
 }

@@ -8,8 +8,8 @@ use std::time::Duration;
 use gpui_kit::component::ActiveTheme;
 use gpui_kit::{
     Anchor, AnyElement, App, Context, Entity, Global, InteractiveElement, IntoElement, Pixels,
-    Point, Render, StatefulInteractiveElement, Window, anchored, deferred, div, point, prelude::*,
-    px,
+    Point, Render, StatefulInteractiveElement, Window, WindowId, anchored, deferred, div, point,
+    prelude::*, px,
 };
 
 use crate::widgets::{dt_hover, json_hover};
@@ -43,6 +43,8 @@ impl HoverContent {
 #[derive(Default)]
 pub struct CellHoverModel {
     target: Option<(u64, HoverContent)>,
+    /// The window the hovered cell is in; only that window draws the card.
+    window: Option<WindowId>,
     pos: Point<Pixels>,
     visible: bool,
     epoch: u64,
@@ -54,11 +56,13 @@ impl CellHoverModel {
         &mut self,
         id: u64,
         content: HoverContent,
+        window: WindowId,
         pos: Point<Pixels>,
         cx: &mut Context<Self>,
     ) {
         self.leaving = false;
         self.pos = pos;
+        self.window = Some(window);
         let changed = self.target.as_ref().map(|(t, _)| *t) != Some(id);
         if changed {
             self.target = Some((id, content));
@@ -130,13 +134,14 @@ pub fn track<E>(cell: E, id: u64, content: HoverContent) -> AnyElement
 where
     E: InteractiveElement + StatefulInteractiveElement + IntoElement + 'static,
 {
-    cell.on_mouse_move(move |event, _, cx| {
+    cell.on_mouse_move(move |event, window, cx| {
         let Some(model) = cx.try_global::<CellHoverGlobal>().map(|g| g.model.clone()) else {
             return;
         };
         let content = content.clone();
         let position = event.position;
-        model.update(cx, |m, cx| m.hover(id, content, position, cx));
+        let window = window.window_handle().window_id();
+        model.update(cx, |m, cx| m.hover(id, content, window, position, cx));
     })
     .on_hover(move |hovered, _, cx| {
         if *hovered {
@@ -154,9 +159,10 @@ struct CellHoverHost {
 }
 
 impl Render for CellHoverHost {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let m = self.model.read(cx);
-        let Some((_, content)) = m.target.as_ref().filter(|_| m.visible) else {
+        let here = m.window == Some(window.window_handle().window_id());
+        let Some((_, content)) = m.target.as_ref().filter(|_| m.visible && here) else {
             return div().into_any_element();
         };
         let Some(body) = content.body(cx) else {

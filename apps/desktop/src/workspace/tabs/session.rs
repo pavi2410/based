@@ -11,6 +11,7 @@ use based_storage::{ACTIVE_CONNECTION_ID, ACTIVE_TAB_INDEX, MetadataStore, OPEN_
 use super::manager::{TabId, TabManager};
 use super::spec::TabSpec;
 use crate::connection::ConnectionId;
+use crate::project::scope::canonical_root;
 
 /// Older builds kept pins as a separate list of specs; read once, then cleared.
 const LEGACY_PINNED_TABS: &str = "pinned_tabs";
@@ -56,7 +57,7 @@ impl SessionScope {
     pub fn for_project(root: Option<&Path>) -> Self {
         Self(root.map_or_else(
             || "no-project".to_owned(),
-            |root| format!("project:{}", root.display()),
+            |root| format!("project:{}", canonical_root(root).display()),
         ))
     }
 
@@ -228,8 +229,10 @@ impl SessionState {
         }
     }
 
-    pub fn scope(&self) -> Option<&SessionScope> {
-        self.scope.as_ref()
+    /// Where to save now: `None` while held, and until the scope's saved
+    /// session has been read, so a save never overwrites tabs not yet restored.
+    pub fn save_scope(&self) -> Option<&SessionScope> {
+        self.scope.as_ref().filter(|_| self.restored)
     }
 
     /// Stop saving until [`Self::resume`]: the window is changing project.
@@ -426,6 +429,19 @@ mod tests {
         assert!(st.take_queued().is_none());
         st.finish_writing();
         assert!(st.enqueue(scope, snap(3)));
+    }
+
+    #[test]
+    fn nothing_is_saved_before_the_scope_is_restored_or_while_held() {
+        let scope = SessionScope::for_project(None);
+        let mut st = SessionState::new(scope.clone());
+        assert!(st.save_scope().is_none(), "saved tabs not read yet");
+        st.begin_restore();
+        assert_eq!(st.save_scope(), Some(&scope));
+        st.hold();
+        assert!(st.save_scope().is_none());
+        st.resume(scope.clone());
+        assert_eq!(st.save_scope(), Some(&scope));
     }
 
     #[test]

@@ -59,9 +59,7 @@ use crate::db::{self, Tokio};
 use crate::project::open::{show_queued_close, show_queued_switch};
 use based_project::ProjectQuery;
 
-use crate::project::{
-    ProjectState, loader::load_entries_from_based_dir, settings::apply_project_settings,
-};
+use crate::project::{ProjectState, loader::load_entries_from_based_dir};
 
 use crate::storage;
 use crate::widgets::query_panel_extras::HistoryFilter;
@@ -175,9 +173,6 @@ impl Workspace {
         let project = project_dir
             .clone()
             .map_or_else(ProjectState::none, ProjectState::open);
-        if let Some(ctx) = project.context() {
-            apply_project_settings(&ctx.snapshot.manifest, cx);
-        }
         let project_context = project.context().cloned();
 
         let workspace_ctx = WorkspaceContext::load_initial(cx).unwrap_or_else(|e| {
@@ -413,7 +408,7 @@ impl Workspace {
     }
 
     fn save_session(&mut self, cx: &mut Context<Self>) {
-        let Some(scope) = self.session.scope().cloned() else {
+        let Some(scope) = self.session.save_scope().cloned() else {
             return;
         };
         let active_conn = self.focused_conn_id(cx);
@@ -446,7 +441,7 @@ impl Workspace {
     /// [`Self::save_session`] would not get to run.
     pub fn flush_session(&mut self, cx: &mut Context<Self>) {
         self.session_edit_save = None;
-        let Some(scope) = self.session.scope().cloned() else {
+        let Some(scope) = self.session.save_scope().cloned() else {
             return;
         };
         self.sync_tab_manager_from_dock(cx);

@@ -8,7 +8,6 @@ use gpui_kit::{App, WindowId};
 use crate::connection::ConnectionOrigin;
 use crate::project::context::ProjectContext;
 use crate::project::loader::load_entries_from_based_dir;
-use crate::project::settings::apply_project_settings;
 use crate::query_store::QueryHistory;
 use crate::workspace::Workspaces;
 use crate::workspace::notify as toast;
@@ -59,7 +58,6 @@ pub fn reload_from_disk(window: WindowId, cx: &mut App) {
     {
         toast::remember_skipped_queries(cx, &based_dir, skipped_queries);
     }
-    apply_project_settings(&ctx.snapshot.manifest, cx);
 
     log::info!("reloaded .based project for {}", root.display());
 }

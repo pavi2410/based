@@ -266,7 +266,6 @@ impl Render for Workspace {
                     update: coordinator_snapshot(cx),
                 },
                 active_pane,
-                self.registry.clone(),
             ))
             .child(self.command_palette.clone());
 

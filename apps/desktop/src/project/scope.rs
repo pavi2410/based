@@ -3,11 +3,13 @@
 //! `.based/`. Each workspace window owns one (see `Workspaces`).
 
 use std::collections::HashMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, channel};
 
 use super::context::ProjectContext;
 use super::load_variables;
+use super::settings::query_timeout_ms_to_secs;
 use super::watcher::ConfigWatcher;
 use crate::query_store::QueryStore;
 
@@ -39,6 +41,7 @@ impl ProjectState {
     /// can't be read still opens, with no snapshot, so the window shows the error
     /// state rather than nothing.
     pub fn open(root: PathBuf) -> Self {
+        let root = canonical_root(&root);
         let context = ProjectContext::load(root.clone())
             .map_err(|e| log::warn!("project load ({root:?}): {e:#}"))
             .ok();
@@ -75,6 +78,13 @@ impl ProjectState {
         self.context.as_ref()
     }
 
+    /// `query_timeout` from `project.toml`, which overrides the user's
+    /// preference in this window only.
+    pub fn query_timeout_secs(&self) -> Option<u32> {
+        let settings = self.context.as_ref()?.snapshot.manifest.settings.as_ref()?;
+        settings.query_timeout.map(query_timeout_ms_to_secs)
+    }
+
     pub fn set_context(&mut self, context: ProjectContext) {
         self.context = Some(context);
     }
@@ -90,6 +100,12 @@ impl ProjectState {
         }
         changed
     }
+}
+
+/// One spelling per project folder (symlinks, `..` and trailing slashes
+/// resolved), so the same project never gets two windows or two session slots.
+pub fn canonical_root(root: &Path) -> PathBuf {
+    fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf())
 }
 
 impl Default for ProjectState {

@@ -1,6 +1,7 @@
 //! Running SQL: holds and confirmations, statement batches, results, errors.
 
 use super::*;
+use crate::project::ProjectState;
 use crate::workspace::connection_health::mark_connection_lost;
 
 /// Row cap for an assistant card's read-only run.
@@ -173,7 +174,9 @@ impl QueryEditorPanel {
             }
         });
         let source = self.source.clone();
-        let timeout = prefs::query_timeout_secs(cx);
+        let timeout = Workspaces::project_for_panel(cx.entity_id(), cx)
+            .and_then(ProjectState::query_timeout_secs)
+            .unwrap_or_else(|| prefs::query_timeout_secs(cx));
         let total = resolved.len();
         let task = cx.spawn(async move |this, cx| {
             for (index, sent) in resolved.into_iter().enumerate() {

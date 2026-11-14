@@ -39,7 +39,7 @@ fn flush_window_session(window: &Window, cx: &mut App) {
 }
 
 /// Write every window's session synchronously before the app quits.
-fn flush_all_sessions(cx: &mut App) {
+pub fn flush_all_sessions(cx: &mut App) {
     for ws in Workspaces::all(cx) {
         ws.update(cx, |ws, cx| ws.flush_session(cx));
     }
@@ -149,10 +149,7 @@ fn queue_close_confirm(workspace: &Entity<Workspace>, cx: &mut App) {
 /// has live connections.
 pub fn request_app_quit(cx: &mut App) {
     trace("request_app_quit");
-    let registries: Vec<Entity<ConnectionRegistry>> = Workspaces::all(cx)
-        .iter()
-        .map(|ws| ws.read(cx).registry().clone())
-        .collect();
+    let registries = all_registries(cx);
     let live: usize = registries
         .iter()
         .map(|r| live_connection_count(r, cx))
@@ -205,19 +202,35 @@ fn show_quit_dialog(
         window.has_active_dialog(cx)
     ));
 
+    // Closing the last window quits too; closing one of several does not.
+    let quits = matches!(mode, QuitMode::QuitApp) || Workspaces::all(cx).len() <= 1;
+    let (title, description, confirm) = if quits {
+        (
+            "Quit with active connections?",
+            "Quitting will disconnect these connections:",
+            "Quit",
+        )
+    } else {
+        (
+            "Close window with active connections?",
+            "Closing this window will disconnect these connections:",
+            "Close Window",
+        )
+    };
+
     window.open_alert_dialog(cx, move |alert, _window, cx| {
         let registries = registries.clone();
         let theme = cx.theme();
         let quit_btn = Button::new("quit-confirm")
-            .label("Quit")
+            .label(confirm)
             .primary()
             .bg(theme.red)
             .border_color(theme.red)
             .text_color(theme.primary_foreground);
         let connection_list = render_live_connection_list(&live, cx);
         alert
-            .title("Quit with active connections?")
-            .description("Quitting will disconnect these connections:")
+            .title(title)
+            .description(description)
             .child(connection_list)
             .footer(
                 DialogFooter::new()
@@ -273,6 +286,14 @@ fn render_live_connection_list(live: &[LiveConnection], cx: &mut App) -> impl In
                 )
                 .child(engine_label_inline(conn.engine, cx))
         }))
+}
+
+/// Every window's connection registry.
+pub fn all_registries(cx: &App) -> Vec<Entity<ConnectionRegistry>> {
+    Workspaces::all(cx)
+        .iter()
+        .map(|ws| ws.read(cx).registry().clone())
+        .collect()
 }
 
 pub fn disconnect_all(registry: &Entity<ConnectionRegistry>, cx: &mut App) {

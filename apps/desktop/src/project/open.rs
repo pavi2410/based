@@ -23,7 +23,6 @@ use crate::workspace::tabs::CloseScope;
 use crate::workspace::{QueuedDialog, Workspace};
 
 use super::pick;
-use super::settings::apply_project_settings;
 
 /// After folder pick: open in the current window (may confirm when connections/tabs are dirty).
 pub fn prompt_open_project_in_window(cx: &mut App) {
@@ -292,6 +291,13 @@ pub fn complete_project_switch_in_window(root: PathBuf, window: &mut Window, cx:
     if ws.read(cx).project_dir(cx).as_deref() == Some(root.as_path()) {
         return;
     }
+    // Load the new project before tearing anything down, so a project that
+    // can't be read leaves the window as it was.
+    let project = ProjectState::open(root.clone());
+    if project.context().is_none() {
+        notify::push_error(cx, "Open Project", "Failed to load the project's manifest.");
+        return;
+    }
 
     let registry = ws.read(cx).registry().clone();
     quit::disconnect_all(&registry, cx);
@@ -310,7 +316,7 @@ pub fn complete_project_switch_in_window(root: PathBuf, window: &mut Window, cx:
         workspace.sync_tab_manager_from_dock(cx);
     });
 
-    bind_project(&root, &registry, cx);
+    bind_project(project, &registry, cx);
     prefs::record_opened_project(root.clone(), cx);
 
     ws.update(cx, |workspace, cx| {
@@ -361,17 +367,12 @@ fn close_project_in_workspace(
     cx.refresh_windows();
 }
 
-fn bind_project(root: &Path, registry: &Entity<ConnectionRegistry>, cx: &mut App) {
+/// Make `project` (already loaded) the one open in `registry`'s window.
+fn bind_project(project: ProjectState, registry: &Entity<ConnectionRegistry>, cx: &mut App) {
     let Some(window) = Workspaces::window_with_registry(registry, cx) else {
         return;
     };
-    let project = ProjectState::open(root.to_path_buf());
-    let Some(manifest) = project.context().map(|c| c.snapshot.manifest.clone()) else {
-        notify::push_error(cx, "Open Project", "Failed to load the project's manifest.");
-        return;
-    };
     Workspaces::update_project(window, cx, |p| *p = project);
-    apply_project_settings(&manifest, cx);
     reload_from_disk(window, cx);
 }
 

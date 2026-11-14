@@ -25,7 +25,6 @@ use gpui_kit::{
 };
 
 use crate::connection::live_connection_count;
-use crate::connection::registry::ConnectionRegistry;
 use crate::db::{run, run_infallible};
 use crate::workspace::notify;
 use crate::workspace::tabs::{Workspaces, inbox};
@@ -246,12 +245,9 @@ pub fn start_download(cx: &mut App) {
     cx.update_global(|_: &mut UpdateCoordinator, app| UpdateCoordinator::notify_workspace(app));
 }
 
-/// Ask for confirmation, then install the downloaded update and restart.
-pub fn install_and_restart(
-    registry: &gpui_kit::Entity<ConnectionRegistry>,
-    window: &mut Window,
-    cx: &mut App,
-) {
+/// Ask for confirmation, then install the downloaded update and restart. Every
+/// window's session is saved first: the install exits the process.
+pub fn install_and_restart(window: &mut Window, cx: &mut App) {
     let version = match &cx.global::<UpdateCoordinator>().phase {
         Phase::Ready { version, .. } => version.clone(),
         _ => {
@@ -259,7 +255,11 @@ pub fn install_and_restart(
             return;
         }
     };
-    let live = live_connection_count(registry, cx);
+    let registries = quit::all_registries(cx);
+    let live: usize = registries
+        .iter()
+        .map(|r| live_connection_count(r, cx))
+        .sum();
     uinfo(format!(
         "install_and_restart: prompting (live_connections={live})"
     ));
@@ -273,11 +273,10 @@ pub fn install_and_restart(
         n => description.push_str(&format!(" {n} live connections will be disconnected.")),
     }
     let description: SharedString = description.into();
-    let registry = registry.clone();
     window.open_alert_dialog(cx, move |alert, _window, cx| {
         use gpui_kit::component::button::{Button, ButtonVariants};
         use gpui_kit::component::dialog::{DialogAction, DialogClose, DialogFooter};
-        let registry = registry.clone();
+        let registries = registries.clone();
         let theme = cx.theme();
         let update_btn = Button::new("update-restart-confirm")
             .label("Install & Restart")
@@ -300,7 +299,10 @@ pub fn install_and_restart(
             )
             .on_ok(move |_, _, cx| {
                 uinfo("install_and_restart: confirmed");
-                quit::disconnect_all(&registry, cx);
+                quit::flush_all_sessions(cx);
+                for registry in &registries {
+                    quit::disconnect_all(registry, cx);
+                }
                 install_staged(cx);
                 true
             })

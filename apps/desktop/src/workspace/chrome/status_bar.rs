@@ -11,7 +11,6 @@ use crate::app::prefs::{self, update_check_settings_locked};
 use crate::app::shell::open_settings;
 use crate::app::updater::{self, UpdateStatus};
 use crate::bindings::{ToggleChatPane, ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane};
-use crate::connection::registry::ConnectionRegistry;
 use crate::widgets::status_item::{STATUS_BAR_HEIGHT, status_divider, status_text};
 use crate::workspace::chrome::side_pane::SidePane;
 use crate::workspace::tabs::{Workspaces, inbox};
@@ -27,19 +26,13 @@ pub struct StatusBarModel {
 pub struct StatusBar {
     model: StatusBarModel,
     active_side_pane: Option<SidePane>,
-    registry: gpui_kit::Entity<ConnectionRegistry>,
 }
 
 impl StatusBar {
-    pub fn new(
-        model: StatusBarModel,
-        active_side_pane: Option<SidePane>,
-        registry: gpui_kit::Entity<ConnectionRegistry>,
-    ) -> Self {
+    pub fn new(model: StatusBarModel, active_side_pane: Option<SidePane>) -> Self {
         Self {
             model,
             active_side_pane,
-            registry,
         }
     }
 }
@@ -175,11 +168,7 @@ fn ghost_item(cx: &App) -> impl IntoElement {
 }
 
 /// Version label doubling as the update entry point; the click menu depends on the phase.
-fn version_item(
-    status: &UpdateStatus,
-    registry: gpui_kit::Entity<ConnectionRegistry>,
-    cx: &App,
-) -> impl IntoElement {
+fn version_item(status: &UpdateStatus, cx: &App) -> impl IntoElement {
     let status = status.clone();
     let locked = update_check_settings_locked();
     let muted = cx.theme().muted_foreground;
@@ -262,7 +251,6 @@ fn version_item(
                 }),
         )
         .dropdown_menu(move |menu, _window, _cx| {
-            let registry = registry.clone();
             let mut menu = menu;
             let notes_new = || {
                 PopupMenuItem::new(format!("What's new in {new_version}"))
@@ -301,7 +289,7 @@ fn version_item(
                                 PopupMenuItem::new("Install & Restart…")
                                     .icon(IconName::Play)
                                     .on_click(move |_, window, cx| {
-                                        updater::install_and_restart(&registry, window, cx);
+                                        updater::install_and_restart(window, cx);
                                     }),
                             )
                             .item(notes_new());
@@ -336,7 +324,6 @@ impl RenderOnce for StatusBar {
         let muted = cx.theme().muted_foreground;
 
         let active_side_pane = self.active_side_pane;
-        let registry = self.registry.clone();
         let update_snapshot = self.model.update.clone();
 
         h_flex()
@@ -357,7 +344,7 @@ impl RenderOnce for StatusBar {
                     .child(ai_item(cx))
                     .child(ghost_item(cx))
                     .child(status_divider(muted))
-                    .child(version_item(&update_snapshot, registry, cx))
+                    .child(version_item(&update_snapshot, cx))
                     .child(status_divider(muted))
                     .child(h_flex().gap(px(2.0)).items_center().children(
                         SidePane::ALL.map(|pane| side_pane_button(pane, active_side_pane, cx)),

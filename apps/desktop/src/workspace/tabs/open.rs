@@ -7,7 +7,7 @@ use gpui_kit::{App, Entity, EntityId, Global, WeakEntity, Window, WindowId};
 use super::inbox::{Inbox, Request};
 use super::{TabEvent, TabManager};
 use crate::connection::registry::ConnectionRegistry;
-use crate::project::scope::ProjectState;
+use crate::project::scope::{ProjectState, canonical_root};
 use crate::workspace::Workspace;
 use gpui_kit::component::dock::DockArea;
 
@@ -103,9 +103,10 @@ impl Workspaces {
 
     /// The window that has `root` open, if any.
     pub fn window_with_project(root: &Path, cx: &App) -> Option<WindowId> {
+        let root = canonical_root(root);
         Self::entries(cx)
             .iter()
-            .find(|w| w.project.root() == Some(root))
+            .find(|w| w.project.root() == Some(root.as_path()))
             .map(|w| w.window)
     }
 

@@ -16,10 +16,10 @@ use crate::based_panel_tab_chrome;
 use crate::connection::ConnectionId;
 use crate::connection::{AnyConnection, ConnectionEntry, ConnectionState};
 use crate::db;
-use crate::query_store::QueryStore;
 use crate::sqlite::pragmas::fetch_sqlite_pragmas;
 use crate::widgets::PANEL_RADIUS;
 use crate::widgets::{compact_description_list_vertical, engine_name, metadata_pill, panel_header};
+use crate::workspace::Workspaces;
 use crate::workspace::connection_tree::ObjectKind;
 use crate::workspace::tabs::kind::names;
 use crate::workspace::tabs::render_strip_tab;
@@ -167,10 +167,11 @@ impl Render for ConnectionDashboardPanel {
             )
         };
 
-        let store = cx.global::<QueryStore>();
-        let history_len = store.history_for(&conn_id).len();
+        let store = Workspaces::project_for_panel(cx.entity_id(), cx).map(|p| &p.queries);
+        let history_len = store.map_or(0, |s| s.history_for(&conn_id).len());
         let saved_len = store
-            .project_queries()
+            .map(|s| s.project_queries())
+            .unwrap_or_default()
             .iter()
             .filter(|q| {
                 use based_project::TargetConnection;

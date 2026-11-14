@@ -25,7 +25,7 @@ use crate::ai::{AiHost, AiPromptEvent, connection_ai};
 use crate::bindings::AskAi;
 use crate::connection::ConnectionId;
 use crate::db;
-use crate::query_store::{HistoryEntry, QueryStore};
+use crate::query_store::HistoryEntry;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::export;
 use crate::widgets::panel::{
@@ -36,6 +36,7 @@ use crate::widgets::sql_editor::{self, new_json_input, set_input_text, text_from
 use crate::widgets::virtual_table::{
     RowDelegate, align_meta_to_columns, cells, data_column, replace_table_data,
 };
+use crate::workspace::Workspaces;
 use crate::workspace::notify::push_export_success;
 use crate::workspace::tabs::kind::names;
 use std::time::{Duration, Instant};
@@ -189,15 +190,18 @@ impl PipelineBuilderPanel {
             let _ = cx.update(|cx| {
                 this.update(cx, |panel, cx| {
                     panel.status = PanelStatus::done(format!("{} rows", rows.len()));
-                    cx.update_global(|store: &mut QueryStore, _| {
-                        store.push_history(HistoryEntry::new(
-                            conn_id.clone(),
-                            pipeline_for_history,
-                            Duration::from_millis(ms),
-                            based_query::RunOutcome::Ok {
-                                rows: Some(row_count),
-                            },
-                        ));
+                    let window = Workspaces::window_for_panel(cx.entity_id(), cx);
+                    window.and_then(|w| {
+                        Workspaces::update_project(w, cx, |p| {
+                            p.queries.push_history(HistoryEntry::new(
+                                conn_id.clone(),
+                                pipeline_for_history,
+                                Duration::from_millis(ms),
+                                based_query::RunOutcome::Ok {
+                                    rows: Some(row_count),
+                                },
+                            ));
+                        })
                     });
                     let column_meta = align_meta_to_columns(
                         keys.iter().map(String::as_str),

@@ -3,15 +3,14 @@
 use gpui_kit::component::{ActiveTheme, h_flex, v_flex};
 use gpui_kit::{
     AnyElement, App, Entity, FontWeight, IntoElement, MouseButton, ParentElement, SharedString,
-    Styled, div, prelude::*,
+    Styled, WindowId, div, prelude::*,
 };
 
 use crate::connection::ConnectionId;
 use crate::connection::registry::ConnectionRegistry;
-use crate::project::ProjectRoot;
-use crate::query_store::QueryStore;
 use crate::widgets::empty_state::pane_empty_hint;
 use crate::workspace::Workspace;
+use crate::workspace::Workspaces;
 use crate::workspace::notify::push_error;
 use crate::workspace::project_query::{OpenQueryResult, open_project_query, target_hint};
 use crate::workspace::tabs::inbox;
@@ -20,13 +19,17 @@ pub fn render_saved_pane(
     conn_id: Option<ConnectionId>,
     registry: Entity<ConnectionRegistry>,
     workspace: Entity<Workspace>,
+    workspace_window: WindowId,
     cx: &mut App,
 ) -> AnyElement {
     let border = cx.theme().border;
     let muted = cx.theme().muted_foreground;
     let fg = cx.theme().foreground;
 
-    let store = cx.global::<QueryStore>();
+    let window = workspace_window;
+    let Some(store) = Workspaces::project(window, cx).map(|p| &p.queries) else {
+        return div().into_any_element();
+    };
     let mut queries: Vec<_> = store.project_queries().to_vec();
     queries.sort_by(|a, b| {
         let af = store.is_favorite(&a.path);
@@ -88,9 +91,11 @@ pub fn render_saved_pane(
                 .child(div().text_xs().text_color(muted).truncate().child(sub))
                 .on_mouse_down(MouseButton::Left, move |ev, _, cx| {
                     if ev.modifiers.shift {
-                        if let Some(root) = cx.try_global::<ProjectRoot>().map(|p| p.0.clone()) {
-                            cx.update_global(|store: &mut QueryStore, _| {
-                                store.toggle_favorite(&root, &path);
+                        let root = Workspaces::project(window, cx)
+                            .and_then(|p| p.root().map(ToOwned::to_owned));
+                        if let Some(root) = root {
+                            Workspaces::update_project(window, cx, |p| {
+                                p.queries.toggle_favorite(&root, &path);
                             });
                             ws.update(cx, |_, cx| cx.notify());
                         }

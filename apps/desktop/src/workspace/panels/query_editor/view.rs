@@ -71,8 +71,8 @@ impl QueryEditorPanel {
             theme.foreground,
             theme.muted.opacity(0.4),
         );
-        let recent: Vec<(String, String)> = cx
-            .try_global::<QueryStore>()
+        let store = Workspaces::project_for_panel(cx.entity_id(), cx).map(|p| &p.queries);
+        let recent: Vec<(String, String)> = store
             .map(|store| {
                 store
                     .history_for(&self.conn_id)
@@ -90,8 +90,7 @@ impl QueryEditorPanel {
                     .collect()
             })
             .unwrap_or_default();
-        let full: Vec<String> = cx
-            .try_global::<QueryStore>()
+        let full: Vec<String> = store
             .map(|store| {
                 store
                     .history_for(&self.conn_id)
@@ -384,8 +383,8 @@ impl QueryEditorPanel {
 
     pub(super) fn render_toolbar(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let id = self.source.id();
-        let project_dir = cx.try_global::<ProjectRoot>().map(|p| p.0.clone());
-        let var_map = cx.global::<ProjectVars>().vars.clone();
+        let project_dir = self.project_root(cx);
+        let var_map = self.project_vars(cx);
         let mono_font = cx.theme().mono_font_family.clone();
 
         h_flex()

@@ -21,7 +21,6 @@ const GIT_BRANCH_ICON_PATH: &str = "icons/git-branch.svg";
 use crate::app::{prefs, shell};
 use crate::bindings::{CycleAppearance, ToggleCommandPalette};
 use crate::connection::registry::ConnectionRegistry;
-use crate::project::ProjectContext;
 use crate::widgets::SIDEBAR_INSET;
 use crate::workspace::Workspaces;
 
@@ -64,26 +63,27 @@ impl RenderOnce for Topbar {
 struct ContextRail;
 
 impl RenderOnce for ContextRail {
-    fn render(self, _: &mut gpui_kit::Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut gpui_kit::Window, cx: &mut App) -> impl IntoElement {
         let muted = cx.theme().muted_foreground;
-        let (project_name, project_path, branch, env) = cx
-            .try_global::<ProjectContext>()
-            .map(|ctx| {
-                (
-                    ctx.project_name().to_string(),
-                    ctx.root.display().to_string(),
-                    ctx.git_branch.clone().unwrap_or_else(|| "—".into()),
-                    ctx.active_env().to_string(),
-                )
-            })
-            .unwrap_or_else(|| {
-                (
-                    "No project".into(),
-                    String::new(),
-                    "—".into(),
-                    "default".into(),
-                )
-            });
+        let (project_name, project_path, branch, env) =
+            Workspaces::project(window.window_handle().window_id(), cx)
+                .and_then(|p| p.context())
+                .map(|ctx| {
+                    (
+                        ctx.project_name().to_string(),
+                        ctx.root.display().to_string(),
+                        ctx.git_branch.clone().unwrap_or_else(|| "—".into()),
+                        ctx.active_env().to_string(),
+                    )
+                })
+                .unwrap_or_else(|| {
+                    (
+                        "No project".into(),
+                        String::new(),
+                        "—".into(),
+                        "default".into(),
+                    )
+                });
 
         let has_project = !project_path.is_empty();
         let project_tooltip = if has_project {

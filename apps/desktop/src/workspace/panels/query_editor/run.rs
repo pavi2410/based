@@ -124,7 +124,7 @@ impl QueryEditorPanel {
             return;
         }
         self.clear_hold(cx);
-        let project_vars = cx.global::<ProjectVars>().vars.clone();
+        let project_vars = self.project_vars(cx);
         let var_ctx = based_query::VariableContext {
             session: Default::default(),
             query: Default::default(),
@@ -280,14 +280,16 @@ impl QueryEditorPanel {
                 (history, false)
             }
         };
-        cx.update_global(|store: &mut QueryStore, _| {
-            store.push_history(HistoryEntry::new(
-                conn_id,
-                sql,
-                Duration::from_millis(ms),
-                history_outcome,
-            ));
-        });
+        if let Some(window) = Workspaces::window_for_panel(cx.entity_id(), cx) {
+            Workspaces::update_project(window, cx, |p| {
+                p.queries.push_history(HistoryEntry::new(
+                    conn_id,
+                    sql,
+                    Duration::from_millis(ms),
+                    history_outcome,
+                ));
+            });
+        }
         cx.notify();
         proceed
     }

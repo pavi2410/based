@@ -56,15 +56,17 @@ impl ConnectionWizardPanel {
     }
 
     pub(super) fn save(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let destination =
-            match resolve_wizard_destination(cx.has_global::<ProjectRoot>(), self.destination) {
-                Ok(dest) => dest,
-                Err(msg) => {
-                    self.status = WizardStatus::SaveErr(msg);
-                    cx.notify();
-                    return;
-                }
-            };
+        let destination = match resolve_wizard_destination(
+            Workspaces::project_for_panel(cx.entity_id(), cx).is_some_and(|p| p.is_open()),
+            self.destination,
+        ) {
+            Ok(dest) => dest,
+            Err(msg) => {
+                self.status = WizardStatus::SaveErr(msg);
+                cx.notify();
+                return;
+            }
+        };
         let Some(ws) = Workspaces::active(cx) else {
             self.status = WizardStatus::SaveErr("Workspace is not open".into());
             cx.notify();

@@ -40,7 +40,7 @@ use based_ai::context::ContextLevel;
 use gpui_kit::component::WindowExt as _;
 use gpui_kit::component::dock::{DockArea, DockEvent, DockSkin, PanelStyle, PanelView};
 use gpui_kit::{
-    App, Context, Entity, FocusHandle, Focusable, SharedString, Task, Window, prelude::*,
+    App, Context, Entity, FocusHandle, Focusable, SharedString, Task, Window, WindowId, prelude::*,
 };
 
 use crate::app::paths::AppPaths;
@@ -60,7 +60,7 @@ use crate::project::open::{show_queued_close, show_queued_switch};
 use based_project::ProjectQuery;
 
 use crate::project::{
-    ProjectContext, ProjectRoot, RegistryRef, loader::load_entries_from_based_dir,
+    ProjectState, loader::load_entries_from_based_dir, settings::apply_project_settings,
 };
 
 use crate::storage;
@@ -107,6 +107,8 @@ pub struct Workspace {
     focus_handle: FocusHandle,
     project_title: SharedString,
     project_dir: Option<PathBuf>,
+    /// The window this workspace fills; its key in [`Workspaces`].
+    window_id: WindowId,
     session: tabs::SessionState,
     pending_target_pick: Option<(ProjectQuery, Vec<ConnectionId>)>,
     /// Debounced session save after editor typing (see [`Self::note_editor_edit`]).
@@ -168,9 +170,13 @@ impl Workspace {
             project_dir,
             personal_root,
         } = env;
-        let project_context = project_dir
-            .as_ref()
-            .and_then(|root| ProjectContext::load(root.clone()).ok());
+        let project = project_dir
+            .clone()
+            .map_or_else(ProjectState::none, ProjectState::open);
+        if let Some(ctx) = project.context() {
+            apply_project_settings(&ctx.snapshot.manifest, cx);
+        }
+        let project_context = project.context().cloned();
 
         let workspace_ctx = WorkspaceContext::load_initial(cx).unwrap_or_else(|e| {
             log::error!("workspace context load failed: {e:#}");
@@ -244,12 +250,9 @@ impl Workspace {
             tab_manager.clone(),
             dock_area.clone(),
             registry.clone(),
+            project,
             cx,
         );
-        if let Some(root) = project_dir.clone() {
-            cx.set_global(RegistryRef(registry.clone()));
-            cx.set_global(ProjectRoot(root));
-        }
         let command_palette = cx.new(|cx| CommandPalette::new(connection_tree.clone(), window, cx));
         let palette_observe = command_palette.clone();
 
@@ -280,6 +283,7 @@ impl Workspace {
             focus_handle: cx.focus_handle(),
             project_title,
             project_dir,
+            window_id: window.window_handle().window_id(),
             session: tabs::SessionState::default(),
             pending_target_pick: None,
             session_edit_save: None,
@@ -358,6 +362,10 @@ impl Workspace {
 
     pub fn registry(&self) -> &Entity<ConnectionRegistry> {
         &self.registry
+    }
+
+    pub fn window_id(&self) -> WindowId {
+        self.window_id
     }
 
     pub fn dock_area(&self) -> &Entity<DockArea> {

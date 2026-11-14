@@ -2,7 +2,6 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use based_project::ProjectSnapshot;
-use gpui_kit::Global;
 
 /// Runtime project context for title bar and reload.
 #[derive(Clone)]
@@ -31,8 +30,6 @@ impl ProjectContext {
         &self.snapshot.active_environment
     }
 }
-
-impl Global for ProjectContext {}
 
 pub fn read_git_branch(root: &Path) -> Option<String> {
     Command::new("git")

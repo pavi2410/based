@@ -12,7 +12,7 @@ impl QueryEditorPanel {
     /// Save the editor text into the project: in place if it was saved before, else
     /// after asking for a name.
     pub(super) fn save_query(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(root) = cx.try_global::<ProjectRoot>().map(|r| r.0.clone()) else {
+        let Some(root) = self.project_root(cx) else {
             notify::push_info(cx, "Open a project to save queries.");
             return;
         };
@@ -95,8 +95,9 @@ impl QueryEditorPanel {
     }
 
     /// Past runs on this connection, newest first: (first line, age and time, full SQL, ok).
-    pub(super) fn history_items(&self, cx: &App) -> Vec<(String, String, String, bool)> {
-        let Some(store) = cx.try_global::<QueryStore>() else {
+    pub(super) fn history_items(&self, cx: &Context<Self>) -> Vec<(String, String, String, bool)> {
+        let Some(store) = Workspaces::project_for_panel(cx.entity_id(), cx).map(|p| &p.queries)
+        else {
             return Vec::new();
         };
         let now = OffsetDateTime::now_utc();

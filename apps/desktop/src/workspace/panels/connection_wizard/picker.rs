@@ -95,8 +95,10 @@ impl ConnectionWizardPanel {
     }
 
     /// SQLite files sitting at the top of the open project.
-    fn detected_sqlite_files(cx: &App) -> Vec<PathBuf> {
-        let Some(root) = cx.try_global::<ProjectRoot>().map(|r| r.0.clone()) else {
+    fn detected_sqlite_files(cx: &Context<Self>) -> Vec<PathBuf> {
+        let Some(root) = Workspaces::project_for_panel(cx.entity_id(), cx)
+            .and_then(|p| p.root().map(ToOwned::to_owned))
+        else {
             return Vec::new();
         };
         let Ok(dir) = fs::read_dir(root) else {

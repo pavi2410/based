@@ -13,16 +13,14 @@ use crate::connection::{
     ConnectError, ConnectionConfig, ConnectionDraft, ConnectionEntry, ConnectionId,
     ConnectionOrigin, ConnectionState, OpenedConnection, close_any_connection, opened_into_any,
 };
-use crate::project::ProjectContext;
 use crate::project::loader::entry_from_tree;
-use crate::query_store::QueryStore;
 use crate::workspace::notify::push_error;
 
-use super::Workspace;
 use super::connection_destination::ConnectionDestination;
 use super::connection_persist::persist_config_to_based_dir;
 use super::project_query::{OpenQueryResult, open_project_query, tab_spec_for_query};
 use super::tabs::inbox;
+use super::{Workspace, Workspaces};
 
 impl Workspace {
     pub fn set_pending_target_pick(&mut self, query: ProjectQuery, candidates: Vec<ConnectionId>) {
@@ -43,8 +41,14 @@ impl Workspace {
     }
 
     pub(crate) fn open_project_query_by_path(&mut self, path: &str, cx: &mut Context<Self>) {
-        let store = cx.global::<QueryStore>();
-        let Some(query) = store.project_queries().iter().find(|q| q.path == path) else {
+        let query = Workspaces::project(self.window_id(), cx).and_then(|p| {
+            p.queries
+                .project_queries()
+                .iter()
+                .find(|q| q.path == path)
+                .cloned()
+        });
+        let Some(query) = query else {
             log::warn!("project query not found: {path}");
             push_error(
                 cx,
@@ -54,7 +58,7 @@ impl Workspace {
             return;
         };
         let focused = self.focused_conn_id(cx);
-        match open_project_query(query, self.registry.read(cx), cx, focused.as_ref()) {
+        match open_project_query(&query, self.registry.read(cx), cx, focused.as_ref()) {
             OpenQueryResult::Open(spec) => {
                 inbox::open_tab(spec, cx);
             }
@@ -67,8 +71,11 @@ impl Workspace {
 
     pub fn apply_opened_project(&mut self, root: PathBuf, cx: &mut Context<Self>) {
         self.project_dir = Some(root);
-        if let Some(pctx) = cx.try_global::<ProjectContext>() {
-            self.project_title = pctx.project_name().into();
+        if let Some(name) = Workspaces::project(self.window_id(), cx)
+            .and_then(|p| p.context())
+            .map(|c| c.project_name().to_owned())
+        {
+            self.project_title = name.into();
         }
         self.connection_tree.update(cx, |_, cx| cx.notify());
         cx.notify();

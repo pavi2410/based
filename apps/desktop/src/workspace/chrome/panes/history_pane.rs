@@ -6,21 +6,22 @@ use gpui_kit::component::{
     h_flex, v_flex,
 };
 use gpui_kit::{
-    AnyElement, App, Entity, IntoElement, MouseButton, ParentElement, SharedString, Styled, div,
-    prelude::*,
+    AnyElement, App, Entity, IntoElement, MouseButton, ParentElement, SharedString, Styled,
+    WindowId, div, prelude::*,
 };
 
 use crate::app::prefs::code_font_family;
 use crate::connection::ConnectionId;
-use crate::query_store::QueryStore;
 use crate::widgets::empty_state::pane_empty_hint;
 use crate::widgets::query_panel_extras::{HistoryFilter, filtered_history};
 use crate::workspace::Workspace;
+use crate::workspace::Workspaces;
 use crate::workspace::tabs::inbox;
 use crate::workspace::{QueryEditorInit, TabSpec};
 
 pub fn render_history_pane(
     workspace: Entity<Workspace>,
+    workspace_window: WindowId,
     conn_id: Option<ConnectionId>,
     filter: HistoryFilter,
     cx: &mut App,
@@ -33,8 +34,10 @@ pub fn render_history_pane(
     };
 
     let entries = {
-        let store = cx.global::<QueryStore>();
-        filtered_history(store, &conn_id, filter)
+        match Workspaces::project(workspace_window, cx) {
+            Some(project) => filtered_history(&project.queries, &conn_id, filter),
+            None => Vec::new(),
+        }
     };
 
     let filter_row = h_flex().gap_1().children(HistoryFilter::ALL.map(|f| {

@@ -32,10 +32,6 @@ pub mod workspace;
 
 use app::paths::AppPaths;
 use gpui_kit::App;
-use project::{
-    ProjectContext, ProjectVars, find_project_root, install_reload_watcher, load_variables,
-    settings::apply_project_settings,
-};
 use workspace::PopOutManager;
 
 /// Launch the desktop app (blocks until quit).
@@ -50,7 +46,6 @@ pub fn run() {
                 log::error!("failed to open metadata store: {err:#}");
             }
             app::updater::init(cx);
-            init_project(cx);
 
             cx.on_window_closed(|cx, id| {
                 PopOutManager::on_any_window_closed(cx, id);
@@ -85,39 +80,6 @@ pub fn init_globals(cx: &mut App) {
     db::init(cx);
     ai::init(cx);
 
-    // Empty until `init_project` loads the project's vars.
-    cx.set_global(ProjectVars::default());
     PopOutManager::init(cx);
     app::aux_windows::AuxWindows::init(cx);
-}
-
-/// Discover and load the `.based/` project, then start the reload watcher.
-fn init_project(cx: &mut App) {
-    let project_root = find_project_root(&AppPaths::get(cx).clone());
-    let project_context = project_root
-        .as_ref()
-        .and_then(|root| ProjectContext::load(root.clone()).ok());
-    if let Some(ref ctx) = project_context {
-        cx.set_global(ctx.clone());
-        apply_project_settings(&ctx.snapshot.manifest, cx);
-    }
-    query_store::init(
-        project_root.clone(),
-        project_context.as_ref().map(|c| c.snapshot.clone()),
-        cx,
-    );
-
-    let vars = project_root
-        .as_ref()
-        .map(|root| {
-            load_variables(root).unwrap_or_else(|e| {
-                log::warn!("vars.toml load ({root:?}): {e:#}");
-                Default::default()
-            })
-        })
-        .unwrap_or_default();
-    cx.set_global(ProjectVars { vars });
-    if let Some(root) = project_root {
-        install_reload_watcher(root, cx);
-    }
 }

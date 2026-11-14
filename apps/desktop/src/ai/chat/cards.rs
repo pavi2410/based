@@ -17,7 +17,6 @@ use gpui_kit::{
 
 use super::style;
 use crate::connection::ConnectionId;
-use crate::project::ProjectRoot;
 use crate::workspace::Workspaces;
 use crate::workspace::notify;
 use crate::workspace::panels::query_editor::save_target_for;
@@ -101,7 +100,8 @@ fn query_name(sql: &str) -> String {
 
 /// Writes the card's SQL into the project's queries folder.
 fn save_to_project(conn: &ConnectionId, engine: EngineKind, sql: &str, cx: &mut App) {
-    let Some(root) = cx.try_global::<ProjectRoot>().map(|r| r.0.clone()) else {
+    let Some(root) = Workspaces::active_project(cx).and_then(|p| p.root().map(ToOwned::to_owned))
+    else {
         notify::push_info(cx, "Open a project to save queries.");
         return;
     };

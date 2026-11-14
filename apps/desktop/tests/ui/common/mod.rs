@@ -15,7 +15,7 @@ use based_desktop::workspace::boot::WorkspaceEnv;
 use based_desktop::workspace::connection_tree::ObjectKind;
 use based_desktop::workspace::tabs::SessionSnapshot;
 use based_desktop::workspace::{TabSpec, Workspace};
-use based_desktop::{init_globals, query_store, storage};
+use based_desktop::{init_globals, storage};
 use based_sqlite::config::SqliteConfig;
 use gpui_kit::test::TestWindowExt;
 use gpui_kit::{
@@ -47,7 +47,6 @@ pub fn init_app(cx: &mut TestAppContext, personal_root: &Path) {
         });
         init_globals(cx);
         storage::init_at(cx, &dir.join(format!("meta-{unique}.db"))).expect("metadata store");
-        query_store::init(None, None, cx);
     });
 }
 

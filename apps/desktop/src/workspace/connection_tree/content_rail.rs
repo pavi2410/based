@@ -14,9 +14,9 @@ use gpui_kit::{
     div, prelude::*, px,
 };
 
-use crate::query_store::QueryStore;
 use crate::widgets::SIDEBAR_INSET;
 use crate::widgets::empty_state::pane_empty_hint;
+use crate::workspace::Workspaces;
 use crate::workspace::notify;
 use crate::workspace::project_query::{
     OpenQueryResult, open_project_query, query_targets_connection, target_hint,
@@ -49,8 +49,11 @@ pub(crate) fn render_content_rail(
     let mut queries = Vec::new();
     if let Some(conn_id) = conn_id.clone() {
         let registry = tree.registry.read(cx);
-        let store = cx.global::<QueryStore>();
-        for query in store.project_queries() {
+        let window = Workspaces::window_with_registry(&tree.registry, cx);
+        let store = window
+            .and_then(|w| Workspaces::project(w, cx))
+            .map(|p| &p.queries);
+        for query in store.map(|s| s.project_queries()).unwrap_or_default() {
             if !query_targets_connection(query, &conn_id, registry, cx) {
                 continue;
             }

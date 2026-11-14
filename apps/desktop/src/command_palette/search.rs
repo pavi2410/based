@@ -4,9 +4,8 @@ use gpui_kit::{App, Entity};
 
 use crate::app::prefs::manual_update_checks_enabled;
 use crate::connection::ConnectionId;
-use crate::project::ProjectRoot;
-use crate::query_store::QueryStore;
 use crate::workspace::TabSpec;
+use crate::workspace::Workspaces;
 use crate::workspace::connection_tree::ConnectionTree;
 use crate::workspace::project_query::target_hint;
 
@@ -121,7 +120,10 @@ fn push_workspace_commands(results: &mut Vec<PaletteResult>, q: &str, cx: &App) 
             "Open Project in New Window",
             "project",
         ));
-        if include_close_project_command(q, cx.try_global::<ProjectRoot>().is_some()) {
+        if include_close_project_command(
+            q,
+            Workspaces::active_project(cx).is_some_and(|p| p.is_open()),
+        ) {
             results.push(blank_command(
                 WorkspacePaletteAction::CloseProject,
                 "Close Project",
@@ -161,7 +163,9 @@ fn push_schema_objects(
 }
 
 fn push_saved_queries(results: &mut Vec<PaletteResult>, q: &str, cx: &App) {
-    let store = cx.global::<QueryStore>();
+    let Some(store) = Workspaces::active_project(cx).map(|p| &p.queries) else {
+        return;
+    };
     for query in store.project_queries() {
         let hay = format!(
             "{} {} {}",
@@ -183,7 +187,9 @@ fn push_saved_queries(results: &mut Vec<PaletteResult>, q: &str, cx: &App) {
 }
 
 fn push_history(results: &mut Vec<PaletteResult>, q: &str, cx: &App) {
-    let store = cx.global::<QueryStore>();
+    let Some(store) = Workspaces::active_project(cx).map(|p| &p.queries) else {
+        return;
+    };
     let mut seen_history: HashSet<(ConnectionId, String)> = HashSet::new();
     for entry in store.history.recent(100) {
         if q.is_empty() || entry.query.to_lowercase().contains(q) {

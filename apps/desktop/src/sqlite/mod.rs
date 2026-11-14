@@ -23,14 +23,16 @@ use sqlx::{AssertSqlSafe, SqlitePool};
 
 use crate::connection::lifecycle::{Connectable, TestReport};
 use crate::db::Tokio;
-use crate::project::ProjectRoot;
+use crate::workspace::Workspaces;
 
 /// Resolve relative DB paths using the active Based project root when available.
 pub fn resolve_sqlite_path(path: &Path, cx: &App) -> PathBuf {
     based_sqlite::resolve_sqlite_path(
         path,
         &SqlitePathContext {
-            project_dir: cx.try_global::<ProjectRoot>().map(|p| p.0.clone()),
+            // Connections open from the window the user is working in.
+            project_dir: Workspaces::active_project(cx)
+                .and_then(|p| p.root().map(ToOwned::to_owned)),
         },
     )
 }

@@ -14,9 +14,7 @@ use crate::bindings::{
     ToggleChatPane, ToggleCommandPalette, ToggleHistoryPane, ToggleInspectorPane, ToggleSavedPane,
     ToggleSidebarRail,
 };
-use crate::project::ProjectContext;
 
-use super::Workspace;
 use super::chrome::{
     layout,
     left_pane::LeftPane,
@@ -29,6 +27,7 @@ use super::chrome::{
 use super::connection_tree::ICON_RAIL_WIDTH;
 use super::panels::inspector::render_inspector_body;
 use super::tabs::CloseScope;
+use super::{Workspace, Workspaces};
 use crate::app::prefs::cycle_theme;
 use crate::app::updater::coordinator_snapshot;
 use crate::project::drain_pending_reload;
@@ -39,10 +38,12 @@ impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.show_queued_dialog(window, cx);
         self.show_close_prompt(window, cx);
-        if drain_pending_reload(cx)
-            && let Some(pctx) = cx.try_global::<ProjectContext>()
+        if drain_pending_reload(self.window_id, cx)
+            && let Some(name) = Workspaces::project(self.window_id, cx)
+                .and_then(|p| p.context())
+                .map(|c| c.project_name().to_owned())
         {
-            self.project_title = pctx.project_name().into();
+            self.project_title = name.into();
         }
         if self.session.begin_restore() {
             self.restore_session(window, cx);
@@ -69,6 +70,7 @@ impl Render for Workspace {
                 }
                 SidePane::History => render_history_pane(
                     workspace_for_panes.clone(),
+                    self.window_id,
                     focused_conn_id.clone(),
                     history_filter,
                     cx,
@@ -79,6 +81,7 @@ impl Render for Workspace {
                     focused_conn_id.clone(),
                     self.registry.clone(),
                     this.clone(),
+                    self.window_id,
                     cx,
                 )
                 .into_any_element(),

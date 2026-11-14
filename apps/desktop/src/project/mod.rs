@@ -7,6 +7,7 @@ pub mod open;
 pub mod personal;
 pub mod pick;
 pub mod reload;
+pub mod scope;
 pub mod settings;
 pub mod watcher;
 
@@ -18,24 +19,5 @@ pub use open::{
     request_close_project_in_window,
 };
 
-use std::collections::HashMap;
-
-use gpui_kit::Global;
-
-/// Loaded `$VAR` map from `.based/vars.toml`, available to query panels via [`gpui_kit::App::global`].
-#[derive(Default)]
-pub struct ProjectVars {
-    pub vars: HashMap<String, String>,
-}
-
-impl Global for ProjectVars {}
-
-/// Keeps the `.based/` filesystem watcher alive for the process lifetime.
-#[derive(Default)]
-pub struct ConfigWatcherGlobal {
-    _watcher: Option<watcher::ConfigWatcher>,
-}
-
-impl Global for ConfigWatcherGlobal {}
-
-pub use reload::{ProjectRoot, RegistryRef, drain_pending_reload, install_reload_watcher};
+pub use reload::{drain_pending_reload, reload_from_disk};
+pub use scope::ProjectState;

@@ -1,7 +1,8 @@
 // SQL query editor shared by SQL engines via [`QuerySource`]: editor, results, messages, explain.
 
+use std::collections::HashMap;
 use std::ops::Range;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -40,8 +41,8 @@ use crate::db;
 use crate::editor::error_locate::{line_col, token_at};
 use crate::editor::sql_completion::InlineAi;
 use crate::editor::{SchemaCache, lint::lint};
-use crate::project::{ProjectRoot, ProjectVars, substitute};
-use crate::query_store::{HistoryEntry, QueryStore};
+use crate::project::substitute;
+use crate::query_store::HistoryEntry;
 use crate::widgets::column_header::ColumnMeta;
 use crate::widgets::data_table::{configure_row_table, render_row_table};
 use crate::widgets::datetime::format_relative;
@@ -395,6 +396,19 @@ impl QueryEditorPanel {
     ///
     /// One undoable edit: ⌘Z restores the previous text. Marks the tab dirty and
     /// re-lints, like a typed edit.
+    /// The root of the project this editor's window has open.
+    pub(super) fn project_root(&self, cx: &Context<Self>) -> Option<PathBuf> {
+        Workspaces::project_for_panel(cx.entity_id(), cx)
+            .and_then(|p| p.root().map(ToOwned::to_owned))
+    }
+
+    /// The `$VAR`s of the project this editor's window has open.
+    pub(super) fn project_vars(&self, cx: &Context<Self>) -> HashMap<String, String> {
+        Workspaces::project_for_panel(cx.entity_id(), cx)
+            .map(|p| p.vars.clone())
+            .unwrap_or_default()
+    }
+
     /// The editor now holds SQL the assistant wrote: running it unchanged asks first
     /// when it may write, as text applied from the prompt bar does.
     pub fn mark_ai_written(&mut self, sql: &str) {

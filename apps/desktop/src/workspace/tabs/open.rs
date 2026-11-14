@@ -1,10 +1,13 @@
 //! Finding a window's workspace, and the tab helpers panels call.
 
+use std::path::Path;
+
 use gpui_kit::{App, Entity, EntityId, Global, WeakEntity, Window, WindowId};
 
 use super::inbox::{Inbox, Request};
 use super::{TabEvent, TabManager};
 use crate::connection::registry::ConnectionRegistry;
+use crate::project::scope::ProjectState;
 use crate::workspace::Workspace;
 use gpui_kit::component::dock::DockArea;
 
@@ -19,6 +22,8 @@ struct WorkspaceWindow {
     registry: Entity<ConnectionRegistry>,
     /// Requests for this window's workspace, applied on its next render.
     inbox: Inbox,
+    /// The project this window has open (or none).
+    project: ProjectState,
 }
 
 /// Every open workspace window. A workspace belongs to one window and one
@@ -38,6 +43,7 @@ impl Workspaces {
         tabs: Entity<TabManager>,
         dock: Entity<DockArea>,
         registry: Entity<ConnectionRegistry>,
+        project: ProjectState,
         cx: &mut App,
     ) {
         cx.default_global::<Workspaces>()
@@ -49,7 +55,55 @@ impl Workspaces {
                 dock,
                 registry,
                 inbox: Inbox::default(),
+                project,
             });
+    }
+
+    /// The project open in `window`.
+    pub fn project(window: WindowId, cx: &App) -> Option<&ProjectState> {
+        Self::entries(cx)
+            .iter()
+            .find(|w| w.window == window)
+            .map(|w| &w.project)
+    }
+
+    /// Change the project state of `window`.
+    pub fn update_project<R>(
+        window: WindowId,
+        cx: &mut App,
+        f: impl FnOnce(&mut ProjectState) -> R,
+    ) -> Option<R> {
+        if !cx.has_global::<Workspaces>() {
+            return None;
+        }
+        cx.global_mut::<Workspaces>()
+            .windows
+            .iter_mut()
+            .find(|w| w.window == window)
+            .map(|w| f(&mut w.project))
+    }
+
+    /// The window that owns `panel_id`, else the active one.
+    pub fn window_for_panel(panel_id: EntityId, cx: &App) -> Option<WindowId> {
+        Self::entry_for_panel_or_active(panel_id, cx).map(|w| w.window)
+    }
+
+    /// The project of the window that owns `panel_id`, else the active one's.
+    pub fn project_for_panel(panel_id: EntityId, cx: &App) -> Option<&ProjectState> {
+        Self::entry_for_panel_or_active(panel_id, cx).map(|w| &w.project)
+    }
+
+    /// The project of the window the user is acting in.
+    pub fn active_project(cx: &App) -> Option<&ProjectState> {
+        Self::active_entry(cx).map(|w| &w.project)
+    }
+
+    /// The window that has `root` open, if any.
+    pub fn window_with_project(root: &Path, cx: &App) -> Option<WindowId> {
+        Self::entries(cx)
+            .iter()
+            .find(|w| w.project.root() == Some(root))
+            .map(|w| w.window)
     }
 
     /// Queue `request` for the workspace in `window`.
@@ -178,6 +232,14 @@ impl Workspaces {
     /// The connections of the workspace that owns `panel_id`, else the active one's.
     pub fn registry_for_panel(panel_id: EntityId, cx: &App) -> Option<Entity<ConnectionRegistry>> {
         Self::entry_for_panel_or_active(panel_id, cx).map(|w| w.registry.clone())
+    }
+
+    /// The connections of the workspace in `window`.
+    pub fn registry_for_window(window: WindowId, cx: &App) -> Option<Entity<ConnectionRegistry>> {
+        Self::entries(cx)
+            .iter()
+            .find(|w| w.window == window)
+            .map(|w| w.registry.clone())
     }
 
     /// The connections of the workspace the user is acting in.

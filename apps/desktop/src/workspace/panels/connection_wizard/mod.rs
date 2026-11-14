@@ -37,7 +37,6 @@ use crate::db;
 use crate::mongodb::{MongoConfig, MongoConnection};
 use crate::postgres::wizard::parse_postgres_uri;
 use crate::postgres::{PgConnection, PostgresConfig, SslMode};
-use crate::project::ProjectRoot;
 use crate::redis::{RedisConfig, RedisConnection};
 use crate::sqlite::{SqliteConfig, SqliteConnection, SqlitePragma};
 use crate::widgets::choice::{Choice, choices};

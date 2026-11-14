@@ -3,7 +3,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use based_project::{ProjectQuery, ProjectSnapshot, persist_favorites};
-use gpui_kit::{App, Global};
 
 pub use based_query::{HistoryEntry, QueryHistory};
 
@@ -44,14 +43,6 @@ impl QueryStore {
         self.favorites = snapshot.favorites.iter().cloned().collect();
     }
 
-    /// Drop project-owned queries, favorites, and history after Close Project.
-    pub fn clear_project(&mut self) {
-        self.queries.clear();
-        self.favorites.clear();
-        self.history = QueryHistory::empty();
-        self.history_dir = None;
-    }
-
     pub fn project_queries(&self) -> &[ProjectQuery] {
         &self.queries
     }
@@ -80,55 +71,14 @@ impl QueryStore {
     }
 }
 
-impl Global for QueryStore {}
-
-pub fn init(project_root: Option<PathBuf>, snapshot: Option<ProjectSnapshot>, cx: &mut App) {
-    let snap_ref = snapshot.as_ref();
-    cx.set_global(QueryStore::new(project_root, snap_ref));
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use based_project::{ProjectQuery, QueryBody, QueryTarget};
     use std::env;
     use std::sync::Mutex;
     use std::time::Duration;
 
     static CWD_LOCK: Mutex<()> = Mutex::new(());
-
-    fn sample_query() -> ProjectQuery {
-        ProjectQuery {
-            path: "local/recent".into(),
-            name: "recent".into(),
-            description: None,
-            tags: vec![],
-            target: QueryTarget {
-                connection: None,
-                engine: None,
-                tags: vec![],
-                exclude_tags: vec![],
-            },
-            body: QueryBody::Sql {
-                query: "SELECT 1".into(),
-            },
-        }
-    }
-
-    #[test]
-    fn clear_project_drops_queries_favorites_and_history() {
-        let mut store = QueryStore {
-            history: QueryHistory::empty(),
-            queries: vec![sample_query()],
-            favorites: ["local/recent".into()].into(),
-            history_dir: Some(PathBuf::from("/tmp/based-closed-project")),
-        };
-        store.clear_project();
-        assert!(store.queries.is_empty());
-        assert!(store.favorites.is_empty());
-        assert!(store.history.recent(10).is_empty());
-        assert!(store.history_dir.is_none());
-    }
 
     fn sample_history(sql: &str) -> HistoryEntry {
         HistoryEntry::new(
@@ -152,32 +102,5 @@ mod tests {
         env::set_current_dir(prev).unwrap();
         assert!(!leaked, "no-project history must not write cwd files");
         assert_eq!(store.history.recent(1)[0].query, "SELECT 1");
-    }
-
-    #[test]
-    fn closed_project_history_stays_in_memory() {
-        let _cwd_lock = CWD_LOCK.lock().unwrap();
-        let project = tempfile::tempdir().unwrap();
-        let mut store = QueryStore::new(Some(project.path().to_path_buf()), None);
-        store.push_history(sample_history("SELECT 1"));
-        let hist = project
-            .path()
-            .join(".based")
-            .join("local")
-            .join("history.jsonl");
-        let before = fs::read_to_string(&hist).unwrap();
-        store.clear_project();
-
-        let cwd = tempfile::tempdir().unwrap();
-        let prev = env::current_dir().unwrap();
-        env::set_current_dir(cwd.path()).unwrap();
-        store.push_history(sample_history("SELECT 2"));
-        let leaked =
-            cwd.path().join(".based").exists() || cwd.path().join("history.jsonl").exists();
-        env::set_current_dir(prev).unwrap();
-
-        assert!(!leaked, "closed-project history must not write cwd files");
-        assert_eq!(fs::read_to_string(&hist).unwrap(), before);
-        assert_eq!(store.history.recent(1)[0].query, "SELECT 2");
     }
 }

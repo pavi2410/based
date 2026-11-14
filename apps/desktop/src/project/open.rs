@@ -9,20 +9,16 @@ use gpui_kit::component::{
     button::{Button, ButtonVariants},
     dialog::{DialogAction, DialogClose, DialogFooter},
 };
-use gpui_kit::{App, BorrowAppContext, Entity, SharedString, Window, prelude::*};
+use gpui_kit::{App, Entity, SharedString, Window, prelude::*};
 
 use crate::app::paths::AppPaths;
 use crate::app::prefs;
 use crate::app::quit;
 use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{live_connection_count, live_project_connection_count};
-use crate::project::ProjectContext;
-use crate::project::ProjectVars;
+use crate::project::ProjectState;
 use crate::project::discovery::resolve_project_root;
-use crate::project::reload::{
-    ProjectRoot, RegistryRef, install_reload_watcher, reload_from_disk, stop_reload_watcher,
-};
-use crate::query_store::QueryStore;
+use crate::project::reload::reload_from_disk;
 use crate::workspace::Workspaces;
 use crate::workspace::notify;
 use crate::workspace::tabs::CloseScope;
@@ -59,7 +55,7 @@ pub fn request_close_project_in_window(cx: &mut App) {
 }
 
 pub fn has_open_project(cx: &App) -> bool {
-    cx.try_global::<ProjectRoot>().is_some()
+    Workspaces::active_project(cx).is_some_and(ProjectState::is_open)
 }
 
 #[derive(Clone, Copy)]
@@ -376,37 +372,30 @@ fn close_project_in_workspace(
 }
 
 fn bind_project(root: &Path, registry: &Entity<ConnectionRegistry>, cx: &mut App) {
-    match ProjectContext::load(root.to_path_buf()) {
-        Ok(ctx) => {
-            cx.set_global(ctx.clone());
-            apply_project_settings(&ctx.snapshot.manifest, cx);
-        }
-        Err(e) => {
-            notify::push_error(cx, "Open Project", format!("Failed to load project: {e:#}"));
-            return;
-        }
-    }
-
-    install_reload_watcher(root.to_path_buf(), cx);
-    cx.set_global(RegistryRef(registry.clone()));
-    reload_from_disk(root, registry, cx);
+    let Some(window) = Workspaces::window_with_registry(registry, cx) else {
+        return;
+    };
+    let project = ProjectState::open(root.to_path_buf());
+    let Some(manifest) = project.context().map(|c| c.snapshot.manifest.clone()) else {
+        notify::push_error(cx, "Open Project", "Failed to load the project's manifest.");
+        return;
+    };
+    Workspaces::update_project(window, cx, |p| *p = project);
+    apply_project_settings(&manifest, cx);
+    reload_from_disk(window, cx);
 }
 
 fn unbind_project(registry: &Entity<ConnectionRegistry>, cx: &mut App) {
-    stop_reload_watcher(cx);
-    if cx.has_global::<ProjectContext>() {
-        let _ = cx.remove_global::<ProjectContext>();
+    if let Some(window) = Workspaces::window_with_registry(registry, cx) {
+        Workspaces::update_project(window, cx, |p| *p = ProjectState::none());
     }
-    cx.update_global(|pv: &mut ProjectVars, _| pv.vars.clear());
-    cx.update_global(|store: &mut QueryStore, _| store.clear_project());
     registry.update(cx, |reg, cx| {
         reg.remove_project_owned(cx);
     });
 }
 
 fn is_same_project(root: &Path, cx: &App) -> bool {
-    cx.try_global::<ProjectRoot>()
-        .is_some_and(|current| current.0 == root)
+    Workspaces::active_project(cx).and_then(ProjectState::root) == Some(root)
 }
 
 fn switch_needs_confirm(ws: &Entity<Workspace>, cx: &App) -> bool {

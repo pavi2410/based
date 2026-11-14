@@ -229,7 +229,7 @@ impl ConnectionWizardPanel {
                             "What the model may see. Queries are never run without confirmation.",
                         )),
                 )
-                .when(cx.has_global::<ProjectRoot>() && !editing, |v| {
+                .when(Workspaces::project_for_panel(cx.entity_id(), cx).is_some_and(|p| p.is_open()) && !editing, |v| {
                     v.child(destination_row(
                         self.destination,
                         muted,

@@ -5,7 +5,9 @@
 //! deferred executor.
 
 use gpui_kit::component::{ActiveTheme, Placement, v_flex};
-use gpui_kit::{Context, DragMoveEvent, IntoElement, Render, Window, div, prelude::*};
+use gpui_kit::{
+    Context, DragMoveEvent, IntoElement, Render, SharedString, Window, div, prelude::*,
+};
 
 use crate::bindings::{
     CloseAllTabs, CloseCleanTabs, CloseOtherTabs, CloseTab, CloseTabsLeft, CloseTabsRight,
@@ -29,6 +31,7 @@ use super::panels::inspector::render_inspector_body;
 use super::tabs::CloseScope;
 use super::{Workspace, Workspaces};
 use crate::app::prefs::cycle_theme;
+use crate::app::shell::APP_NAME;
 use crate::app::updater::coordinator_snapshot;
 use crate::project::drain_pending_reload;
 use crate::widgets::cell_hover;
@@ -44,6 +47,10 @@ impl Render for Workspace {
                 .map(|c| c.project_name().to_owned())
         {
             self.project_title = name.into();
+        }
+        self.sync_window_title(window, cx);
+        if window.is_window_active() {
+            Workspaces::note_focused(self.window_id, cx);
         }
         if self.session.begin_restore() {
             self.restore_session(window, cx);
@@ -276,5 +283,21 @@ impl Render for Workspace {
                     cx,
                 ))
             })
+    }
+}
+
+impl Workspace {
+    /// "‹project› — Based", or "Based" with no project: what the Window menu,
+    /// Mission Control and the task switcher show for this window.
+    fn sync_window_title(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let title: SharedString = if self.project_dir(cx).is_some() {
+            format!("{} — {APP_NAME}", self.project_title).into()
+        } else {
+            APP_NAME.into()
+        };
+        if self.window_title != title {
+            window.set_window_title(&title);
+            self.window_title = title;
+        }
     }
 }

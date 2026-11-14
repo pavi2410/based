@@ -13,3 +13,4 @@ mod settings;
 mod tabs;
 mod tree;
 mod viewer;
+mod windows;

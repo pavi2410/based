@@ -54,7 +54,7 @@ impl Global for UpdateCoordinator {}
 
 impl UpdateCoordinator {
     fn notify_workspace(cx: &mut App) {
-        if let Some(ws) = Workspaces::active(cx) {
+        for ws in Workspaces::all(cx) {
             ws.update(cx, |_, cx| cx.notify());
         }
         cx.refresh_windows();

@@ -68,7 +68,7 @@ use crate::widgets::query_panel_extras::HistoryFilter;
 use boot::WorkspaceEnv;
 use context::WorkspaceContext;
 
-use tabs::{TabNavigationHistory, inbox};
+use tabs::{Request, TabNavigationHistory};
 
 use chrome::{
     left_pane::LeftPane,
@@ -106,6 +106,9 @@ pub struct Workspace {
     last_chat_conn: Option<ConnectionId>,
     focus_handle: FocusHandle,
     project_title: SharedString,
+    /// The OS window title last set ("‹project› — Based"), so render only sets it
+    /// when it changes.
+    window_title: SharedString,
     /// The window this workspace fills; its key in [`Workspaces`].
     window_id: WindowId,
     session: tabs::SessionState,
@@ -281,6 +284,7 @@ impl Workspace {
             last_chat_conn: None,
             focus_handle: cx.focus_handle(),
             project_title,
+            window_title: SharedString::default(),
             window_id: window.window_handle().window_id(),
             session: tabs::SessionState::new(tabs::SessionScope::for_project(
                 project_dir.as_deref(),
@@ -292,18 +296,24 @@ impl Workspace {
             close_prompt: None,
         };
 
-        cx.subscribe(&tree_observe, |_ws, _, event, ecx| {
+        cx.subscribe(&tree_observe, |ws, _, event, ecx| {
             let connection_tree::TreeEvent::OpenTab(spec) = event;
-            inbox::open_tab(spec.clone(), ecx);
+            Workspaces::post_to(ws.window_id, Request::OpenTab(spec.clone()), ecx);
             ecx.notify();
         })
         .detach();
 
         cx.subscribe(&palette_observe, |ws, _, event, ecx| {
             match event {
-                OpenTab(spec) => inbox::open_tab(spec.clone(), ecx),
+                OpenTab(spec) => {
+                    Workspaces::post_to(ws.window_id, Request::OpenTab(spec.clone()), ecx)
+                }
                 InjectSql { conn_id, sql } => {
-                    inbox::inject_sql(conn_id.clone(), sql.clone(), ecx);
+                    let request = Request::InjectSql {
+                        conn_id: conn_id.clone(),
+                        sql: sql.clone(),
+                    };
+                    Workspaces::post_to(ws.window_id, request, ecx);
                 }
                 OpenProjectQuery(path) => {
                     ws.open_project_query_by_path(path, ecx);

@@ -19,7 +19,7 @@ use crate::workspace::notify::push_error;
 use super::connection_destination::ConnectionDestination;
 use super::connection_persist::persist_config_to_based_dir;
 use super::project_query::{OpenQueryResult, open_project_query, tab_spec_for_query};
-use super::tabs::{SessionScope, SessionState, inbox};
+use super::tabs::{Request, SessionScope, SessionState};
 use super::{Workspace, Workspaces};
 
 impl Workspace {
@@ -29,7 +29,8 @@ impl Workspace {
 
     pub fn resolve_pending_target(&mut self, conn_id: ConnectionId, cx: &mut Context<Self>) {
         if let Some((query, _)) = self.pending_target_pick.take() {
-            inbox::open_tab(tab_spec_for_query(&query, conn_id), cx);
+            let spec = tab_spec_for_query(&query, conn_id);
+            Workspaces::post_to(self.window_id(), Request::OpenTab(spec), cx);
             cx.notify();
         }
     }
@@ -60,7 +61,8 @@ impl Workspace {
         let focused = self.focused_conn_id(cx);
         match open_project_query(&query, self.registry.read(cx), cx, focused.as_ref()) {
             OpenQueryResult::Open(spec) => {
-                inbox::open_tab(spec, cx);
+                Workspaces::post_to(self.window_id(), Request::OpenTab(spec), cx);
+                cx.notify();
             }
             OpenQueryResult::PickConnection { candidates, .. } => {
                 self.pending_target_pick = Some((query.clone(), candidates));

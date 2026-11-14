@@ -32,6 +32,9 @@ struct WorkspaceWindow {
 #[derive(Default)]
 pub struct Workspaces {
     windows: Vec<WorkspaceWindow>,
+    /// The workspace window that last had focus. Menus, pop-outs and the
+    /// Settings window act for it while they hold focus.
+    last_focused: Option<WindowId>,
 }
 
 impl Global for Workspaces {}
@@ -150,12 +153,20 @@ impl Workspaces {
             .map(|w| w.window)
     }
 
-    pub fn unregister(window: WindowId, cx: &mut App) {
-        if cx.has_global::<Workspaces>() {
-            cx.global_mut::<Workspaces>()
-                .windows
-                .retain(|w| w.window != window);
+    /// Forget `window`. Returns whether it was a workspace window.
+    pub fn unregister(window: WindowId, cx: &mut App) -> bool {
+        if !cx.has_global::<Workspaces>() {
+            return false;
         }
+        let windows = &mut cx.global_mut::<Workspaces>().windows;
+        let before = windows.len();
+        windows.retain(|w| w.window != window);
+        windows.len() != before
+    }
+
+    /// No workspace window is open.
+    pub fn is_empty(cx: &App) -> bool {
+        Self::entries(cx).is_empty()
     }
 
     fn entries(cx: &App) -> &[WorkspaceWindow] {
@@ -184,10 +195,24 @@ impl Workspaces {
             .and_then(|w| w.workspace.upgrade())
     }
 
+    /// `window` has focus (called from its render).
+    pub fn note_focused(window: WindowId, cx: &mut App) {
+        if let Some(all) = cx.try_global::<Workspaces>()
+            && all.last_focused != Some(window)
+        {
+            cx.global_mut::<Workspaces>().last_focused = Some(window);
+        }
+    }
+
     fn active_entry(cx: &App) -> Option<&WorkspaceWindow> {
         let entries = Self::entries(cx);
+        let find = |id: WindowId| entries.iter().find(|w| w.window == id);
         cx.active_window()
-            .and_then(|a| entries.iter().find(|w| w.window == a.window_id()))
+            .and_then(|a| find(a.window_id()))
+            .or_else(|| {
+                let last = cx.try_global::<Workspaces>()?.last_focused?;
+                find(last)
+            })
             .or_else(|| entries.last())
     }
 

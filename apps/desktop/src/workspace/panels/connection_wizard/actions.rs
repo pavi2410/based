@@ -24,11 +24,12 @@ impl ConnectionWizardPanel {
         let session_id = wizard_session_id(self.session_id.as_ref(), &key);
         self.session_id = Some(session_id.clone());
         let task = open_connection(draft.config.clone(), cx);
+        let panel_id = cx.entity_id();
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
             let _ = cx.update(|_window, cx| match result {
                 Ok(opened) => {
-                    if let Some(ws) = Workspaces::active(cx) {
+                    if let Some(ws) = Workspaces::for_panel(panel_id, cx) {
                         ws.update(cx, |workspace, cx| {
                             workspace.attach_wizard_session(draft, opened, session_id, true, cx);
                         });
@@ -67,7 +68,7 @@ impl ConnectionWizardPanel {
                 return;
             }
         };
-        let Some(ws) = Workspaces::active(cx) else {
+        let Some(ws) = Workspaces::for_panel(cx.entity_id(), cx) else {
             self.status = WizardStatus::SaveErr("Workspace is not open".into());
             cx.notify();
             return;
@@ -108,11 +109,12 @@ impl ConnectionWizardPanel {
         self.status = WizardStatus::Connecting;
         let draft = self.draft(cx);
         let task = open_connection(draft.config.clone(), cx);
+        let panel_id = cx.entity_id();
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
             let _ = cx.update(|_window, cx| match result {
                 Ok(opened) => {
-                    if let Some(ws) = Workspaces::active(cx) {
+                    if let Some(ws) = Workspaces::for_panel(panel_id, cx) {
                         ws.update(cx, |workspace, cx| {
                             workspace.attach_wizard_session(draft, opened, session_id, false, cx);
                         });
@@ -130,7 +132,7 @@ impl ConnectionWizardPanel {
                 }
                 Err(e) => {
                     let msg = e.display_message();
-                    if let Some(ws) = Workspaces::active(cx) {
+                    if let Some(ws) = Workspaces::for_panel(panel_id, cx) {
                         ws.update(cx, |workspace, cx| {
                             workspace.fail_reconnect(&session_id, e, cx);
                         });

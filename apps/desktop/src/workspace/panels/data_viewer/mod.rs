@@ -267,7 +267,7 @@ impl DataViewerPanel {
                 panel.loading = false;
                 if let Err(e) = &res {
                     if panel.source.lost_connection(e) {
-                        mark_connection_lost(&panel.conn_id, &e.to_string(), cx);
+                        mark_connection_lost(cx.entity_id(), &panel.conn_id, &e.to_string(), cx);
                     }
                     let msg = e.to_string();
                     panel.load_error = Some(

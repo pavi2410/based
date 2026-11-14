@@ -1,33 +1,84 @@
-//! Application window launch: open the main workspace.
+//! Opening workspace windows. Every window runs in this one process and shows one
+//! project (or none); opening a project that already has a window focuses it.
 
-use gpui_kit::{App, AppContext, BorrowAppContext, WindowBounds, WindowOptions, px, size};
+use std::path::PathBuf;
 
+use gpui_kit::{App, AppContext, Bounds, WindowBounds, WindowId, WindowOptions, point, px, size};
+
+use super::aux_windows::AuxWindows;
+use super::paths::AppPaths;
 use super::shell::{self, APP_NAME};
+use crate::workspace::boot::WorkspaceEnv;
 use crate::workspace::{PopOutManager, Workspace, Workspaces};
 
-/// Open the main workspace window (no-op if already open).
+/// How far a new window sits from the one it was opened from.
+const CASCADE: f32 = 28.0;
+
+/// Open the first workspace window (no-op if one is already open).
 pub fn open_main_workspace(cx: &mut App) -> anyhow::Result<()> {
     if !Workspaces::all(cx).is_empty() {
         return Ok(());
     }
+    open_workspace_window(WorkspaceEnv::from_paths(AppPaths::get(cx)), cx)
+}
 
-    let (any, _workspace) = gpui_kit::open_window(
+/// Show `root` in a window of its own: the one that already has it open, else a
+/// new one.
+pub fn open_project_window(root: PathBuf, cx: &mut App) -> anyhow::Result<()> {
+    if let Some(window) = Workspaces::window_with_project(&root, cx) {
+        activate_window(window, cx);
+        return Ok(());
+    }
+    let env = WorkspaceEnv {
+        project_dir: Some(root),
+        personal_root: AppPaths::get(cx).personal_root.clone(),
+    };
+    open_workspace_window(env, cx)
+}
+
+/// Bring `window` to the front.
+pub fn activate_window(window: WindowId, cx: &mut App) {
+    if let Some(handle) = cx.windows().into_iter().find(|w| w.window_id() == window) {
+        let _ = handle.update(cx, |_, window, _| window.activate_window());
+    }
+}
+
+fn open_workspace_window(env: WorkspaceEnv, cx: &mut App) -> anyhow::Result<()> {
+    let bounds = cascaded_bounds(cx)
+        .unwrap_or_else(|| WindowBounds::centered(size(px(1280.0), px(800.0)), cx));
+    gpui_kit::open_window(
         WindowOptions {
-            window_bounds: Some(WindowBounds::centered(size(px(1280.0), px(800.0)), cx)),
+            window_bounds: Some(bounds),
             titlebar: Some(shell::titled_titlebar(APP_NAME)),
             ..shell::identified_window_options()
         },
         cx,
-        |window, cx| {
-            window.set_window_title(APP_NAME);
-            cx.new(|cx| Workspace::new(window, cx))
-        },
+        |window, cx| cx.new(|cx| Workspace::with_env(env, window, cx)),
     )?;
-
-    cx.update_global(|manager: &mut PopOutManager, _| {
-        manager.main_window_id = Some(any.window_id());
-    });
     Ok(())
+}
+
+/// The focused workspace window's size, shifted down and right.
+fn cascaded_bounds(cx: &mut App) -> Option<WindowBounds> {
+    let active = Workspaces::active_window(cx)?;
+    let handle = cx.windows().into_iter().find(|w| w.window_id() == active)?;
+    let current = handle.update(cx, |_, window, _| window.bounds()).ok()?;
+    Some(WindowBounds::Windowed(Bounds {
+        origin: current.origin + point(px(CASCADE), px(CASCADE)),
+        size: current.size,
+    }))
+}
+
+/// A window closed. A workspace window takes its pop-outs with it, and closing
+/// the last one quits.
+pub fn on_window_closed(window: WindowId, cx: &mut App) {
+    let was_workspace = Workspaces::unregister(window, cx);
+    PopOutManager::on_window_closed(window, cx);
+    AuxWindows::on_window_closed(window, cx);
+    if was_workspace && Workspaces::is_empty(cx) {
+        AuxWindows::close_all(cx);
+        cx.quit();
+    }
 }
 
 /// Entry point after app init: open the main workspace.

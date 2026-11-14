@@ -21,7 +21,6 @@ use gpui_kit::*;
 pub(crate) use gpui_kit::component::dock::PanelControl;
 
 use super::dock_utils::{center_panel_by_id, center_tab_group_count};
-use crate::app::aux_windows::AuxWindows;
 use crate::app::shell::{APP_NAME, identified_window_options, titled_titlebar};
 use crate::bindings::{
     CloseAllTabs, CloseCleanTabs, CloseOtherTabs, CloseTab, CloseTabsLeft, CloseTabsRight, PinTab,
@@ -36,10 +35,17 @@ pub trait PopOutWindowTitle: Panel {
     }
 }
 
-/// Tracks the main window and child pop-out windows (for cascade-close and de-duplication).
+/// A panel shown in a window of its own, and the workspace window it belongs to.
+#[derive(Clone, Copy)]
+struct PopOut {
+    handle: AnyWindowHandle,
+    owner: WindowId,
+}
+
+/// Tracks pop-out windows by panel (for de-duplication, and to close them with
+/// the workspace window they came from).
 pub struct PopOutManager {
-    pub(crate) main_window_id: Option<WindowId>,
-    pub(crate) windows: HashMap<EntityId, AnyWindowHandle>,
+    windows: HashMap<EntityId, PopOut>,
 }
 
 impl Global for PopOutManager {}
@@ -47,28 +53,26 @@ impl Global for PopOutManager {}
 impl PopOutManager {
     pub fn init(cx: &mut App) {
         cx.set_global(Self {
-            main_window_id: None,
             windows: HashMap::new(),
         });
     }
 
-    pub fn on_any_window_closed(cx: &mut App, closed_id: WindowId) {
-        let is_main = PopOutManager::global(cx).main_window_id == Some(closed_id);
-        if is_main {
-            PopOutManager::update_global(cx, |m, app| {
-                let handles: Vec<AnyWindowHandle> = m.windows.values().copied().collect();
-                m.windows.clear();
-                m.main_window_id = None;
-                for h in handles {
-                    let _ = h.update(app, |_, window, _| window.remove_window());
-                }
-            });
-            AuxWindows::close_all(cx);
-            cx.quit();
-        } else {
-            PopOutManager::update_global(cx, |m, _| {
-                m.windows.retain(|_, h| h.window_id() != closed_id);
-            });
+    /// `closed` went away: forget it if it was a pop-out, and close the pop-outs
+    /// of a workspace window.
+    pub fn on_window_closed(closed: WindowId, cx: &mut App) {
+        let orphans: Vec<AnyWindowHandle> = PopOutManager::update_global(cx, |m, _| {
+            let orphans = m
+                .windows
+                .values()
+                .filter(|p| p.owner == closed)
+                .map(|p| p.handle)
+                .collect();
+            m.windows
+                .retain(|_, p| p.owner != closed && p.handle.window_id() != closed);
+            orphans
+        });
+        for handle in orphans {
+            let _ = handle.update(cx, |_, window, _| window.remove_window());
         }
     }
 }
@@ -114,7 +118,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
                 .action(CloseTab.boxed_clone())
                 .disabled(close_disabled)
                 .on_click(move |_ev, window, app| {
-                    let Some(workspace) = Workspaces::active(app) else {
+                    let Some(workspace) = Workspaces::for_panel(panel_id, app) else {
                         return;
                     };
                     workspace.update(app, |ws, cx| {
@@ -126,7 +130,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
             PopupMenuItem::new(if pinned { "Unpin Tab" } else { "Pin Tab" })
                 .action(PinTab.boxed_clone())
                 .on_click(move |_ev, _window, app| {
-                    let Some(workspace) = Workspaces::active(app) else {
+                    let Some(workspace) = Workspaces::for_panel(panel_id, app) else {
                         return;
                     };
                     workspace.update(app, |ws, cx| {
@@ -140,7 +144,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
             PopupMenuItem::new("Close Others")
                 .action(CloseOtherTabs.boxed_clone())
                 .on_click(move |_ev, window, app| {
-                    let Some(workspace) = Workspaces::active(app) else {
+                    let Some(workspace) = Workspaces::for_panel(panel_id, app) else {
                         return;
                     };
                     workspace.update(app, |ws, cx| {
@@ -152,7 +156,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
             PopupMenuItem::new("Close Tabs to the Left")
                 .action(CloseTabsLeft.boxed_clone())
                 .on_click(move |_ev, window, app| {
-                    let Some(workspace) = Workspaces::active(app) else {
+                    let Some(workspace) = Workspaces::for_panel(panel_id, app) else {
                         return;
                     };
                     workspace.update(app, |ws, cx| {
@@ -164,7 +168,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
             PopupMenuItem::new("Close Tabs to the Right")
                 .action(CloseTabsRight.boxed_clone())
                 .on_click(move |_ev, window, app| {
-                    let Some(workspace) = Workspaces::active(app) else {
+                    let Some(workspace) = Workspaces::for_panel(panel_id, app) else {
                         return;
                     };
                     workspace.update(app, |ws, cx| {
@@ -176,7 +180,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
             PopupMenuItem::new("Close All")
                 .action(CloseAllTabs.boxed_clone())
                 .on_click(move |_ev, window, app| {
-                    let Some(workspace) = Workspaces::active(app) else {
+                    let Some(workspace) = Workspaces::for_panel(panel_id, app) else {
                         return;
                     };
                     workspace.update(app, |ws, cx| {
@@ -188,7 +192,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
             PopupMenuItem::new("Close Clean")
                 .action(CloseCleanTabs.boxed_clone())
                 .on_click(move |_ev, window, app| {
-                    let Some(workspace) = Workspaces::active(app) else {
+                    let Some(workspace) = Workspaces::for_panel(panel_id, app) else {
                         return;
                     };
                     workspace.update(app, |ws, cx| {
@@ -202,7 +206,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
             PopupMenuItem::new("Close Pane")
                 .disabled(close_pane_disabled)
                 .on_click(move |_ev, window, app| {
-                    let Some(workspace) = Workspaces::active(app) else {
+                    let Some(workspace) = Workspaces::for_panel(panel_id, app) else {
                         return;
                     };
                     workspace.update(app, |ws, cx| {
@@ -216,7 +220,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
             PopupMenuItem::new("Split Left")
                 .action(SplitPaneLeft.boxed_clone())
                 .on_click(move |_ev, window, app| {
-                    let Some(workspace) = Workspaces::active(app) else {
+                    let Some(workspace) = Workspaces::for_panel(panel_id, app) else {
                         return;
                     };
                     workspace.update(app, |ws, cx| {
@@ -228,7 +232,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
             PopupMenuItem::new("Split Right")
                 .action(SplitPaneRight.boxed_clone())
                 .on_click(move |_ev, window, app| {
-                    let Some(workspace) = Workspaces::active(app) else {
+                    let Some(workspace) = Workspaces::for_panel(panel_id, app) else {
                         return;
                     };
                     workspace.update(app, |ws, cx| {
@@ -240,7 +244,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
             PopupMenuItem::new("Split Top")
                 .action(SplitPaneTop.boxed_clone())
                 .on_click(move |_ev, window, app| {
-                    let Some(workspace) = Workspaces::active(app) else {
+                    let Some(workspace) = Workspaces::for_panel(panel_id, app) else {
                         return;
                     };
                     workspace.update(app, |ws, cx| {
@@ -252,7 +256,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
             PopupMenuItem::new("Split Bottom")
                 .action(SplitPaneBottom.boxed_clone())
                 .on_click(move |_ev, window, app| {
-                    let Some(workspace) = Workspaces::active(app) else {
+                    let Some(workspace) = Workspaces::for_panel(panel_id, app) else {
                         return;
                     };
                     workspace.update(app, |ws, cx| {
@@ -270,9 +274,14 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
                 let panel_id = ent.entity_id();
 
                 if let Some(existing) = PopOutManager::global(app).windows.get(&panel_id).copied() {
-                    let _ = existing.update(app, |_, window, _| window.activate_window());
+                    let _ = existing
+                        .handle
+                        .update(app, |_, window, _| window.activate_window());
                     return;
                 }
+                let Some(owner) = Workspaces::window_for_panel(panel_id, app) else {
+                    return;
+                };
 
                 let title_for_window = ent.update(app, |panel, cx| {
                     format!(
@@ -304,7 +313,7 @@ pub fn append_pop_out_to_panel_menu<T: Panel + PopOutWindowTitle + 'static>(
                 ) {
                     Ok((any, _)) => {
                         PopOutManager::update_global(app, |m, _| {
-                            m.windows.insert(panel_id, any);
+                            m.windows.insert(panel_id, PopOut { handle: any, owner });
                         });
                     }
                     Err(err) => log::warn!("pop-out window: {err:#}"),

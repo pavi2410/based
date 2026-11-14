@@ -251,7 +251,7 @@ where
         if let Ok(ctx) = refreshed {
             cx.update(|cx| {
                 cx.set_global(ctx);
-                if let Some(ws) = Workspaces::active(cx) {
+                for ws in Workspaces::all(cx) {
                     ws.update(cx, |_, cx| cx.notify());
                 }
             });

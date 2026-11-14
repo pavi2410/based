@@ -31,9 +31,16 @@ enum QuitMode {
     QuitApp,
 }
 
-/// Write the session synchronously before the window or app goes away.
-fn flush_session(cx: &mut App) {
-    if let Some(ws) = Workspaces::active(cx) {
+/// Write `window`'s session synchronously before it goes away.
+fn flush_window_session(window: &Window, cx: &mut App) {
+    if let Some(ws) = Workspaces::for_window(window, cx) {
+        ws.update(cx, |ws, cx| ws.flush_session(cx));
+    }
+}
+
+/// Write every window's session synchronously before the app quits.
+fn flush_all_sessions(cx: &mut App) {
+    for ws in Workspaces::all(cx) {
         ws.update(cx, |ws, cx| ws.flush_session(cx));
     }
 }
@@ -65,7 +72,7 @@ pub fn request_window_close(
     trace_connections(registry, cx, "request_window_close");
     if live_connection_count(registry, cx) == 0 {
         trace("request_window_close: no live connections, removing window");
-        flush_session(cx);
+        flush_window_session(window, cx);
         window.remove_window();
         return;
     }
@@ -74,7 +81,7 @@ pub fn request_window_close(
         return;
     }
     trace("request_window_close: opening alert dialog");
-    show_quit_dialog(registry.clone(), window, cx, QuitMode::CloseWindow);
+    show_quit_dialog(vec![registry.clone()], window, cx, QuitMode::CloseWindow);
 }
 
 /// GPUI `on_window_should_close` handler — return `true` to allow close, `false` to block.
@@ -126,7 +133,7 @@ pub fn show_queued_quit(
         trace("show_queued_quit: dialog already active; dropping the request");
         return true;
     }
-    show_quit_dialog(registry, window, cx, QuitMode::CloseWindow);
+    show_quit_dialog(vec![registry], window, cx, QuitMode::CloseWindow);
     true
 }
 
@@ -138,28 +145,33 @@ fn queue_close_confirm(workspace: &Entity<Workspace>, cx: &mut App) {
     });
 }
 
-/// Menu / ⌘Q quit — shows the same confirmation when connections are live.
+/// Menu / ⌘Q quit — saves every window's session, and confirms when any window
+/// has live connections.
 pub fn request_app_quit(cx: &mut App) {
     trace("request_app_quit");
-    let Some(ws) = Workspaces::active(cx) else {
-        trace("request_app_quit: no WorkspaceRef, calling cx.quit()");
-        cx.quit();
-        return;
-    };
-
-    let registry = ws.read(cx).registry().clone();
-    trace_connections(&registry, cx, "request_app_quit");
-    if live_connection_count(&registry, cx) == 0 {
+    let registries: Vec<Entity<ConnectionRegistry>> = Workspaces::all(cx)
+        .iter()
+        .map(|ws| ws.read(cx).registry().clone())
+        .collect();
+    let live: usize = registries
+        .iter()
+        .map(|r| live_connection_count(r, cx))
+        .sum();
+    if live == 0 {
         trace("request_app_quit: no live connections, quitting");
-        ws.update(cx, |ws, cx| ws.flush_session(cx));
+        flush_all_sessions(cx);
         cx.quit();
         return;
     }
 
-    let Some(handle) = cx.active_window() else {
-        trace("request_app_quit: no active window, disconnect_all + quit");
-        ws.update(cx, |ws, cx| ws.flush_session(cx));
-        disconnect_all(&registry, cx);
+    let handle = Workspaces::active_window(cx)
+        .and_then(|id| cx.windows().into_iter().find(|w| w.window_id() == id));
+    let Some(handle) = handle else {
+        trace("request_app_quit: no workspace window, disconnect_all + quit");
+        flush_all_sessions(cx);
+        for registry in &registries {
+            disconnect_all(registry, cx);
+        }
         cx.quit();
         return;
     };
@@ -170,27 +182,31 @@ pub fn request_app_quit(cx: &mut App) {
             return;
         }
         trace("request_app_quit: opening alert dialog");
-        show_quit_dialog(registry, window, cx, QuitMode::QuitApp);
+        show_quit_dialog(registries, window, cx, QuitMode::QuitApp);
     });
 }
 
+/// Confirm closing the window (`registries` is its own) or quitting (every
+/// window's), listing the connections that will be dropped.
 fn show_quit_dialog(
-    registry: Entity<ConnectionRegistry>,
+    registries: Vec<Entity<ConnectionRegistry>>,
     window: &mut Window,
     cx: &mut App,
     mode: QuitMode,
 ) {
-    let live = live_connections(&registry, cx);
+    let live: Vec<LiveConnection> = registries
+        .iter()
+        .flat_map(|r| live_connections(r, cx))
+        .collect();
     trace(&format!(
         "show_quit_dialog: mode={:?} live={} has_active_dialog={}",
         mode,
         live.len(),
         window.has_active_dialog(cx)
     ));
-    let registry_for_ok = registry.clone();
 
     window.open_alert_dialog(cx, move |alert, _window, cx| {
-        let registry = registry_for_ok.clone();
+        let registries = registries.clone();
         let theme = cx.theme();
         let quit_btn = Button::new("quit-confirm")
             .label("Quit")
@@ -213,8 +229,13 @@ fn show_quit_dialog(
             )
             .on_ok(move |_, window, cx| {
                 trace("show_quit_dialog: user confirmed quit");
-                flush_session(cx);
-                disconnect_all(&registry, cx);
+                match mode {
+                    QuitMode::CloseWindow => flush_window_session(window, cx),
+                    QuitMode::QuitApp => flush_all_sessions(cx),
+                }
+                for registry in &registries {
+                    disconnect_all(registry, cx);
+                }
                 match mode {
                     QuitMode::CloseWindow => window.remove_window(),
                     QuitMode::QuitApp => cx.quit(),

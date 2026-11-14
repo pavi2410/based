@@ -1,8 +1,6 @@
-//! Open a `.based/` project from the GUI — in-place switch or new process.
+//! Open a `.based/` project from the GUI — in this window or a new one.
 
-use std::env;
 use std::path::{Path, PathBuf};
-use std::process;
 
 use gpui_kit::component::{
     ActiveTheme, WindowExt,
@@ -13,7 +11,7 @@ use gpui_kit::{App, Entity, SharedString, Window, prelude::*};
 
 use crate::app::paths::AppPaths;
 use crate::app::prefs;
-use crate::app::quit;
+use crate::app::{launch, quit};
 use crate::connection::registry::ConnectionRegistry;
 use crate::connection::{live_connection_count, live_project_connection_count};
 use crate::project::ProjectState;
@@ -32,9 +30,9 @@ pub fn prompt_open_project_in_window(cx: &mut App) {
     spawn_pick_and_then(cx, ProjectOpenMode::InWindow);
 }
 
-/// After folder pick: spawn a new Based process with `BASED_PROJECT_DIR`.
+/// After folder pick: open the project in a new window.
 pub fn prompt_open_project_in_new_window(cx: &mut App) {
-    spawn_pick_and_then(cx, ProjectOpenMode::NewProcess);
+    spawn_pick_and_then(cx, ProjectOpenMode::NewWindow);
 }
 
 /// Unload the current `.based/` project in this window.
@@ -61,7 +59,7 @@ pub fn has_open_project(cx: &App) -> bool {
 #[derive(Clone, Copy)]
 enum ProjectOpenMode {
     InWindow,
-    NewProcess,
+    NewWindow,
 }
 
 fn spawn_pick_and_then(cx: &mut App, mode: ProjectOpenMode) {
@@ -81,7 +79,7 @@ fn spawn_pick_and_then(cx: &mut App, mode: ProjectOpenMode) {
             };
             match mode {
                 ProjectOpenMode::InWindow => request_open_project_in_window(root, cx),
-                ProjectOpenMode::NewProcess => open_project_in_new_process(root, cx),
+                ProjectOpenMode::NewWindow => open_project_in_new_window(root, cx),
             }
         });
     })
@@ -94,6 +92,11 @@ pub fn request_open_project_in_window(root: PathBuf, cx: &mut App) {
         return;
     };
     if is_same_project(&root, cx) {
+        return;
+    }
+    // One window per project: switch to the window that has it.
+    if let Some(window) = Workspaces::window_with_project(&root, cx) {
+        launch::activate_window(window, cx);
         return;
     }
     if switch_needs_confirm(&ws, cx) {
@@ -111,31 +114,16 @@ pub fn request_open_project_in_window(root: PathBuf, cx: &mut App) {
     });
 }
 
-pub fn open_project_in_new_process(root: PathBuf, cx: &mut App) {
+/// Show `root` in a window of its own (this process), or focus the window that
+/// already has it.
+pub fn open_project_in_new_window(root: PathBuf, cx: &mut App) {
     prefs::record_opened_project(root.clone(), cx);
-    let exe = match env::current_exe() {
-        Ok(p) => p,
-        Err(e) => {
-            notify::push_error(
-                cx,
-                "Open Project",
-                format!("Could not locate app binary: {e:#}"),
-            );
-            return;
-        }
-    };
-    match process::Command::new(exe)
-        .env("BASED_PROJECT_DIR", &root)
-        .spawn()
-    {
-        Ok(_) => {}
-        Err(e) => {
-            notify::push_error(
-                cx,
-                "Open Project",
-                format!("Could not open new window: {e:#}"),
-            );
-        }
+    if let Err(e) = launch::open_project_window(root, cx) {
+        notify::push_error(
+            cx,
+            "Open Project",
+            format!("Could not open a window: {e:#}"),
+        );
     }
 }
 

@@ -47,11 +47,8 @@ pub fn run() {
             }
             app::updater::init(cx);
 
-            cx.on_window_closed(|cx, id| {
-                PopOutManager::on_any_window_closed(cx, id);
-                app::aux_windows::AuxWindows::on_window_closed(id, cx);
-            })
-            .detach();
+            cx.on_window_closed(|cx, id| app::launch::on_window_closed(id, cx))
+                .detach();
 
             app::launch::spawn_initial_window(cx);
         });
